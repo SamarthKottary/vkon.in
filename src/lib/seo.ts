@@ -8,16 +8,23 @@ export function pageMetadata({
   description,
   path = "/",
   images,
+  /**
+   * Bypass the root layout's `%s | Vkon` template. Set this when the title
+   * already carries the brand — otherwise it renders twice, as the live home
+   * page did: "Vkon — Motor Starters ... | Vkon".
+   */
+  absoluteTitle = false,
 }: {
   title: string;
   description: string;
   path?: string;
   images?: string[];
+  absoluteTitle?: boolean;
 }): Metadata {
   const url = `${site.url}${path}`;
 
   return {
-    title,
+    title: absoluteTitle ? { absolute: title } : title,
     description,
     alternates: { canonical: url },
     openGraph: {

@@ -16,6 +16,7 @@ export const metadata = pageMetadata({
   title: `${site.name} — Motor Starters & Control Panels for Agriculture`,
   description: site.description,
   path: "/",
+  absoluteTitle: true,
 });
 
 /**
