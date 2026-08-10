@@ -56,6 +56,31 @@ services:
       retries: 5
       start_period: 10s
 
+  # ------------------------------------------------------------------------
+  # Cloudflare Tunnel — the client's own Cloudflare account.
+  #
+  # Run as a container, NOT via `cloudflared service install`. On this host the
+  # systemd unit `cloudflared.service` already belongs to the PTZ device-01
+  # tunnel; `service install` would overwrite it and take PTZ offline. A
+  # container is also how the nivixsa-cicd stack does it, and it tears down
+  # cleanly with the rest of this project.
+  #
+  # The tunnel dials OUT to Cloudflare, so the server needs no inbound ports,
+  # no public IP and no firewall change. Ownership follows whoever issued the
+  # token — so the client's account owns vkon.in end to end while your personal
+  # account keeps its own tunnels untouched.
+  #
+  # Only starts when COMPOSE_PROFILES=tunnel is set in .env (i.e. on the
+  # server). Local development runs without it.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: vkon-cloudflared
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    depends_on:
+      - app
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:-}
+
 volumes:
   vkon-uploads:
   vkon-pgdata:

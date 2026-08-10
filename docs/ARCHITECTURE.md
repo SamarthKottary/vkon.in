@@ -396,6 +396,19 @@ Self-hosted. Two containers defined in `docker-compose.yml`:
 |---|---|---|
 | `app` | Next.js standalone on port 3000 | bound to `127.0.0.1:${APP_PORT}` only |
 | `db` | Postgres 16 | **no host port** — reachable only from `app` |
+| `cloudflared` | Cloudflare Tunnel connector, profile `tunnel` | outbound only |
+
+The tunnel runs as a **container, never via `cloudflared service install`**: on
+the deploy host that systemd unit already belongs to another tunnel and would
+be overwritten. The connector reaches the app as `app:3000` on the compose
+network, so the server needs no inbound port, no public IP and no firewall
+change. It starts only when `COMPOSE_PROFILES=tunnel` is set in `.env`, which
+keeps local development tunnel-free.
+
+The tunnel and the domain live in **the client's own Cloudflare account**, not
+the operator's — a token is scoped to the account that issued it, so one host
+can serve several accounts' tunnels side by side, and handover is just handing
+over the account.
 
 Two named volumes carry everything that must outlive a deploy:
 `vkon-pgdata` (the database) and `vkon-uploads` (admin-uploaded images). The

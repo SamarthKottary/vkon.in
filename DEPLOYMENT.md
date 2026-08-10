@@ -20,19 +20,26 @@ Have these to hand:
 - [ ] The domain `vkon.in` in a Cloudflare account
 - [ ] The deploy console URL and login
 
-Generate the four secrets now and paste them somewhere safe — you will need
-them in Step 4:
+### Where the secrets come from
 
-```bash
-openssl rand -hex 24     # POSTGRES_PASSWORD
-openssl rand -hex 32     # AUTH_SECRET
-openssl rand -hex 32     # webhook secret
-# and pick a strong ADMIN_PASSWORD
-```
+Nowhere — **you generate them.** They are not issued by a service and there is
+nothing to sign up for. `AUTH_SECRET` and `POSTGRES_PASSWORD` are just long
+random strings this deployment invents for itself:
+
+| Secret | What it is | How to get it |
+|---|---|---|
+| `POSTGRES_PASSWORD` | password for the database container this stack starts | `openssl rand -hex 24` |
+| `AUTH_SECRET` | signs the admin session cookie | `openssl rand -hex 32` |
+| `ADMIN_PASSWORD` | what you type at `/admin` — you choose it | pick a strong one, or generate it |
+| `webhook_secret` | shared with GitHub so the console trusts the push | `openssl rand -hex 32` |
+| `TUNNEL_TOKEN` | issued by Cloudflare in Step 7 | copy from the dashboard |
+
+Step 4 generates the first three straight into `.env` on the server, so they
+never pass through your clipboard or a chat window.
 
 > **Never use a value containing `$`.** Docker Compose interpolates it and
-> silently mangles the value — the trap in `docs/Hosting.md` §7.1. Hex output
-> from the commands above is always safe.
+> silently mangles it — the trap in `docs/Hosting.md` §7.1. Hex output is
+> always safe.
 
 ---
 
@@ -99,27 +106,44 @@ If it is taken, choose another and use it consistently in Steps 4, 5 and 6.
 
 ## Step 4 — Provision secrets
 
+Generate them directly into `.env` on the server:
+
 ```bash
 cd ~/project2/vkon.in
 cp .env.example .env
-nano .env
 chmod 600 .env
+
+# Fills in the two random secrets in place.
+sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|" .env
+sed -i "s|^AUTH_SECRET=.*|AUTH_SECRET=$(openssl rand -hex 32)|" .env
 ```
 
-Fill in:
+Then set the two you choose yourself:
+
+```bash
+nano .env
+```
 
 ```ini
-POSTGRES_PASSWORD=<openssl rand -hex 24>
-ADMIN_PASSWORD=<your strong password, no $>
-AUTH_SECRET=<openssl rand -hex 32>
+ADMIN_PASSWORD=<the password you will type at /admin — no $ character>
 APP_PORT=8120
 SITE_URL=https://vkon.in
+TUNNEL_TOKEN=                 # filled in at Step 7
+COMPOSE_PROFILES=tunnel       # leave as-is; this starts the tunnel container
+```
+
+Check it looks right (this prints the secrets — do it only in your own
+terminal):
+
+```bash
+grep -vE '^\s*#|^\s*$' .env
 ```
 
 `.env` is gitignored and lives only on the server. Every future deploy reuses
 it — the agent only fast-forwards, it never wipes the working directory.
 
----
+To change the admin password later: edit `.env`, then
+`docker compose up -d --force-recreate app`.
 
 ## Step 5 — Create the deploy contract
 
@@ -193,14 +217,31 @@ and `docker compose logs db` have the detail.
 
 ---
 
-## Step 7 — Cloudflare Tunnel
+## Step 7 — Cloudflare Tunnel, in the client's own account
 
-This is what puts it on the internet. **Do not touch the existing tunnels** —
-`docs/Hosting.md` §2 lists three that must be left alone.
+**Do this in the client's Cloudflare account, not yours.** The tunnel, the DNS
+and the domain then all belong to them: a clean handover later, nothing of
+yours entangled, and your personal account's tunnels stay untouched. The deploy
+console stays on your account — that is your tooling, not theirs.
 
-1. Cloudflare dashboard → **Zero Trust → Networks → Tunnels → Create a tunnel**
+A connector authenticates with a *tunnel token* issued by whichever account
+owns the tunnel. Nothing requires one machine's tunnels to share an account,
+so this box can run your tunnels and the client's side by side.
+
+### 7.1 — Add the domain to the client's account
+
+1. Sign in to Cloudflare as the client (their new mail id)
+2. **Add a site** → `vkon.in` → Free plan
+3. Cloudflare gives you two nameservers. At the registrar where you bought
+   `vkon.in`, replace the existing nameservers with those two.
+4. Wait for the zone to show **Active** — usually well under an hour.
+
+### 7.2 — Create the tunnel
+
+1. **Zero Trust → Networks → Tunnels → Create a tunnel**
 2. Choose **Cloudflared**, name it `vkon`, **Save**
-3. Copy the token — the long string after `--token` in the install command
+3. On the install screen, copy **only the token** — the long string after
+   `--token`. **Ignore the rest of that command.** See the warning below.
 4. **Public Hostname** tab → **Add a public hostname**:
 
    | Field | Value |
@@ -209,41 +250,58 @@ This is what puts it on the internet. **Do not touch the existing tunnels** —
    | Domain | `vkon.in` |
    | Path | *(leave empty)* |
    | Type | `HTTP` |
-   | URL | `127.0.0.1:8120` |
+   | URL | `app:3000` |
 
-5. Add a second hostname for `www`: Subdomain `www`, same Type and URL.
+5. Add a second hostname: Subdomain `www`, same Type and URL.
+
+`app:3000` is the container name on this project's Docker network — the
+connector runs beside the app and reaches it directly, which is why the server
+needs no inbound port, no public IP and no firewall change.
 
 Cloudflare creates the DNS records itself — **do not add them by hand.**
 
-Then run the connector on the server:
+> ### ⚠️ Do not run `cloudflared service install`
+>
+> Cloudflare's install screen tells you to. **On this host it would take PTZ
+> offline.** The systemd unit `cloudflared.service` already belongs to the PTZ
+> `device-01` tunnel (`docs/Hosting.md` §2, marked off limits), and
+> `service install` overwrites it.
+>
+> This project runs its connector as a **container** instead — the same pattern
+> as your `nivixsa-cicd` stack. You only need the token.
+
+### 7.3 — Give the token to the stack
 
 ```bash
-sudo cloudflared service install <PASTE_TOKEN>
-sudo systemctl status cloudflared
+cd ~/project2/vkon.in
+nano .env      # paste into TUNNEL_TOKEN=
 ```
 
-> If `cloudflared` is already installed for another tunnel, do **not** re-run
-> `service install` — it would replace the existing connector. Instead run this
-> tunnel as a second, separately-named service, or add it to that tunnel's
-> config file. Getting this wrong takes down the PTZ tunnel.
+Confirm `COMPOSE_PROFILES=tunnel` is also present — that is what starts the
+connector. Then:
 
----
+```bash
+docker compose up -d
+docker compose logs -f cloudflared     # look for "Registered tunnel connection"
+```
+
+Verify the connector shows **Healthy** on the Tunnels page in the client's
+dashboard.
 
 ## Step 8 — Domain settings
 
 For `vkon.in` in the Cloudflare dashboard:
 
+In the **client's** Cloudflare account, for `vkon.in`:
+
 1. **DNS** — confirm two records exist, both **Proxied** (orange cloud):
    `vkon.in` and `www.vkon.in`, created by the tunnel in Step 7.
-2. If the domain is not on Cloudflare yet: add the site, then change the
-   nameservers at your registrar to the two Cloudflare gives you. Propagation
-   is usually under an hour, occasionally up to 24.
-3. **SSL/TLS → Overview** → set the mode to **Full**.
+2. **SSL/TLS → Overview** → set the mode to **Full**.
    *Not* Flexible: that leaves Cloudflare→server traffic unencrypted. Not
    Full (strict) either, since the tunnel terminates TLS at Cloudflare and the
    origin is plain HTTP on loopback.
-4. **SSL/TLS → Edge Certificates** → turn **Always Use HTTPS** on.
-5. **Rules → Redirect Rules** → add `www.vkon.in/*` → `https://vkon.in/$1`,
+3. **SSL/TLS → Edge Certificates** → turn **Always Use HTTPS** on.
+4. **Rules → Redirect Rules** → add `www.vkon.in/*` → `https://vkon.in/$1`,
    301, so you have one canonical hostname.
 
 Verify:
@@ -325,6 +383,7 @@ cd ~/project2/vkon.in
 
 docker compose ps
 docker compose logs -f app
+docker compose logs -f cloudflared
 curl -s http://127.0.0.1:8120/api/health
 
 bash cicd/deploy.sh          # manual build + restart
@@ -360,7 +419,9 @@ docker run --rm -v vkonin_vkon-uploads:/src -v ~/backups:/dst alpine \
 | Site loads, catalogue always empty | The database is unreachable and reads are failing soft. Check `/api/health` — it will say so |
 | Admin login always fails | `ADMIN_PASSWORD` or `AUTH_SECRET` empty or contains `$`. Regenerate with `openssl rand -hex 32`, then `docker compose up -d --force-recreate app` |
 | Uploads vanish after deploy | The `vkon-uploads` volume is not mounted — check `docker compose config` |
-| `vkon.in` shows Cloudflare error 1033 | The tunnel has no connector: `sudo systemctl status cloudflared` |
+| `vkon.in` shows Cloudflare error 1033 | The connector is not running: `docker compose logs cloudflared`. If `TUNNEL_TOKEN` or `COMPOSE_PROFILES=tunnel` is missing from `.env`, the container never starts |
+| Tunnel container restarts in a loop | Bad or truncated `TUNNEL_TOKEN` — recopy it from the client's dashboard |
+| PTZ went offline after tunnel setup | `cloudflared service install` was run and overwrote the PTZ systemd unit. Restore it, and use the container instead — Step 7.2 |
 | `vkon.in` shows error 502 | The tunnel is up but the app is not. `docker compose ps`, then the logs |
 | Console says "up to date" but the site is stale | Use **Force rebuild**. `deploy` skips the build when git is already in sync |
 | Deploy fails at `merge` | Something was committed in the deploy directory, or a local edit conflicts. Fix by hand; the agent never force-resets |
