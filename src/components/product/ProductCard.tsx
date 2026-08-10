@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRightIcon } from "@/components/icons/ui";
+import { ArrowRightIcon, PlayIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "./PanelPlaceholder";
 import { categoryLabel } from "@/content/taxonomy";
 import type { Product } from "@/lib/types";
@@ -15,14 +15,18 @@ import type { Product } from "@/lib/types";
 export function ProductCard({
   product,
   priority = false,
+  headingLevel = "h3",
 }: {
   product: Product;
   priority?: boolean;
+  /** Set by the caller so the document keeps a single unbroken heading order. */
+  headingLevel?: "h3" | "h4";
 }) {
   const image = product.images[0];
+  const Heading = headingLevel;
 
   return (
-    <article className="group relative flex flex-col border border-line bg-surface transition-colors duration-150 hover:border-ink">
+    <article className="group relative flex h-full flex-col border border-line bg-surface transition-colors duration-150 hover:border-ink">
       <div className="relative aspect-[4/3] overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image
@@ -31,7 +35,7 @@ export function ProductCard({
             fill
             sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 92vw"
             priority={priority}
-            className="object-contain p-6"
+            className="object-contain p-6 transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -40,8 +44,12 @@ export function ProductCard({
         )}
 
         {product.videoUrl && (
-          <span className="label-tech absolute left-0 top-0 bg-action px-2 py-1 text-action-ink">
-            Video
+          <span
+            className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center bg-action text-action-ink"
+            title="Includes a video"
+          >
+            <PlayIcon className="h-3.5 w-3.5" />
+            <span className="sr-only">Includes a video</span>
           </span>
         )}
       </div>
@@ -51,12 +59,12 @@ export function ProductCard({
           {categoryLabel(product.category)}
         </p>
 
-        <h3 className="mt-2.5 text-lg leading-snug">
+        <Heading className="mt-2.5 text-lg leading-snug">
           {/* Stretched link — whole card is the target, one tab stop. */}
           <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
             {product.name}
           </Link>
-        </h3>
+        </Heading>
 
         {product.tagline && (
           <p className="mt-2 text-sm leading-relaxed text-muted">{product.tagline}</p>

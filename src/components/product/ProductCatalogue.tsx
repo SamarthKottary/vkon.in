@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
-import { ProductCard } from "@/components/product/ProductCard";
+import { CategoryRow } from "@/components/product/CategoryRow";
 import { categories } from "@/content/taxonomy";
 import type { Product } from "@/lib/types";
 
@@ -44,6 +44,21 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
     [products, category, hp],
   );
 
+  /* Rendered as one horizontal row per category rather than a single grid, so
+     the range reads as a set of families instead of an undifferentiated wall.
+     Categories with nothing in them after filtering are dropped, not shown
+     empty. */
+  const groups = useMemo(
+    () =>
+      categories
+        .map((c) => ({
+          category: c,
+          items: filtered.filter((p) => p.category === c.key),
+        }))
+        .filter((g) => g.items.length > 0),
+    [filtered],
+  );
+
   function setFilter(key: "category" | "hp", value: string) {
     const next = new URLSearchParams(params.toString());
     if (value === "all") next.delete(key);
@@ -54,10 +69,8 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
 
   return (
     <div>
-      {/* The page h1 is in the masthead and the cards are h3, so without this
-          the heading order jumps a level. Visually redundant, structurally not. */}
-      <h2 className="sr-only">Product catalogue</h2>
-
+      {/* Each CategoryRow supplies its own h2, so the heading order runs
+          h1 (masthead) → h2 (category) → h3 (product) without a gap. */}
       <div className="border-y border-line">
         <FilterRow
           label="Category"
@@ -88,10 +101,17 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
           : `${filtered.length} of ${products.length} products`}
       </p>
 
-      {filtered.length > 0 ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((product, index) => (
-            <ProductCard key={product.id} product={product} priority={index < 3} />
+      {groups.length > 0 ? (
+        <div className="flex flex-col gap-14">
+          {groups.map((group, index) => (
+            <CategoryRow
+              key={group.category.key}
+              category={group.category}
+              products={group.items}
+              lead="heading"
+              headingLevel="h2"
+              priority={index === 0}
+            />
           ))}
         </div>
       ) : (

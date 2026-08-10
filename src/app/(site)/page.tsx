@@ -3,12 +3,12 @@ import { ContactStrip } from "@/components/home/ContactStrip";
 import { Hero } from "@/components/home/Hero";
 import { ProtectionIcon, protectionMeta } from "@/components/icons/protections";
 import { ArrowRightIcon } from "@/components/icons/ui";
-import { ProductCard } from "@/components/product/ProductCard";
+import { CategoryRow } from "@/components/product/CategoryRow";
 import { Container } from "@/components/ui/Container";
 import { Section, SectionHeading } from "@/components/ui/Section";
 import { categories } from "@/content/taxonomy";
 import { site } from "@/content/site";
-import { listFeaturedProducts, listProducts } from "@/lib/db/products";
+import { listProducts } from "@/lib/db/products";
 import { pageMetadata } from "@/lib/seo";
 import type { ProtectionKey } from "@/lib/types";
 
@@ -41,19 +41,25 @@ const HEADLINE_PROTECTIONS: ProtectionKey[] = [
 ];
 
 export default async function HomePage() {
-  const [featured, all] = await Promise.all([
-    listFeaturedProducts(3),
-    listProducts(),
-  ]);
+  const all = await listProducts();
 
-  // Fall back to the newest products so the home page is never empty just
-  // because nothing has been flagged as featured yet.
-  const shown = featured.length > 0 ? featured : all.slice(0, 3);
+  /* One row per category: an intro panel, then that category's products running
+     off to the right. Categories with nothing in them are omitted rather than
+     rendered as a lone intro card with no products beside it — the same reason
+     the old category grid became a list. They still appear as filters on
+     /products.
 
-  const counts = new Map<string, number>();
-  for (const product of all) {
-    counts.set(product.category, (counts.get(product.category) ?? 0) + 1);
-  }
+     Within a row, products flagged Featured in the admin come first; that flag
+     is what the ordering is for now that the home page shows the whole range
+     instead of a hand-picked three. */
+  const groups = categories
+    .map((category) => ({
+      category,
+      items: all
+        .filter((p) => p.category === category.key)
+        .sort((a, b) => Number(b.featured) - Number(a.featured)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <>
@@ -66,33 +72,29 @@ export default async function HomePage() {
           description="From a single-phase openwell set to a 100 HP star-delta installation, with the cable and mobile control that go alongside."
         />
 
-        {/* A ruled directory rather than a card grid: it stays square with any
-            number of categories, where a 3-column grid leaves visible empty
-            cells whenever the count is not a multiple of three. */}
-        <ul className="mt-10 border-t border-line">
-          {categories.map((category) => {
-            const count = counts.get(category.key) ?? 0;
-            return (
-              <li key={category.key} className="border-b border-line">
-                <Link
-                  href={`/products?category=${category.key}`}
-                  className="group grid gap-x-8 gap-y-2 py-6 transition-colors hover:bg-surface-subtle sm:grid-cols-[minmax(0,15rem)_1fr_auto] sm:items-baseline"
-                >
-                  <h3 className="text-lg leading-snug">{category.label}</h3>
-                  <p className="max-w-xl text-sm leading-relaxed text-muted">
-                    {category.description}
-                  </p>
-                  <span className="label-tech flex items-center gap-3 text-muted sm:justify-end">
-                    {count > 0
-                      ? `${count} product${count === 1 ? "" : "s"}`
-                      : "Coming soon"}
-                    <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-1 group-hover:text-accent" />
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        {groups.length > 0 ? (
+          <div className="mt-12 flex flex-col gap-14">
+            {groups.map((group, index) => (
+              <CategoryRow
+                key={group.category.key}
+                category={group.category}
+                products={group.items}
+                lead="card"
+                headingLevel="h3"
+                priority={index === 0}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-10 border-t border-line pt-6 text-muted">
+            The catalogue is being photographed. Call us for the full range.
+          </p>
+        )}
+
+        <Link href="/products" className="link-cta mt-14">
+          All products
+          <ArrowRightIcon className="h-4 w-4" />
+        </Link>
       </Section>
 
       <section className="bg-band py-16 sm:py-20 lg:py-24">
@@ -129,24 +131,6 @@ export default async function HomePage() {
           </div>
         </Container>
       </section>
-
-      {shown.length > 0 && (
-        <Section size="wide" bordered={false}>
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <SectionHeading eyebrow="Catalogue" title="Selected products" />
-            <Link href="/products" className="link-cta">
-              All products
-              <ArrowRightIcon className="h-4 w-4" />
-            </Link>
-          </div>
-
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {shown.map((product, index) => (
-              <ProductCard key={product.id} product={product} priority={index === 0} />
-            ))}
-          </div>
-        </Section>
-      )}
 
       <ContactStrip />
     </>

@@ -75,29 +75,36 @@ export function Header() {
       <header className="sticky top-0 z-50 border-b border-line bg-surface">
         <Container size="wide">
           <div className="flex h-16 items-center justify-between gap-6">
-            <Link href="/" className="shrink-0">
-              <Logo />
-            </Link>
+            {/* Logo and nav travel together on the left, so the primary links
+                sit next to the brand rather than floating mid-header. The
+                right-hand group is pushed over by justify-between on the
+                parent — exactly one of the two right-hand groups is ever
+                displayed, so it always resolves to a clean two-column bar. */}
+            <div className="flex items-center gap-1">
+              <Link href="/" className="shrink-0">
+                <Logo />
+              </Link>
 
-            <nav aria-label="Primary" className="hidden md:block">
-              <ul className="flex items-center">
-                {primaryNav.map((link) => (
-                  <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      aria-current={isActive(link.href) ? "page" : undefined}
-                      className={`relative flex h-16 items-center px-5 text-sm font-medium transition-colors ${
-                        isActive(link.href)
-                          ? "text-ink after:absolute after:inset-x-4 after:bottom-0 after:h-[2px] after:bg-accent"
-                          : "text-muted hover:text-ink"
-                      }`}
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </nav>
+              <nav aria-label="Primary" className="hidden md:ml-6 md:block">
+                <ul className="flex items-center">
+                  {primaryNav.map((link) => (
+                    <li key={link.href}>
+                      <Link
+                        href={link.href}
+                        aria-current={isActive(link.href) ? "page" : undefined}
+                        className={`relative flex h-16 items-center px-4 text-sm font-medium transition-colors ${
+                          isActive(link.href)
+                            ? "text-ink after:absolute after:inset-x-4 after:bottom-0 after:h-[2px] after:bg-accent"
+                            : "text-muted hover:text-ink"
+                        }`}
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            </div>
 
             <div className="hidden items-center gap-5 md:flex">
               <a

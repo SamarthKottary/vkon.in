@@ -257,6 +257,35 @@
     color: var(--color-band-accent);
     border-color: var(--color-band-accent);
   }
+
+  /* Horizontal card track, used by CategoryRow on the home page and the
+     catalogue. The scrollbar is hidden because the affordance is the partially
+     visible card at the right edge; a native bar under a row of cards reads as
+     a rendering fault on desktop. Hiding it costs nothing for access — the
+     cards are links, so tabbing scrolls them into view. */
+  .hscroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    /* Snap stops land the card clear of the container's left padding. */
+    scroll-padding-left: 1.25rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .hscroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (min-width: 640px) {
+    .hscroll {
+      scroll-padding-left: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .hscroll {
+      scroll-padding-left: 2rem;
+    }
+  }
 }
 
 @layer utilities {

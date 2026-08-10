@@ -64,9 +64,15 @@ export function Hero() {
               that starts the second row on mobile. */}
           <dl className="grid grid-cols-2 sm:grid-cols-4">
             {[
-              { value: "0.5–100", unit: "HP", label: "Motor range covered" },
+              /* 1–40 HP is the range stated in the company's own product
+                 portfolio. It previously read 0.5–100, which was a placeholder
+                 written before that document existed. */
+              { value: "1–40", unit: "HP", label: "Motor range covered" },
               { value: "12", unit: "", label: "Protections built in" },
               { value: "3", unit: "phase", label: "Live amps & voltage" },
+              /* TODO(vkon): unverified. This band came from a competitor's
+                 poster during the first build and has never been confirmed
+                 against a Vkon panel. Check it or remove the stat. */
               { value: "280–440", unit: "V", label: "Input supply band" },
             ].map((stat, index) => (
               <div

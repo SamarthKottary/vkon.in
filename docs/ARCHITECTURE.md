@@ -132,8 +132,9 @@ src/
   components/
     layout/    Header (client), Footer, MobileActionBar, PageHero
     home/      Hero, ContactStrip
-    product/   ProductCard, ProductMedia (client), ProductCatalogue (client),
-               SpecTable, ProtectionList, PanelPlaceholder
+    product/   ProductCard, CategoryRow, ProductMedia (client),
+               ProductCatalogue (client), SpecTable, ProtectionList,
+               PanelPlaceholder
     icons/     protections.tsx (12-icon set), ui.tsx, Logo.tsx
     theme/     ThemeScript (pre-paint, inline), ThemeToggle (client)
     ui/        Button, Container, Section, Badge, JsonLd
@@ -477,6 +478,54 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-10 — Category rows, and content from the business plan
+
+**Catalogue layout.** Both the home page and `/products` now present products as
+one horizontal row per category rather than a single grid. `product/CategoryRow`
+is the shared piece; it is a **server component** — the track is native
+`overflow-x` with CSS scroll snap (`.hscroll` in globals.css), not a scripted
+carousel. Two reasons: the site targets low-end Android, where native scrolling
+beats anything scripted; and a carousel would have been the first client
+component in the public tree.
+
+The affordance for "this scrolls" is the partially visible card at the right
+edge, so card widths (`17rem` / `19rem` at `sm`) are load-bearing — widen them
+far enough that a row exactly fills the container and the row stops looking
+scrollable. The scrollbar is hidden; keyboard access does not depend on it,
+because cards are links and focusing one scrolls it into view.
+
+`lead="card"` puts a category intro panel in the first cell (home);
+`lead="heading"` puts a plain heading above the track (catalogue, where the
+filter row already frames the page).
+
+**Empty categories are dropped, not rendered.** Same rule as the old category
+grid: a row containing only an intro card and no products reads as broken. The
+categories still appear as filters on `/products`.
+
+**Heading levels are now a prop.** `ProductCard` takes `headingLevel`, because
+the card sits under an `h2` on the catalogue and under an `h3` on the home page.
+Without it the document skipped a level on one page or the other. This replaced
+the visually-hidden `h2` that `/products` used to carry.
+
+**Home page lost its "Selected products" section** — the category rows above it
+showed the same cards. `featured` now orders products within their row instead
+of selecting three for a separate grid, so the admin checkbox still does
+something.
+
+**Header** — primary nav moved to sit beside the logo on the left.
+
+**Product card** — image zooms on hover at `md` and up. Note that Tailwind v4
+compiles `scale-*` to the standalone `scale` property, not `transform`; the
+global `prefers-reduced-motion` rule still flattens it. The "Video" text badge
+became a play glyph.
+
+**Fixed:** the hero claimed a `0.5–100 HP` range. The company's own product
+portfolio says 1–40 HP, so the stat was wrong on a live site. The `280–440 V`
+band beside it came from a competitor's poster during the first build and is
+now marked `TODO(vkon)` as unverified.
+
+---
 
 ### 2026-08-10 — Self-hosting and CI/CD
 
