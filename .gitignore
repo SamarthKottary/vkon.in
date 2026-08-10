@@ -63,3 +63,6 @@ docs/Poster.pdf
 # record set — infrastructure detail that has no business in a public repo.
 *.txt
 !requirements.txt
+
+# Source logo artwork. The processed transparent PNGs in public/brand ship.
+vkon_logo.jpeg

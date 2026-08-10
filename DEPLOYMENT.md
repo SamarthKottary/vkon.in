@@ -400,6 +400,37 @@ docker compose exec -T db pg_dump -U vkon vkon | gzip > ~/backups/vkon-$(date +%
 
 Worth a nightly cron, with the output going somewhere off this machine.
 
+### Rotating the database password
+
+`POSTGRES_PASSWORD` is applied only when the data volume is first created.
+Editing `.env` afterwards changes what the app sends but not what the database
+expects, and every query starts failing. Change it inside the database as well:
+
+```bash
+cd ~/project2/vkon.in
+# 1. change it in the running database
+docker compose exec -T db psql -U vkon -d vkon \
+  -c "ALTER USER vkon WITH PASSWORD 'NEW_PASSWORD_HERE';"
+# 2. then match it in .env
+sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=NEW_PASSWORD_HERE|" .env
+docker compose up -d --force-recreate app
+curl -s http://127.0.0.1:8120/api/health
+```
+
+`docker compose down -v` also resets it — but `-v` **destroys the volumes**,
+losing every product and uploaded image. Only do that on a throwaway install.
+
+### Seeding a demo product
+
+To put something on the site before real products exist:
+
+```bash
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U vkon -d vkon < scripts/seed-demo.sql
+```
+
+Clearly labelled placeholder content; delete it from `/admin` when you have a
+real product. Re-running updates the same row rather than duplicating it.
+
 Uploaded images live in the `vkon-uploads` volume:
 
 ```bash
@@ -416,6 +447,7 @@ docker run --rm -v vkonin_vkon-uploads:/src -v ~/backups:/dst alpine \
 | `deploy.sh`: "`.env` is missing" | Step 4 |
 | Build fails on `npm ci` | `package-lock.json` out of sync — commit it |
 | `verify.sh`: "database unhealthy" | `docker compose logs db`. If it says *does not support SSL*, set `DATABASE_SSL=disable` in `.env` |
+| `password authentication failed for user "vkon"` | You changed `POSTGRES_PASSWORD` after the first deploy. Postgres only reads it when initialising an empty data directory, so the database still has the old one. Either put the old value back, or rotate it properly — see below |
 | Site loads, catalogue always empty | The database is unreachable and reads are failing soft. Check `/api/health` — it will say so |
 | Admin login always fails | `ADMIN_PASSWORD` or `AUTH_SECRET` empty or contains `$`. Regenerate with `openssl rand -hex 32`, then `docker compose up -d --force-recreate app` |
 | Uploads vanish after deploy | The `vkon-uploads` volume is not mounted — check `docker compose config` |

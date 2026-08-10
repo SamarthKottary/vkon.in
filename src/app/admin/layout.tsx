@@ -31,7 +31,7 @@ export default async function AdminLayout({
                 <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
                   Vkon
                 </span>
-                <span className="label-tech text-muted">Admin</span>
+                <span className="label-tech text-muted">Automation · Admin</span>
               </Link>
 
               {authed && (

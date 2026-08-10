@@ -19,7 +19,11 @@ export function Hero() {
 
       <Container size="wide" className="relative">
         <div className="max-w-4xl py-20 sm:py-28 lg:py-36">
-          <p className="label-tech text-band-accent">Since 1999 · Made in India</p>
+          {/* TODO(vkon): add "Since <year>" here once the real founding year is
+              confirmed. It previously read 1999, which was the competitor's
+              founding year taken off their poster — false, and too close to
+              their brand claim. */}
+          <p className="label-tech text-band-accent">Made in India</p>
 
           <h1 className="mt-6 text-[2.5rem] leading-[1.05] text-band-ink sm:text-6xl lg:text-7xl">
             Protection between

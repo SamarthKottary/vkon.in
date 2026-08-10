@@ -12,7 +12,7 @@
 
 export const site = {
   name: "Vkon",
-  legalName: "Vkon Control Panels", // TODO(vkon): confirm registered name
+  legalName: "Vkon Automation",
   domain: "vkon.in",
   /**
    * Public origin. Overridable so a staging deploy does not emit canonical
@@ -23,17 +23,16 @@ export const site = {
   description:
     "Vkon builds electronic motor starters and control panels for agricultural pumps — dry run, phase reversal, high and low voltage protection built in, with mobile control available across the range.",
 
-  // TODO(vkon): replace with the real published number.
   phone: {
-    display: "+91 00000 00000",
+    display: "+91 82170 86719",
     /** E.164, used for tel: links. */
-    href: "+910000000000",
+    href: "+918217086719",
   },
 
-  // TODO(vkon): replace. Digits only, country code first, no + or spaces.
-  whatsapp: "910000000000",
+  /** Digits only, country code first, no + or spaces. */
+  whatsapp: "918217086719",
 
-  email: "info@vkon.in", // TODO(vkon): confirm
+  email: "vkonautomation@gmail.com",
 
   address: {
     // TODO(vkon): replace with the real address.

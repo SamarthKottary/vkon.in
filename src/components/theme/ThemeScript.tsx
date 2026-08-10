@@ -6,15 +6,19 @@
  * server does not know the visitor's preference and any client effect runs
  * after the first paint.
  *
- * Order of preference: an explicit choice in localStorage, else the operating
- * system setting. The value is always written to the attribute (never left
- * implicit) so the CSS needs a single selector rather than juggling a media
- * query and an attribute.
+ * Order of preference: an explicit choice in localStorage, else LIGHT.
+ *
+ * Deliberately not the OS setting. Most of this site's visitors are outdoors on
+ * a phone in daylight, where the light theme is the readable one — and a farmer
+ * whose phone happens to sit in dark mode should not be shown a dark industrial
+ * page as their first impression of the brand. Dark stays one tap away.
+ *
+ * The value is always written to the attribute (never left implicit) so the CSS
+ * needs a single selector rather than juggling a media query and an attribute.
  */
 const script = `(function(){try{
 var s=localStorage.getItem('vkon-theme');
-var t=(s==='dark'||s==='light')?s:(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
-document.documentElement.setAttribute('data-theme',t);
+document.documentElement.setAttribute('data-theme',(s==='dark')?'dark':'light');
 }catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
 
 export function ThemeScript() {

@@ -1,24 +1,43 @@
+import Image from "next/image";
 import { site } from "@/content/site";
 
 /**
- * Wordmark with a square accent mark.
+ * Brand lockup: the circular badge as a mark, plus a legible wordmark.
  *
- * Deliberately plain: an industrial manufacturer's mark is a wordmark, not an
- * illustrated badge. The previous rounded-square-with-a-tick read as an app
- * icon. TODO(vkon): replace with the real logo if one exists.
+ * The badge itself contains "vkon AUTOMATION", but at 36px that inner text is
+ * unreadable — so the mark carries recognition and the text carries the name.
+ * Repeating the name across mark and wordmark is normal practice.
+ *
+ * The source is a JPEG on white, converted to a circular PNG with a transparent
+ * surround (scripts note in DEPLOYMENT/README). The badge is dark navy, so on
+ * dark surfaces it is set on a white plate — otherwise it disappears into the
+ * footer.
+ *
+ * TODO(vkon): swap in an SVG when one exists — a 512px raster is heavier than
+ * it needs to be and will soften on high-DPI screens at large sizes.
  */
-export function LogoMark({ className = "h-7 w-7" }: { className?: string }) {
+export function LogoMark({
+  className = "h-9 w-9",
+  onDark = false,
+}: {
+  className?: string;
+  onDark?: boolean;
+}) {
   return (
-    <svg viewBox="0 0 28 28" className={className} aria-hidden>
-      <rect width="28" height="28" className="fill-graphite-950" />
-      <path
-        d="M7 8.5 14 20l7-11.5"
-        fill="none"
-        stroke="#ffffff"
-        strokeWidth="2.6"
+    <span
+      className={`relative inline-block shrink-0 overflow-hidden rounded-full ${
+        onDark ? "bg-white p-[2px]" : ""
+      } ${className}`}
+    >
+      <Image
+        src="/brand/vkon-logo.png"
+        alt=""
+        fill
+        sizes="40px"
+        priority
+        className="object-contain"
       />
-      <rect x="19.5" y="6" width="4" height="4" className="fill-brand-500" />
-    </svg>
+    </span>
   );
 }
 
@@ -27,21 +46,27 @@ export function Logo({
   tone = "dark",
 }: {
   className?: string;
+  /** `light` = sitting on a dark surface. */
   tone?: "dark" | "light";
 }) {
+  const onDark = tone === "light";
+
   return (
-    <span className={`flex items-baseline gap-2.5 ${className}`}>
-      <span
-        className={`text-[1.375rem] font-semibold leading-none tracking-[-0.03em] ${
-          tone === "light" ? "text-band-ink" : "text-ink"
-        }`}
-      >
-        {site.name}
-      </span>
-      <span
-        className={`label-tech ${tone === "light" ? "text-band-muted" : "text-muted"}`}
-      >
-        Control Panels
+    <span className={`flex items-center gap-2.5 ${className}`}>
+      <LogoMark className="h-9 w-9" onDark={onDark} />
+      <span className="flex flex-col leading-none">
+        <span
+          className={`text-[1.3rem] font-semibold leading-none tracking-[-0.03em] ${
+            onDark ? "text-band-ink" : "text-ink"
+          }`}
+        >
+          {site.name}
+        </span>
+        <span
+          className={`label-tech mt-1 ${onDark ? "text-band-muted" : "text-muted"}`}
+        >
+          Automation
+        </span>
       </span>
     </span>
   );

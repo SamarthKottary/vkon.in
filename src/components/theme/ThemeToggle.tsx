@@ -23,17 +23,9 @@ const CHANGE_EVENT = "vkon-theme-change";
  * be wrong half the time. The button keeps its size, so nothing shifts.
  */
 function subscribe(onChange: () => void): () => void {
-  const media = window.matchMedia("(prefers-color-scheme: dark)");
-
-  // Follow the OS only while the visitor has not made an explicit choice.
-  const onMedia = () => {
-    if (localStorage.getItem(STORAGE_KEY)) return;
-    document.documentElement.setAttribute(
-      "data-theme",
-      media.matches ? "dark" : "light",
-    );
-    onChange();
-  };
+  // No `prefers-color-scheme` listener: the site defaults to light regardless
+  // of the OS (see ThemeScript), so following the OS afterwards would drag an
+  // undecided visitor into dark and contradict that default.
 
   // Another tab toggled the theme.
   const onStorage = (event: StorageEvent) => {
@@ -43,12 +35,10 @@ function subscribe(onChange: () => void): () => void {
     onChange();
   };
 
-  media.addEventListener("change", onMedia);
   window.addEventListener("storage", onStorage);
   window.addEventListener(CHANGE_EVENT, onChange);
 
   return () => {
-    media.removeEventListener("change", onMedia);
     window.removeEventListener("storage", onStorage);
     window.removeEventListener(CHANGE_EVENT, onChange);
   };

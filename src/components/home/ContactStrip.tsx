@@ -39,6 +39,8 @@ export function ContactStrip({
       value: site.email,
       href: mailtoLink(`Enquiry from ${site.domain}`),
       note: "Dealer and bulk enquiries",
+      // Long addresses otherwise wrap inside a third-width column.
+      compact: true,
     },
   ];
 
@@ -52,7 +54,7 @@ export function ContactStrip({
             <p className="label-tech mt-6 text-muted">{site.hours}</p>
           </div>
 
-          <ul className="grid border-t border-line sm:grid-cols-3 sm:border-t-0">
+          <ul className="grid border-t border-line sm:grid-cols-[1fr_1fr_1.35fr] sm:border-t-0">
             {channels.map((channel) => (
               <li
                 key={channel.label}
@@ -61,7 +63,9 @@ export function ContactStrip({
                 <p className="label-tech text-muted">{channel.label}</p>
                 <a
                   href={channel.href}
-                  className="mt-3 block break-words font-mono text-lg text-ink underline-offset-4 hover:text-accent hover:underline"
+                  className={`mt-3 block break-words font-mono leading-snug text-ink underline-offset-4 hover:text-accent hover:underline ${
+                    channel.compact ? "text-sm lg:text-base" : "text-base lg:text-lg"
+                  }`}
                 >
                   {channel.value}
                 </a>
