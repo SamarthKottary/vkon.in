@@ -1,0 +1,116 @@
+import type { Metadata } from "next";
+import { formattedAddress, site } from "@/content/site";
+import type { Product } from "./types";
+
+/** Builds page metadata with sensible Open Graph and Twitter defaults. */
+export function pageMetadata({
+  title,
+  description,
+  path = "/",
+  images,
+}: {
+  title: string;
+  description: string;
+  path?: string;
+  images?: string[];
+}): Metadata {
+  const url = `${site.url}${path}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: site.name,
+      type: "website",
+      locale: "en_IN",
+      ...(images?.length ? { images } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      ...(images?.length ? { images } : {}),
+    },
+  };
+}
+
+/**
+ * Organisation + local business data. Rendered once in the root layout so the
+ * phone number and address are eligible to appear directly in search results.
+ */
+export function organizationJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": `${site.url}#organization`,
+    name: site.legalName,
+    alternateName: site.name,
+    url: site.url,
+    description: site.description,
+    telephone: site.phone.href,
+    email: site.email,
+    foundingDate: String(site.founded),
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: site.address.street,
+      addressLocality: site.address.locality,
+      addressRegion: site.address.region,
+      postalCode: site.address.postalCode,
+      addressCountry: site.address.country,
+    },
+    areaServed: "IN",
+    sameAs: Object.values(site.socials).filter(Boolean),
+  };
+}
+
+export function productJsonLd(product: Product) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.tagline || product.description.slice(0, 300),
+    category: product.category,
+    url: `${site.url}/products/${product.slug}`,
+    // Image URLs are absolute already (Vercel Blob), so they are used as-is.
+    ...(product.images.length
+      ? { image: product.images.map((i) => i.url) }
+      : {}),
+    ...(product.videoUrl
+      ? {
+          subjectOf: {
+            "@type": "VideoObject",
+            name: product.videoTitle || `${product.name} overview`,
+            contentUrl: product.videoUrl,
+          },
+        }
+      : {}),
+    brand: { "@type": "Brand", name: site.name },
+    manufacturer: {
+      "@type": "Organization",
+      name: site.legalName,
+      address: formattedAddress,
+    },
+    additionalProperty: product.spec.map((row) => ({
+      "@type": "PropertyValue",
+      name: row.label,
+      value: row.value,
+    })),
+  };
+}
+
+export function breadcrumbJsonLd(trail: { name: string; path: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: trail.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: `${site.url}${item.path}`,
+    })),
+  };
+}

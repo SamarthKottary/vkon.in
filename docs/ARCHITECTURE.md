@@ -1,0 +1,569 @@
+# Architecture
+
+Living reference for how vkon.in is put together and why. Update this file in
+the same change that alters the structure — the [Change log](#change-log) at the
+bottom is the running history.
+
+**Scope:** structure, decisions and constraints. Setup, how to add a product,
+and the placeholder checklist live in [README.md](../README.md).
+
+Last updated: 2026-08-10
+
+---
+
+## 1. What this is
+
+A product catalogue and contact site for Vkon, who make electronic motor
+starters and control panels for agricultural pumps.
+
+Products are **created and edited by the owner through an admin at `/admin`** —
+name, description, images, a video link, specification, features and
+protections. There is no deploy step to publish a product; saving makes it live.
+
+Not e-commerce: no cart, no pricing, no checkout. Every path ends at a phone
+call or a WhatsApp message.
+
+**Audience:** an Indian farmer or pump dealer, on a mid-range Android phone, on
+a rural connection, who wants three answers fast — *does this fit my pump's HP?*,
+*what does it protect against?*, *how do I reach you?*
+
+**Design references:** wago.com (light, industrial, ruled, restrained) and
+nvidia.com (dark full-bleed hero, large type, single accent). See §6.
+
+---
+
+## 2. Stack
+
+| | |
+|---|---|
+| Framework | Next.js 16.2 — App Router, Server Actions |
+| UI | React 19.2 |
+| Language | TypeScript (strict) |
+| Styling | Tailwind CSS v4 (CSS-first config, no `tailwind.config.js`) |
+| Database | Postgres via `pg`, in a container beside the app |
+| File storage | A directory on disk, on a Docker volume |
+| Auth | Hand-rolled HMAC-signed cookie, no library |
+| Fonts | `next/font/google`, self-hosted at build |
+| Hosting | **Self-hosted** — Docker Compose behind a Cloudflare Tunnel |
+| Deploys | The deploy console (`cicd/` contract), git push → webhook → build |
+
+### Dependency policy
+
+Runtime dependencies: `next`, `react`, `react-dom`, `pg`. Nothing else —
+`@vercel/blob` was removed when the site moved to self-hosting. Icons are hand-written SVG; there is no component, animation, ORM
+or auth library. Adding one is a decision to record here.
+
+`pg` was chosen over a Neon-specific driver so the same code runs against a
+local Postgres in development and any managed Postgres in production. On
+serverless, `DATABASE_URL` **must** be the provider's pooled (pgbouncer) string
+— a per-instance pool against a direct connection exhausts the server's
+connection limit.
+
+> `npm audit` reports advisories in `postcss` and `sharp`, both transitive
+> inside Next.js and build-time only. `--force` downgrades Next to v9, which is
+> not an option. Re-check on Next upgrades.
+
+---
+
+## 3. Rendering model
+
+**Everything that shows a product renders per request** (`force-dynamic`):
+`/`, `/products`, `/products/[slug]`, `/sitemap.xml`, and all of `/admin`.
+
+This was not the first design. ISR with `revalidatePath` was tried and rejected:
+Next marks a cached page stale but still serves the stale copy to the next
+request while regenerating, so an admin who saved a product and immediately
+opened the site saw the old version. For a site whose entire premise is "what I
+publish appears", that is the wrong failure. A single indexed query over a
+pooled connection is invisible next to mobile network latency.
+
+`/about` and the metadata routes stay static — they have no product data.
+
+**Consequence to know:** the site depends on the database being reachable at
+request time. All reads go through `safeQuery`, which logs and returns `[]`, so
+an unreachable database renders an empty catalogue rather than a 500. Writes
+deliberately do *not* swallow errors — the admin must see failures.
+
+---
+
+## 4. Layering
+
+Strictly one-directional.
+
+```
+app/(site)/    public routes
+app/admin/     admin routes + server actions
+      ↓
+components/    presentation; no data access
+      ↓
+lib/           db access, auth, storage, video parsing, SEO
+      ↓
+content/       taxonomy, company details, navigation (code-level constants)
+```
+
+Product *data* lives in Postgres, not in `content/`. `content/` now holds only
+fixed vocabularies that are tied to icons and copy (categories, protection
+keys), which are code changes either way.
+
+---
+
+## 5. File map
+
+```
+src/
+  app/
+    layout.tsx              fonts + global metadata only (no chrome)
+    (site)/
+      layout.tsx            Header, Footer, MobileActionBar, Organization JSON-LD
+      page.tsx              home
+      about/page.tsx
+      products/page.tsx     catalogue
+      products/[slug]/      detail
+    admin/
+      layout.tsx            admin chrome, reads auth state
+      page.tsx              login
+      LoginForm.tsx
+      actions.ts            ALL server actions — the security boundary
+      products/             list, ProductForm, new/, [id]/
+    not-found.tsx           renders its own chrome (outside the (site) group)
+    globals.css             design tokens + the contrast table
+    sitemap.ts robots.ts opengraph-image.tsx icon.svg
+
+  components/
+    layout/    Header (client), Footer, MobileActionBar, PageHero
+    home/      Hero, ContactStrip
+    product/   ProductCard, ProductMedia (client), ProductCatalogue (client),
+               SpecTable, ProtectionList, PanelPlaceholder
+    icons/     protections.tsx (12-icon set), ui.tsx, Logo.tsx
+    theme/     ThemeScript (pre-paint, inline), ThemeToggle (client)
+    ui/        Button, Container, Section, Badge, JsonLd
+
+  content/     taxonomy.ts, site.ts, nav.ts
+  lib/
+    db/        client.ts, products.ts, schema.sql
+    auth.ts    session + requireAdmin
+    storage.ts blob upload/delete
+    video.ts   YouTube/Vimeo URL → embed
+    contact.ts seo.ts types.ts
+
+scripts/       db-setup.mjs, db-seed.mjs, make-placeholder-images.py
+public/products/  demo-*.jpg (placeholder photography — delete when real)
+```
+
+### Client components — all six
+
+| Component | Why |
+|---|---|
+| `theme/ThemeToggle` | Reads `data-theme` via `useSyncExternalStore` |
+| `layout/Header` | Drawer state, focus trap, Escape |
+| `product/ProductCatalogue` | `useSearchParams` filter state |
+| `product/ProductMedia` | Selected media, deferred video embed |
+| `admin/LoginForm` | `useActionState` |
+| `admin/products/ProductForm` + `DeleteProductButton` | Form state, uploads, confirm step |
+
+Everything else is a server component.
+
+---
+
+## 6. Design system and theming
+
+Tokens live in the `@theme` block of `src/app/globals.css`. Five rules give the
+site its character, documented at the top of that file:
+
+1. **Structure over decoration.** Separation is 1px rules and whitespace. There
+   is deliberately no shadow token.
+2. **Near-square corners** (2px). Pills and heavily rounded cards are the
+   single strongest generic-template signal.
+3. **The accent is rare.** Primary buttons are near-black (near-white in dark);
+   green is for links, active state and small marks.
+4. **Mono carries the technical voice.** `.label-tech` (IBM Plex Mono, 11px,
+   uppercase, wide tracking) on spec labels, product metadata and eyebrows.
+5. **Left-aligned.** No centred body copy.
+
+Type is one grotesque (Inter) at all sizes plus IBM Plex Mono for labels.
+Headings are weight 600, not 800.
+
+### Light and dark
+
+The theme is an attribute on `<html>`: `data-theme="light" | "dark"`, always
+explicit. It is set by an inline script (`components/theme/ThemeScript.tsx`)
+that runs in `<head>` before first paint — the only way to avoid a flash, since
+the server cannot know the visitor's preference and a React effect runs after
+the first paint has already happened. Preference order: an explicit choice in
+`localStorage`, otherwise the OS setting.
+
+`ThemeToggle` reads the attribute through `useSyncExternalStore`. The theme is
+genuinely external state living in the DOM, so that is the correct primitive:
+it gives a distinct server snapshot (theme unknown → render no glyph) and
+avoids the setState-in-an-effect pattern the lint rules reject. The button
+keeps its size while the glyph is unknown, so nothing shifts on hydration.
+
+**Components must use semantic tokens, never raw palette steps.** `bg-white`
+and `text-graphite-950` do not flip; `bg-surface` and `text-ink` do. The full
+set: `surface`, `surface-subtle`, `surface-raised`, `ink`, `body`, `muted`,
+`line`, `line-strong`, `accent`, `accent-strong`, `accent-soft`, `action`,
+`action-hover`, `action-ink`, and the `band-*` family.
+
+### The band inversion
+
+This is the non-obvious part. The design has deliberately dark sections — the
+hero, the protection strip, the footer, the mobile action bar — sitting inside
+a light page. In dark mode those cannot simply stay dark: they would dissolve
+into the background and the page would become one flat slab.
+
+So the `band` tokens **invert their role**. `--color-band` is *darker* than the
+surface in light mode (#14171A on white) and *lighter* than it in dark mode
+(#1B1F23 on #0E1113). The section reads as a distinct band either way. Band
+content uses `band-ink` / `band-body` / `band-muted` / `band-line` /
+`band-accent` rather than the page tokens.
+
+`--color-action` inverts too — near-black in light, near-white in dark — so
+anything sitting on it must use `text-action-ink`, never `text-white`. Pairing
+`bg-action` with `text-white` renders white-on-white in dark mode; that mistake
+was made and caught during this change.
+
+Two things stay fixed in both themes on purpose: the drawer scrim (`bg-black/50`
+— a scrim is a scrim) and destructive red.
+
+### The contrast rule
+
+`graphite-500` (#757E87) is **4.1:1 on white and 4.4:1 on graphite-950** — it
+fails AA for text at both ends. `.label-tech` is 11px, so it needs the full
+4.5:1, not the large-text allowance. Small labels use **graphite-600 on light**
+(6.1:1) and **graphite-400 on dark** (7.0:1). The measured table for both
+themes is at the top of globals.css.
+
+Contrast is verified by walking the rendered DOM and computing the real ratio
+for every element with visible text against its first opaque ancestor
+background (see §10). Both themes currently report **zero failures**.
+
+## 7. Admin and security
+
+`/admin` is a single-operator CMS.
+
+**Session.** `lib/auth.ts`. Password in `ADMIN_PASSWORD`, compared with
+`timingSafeEqual` over SHA-256 digests (so unequal lengths neither throw nor leak
+length). The cookie carries `expiry.nonce.HMAC(expiry.nonce, AUTH_SECRET)`,
+httpOnly, sameSite=lax, secure in production, 12-hour expiry. Missing or short
+`AUTH_SECRET` fails closed — login always fails rather than letting everyone in.
+
+**The boundary is `requireAdmin()` inside each server action**, not the page
+guards. Server actions are independently addressable POST endpoints; a layout
+that checks auth before rendering does not protect them. `saveProductAction`,
+`deleteProductAction` and `uploadImageAction` each call it first.
+`logoutAction` is intentionally unguarded — clearing a cookie is not privileged.
+
+**All input is re-validated server-side**, including `<select>` values and
+hidden fields: category is checked against the taxonomy, protection keys are
+filtered to known keys, video URLs must parse as YouTube or Vimeo, slugs are
+re-slugified and checked for collision.
+
+**Uploads** are validated in `lib/storage.ts` (type and 8 MB limit) — the
+client `accept` attribute is a hint, not a control. Blob `pathname` is stored on
+each image so deleting a product also deletes its files instead of orphaning
+them.
+
+**Not implemented:** rate limiting on login. On serverless, in-memory counters
+are per-instance and near useless; doing it properly needs a shared store. With
+a strong password this is an accepted risk — see §11.
+
+---
+
+## 8. Content model
+
+One table, `products` (`src/lib/db/schema.sql`). `src/lib/db/products.ts` is the
+only module that touches it, and `mapProductRow` is the single snake_case →
+camelCase bridge.
+
+List fields (ratings, features) are `TEXT[]`; `spec` and `images` are `JSONB`.
+The admin edits lists as one-per-line textareas and spec as `Label: value` per
+line — for a catalogue of this size that is faster than repeater widgets and
+cannot get into a broken state.
+
+`protections` is a `TEXT[]` of keys from a fixed taxonomy, ticked as checkboxes.
+Unknown keys are filtered out at read time, so removing one from the taxonomy
+degrades instead of breaking a page.
+
+**Video is a URL, not a file.** `lib/video.ts` normalises watch links, youtu.be,
+/shorts/, /embed/ and Vimeo IDs into an embed. The product page renders a poster
+plate and only injects the provider iframe after a click, so nothing is
+requested from YouTube — and no third-party cookie is set — for a visitor who
+never presses play.
+
+---
+
+## 9. Load-bearing constraints
+
+Each encodes a real bug. Breaking one reintroduces it.
+
+**`requireAdmin()` must be the first statement of every mutating server action.**
+See §7.
+
+**Product-driven routes must stay `force-dynamic`.** Reintroducing ISR
+reintroduces the stale-by-one-request bug in §3.
+
+**`graphite-500` is never used for text.** §6.
+
+**Components use semantic tokens, not raw palette steps.** A `bg-white` or
+`text-graphite-700` is a component that will not flip in dark mode. §6.
+
+**`bg-action` is never paired with `text-white`.** The action colour inverts
+between themes; its companion is `text-action-ink`. Same for `bg-band` →
+`text-band-ink`.
+
+**Health checks must probe `/api/health`, never `/`.** Public reads fail soft,
+so the home page returns 200 with the database completely down. See §10a.
+
+**Uploads must not be written into `public/`.** It is baked into the image at
+build time; runtime writes there vanish on the next deploy. §10a.
+
+**`cicd/` stays out of git.** It is a security control, not housekeeping. §10a.
+
+**ThemeScript must stay inline and in `<head>`.** Moving it to a deferred
+script, or replacing it with a React effect, reintroduces a flash of the wrong
+theme on every load.
+
+**Empty grid cells must not show a background.** A `grid gap-px bg-line` layout
+paints grey rectangles wherever the item count is not a multiple of the column
+count — visible as broken blocks with one product. Cards carry their own border
+and the grid uses a normal gap.
+
+**Category lists are ruled rows, not a card grid**, for the same reason: five
+categories in a three-column grid leaves a visible hole.
+
+**Accessible names must lead with their visible text.** An `aria-label` that
+replaces visible text breaks voice control. This is why the logo link has none
+and the delete confirmation reads "Confirm delete" before its screen-reader
+suffix.
+
+**Heading order must not skip a level.** `/products` needs its visually hidden
+`<h2>` because the masthead is `h1` and cards are `h3`.
+
+**The footer reserves `pb-24 md:pb-0`** for the fixed mobile action bar.
+
+---
+
+## 10. Verification
+
+```bash
+npm run lint && npm run build     # must be clean; build fails on type errors
+```
+
+Then, against `npm run start`:
+
+- Walk every route at 390px and 1440px **in both themes**; assert
+  `scrollWidth === clientWidth` and an empty console.
+- Contrast: walk the DOM computing the real ratio for every text element
+  against its first opaque ancestor background; both themes must report zero
+  failures. This catches what Lighthouse misses, because Lighthouse only
+  audits the theme it happens to load in.
+- Theme: system preference honoured with no stored choice; `data-theme` already
+  correct at `readyState === "interactive"` (no flash); toggle persists across a
+  reload.
+- Admin end-to-end: unauthenticated redirect, wrong password, login, create,
+  product appears on the catalogue **immediately**, duplicate slug rejected,
+  invalid video URL rejected, unpublish hides it, delete, sign out revokes.
+- Lighthouse mobile on `/`, `/about`, `/products` and a product page.
+
+**Baseline (2026-08-07), Lighthouse mobile, default throttling:**
+
+| Route | Perf | A11y | Best practices | SEO |
+|---|---|---|---|---|
+| `/` | 96 | 100 | 100 | 100 |
+| `/about` | 97 | 100 | 100 | 100 |
+| `/products` | 99 | 100 | 100 | 100 |
+| `/products/[slug]` | 99 | 100 | 100 | 92* |
+
+CLS 0 everywhere; LCP 2.2–2.8 s under simulated slow 4G and 4× CPU throttling.
+
+\* The product page's SEO 92 is a **Lighthouse false negative**: it reports a
+missing meta description, but the tag is present in the server HTML (`curl`) and
+in the live DOM inside `<head>` (verified with Playwright). It appears to be a
+timing artefact of streamed metadata on a dynamic route. Re-verify before
+treating it as real.
+
+> Watch out: `next start` holding the port while `.next` is rebuilt serves HTML
+> referencing chunk hashes that no longer exist, producing 500s on assets. Kill
+> the server before rebuilding.
+
+---
+
+## 10a. Deployment
+
+Self-hosted. Two containers defined in `docker-compose.yml`:
+
+| Service | What | Exposure |
+|---|---|---|
+| `app` | Next.js standalone on port 3000 | bound to `127.0.0.1:${APP_PORT}` only |
+| `db` | Postgres 16 | **no host port** — reachable only from `app` |
+
+Two named volumes carry everything that must outlive a deploy:
+`vkon-pgdata` (the database) and `vkon-uploads` (admin-uploaded images). The
+image is rebuilt on every deploy and the containers are disposable; the volumes
+are not.
+
+`output: "standalone"` in `next.config.ts` is what keeps the runtime image at
+~220 MB instead of shipping the whole dependency tree — the Dockerfile depends
+on it.
+
+### Uploads
+
+Images go to `UPLOAD_DIR` (a volume) and are served by
+`app/media/[...path]/route.ts`. They deliberately do **not** live in `public/`:
+that directory is baked into the image at build time, so anything uploaded
+afterwards would disappear on the next deploy. The route accepts exactly one
+flat path segment, which removes every traversal trick rather than trying to
+filter them. Filenames are content-hash based and immutable, so they are cached
+for a year.
+
+### The deploy contract
+
+`cicd/` is **gitignored on purpose** — if `deploy.sh` were in the repo, push
+access would equal code execution on the server. It holds `deploy.sh` (build,
+migrate, restart), `verify.sh` (health gate) and `config.json` (branch, health
+URL, webhook secret — host-side authority the browser cannot change). Keep a
+copy somewhere; git will not back it up.
+
+`deploy.sh` applies `src/lib/db/schema.sql` on every deploy. The DDL is
+idempotent, so it is both the migration step and the provisioner for a fresh
+volume. It runs there rather than at app startup so a schema failure fails the
+deploy loudly instead of surfacing later as a mysteriously empty catalogue.
+
+### Health
+
+`/api/health` round-trips to Postgres and returns 503 if it cannot. This exists
+because **public pages fail soft** — an unreachable database renders an empty
+catalogue, not a 500 — so `GET /` returning 200 proves almost nothing. An
+earlier `verify.sh` checked only that, and passed a deploy in which every
+single query was failing. Both `verify.sh` and the compose healthcheck now
+probe `/api/health`.
+
+## 11. Known gaps
+
+- **Company details are placeholder.** `grep -rn "TODO(vkon)" src/`.
+- **The demo product is fake.** `npm run db:seed` creates `ec-dol-demo` with
+  drawn placeholder images and a public-domain video. Delete it from `/admin`.
+- **No login rate limiting.** §7.
+- **No image resizing on upload.** An 8 MB photo is stored as uploaded and
+  served through `next/image`; resizing before upload is still worth doing.
+- **No database backup.** The Postgres volume is the only copy. A nightly
+  `pg_dump` to somewhere off the machine is the obvious next step — losing that
+  volume loses the whole catalogue.
+- **No staging environment.** A deploy goes straight to production; the only
+  safety net is that `verify.sh` fails loudly, and there is no auto-rollback.
+- **No audit trail.** Nothing records who changed what, and there is one
+  operator, so a mistaken delete is unrecoverable without a database backup.
+- **No draft preview.** Unpublished products are invisible on the site; the only
+  way to see one is the admin form.
+- **English only.** Copy is not externalised.
+- **No automated tests in the repo.** Verification is the manual loop in §10.
+
+---
+
+## Change log
+
+Newest first. Add an entry for anything that changes structure, a dependency, or
+a §9 constraint.
+
+### 2026-08-10 — Self-hosting and CI/CD
+
+Moved off Vercel onto the deploy console described in `docs/Hosting.md`.
+
+- **Removed `@vercel/blob`.** It is a Vercel-only service and cannot run on an
+  own server. Image uploads now write to a directory on a Docker volume and are
+  served by a new `/media/[...path]` route.
+- Added `Dockerfile` (multi-stage, standalone, non-root, 221 MB),
+  `docker-compose.yml` (app + Postgres, two named volumes, app bound to
+  loopback), `.dockerignore`, and `output: "standalone"`.
+- Added the `cicd/` contract: `deploy.sh`, `verify.sh`, `config.json`.
+- Added `/api/health` — a real database round-trip.
+- `SITE_URL` now overridable so staging cannot emit production canonical URLs.
+- Excluded `docs/Hosting.md`, `docs/cicd.md` and `docs/Poster.pdf` from git:
+  the first two carry Cloudflare tunnel UUIDs, internal hostnames and host
+  paths, and would be a real disclosure in a public repo.
+- Fixed `.gitignore` `.env*`, which would have excluded `.env.example` too.
+
+Fixed during verification (both found by running the real stack, not by reading):
+- **Postgres SSL was inferred from the hostname.** "SSL unless localhost" broke
+  the moment the database host became `db`: the driver demanded TLS from a
+  container that does not offer it and *every query failed*. Now explicit —
+  `DATABASE_SSL`, else `?sslmode=`, else off.
+- **`verify.sh` passed that completely broken deploy.** Public reads fail soft,
+  so the site served 200s with no database at all. This is why `/api/health`
+  exists and why both health gates now use it.
+
+### 2026-08-08 — Dark mode
+
+- `data-theme` on `<html>`, set pre-paint by an inline script; toggle in the
+  site header (desktop bar and mobile top bar) and in the admin header.
+- Semantic tokens split into light and dark sets; **all components migrated off
+  raw palette classes** (`bg-white` → `bg-surface`, and so on) so they flip.
+- Added the `band` token family and the inversion described in §6 — the
+  intentionally-dark sections stay distinct in both themes instead of
+  dissolving into the page.
+- Added a DOM-walking contrast audit to the verification loop; it now runs for
+  both themes and both viewports.
+
+Fixed during verification:
+- `bg-action text-white` in five places — the action colour inverts, so those
+  would have been white-on-white in dark mode.
+- The drawer scrim was migrated to `bg-action/50`, which would have flashed a
+  near-white overlay in dark mode. Pinned back to `bg-black/50`.
+- `Section` tone="dark" and `Badge` tone="onDark" had been swept to page tokens
+  instead of band tokens.
+- Dark `accent-soft` (#12402B) gave accent text only 4.28:1; darkened to
+  #0E3322 (5.1:1).
+- `ThemeToggle` first written with `useState` + `useEffect`, which tripped the
+  setState-in-effect lint rule; rewritten with `useSyncExternalStore`.
+
+### 2026-08-07 — Admin CMS, and a redesign against WAGO/NVIDIA
+
+Two changes at once: products moved from a code file to a database with an
+admin UI, and the visual design was rebuilt.
+
+**Architecture**
+- Added Postgres (`pg`) + Vercel Blob (`@vercel/blob`). First runtime
+  dependencies beyond React/Next since the project started.
+- Added `/admin`: HMAC-cookie session, product CRUD via server actions, image
+  upload, YouTube/Vimeo video links, publish/draft and featured flags.
+- `src/content/products.ts` deleted; `products` table and `lib/db/` added.
+  `content/taxonomy.ts` keeps the category and protection vocabularies.
+- Routes regrouped under `app/(site)/` so `/admin` can have its own chrome.
+- **Removed the Contact and Dealers pages.** Contact now lives in the footer
+  and a `ContactStrip` at the foot of every page.
+- Public product routes switched from ISR to `force-dynamic` after ISR was
+  found to serve one stale response after a save (§3).
+- `lib/revalidate.ts` added then removed — unnecessary once rendering is
+  per-request.
+
+**Design** — the previous build read as a generic template. Changed:
+- Pills → 2px rectangles; drop shadows → 1px rules; ambient gradient glows →
+  removed entirely; icon-in-rounded-chip cards → ruled lists.
+- Plus Jakarta Sans (geometric, friendly) → Inter alone, headings at weight
+  600 instead of 800, plus IBM Plex Mono for technical labels.
+- Primary buttons went from brand green to near-black; green is now links and
+  active state only.
+- Home category cards → a ruled directory; hero rebuilt around a large
+  left-aligned headline with the figures on a ruled strip.
+- Net effect on performance: TBT 130 ms → 30–40 ms, mobile perf 94 → 96–99.
+
+**Fixed during verification**
+- ISR served stale content after save (above).
+- `graphite-500` used for `.label-tech` throughout — failed AA on both light and
+  dark. Now 600/400. A11y 96 → 100.
+- `gap-px bg-line` grids painted grey blocks in empty cells with one product.
+- Category card grid left a visible hole at five items → ruled rows.
+- `/products` skipped `h1` → `h3` → added a visually hidden `h2`.
+- Delete confirmation's accessible name did not start with its visible text.
+- Hero stat dividers used `divide-x`, which bordered the item starting the
+  second row on mobile.
+
+### 2026-08-04 — Architecture doc added
+Created this file. No code change.
+
+### 2026-08-03 — Initial build
+Greenfield Next.js site: 7 static routes, products in a typed code file,
+Web3Forms enquiry forms, protection icon set, `PanelDisplay` hero visual.
+Fixed during verification: drawer clipped by `backdrop-blur` containing block,
+JS scroll-reveal could leave sections invisible (→ CSS-only), logo `aria-label`
+mismatch, `setState` in effect, four `blur-3xl` filters above the fold.

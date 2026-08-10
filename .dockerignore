@@ -1,0 +1,15 @@
+.git/
+.github/
+cicd/
+node_modules/
+.next/
+data/
+npm-debug.log*
+.env
+.env.local
+.env.*.local
+docs/
+*.md
+!README.md
+.vscode/
+.idea/

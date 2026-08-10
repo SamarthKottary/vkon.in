@@ -1,0 +1,61 @@
+# vkon.in — app + database, self-hosted.
+#
+# Values come from a `.env` file sitting next to this one on the server; it is
+# gitignored and never in the image. See .env.example.
+#
+# ⚠️  Compose interpolates `$` in env values. A password containing `$` will be
+#     silently mangled (this exact trap is documented in docs/Hosting.md §7.1).
+#     Use values with no `$`, or write it as `$$`.
+
+services:
+  app:
+    build: .
+    image: vkon-web
+    container_name: vkon-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # The db service, not localhost — they are different network namespaces.
+      DATABASE_URL: postgresql://vkon:${POSTGRES_PASSWORD}@db:5432/vkon
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      AUTH_SECRET: ${AUTH_SECRET}
+      UPLOAD_DIR: /app/data/uploads
+      SITE_URL: ${SITE_URL:-https://vkon.in}
+    volumes:
+      # Uploads must outlive the container; the image is rebuilt every deploy.
+      - vkon-uploads:/app/data/uploads
+    ports:
+      # Bound to loopback: the tunnel reaches it, the LAN does not.
+      - "127.0.0.1:${APP_PORT:-8120}:3000"
+    healthcheck:
+      # /api/health, not / — the home page returns 200 even with the database
+      # down, so probing it would mark a broken container healthy.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  db:
+    image: postgres:16-alpine
+    container_name: vkon-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vkon
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: vkon
+    volumes:
+      - vkon-pgdata:/var/lib/postgresql/data
+    # No ports: — the database is reachable only from the app container.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vkon -d vkon"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  vkon-uploads:
+  vkon-pgdata:
