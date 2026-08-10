@@ -179,16 +179,6 @@ export function Header() {
                 ))}
               </ul>
             </nav>
-
-            <div className="border-t border-line p-5">
-              <p className="label-tech text-muted">Call us</p>
-              <a
-                href={telLink()}
-                className="mt-2 block text-lg font-medium text-ink"
-              >
-                {site.phone.display}
-              </a>
-            </div>
           </div>
         </div>
       )}
