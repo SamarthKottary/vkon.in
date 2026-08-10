@@ -58,3 +58,8 @@ docs/Poster.pdf
 # DEPLOYMENT.md Step 2 on the wrong machine). Nested repos get committed as a
 # gitlink, which is never what anyone wants.
 /vkon.in/
+
+# Exported DNS zone files. They carry the Cloudflare tunnel UUID and the full
+# record set — infrastructure detail that has no business in a public repo.
+*.txt
+!requirements.txt
