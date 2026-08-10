@@ -129,7 +129,7 @@ ADMIN_PASSWORD=<the password you will type at /admin — no $ character>
 APP_PORT=8120
 SITE_URL=https://vkon.in
 TUNNEL_TOKEN=                 # filled in at Step 7
-COMPOSE_PROFILES=tunnel       # leave as-is; this starts the tunnel container
+#COMPOSE_PROFILES=tunnel      # stays commented until the token is set
 ```
 
 Check it looks right (this prints the secrets — do it only in your own
@@ -277,8 +277,8 @@ cd ~/project2/vkon.in
 nano .env      # paste into TUNNEL_TOKEN=
 ```
 
-Confirm `COMPOSE_PROFILES=tunnel` is also present — that is what starts the
-connector. Then:
+Then **uncomment** `COMPOSE_PROFILES=tunnel` in the same file — that is what
+starts the connector. Then:
 
 ```bash
 docker compose up -d
