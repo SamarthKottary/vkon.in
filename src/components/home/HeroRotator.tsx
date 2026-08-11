@@ -109,10 +109,17 @@ export function HeroRotator({
               />
             ) : null,
           )}
-          {/* Scrim. The headline sits on the left, so the gradient is heaviest
-              there and thins towards the right where there is no text. Without
-              it, band-ink over a bright photograph fails AA on any sunny
-              frame. */}
+          {/* Scrim, in three layers. Measured against real rendered pixels, not
+              estimated: without it the 11px eyebrow over the solar frame sits
+              at 2.9:1 where it needs 4.5.
+
+              The flat floor is far heavier on mobile because the layout is
+              different, not because phones need dimmer pictures — at 390px the
+              copy spans the full width, so a left-weighted gradient covers
+              none of it. On desktop the text stays in the left column and the
+              horizontal gradient does most of the work, so the floor can back
+              off and let the photograph through. */}
+          <div className="absolute inset-0 bg-band/65 sm:bg-band/25" />
           <div className="absolute inset-0 bg-gradient-to-r from-band via-band/85 to-band/35" />
           <div className="absolute inset-0 bg-gradient-to-t from-band via-transparent to-band/60" />
         </div>

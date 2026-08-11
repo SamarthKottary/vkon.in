@@ -71,3 +71,7 @@ docs/f2.pdf
 
 # Source logo artwork. The processed transparent PNGs in public/brand ship.
 vkon_logo.jpeg
+
+# Source PNGs for the hero backgrounds. Kept locally so the images can be
+# re-exported, but ~6.5 MB each — the committed asset is the JPEG beside them.
+public/segments/*.png

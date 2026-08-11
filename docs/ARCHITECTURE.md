@@ -487,6 +487,50 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-11 — Hero background photography
+
+Three generated backgrounds are live: `public/segments/{agriculture,home-automation,solar}.jpg`,
+2400×1340, ~240–600 KB each. Source PNGs sit beside them, gitignored — they are
+6.5 MB apiece and the JPEG is the committed asset.
+
+**Every generated frame arrived with a hard vertical seam** at 30–33 % of the
+width: the model read "left third empty with no detail" as an instruction to
+composite a flat panel there. Measured at 10–28× the median column-to-column
+delta, and clearly visible through the scrim. Cropping it off was the obvious
+fix and the wrong one — it drags the subject out of the right third and puts it
+behind the headline.
+
+The fix is **mirror padding**: the photo is reflected back across the seam, so
+the column left of the join is the same pixel data as the column right of it and
+there is no discontinuity at all, then blurred on a ramp toward the left edge.
+If new artwork ever shows a seam, that is the routine — and note the boundary is
+not one column: `home-automation` had a 16 px flat stripe between panel and
+photograph, so mirroring from the apparent edge left a residue. Find the first
+genuinely photographic column, not the first strong edge.
+
+**The scrim is measured, not estimated.** The flat floor is `bg-band/65` on
+mobile against `sm:bg-band/25` on desktop. That is a layout difference, not a
+brightness preference: at 390 px the copy spans the full width, so the
+left-weighted horizontal gradient covers none of it, while on desktop the text
+stays in the left column and the gradient does the work.
+
+Before that floor existed, 8 of 30 text runs failed AA — the 11 px eyebrow over
+the solar frame sat at 2.90:1 against 4.5. After: **0 failures across 98 glyph
+runs**, both themes, both viewports, all three slides, tightest margin 4.79:1.
+
+Two notes on how that was measured, because the usual audit gets it wrong here:
+
+- The standard DOM walk resolves the background to the nearest opaque ancestor,
+  finds `--color-band` and never sees the photograph. Contrast over imagery has
+  to be sampled from **rendered pixels**, with the text hidden.
+- Sample **glyph rectangles** (`Range.getClientRects()`), not element boxes. A
+  block `<p>` is as wide as its container; measuring its box samples background
+  hundreds of pixels to the right of any actual text and invents failures.
+
+Delivered cost via next/image: **80 KB of AVIF on mobile**, 328 KB on desktop,
+for all three. All three load at once because all three slides are mounted —
+deferring the unseen two is possible but 80 KB did not justify the complexity.
+
 ### 2026-08-10 — /protection redesigned, home band removed
 
 The protection band is **gone from the home page**. It was a teaser for a page

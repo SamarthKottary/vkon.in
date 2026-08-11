@@ -39,6 +39,7 @@ export const heroSegments: HeroSegment[] = [
     label: "Agriculture",
     headline: ["Protection between", "your motor and"],
     headlineTail: "the mains.",
+    image: "/segments/agriculture.jpg",
     body: "Electronic starters and control panels for agricultural pumps. Built for the supply Indian borewells actually run on — phases that drop out, voltage that swings, and water that runs dry without warning.",
   },
   {
@@ -46,6 +47,7 @@ export const heroSegments: HeroSegment[] = [
     label: "Home Automation",
     headline: ["Control the pump", "without walking"],
     headlineTail: "to the pump.",
+    image: "/segments/home-automation.jpg",
     // TODO(vkon): placeholder. Confirm what is actually offered here.
     body: "Domestic pump control for homes, apartments and farmhouses. Start and stop from a phone, fill the overhead tank automatically, and keep the motor protected on the same board.",
   },
@@ -54,6 +56,7 @@ export const heroSegments: HeroSegment[] = [
     label: "Solar Pumping",
     headline: ["Run the pump", "on sunlight,"],
     headlineTail: "not on diesel.",
+    image: "/segments/solar.jpg",
     // TODO(vkon): the plan lists solar pump controllers as a future product line.
     body: "Controllers that run a pump on solar, on mains, or switch between them as the day allows — with the same protection set watching the motor throughout.",
   },
