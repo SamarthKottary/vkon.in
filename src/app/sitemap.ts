@@ -12,6 +12,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes = [
     { path: "/", priority: 1 },
     { path: "/products", priority: 0.9 },
+    /* /protection is deliberately absent from the header — the hero's Explore
+       button is its only link. That makes the sitemap the only thing telling a
+       crawler the page exists, so this entry is load-bearing, not routine. */
+    { path: "/protection", priority: 0.8 },
     { path: "/about", priority: 0.7 },
   ];
 

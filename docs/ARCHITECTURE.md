@@ -543,8 +543,12 @@ briefly `ml-auto` in the CTA row, which aligns to the `max-w-4xl` text column
 and left it stranded mid-page on a wide screen.
 
 **`/protection` is a real page**, and the hero's Explore button opens it instead
-of scrolling to an anchor. It carries all twelve protections; the home band
-keeps six as a teaser and links across.
+of scrolling to an anchor. It carries all twelve protections.
+
+**It is deliberately not in the header nav, and not in the footer.** Explore is
+its only link in the UI. That makes its `sitemap.ts` entry the only thing
+telling a crawler the page exists — treat that line as load-bearing rather than
+routine bookkeeping.
 
 **One protection page, not one per segment.** The failure modes are properties
 of Indian mains supply and of induction motors — identical whether the motor is
