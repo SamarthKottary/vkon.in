@@ -573,13 +573,20 @@ delta, and clearly visible through the scrim. Cropping it off was the obvious
 fix and the wrong one — it drags the subject out of the right third and puts it
 behind the headline.
 
-The fix is **mirror padding**: the photo is reflected back across the seam, so
-the column left of the join is the same pixel data as the column right of it and
-there is no discontinuity at all, then blurred on a ramp toward the left edge.
-If new artwork ever shows a seam, that is the routine — and note the boundary is
-not one column: `home-automation` had a 16 px flat stripe between panel and
-photograph, so mirroring from the apparent edge left a residue. Find the first
-genuinely photographic column, not the first strong edge.
+The fix is an **edge stretch**: an 8 px sliver at the join is flipped and
+resized across the whole left region, then lightly blurred. Flipping makes the
+column left of the join identical to the column right of it, so continuity is
+exact; stretching 8 px over ~900 px leaves no symmetry to notice.
+
+This started as a *mirror* pad — reflecting the whole photo back — with the
+blur ramped to zero at the join. That was wrong and visible: right beside the
+seam sat a sharp mirrored copy of the scene, and the reflection read plainly as
+a reflection. Blur ramped the wrong way is the trap; the join needs continuity,
+not sharpness.
+
+Note the boundary is not one column: `home-automation` had a 16 px flat stripe
+between panel and photograph, so working from the apparent edge left a residue.
+Find the first genuinely photographic column, not the first strong edge.
 
 **The scrim is measured, not estimated.** The flat floor is `bg-band/65` on
 mobile against `sm:bg-band/25` on desktop. That is a layout difference, not a
