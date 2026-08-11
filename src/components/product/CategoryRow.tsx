@@ -3,6 +3,9 @@ import { ArrowRightIcon } from "@/components/icons/ui";
 import { ProductCard } from "./ProductCard";
 import type { CategoryMeta, Product } from "@/lib/types";
 
+/** Home shows at most this many per category; the banner link covers the rest. */
+const HOME_SLOTS = 6;
+
 /**
  * One category, laid out as a horizontal track of cards.
  *
@@ -15,6 +18,13 @@ import type { CategoryMeta, Product } from "@/lib/types";
  * The affordance is the card that peeks in at the right edge — card widths are
  * chosen so a row that overflows always shows a partial card. Keyboard users get
  * there by tabbing: focusing a card scrolls it into view.
+ *
+ * `lead` also picks the body layout:
+ *   "banner"  — a fixed 3-column grid of compact horizontal cards, capped at
+ *               HOME_SLOTS. Columns are fixed so a category with two products
+ *               leaves the remaining cells empty rather than stretching two
+ *               cards across the row.
+ *   "heading" — the scrolling track of tall cards.
  *
  * `lead` picks how the category introduces itself:
  *   "banner"  — a full-width panel above the track carrying the description
@@ -79,24 +89,38 @@ export function CategoryRow({
         </div>
       )}
 
-      {/* The negative margins let the track bleed to the viewport edge, so a card
-          can scroll flush with the screen instead of stopping at the gutter. */}
-      <ul
-        className="hscroll -mx-5 mt-6 flex snap-x snap-mandatory gap-6 overflow-x-auto px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
-      >
-        {products.map((product, index) => (
-          <li
-            key={product.id}
-            className="w-[17rem] flex-none snap-start sm:w-[19rem]"
-          >
-            <ProductCard
-              product={product}
-              headingLevel={cardHeading}
-              priority={priority && index === 0}
-            />
-          </li>
-        ))}
-      </ul>
+      {lead === "banner" ? (
+        <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {products.slice(0, HOME_SLOTS).map((product, index) => (
+            <li key={product.id}>
+              <ProductCard
+                product={product}
+                orientation="horizontal"
+                headingLevel={cardHeading}
+                priority={priority && index === 0}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        /* The negative margins let the track bleed to the viewport edge, so a
+           card can scroll flush with the screen instead of stopping at the
+           gutter. */
+        <ul className="hscroll -mx-5 mt-6 flex snap-x snap-mandatory gap-6 overflow-x-auto px-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          {products.map((product, index) => (
+            <li
+              key={product.id}
+              className="w-[17rem] flex-none snap-start sm:w-[19rem]"
+            >
+              <ProductCard
+                product={product}
+                headingLevel={cardHeading}
+                priority={priority && index === 0}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

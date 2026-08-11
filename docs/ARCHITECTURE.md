@@ -487,6 +487,36 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-11 — Tinted ground, and horizontal product cards on the home page
+
+**The light ground is no longer white.** `--color-surface` is `#F7FAF8`, a very
+faint green cast, with `--color-surface-subtle` at `#EDF3EF`. This makes
+`--color-surface-raised` (still pure `#FFFFFF`) mean something for the first
+time: cards lift off the page by tone as well as by shadow, so the depth added
+earlier does less work. `ProductCard` and the `/protection` cards moved to
+`bg-surface-raised`.
+
+Keep the tint this weak. Every light-mode figure in the contrast table at the
+top of globals.css is quoted against the ground, and they were recomputed for
+it — ink 18.0 → 17.1, body 8.6 → 8.2, muted 6.1 → 5.8, accent 5.3 → 5.1. All
+still clear AA, but `muted` and `accent` have the least room, so a stronger
+tint is what would break first. Re-audit if it ever changes.
+
+**Home products are compact horizontal cards in a fixed grid.**
+`ProductCard orientation="horizontal"` is a strip — fixed-width square image
+plate on the left, text on the right — laid out
+`sm:grid-cols-2 lg:grid-cols-3`, capped at `HOME_SLOTS` (6).
+
+The columns are **fixed on purpose**. A category holding two products leaves
+the remaining cells empty rather than stretching two cards across the full row,
+which is what an auto-fit or flex layout would do. Empty cells are safe here
+because the cards carry their own borders and the grid has a plain gap — the
+`gap-px bg-line` trap in §9 is what makes empty cells paint grey.
+
+The catalogue at `/products` keeps the scrolling track of tall cards. The two
+layouts are doing different jobs: home is a survey of the range, the catalogue
+is for browsing one category at a time.
+
 ### 2026-08-11 — Depth, category banners, and a working email link
 
 **Two shadow tokens now exist**, which amends design rule 1. `--shadow-card` and

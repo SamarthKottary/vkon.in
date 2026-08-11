@@ -12,7 +12,7 @@ export default async function AdminLoginPage() {
 
   return (
     <Container size="narrow">
-      <div className="mx-auto max-w-sm border border-line bg-surface p-8">
+      <div className="mx-auto max-w-sm border border-line bg-surface-raised p-8">
         <h1 className="text-2xl">Sign in</h1>
         <p className="mt-2 text-sm text-muted">
           Product management for vkon.in

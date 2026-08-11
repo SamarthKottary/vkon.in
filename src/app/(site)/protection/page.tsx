@@ -136,7 +136,7 @@ function ProtectionItem({
       className={
         dark
           ? "border border-band-line bg-band-raised p-6"
-          : "border border-line bg-surface p-6 shadow-card transition-shadow duration-200 hover:shadow-card-hover"
+          : "border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-200 hover:shadow-card-hover"
       }
     >
       <span
