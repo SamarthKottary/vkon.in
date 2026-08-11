@@ -14,13 +14,23 @@
 
 export type HeroSegment = {
   key: string;
-  /** Shown on the progress control beneath the hero. Keep it to one or two words. */
+  /**
+   * Eyebrow above the headline, and the accessible name of this slide's button
+   * on the progress bar. Keep it to one or two words.
+   */
   label: string;
   /** One array entry per rendered line, so the line breaks are deliberate. */
   headline: string[];
   /** The final headline line, set in the muted tone. */
   headlineTail: string;
   body: string;
+  /**
+   * Optional full-bleed background photograph, e.g. "/segments/agriculture.jpg"
+   * in `public/`. Leave it out and the hero keeps the ruled-grid texture. The
+   * hero paints a heavy scrim over the left side, so pick frames whose left
+   * third is quiet — see docs/ARCHITECTURE.md for the brief.
+   */
+  image?: string;
 };
 
 export const heroSegments: HeroSegment[] = [

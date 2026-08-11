@@ -1,4 +1,5 @@
-import { ArrowDownIcon } from "@/components/icons/ui";
+import Link from "next/link";
+import { ArrowRightIcon } from "@/components/icons/ui";
 import { HeroRotator } from "@/components/home/HeroRotator";
 import { Container } from "@/components/ui/Container";
 import { heroSegments } from "@/content/segments";
@@ -18,30 +19,26 @@ export function Hero() {
     <section className="relative overflow-hidden bg-band">
       <div aria-hidden className="absolute inset-0 rule-grid opacity-70" />
 
-      <Container size="wide" className="relative">
-        <div className="max-w-4xl py-20 sm:py-28 lg:py-36">
-          <HeroRotator segments={heroSegments} />
-
-          {/* The calls to action sit outside the rotator so they hold still
-              while the message above them changes — a button that moves under
-              the cursor every five seconds is a button people misclick. */}
-          <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-4">
-            <a
-              href="#protection"
-              className="link-cta border-band-line text-band-ink hover:border-band-accent hover:text-band-accent"
-            >
-              Explore
-              <ArrowDownIcon className="h-4 w-4" />
-            </a>
-            <a
-              href={telLink()}
-              className="text-sm text-band-muted transition-colors hover:text-band-ink"
-            >
-              Or call {site.phone.display}
-            </a>
-          </div>
-        </div>
-      </Container>
+      {/* The rotator owns the layout from here down, because its progress bar
+          has to escape Container to reach both page edges. The calls to action
+          are passed in as children so they stay server-rendered — and so they
+          hold still while the message above them changes; a button that moves
+          under the cursor every five seconds is one people misclick. */}
+      <HeroRotator segments={heroSegments}>
+        <Link
+          href="/protection"
+          className="link-cta border-band-line text-band-ink hover:border-band-accent hover:text-band-accent"
+        >
+          Explore
+          <ArrowRightIcon className="h-4 w-4" />
+        </Link>
+        <a
+          href={telLink()}
+          className="text-sm text-band-muted transition-colors hover:text-band-ink"
+        >
+          Or call {site.phone.display}
+        </a>
+      </HeroRotator>
 
       <div className="relative border-t border-band-line">
         <Container size="wide">

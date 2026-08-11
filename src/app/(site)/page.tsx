@@ -97,20 +97,24 @@ export default async function HomePage() {
         </Link>
       </Section>
 
-      {/* The hero's Explore button lands here. `scroll-mt-16` clears the
-          sticky header, which would otherwise cover the heading on arrival. */}
-      <section
-        id="protection"
-        className="scroll-mt-16 bg-band py-16 sm:py-20 lg:py-24"
-      >
+      {/* A teaser for /protection, which the hero's Explore button now opens.
+          Six of the twelve, with the rest a click away — the full set here
+          would make the home page a second copy of that page. */}
+      <section className="bg-band py-16 sm:py-20 lg:py-24">
         <Container size="wide">
           <div className="grid gap-12 lg:grid-cols-[minmax(0,24rem)_1fr] lg:gap-20">
-            <SectionHeading
-              tone="dark"
-              eyebrow="Protection delivered"
-              title="What takes a motor out"
-              description="Rural supply is not kind to pumps. These are the conditions a Vkon panel watches for, continuously, on all three phases."
-            />
+            <div>
+              <SectionHeading
+                tone="dark"
+                eyebrow="Protection delivered"
+                title="What takes a motor out"
+                description="Rural supply is not kind to pumps. These are the conditions a Vkon panel watches for, continuously, on all three phases."
+              />
+              <Link href="/protection" className="link-cta link-cta-band mt-8">
+                All twelve protections
+                <ArrowRightIcon className="h-4 w-4" />
+              </Link>
+            </div>
 
             <ul className="grid border-t border-band-line sm:grid-cols-2">
               {HEADLINE_PROTECTIONS.map((key) => (

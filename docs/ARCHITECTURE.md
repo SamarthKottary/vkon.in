@@ -487,6 +487,45 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-10 — Hero progress bar, and /protection
+
+**The segment labels came off the progress bar.** It is now a bare full-bleed
+rule at the foot of the hero, divided into one `flex-1` button per segment. Two
+consequences worth keeping:
+
+- **It is rendered outside `Container`,** which is the only reason it reaches
+  both viewport edges. Moving it back inside re-inserts the page gutter.
+- **Nothing is hard-coded to three.** Verified by temporarily adding a fourth
+  segment: widths went 476→356 px on desktop and 126→93 px on mobile, still
+  flush 0…1440 and 0…390. Adding a category later needs no layout change.
+
+The label survives as the eyebrow above the headline and as each button's
+accessible name (`Show Solar Pumping`) — a 2 px rule with no text would
+otherwise be an unlabelled control. The buttons are `py-4` so the touch target
+is ~34 px tall while only 2 px is painted.
+
+The pause button is pinned to the container edge just above the bar. It was
+briefly `ml-auto` in the CTA row, which aligns to the `max-w-4xl` text column
+and left it stranded mid-page on a wide screen.
+
+**`/protection` is a real page**, and the hero's Explore button opens it instead
+of scrolling to an anchor. It carries all twelve protections; the home band
+keeps six as a teaser and links across.
+
+**One protection page, not one per segment.** The failure modes are properties
+of Indian mains supply and of induction motors — identical whether the motor is
+on a borewell, a rooftop tank or a solar array. Per-segment pages would compete
+with each other for the same queries and triple the maintenance of nearly
+identical text. If a segment needs its own angle, add a section to that page.
+
+**Hero background photography is supported but unused.** `HeroSegment.image`
+takes a path in `public/`; the rotator cross-fades them behind a two-part scrim
+(a left-heavy horizontal gradient, plus a vertical one) because `band-ink` over
+an unmitigated sunny frame fails AA. No images ship yet — the field is absent
+from all three segments, and the ruled-grid texture shows through until one is
+set. Whatever lands there becomes the LCP element on a rural connection, so
+budget it accordingly.
+
 ### 2026-08-10 — Rotating hero
 
 **`home/HeroRotator`** (client) replaces the static hero headline. It cycles
