@@ -16,7 +16,10 @@ export function Footer() {
     <footer className="border-t border-band-line bg-band pb-24 text-band-muted md:pb-0">
       <Container size="wide">
         <div className="grid gap-12 py-16 md:grid-cols-3 lg:grid-cols-4 lg:gap-8">
-          <div className="lg:col-span-2">
+          {/* Full row at tablet. At md:grid-cols-3 this column was a third of
+              the width, which left ~160px for an email address needing 214 —
+              it wrapped mid-word between 768 and 1023px only. */}
+          <div className="md:col-span-3 lg:col-span-2">
             <Logo tone="light" />
 
             <address className="mt-8 not-italic">

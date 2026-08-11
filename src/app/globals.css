@@ -5,8 +5,11 @@
 
    The rules that give this its character, and the ones worth defending:
 
-   1. STRUCTURE OVER DECORATION. Separation comes from 1px rules and whitespace,
-      never from drop shadows or gradients. There is no shadow token below.
+   1. STRUCTURE FIRST, THEN DEPTH. Separation comes primarily from 1px rules and
+      whitespace. Since 2026-08-11 there are also two shadow tokens, added on
+      request because the light pages read as flat white canvas. They are
+      deliberately weak — 4-8 % alpha — and belong on cards only. Sections still
+      separate with rules and tinted bands, never with shadows.
    2. NEAR-SQUARE CORNERS. 2px. Pills and heavily rounded cards are the single
       strongest "generic template" signal.
    3. THE ACCENT IS RARE. Primary actions are near-black (near-white in dark).
@@ -110,6 +113,13 @@
      step up is what lets the hero scrim stay light. brand-300. */
   --color-band-accent-strong: #7ecba6;
 
+  /* Depth. Weak on purpose: enough to lift a card off white, not enough to
+     read as a generic template. Tuned against the surface, so dark mode
+     overrides them — a black shadow on a near-black surface is invisible and
+     the border carries the job instead. */
+  --shadow-card: 0 1px 2px rgb(20 23 26 / 0.04), 0 2px 8px rgb(20 23 26 / 0.05);
+  --shadow-card-hover: 0 2px 6px rgb(20 23 26 / 0.07), 0 10px 28px rgb(20 23 26 / 0.09);
+
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-plex), ui-monospace, "SF Mono", monospace;
 
@@ -164,6 +174,11 @@
      label needs 4.5:1, and #4cae81 only clears it against a heavy scrim — this
      step up is what lets the hero scrim stay light. brand-300. */
   --color-band-accent-strong: #7ecba6;
+
+  /* A dark shadow on a dark surface does nothing. Depth here is a faint light
+     halo instead, and mostly the border does the work. */
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-card-hover: 0 2px 6px rgb(0 0 0 / 0.4), 0 10px 28px rgb(0 0 0 / 0.35);
 }
 
 [data-theme="light"] {

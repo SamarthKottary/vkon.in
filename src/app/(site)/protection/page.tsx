@@ -52,7 +52,7 @@ export default function ProtectionPage() {
             </p>
           </div>
 
-          <ul className="mt-14 grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {faults.keys.map((key) => (
               <ProtectionItem key={key} name={key} tone="dark" />
             ))}
@@ -60,10 +60,14 @@ export default function ProtectionPage() {
         </Container>
       </section>
 
-      {rest.map((group) => (
+      {rest.map((group, index) => (
         <section
           key={group.key}
-          className="border-t border-line py-16 sm:py-20 lg:py-24"
+          /* Alternating tone. Three consecutive light sections separated only by
+             a hairline read as one continuous white sheet. */
+          className={`border-t border-line py-16 sm:py-20 lg:py-24 ${
+            index % 2 === 0 ? "bg-surface-subtle" : "bg-surface"
+          }`}
         >
           <Container size="wide">
             <div className="max-w-2xl">
@@ -76,7 +80,7 @@ export default function ProtectionPage() {
               </p>
             </div>
 
-            <ul className="mt-14 grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {group.keys.map((key) => (
                 <ProtectionItem key={key} name={key} tone="light" />
               ))}
@@ -87,7 +91,7 @@ export default function ProtectionPage() {
 
       <section className="border-t border-line py-16 sm:py-20">
         <Container size="wide">
-          <div className="max-w-2xl">
+          <div className="max-w-2xl border-l-2 border-accent pl-6">
             <h2 className="text-xl leading-snug sm:text-2xl">
               Which panel has which
             </h2>
@@ -128,13 +132,24 @@ function ProtectionItem({
   const meta = protectionMeta[name];
 
   return (
-    <li className={`border-t pt-5 ${dark ? "border-band-line" : "border-line"}`}>
-      <ProtectionIcon
-        name={name}
-        className={`h-6 w-6 ${dark ? "text-band-accent" : "text-accent"}`}
-      />
+    <li
+      className={
+        dark
+          ? "border border-band-line bg-band-raised p-6"
+          : "border border-line bg-surface p-6 shadow-card transition-shadow duration-200 hover:shadow-card-hover"
+      }
+    >
+      <span
+        className={`flex h-10 w-10 items-center justify-center border ${
+          dark
+            ? "border-band-line bg-band text-band-accent"
+            : "border-line bg-surface-subtle text-accent"
+        }`}
+      >
+        <ProtectionIcon name={name} className="h-5 w-5" />
+      </span>
       <h3
-        className={`mt-4 text-base font-medium ${dark ? "text-band-ink" : "text-ink"}`}
+        className={`mt-5 text-base font-medium ${dark ? "text-band-ink" : "text-ink"}`}
       >
         {meta.label}
       </h3>

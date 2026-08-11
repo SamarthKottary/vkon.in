@@ -487,6 +487,46 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-11 — Depth, category banners, and a working email link
+
+**Two shadow tokens now exist**, which amends design rule 1. `--shadow-card` and
+`--shadow-card-hover` are deliberately weak (4–9 % alpha) and belong on cards
+only; sections still separate with rules and tinted bands. Dark mode overrides
+them — a black shadow on a near-black surface does nothing, so the border
+carries it there. Added on request: the light pages read as flat white canvas.
+
+**Category leads are banners, not cards.** `CategoryRow lead="banner"` puts a
+full-width tinted panel above the track carrying the description, the count and
+the link into the filtered catalogue. As a card in the first cell it was the
+same width and height as the product cards beside it, so it read as a product
+with no photograph.
+
+**`/protection` alternates section tone** (`bg-surface-subtle` / `bg-surface`)
+because three consecutive light sections separated by a hairline read as one
+white sheet. Its protection entries became real bordered cards with an icon
+plate, and the grid dropped from `gap-10` rules to `gap-5` since each card now
+carries its own border.
+
+**`mailto:` silently fails on desktop.** This is the bug behind "the email works
+on mobile but not on desktop": `mailto:` only does something when the OS has a
+mail client registered, and anyone reading mail in a Gmail tab gets no
+navigation and no error. There is no way to detect whether the handler fired, so
+`home/CopyEmail` (client) keeps the link — correct where a client exists — and
+adds a copy-to-clipboard button beside it. Verified: label goes Copy → Copied →
+Copy, clipboard receives the address.
+
+**Two wrapping fixes, both width starvation:**
+- Contact strip icons moved from the value to the label. Inline with the value
+  an icon eats ~24px of a third-width column, which is what split the address
+  across two lines.
+- The footer's brand column was `md:grid-cols-3` at 1 of 3 ≈ 160px against an
+  address needing 214px, so it wrapped mid-word between 768 and 1023px only.
+  Now `md:col-span-3 lg:col-span-2`.
+
+Verified: email renders on one line at 390 / 640 / 768 / 900 / 1024 / 1280 /
+1440 in both the contact strip and the footer; no sideways scroll and no JS
+errors across all four routes, three widths, both themes.
+
 ### 2026-08-11 — Hero scrim taken to its floor
 
 The overlay is now about **a third of what shipped this morning**, arrived at by

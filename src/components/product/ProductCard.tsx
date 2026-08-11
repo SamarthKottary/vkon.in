@@ -26,7 +26,7 @@ export function ProductCard({
   const Heading = headingLevel;
 
   return (
-    <article className="group relative flex h-full flex-col border border-line bg-surface transition-colors duration-150 hover:border-ink">
+    <article className="group relative flex h-full flex-col border border-line bg-surface shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image

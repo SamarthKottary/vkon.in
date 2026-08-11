@@ -67,7 +67,7 @@ export default async function HomePage() {
                 key={group.category.key}
                 category={group.category}
                 products={group.items}
-                lead="card"
+                lead="banner"
                 headingLevel="h3"
                 priority={index === 0}
               />
