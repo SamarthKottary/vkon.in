@@ -120,9 +120,9 @@ export function HeroRotator({
               none of it. On desktop the text stays in the left column and the
               horizontal gradient does most of the work, so the floor can back
               off and let the photograph through. */}
-          <div className="absolute inset-0 bg-band/45 sm:bg-band/10" />
-          <div className="absolute inset-0 bg-gradient-to-r from-band via-band/75 to-band/20" />
-          <div className="absolute inset-0 bg-gradient-to-t from-band via-transparent to-band/60" />
+          <div className="absolute inset-0 bg-band/30 sm:bg-band/5" />
+          <div className="absolute inset-0 bg-gradient-to-r from-band/85 via-band/55 to-band/15" />
+          <div className="absolute inset-0 bg-gradient-to-t from-band/65 via-transparent to-band/40" />
         </div>
       )}
 
@@ -142,7 +142,12 @@ export function HeroRotator({
                     active ? "opacity-100" : "pointer-events-none opacity-0"
                   }`}
                 >
-                  <p className="label-tech text-band-accent">{segment.label}</p>
+                  {/* accent-strong, not accent: this is 11px over a
+                      photograph, so it needs 4.5:1, and it is the single
+                      constraint that decides how dark the scrim has to be. */}
+                  <p className="label-tech text-band-accent-strong">
+                    {segment.label}
+                  </p>
 
                   {i === 0 ? (
                     <h1 className="mt-6 text-[2.5rem] leading-[1.05] text-band-ink sm:text-6xl lg:text-7xl">
@@ -245,7 +250,10 @@ function HeadlineLines({ segment }: { segment: HeroSegment }) {
           {line}
         </span>
       ))}
-      <span className="block text-band-muted">{segment.headlineTail}</span>
+      {/* band-body rather than band-muted. Still visibly a step down from the
+          white lines above it, but muted grey at 40px was the single thing
+          forcing the scrim darker once the eyebrow was fixed. */}
+      <span className="block text-band-body">{segment.headlineTail}</span>
     </>
   );
 }

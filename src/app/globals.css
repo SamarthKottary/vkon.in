@@ -105,6 +105,10 @@
   --color-band-muted: #9ba3ab;
   --color-band-line: #333a41;
   --color-band-accent: #4cae81;
+  /* For accent text sitting on a photograph rather than flat band. At 11px the
+     label needs 4.5:1, and #4cae81 only clears it against a heavy scrim — this
+     step up is what lets the hero scrim stay light. brand-300. */
+  --color-band-accent-strong: #7ecba6;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-plex), ui-monospace, "SF Mono", monospace;
@@ -156,6 +160,10 @@
   --color-band-muted: #9ba3ab;
   --color-band-line: #343a41;
   --color-band-accent: #4cae81;
+  /* For accent text sitting on a photograph rather than flat band. At 11px the
+     label needs 4.5:1, and #4cae81 only clears it against a heavy scrim — this
+     step up is what lets the hero scrim stay light. brand-300. */
+  --color-band-accent-strong: #7ecba6;
 }
 
 [data-theme="light"] {

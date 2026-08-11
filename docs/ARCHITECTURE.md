@@ -487,6 +487,48 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-11 — Hero scrim taken to its floor
+
+The overlay is now about **a third of what shipped this morning**, arrived at by
+sweeping its strength and measuring rather than by eye:
+
+| layer | was | now |
+|---|---|---|
+| flat floor | `bg-band/65` → `/45` | `bg-band/30 sm:bg-band/5` |
+| horizontal | `from-band via-band/75 to-band/20` | `from-band/85 via-band/55 to-band/15` |
+| vertical | `from-band via-transparent to-band/60` | `from-band/65 via-transparent to-band/40` |
+
+**The scrim was never the real constraint — three text colours were.** Sweeping
+it at 100/80/65/50/35 % showed every failure tracing to one element at a time,
+and each was cheaper to fix at the type than by dimming the picture:
+
+1. `label-tech` eyebrow at 11 px in `band-accent` (#4cae81). At 11 px it needs
+   the full 4.5:1 and nothing else came close to failing first. Added
+   `--color-band-accent-strong` (#7ecba6, brand-300) for accent text over
+   photography. This one change moved the floor from 100 % to 80 %.
+2. The muted third headline line at 40 px, `band-muted` → `band-body`. Still
+   visibly a step below the white lines above it. Floor 80 % → 65 %.
+3. The last two failures were the eyebrow again, desktop dark only — dark-theme
+   band (#1b1f23) is lighter than light-theme (#14171a), so equal alpha darkens
+   less. Fixed by weighting the horizontal gradient's **left** stop (`/65` →
+   `/85`) and leaving its right stop at `/15`. The text lives on the left; the
+   photograph people came to see is on the right. Darkening the whole layer to
+   solve a left-edge problem would have been the lazy version.
+
+Result: **0 failures across 98 glyph runs**, tightest margin **1.25× required**,
+with an overlay a third of the weight. Contrast improved while the scrim got
+lighter, three times running.
+
+**The rule this establishes:** over photography, spend the contrast budget on
+the type, never on dimming the image. Every step here that dimmed the picture
+made the page worse and bought less than brightening one text colour did. If
+new artwork fails, look at `band-accent` at 11 px first.
+
+Re-checked after lightening: mirror-pad joins stay invisible (max 2.5–2.9×
+median, and the one 3.3× reading is a genuine building edge at 51 %, not the
+join at 33 %). Note the seam detector only works on **text-free** captures —
+letter stems are strong vertical edges and will masquerade as seams.
+
 ### 2026-08-11 — Hero artwork: lighter scrim, mobile focal point
 
 Two problems, one of which had a counter-intuitive fix.
