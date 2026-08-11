@@ -1,16 +1,13 @@
 import Link from "next/link";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { Hero } from "@/components/home/Hero";
-import { ProtectionIcon, protectionMeta } from "@/components/icons/protections";
 import { ArrowRightIcon } from "@/components/icons/ui";
 import { CategoryRow } from "@/components/product/CategoryRow";
-import { Container } from "@/components/ui/Container";
 import { Section, SectionHeading } from "@/components/ui/Section";
 import { categories } from "@/content/taxonomy";
 import { site } from "@/content/site";
 import { listProducts } from "@/lib/db/products";
 import { pageMetadata } from "@/lib/seo";
-import type { ProtectionKey } from "@/lib/types";
 
 export const metadata = pageMetadata({
   title: `${site.name} — Motor Starters & Control Panels for Agriculture`,
@@ -30,15 +27,6 @@ export const metadata = pageMetadata({
  * a whole category of "I saved it but it isn't showing".
  */
 export const dynamic = "force-dynamic";
-
-const HEADLINE_PROTECTIONS: ProtectionKey[] = [
-  "dry-run",
-  "hv-lv",
-  "single-phase",
-  "phase-reversal",
-  "overload-relay",
-  "rotary-lock",
-];
 
 export default async function HomePage() {
   const all = await listProducts();
@@ -69,7 +57,7 @@ export default async function HomePage() {
         <SectionHeading
           eyebrow="What we make"
           title="Panels for every pump on the farm"
-          description="From a single-phase openwell set to a 100 HP star-delta installation, with the cable and mobile control that go alongside."
+          description="From a single-phase openwell set to a 40 HP fully automatic star-delta installation, with the mobile control and accessories that go alongside."
         />
 
         {groups.length > 0 ? (
@@ -96,50 +84,6 @@ export default async function HomePage() {
           <ArrowRightIcon className="h-4 w-4" />
         </Link>
       </Section>
-
-      {/* A teaser for /protection, which the hero's Explore button now opens.
-          Six of the twelve, with the rest a click away — the full set here
-          would make the home page a second copy of that page. */}
-      <section className="bg-band py-16 sm:py-20 lg:py-24">
-        <Container size="wide">
-          <div className="grid gap-12 lg:grid-cols-[minmax(0,24rem)_1fr] lg:gap-20">
-            <div>
-              <SectionHeading
-                tone="dark"
-                eyebrow="Protection delivered"
-                title="What takes a motor out"
-                description="Rural supply is not kind to pumps. These are the conditions a Vkon panel watches for, continuously, on all three phases."
-              />
-              <Link href="/protection" className="link-cta link-cta-band mt-8">
-                All twelve protections
-                <ArrowRightIcon className="h-4 w-4" />
-              </Link>
-            </div>
-
-            <ul className="grid border-t border-band-line sm:grid-cols-2">
-              {HEADLINE_PROTECTIONS.map((key) => (
-                <li
-                  key={key}
-                  className="flex gap-4 border-b border-band-line py-5 sm:odd:pr-8 sm:even:border-l sm:even:pl-8"
-                >
-                  <ProtectionIcon
-                    name={key}
-                    className="mt-0.5 h-5 w-5 shrink-0 text-band-accent"
-                  />
-                  <div>
-                    <h3 className="text-[0.9375rem] font-medium text-band-ink">
-                      {protectionMeta[key].label}
-                    </h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-band-muted">
-                      {protectionMeta[key].description}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Container>
-      </section>
 
       <ContactStrip />
     </>

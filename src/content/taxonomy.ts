@@ -50,6 +50,57 @@ export function isCategory(value: unknown): value is ProductCategory {
   );
 }
 
+/**
+ * The protections, grouped by what kind of thing they are.
+ *
+ * A flat list of twelve hides a real distinction: six are faults the panel
+ * watches for, three are things it does unattended, three are how you see and
+ * reach it. The /protection page is built from this.
+ *
+ * Group sizes (6 / 3 / 3) are chosen so every group divides evenly into both a
+ * two- and a three-column grid. That is what keeps the layout free of the empty
+ * trailing cells described in ARCHITECTURE.md §9 — check it before re-grouping.
+ */
+export const protectionGroups: {
+  key: string;
+  /** Category label above the heading. Not a step number — these are kinds, not a sequence. */
+  eyebrow: string;
+  title: string;
+  intro: string;
+  keys: ProtectionKey[];
+}[] = [
+  {
+    key: "faults",
+    eyebrow: "The faults",
+    title: "Faults it watches for",
+    intro:
+      "These are the conditions that destroy pump motors. The panel watches all three phases for them continuously, and acts before the winding does.",
+    keys: [
+      "dry-run",
+      "single-phase",
+      "hv-lv",
+      "phase-reversal",
+      "overload-relay",
+      "rotary-lock",
+    ],
+  },
+  {
+    key: "unattended",
+    eyebrow: "Automation",
+    title: "Runs without you",
+    intro:
+      "Irrigation happens when the supply allows it, which is rarely when somebody is standing at the pump house.",
+    keys: ["auto-start-timer", "cyclic-timer", "star-delta"],
+  },
+  {
+    key: "control",
+    eyebrow: "Interface",
+    title: "Sensing and control",
+    intro: "What the panel measures, and how you reach it.",
+    keys: ["voltage-current-sensing", "mobile-control", "solar-powered"],
+  },
+];
+
 export const PROTECTION_KEYS = [
   "dry-run",
   "hv-lv",

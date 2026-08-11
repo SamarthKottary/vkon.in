@@ -487,6 +487,40 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-10 — /protection redesigned, home band removed
+
+The protection band is **gone from the home page**. It was a teaser for a page
+that the hero's Explore button already opens, so it was the same content twice
+in one scroll. The home page is now hero → category rows → contact.
+
+**`/protection` is grouped rather than flat.** `protectionGroups` in
+`content/taxonomy.ts` splits the twelve into what they actually are: six faults
+the panel watches for, three things it does unattended, three that are sensing
+and control. A flat grid of twelve hid that distinction.
+
+Two details worth preserving:
+
+- **Group sizes are 6 / 3 / 3**, and every one of those divides evenly into a
+  two- *and* a three-column grid. That is what keeps the layout free of the
+  trailing empty cells in §9. Re-grouping without checking this reintroduces
+  them.
+- **Icons sit above their label, not beside it.** Inline, the icon reads as a
+  bullet and the description is squeezed into a narrow column; stacked, each
+  entry gets the full cell and the grid reads as specifications.
+
+The faults group is set on `bg-band` — in dark mode the band inversion makes it
+*lighter* than the page, which is what keeps the section reading as a section
+rather than dissolving. The eyebrows are category labels ("The faults",
+"Automation", "Interface"), not `01 / 02 / 03`: these are kinds, not a sequence,
+and numbering them would have implied an order that does not exist.
+
+**Also:** the "What we make" description said *100 HP*, the same placeholder
+overstatement corrected in the hero earlier today. Now 40 HP, per the company's
+own product portfolio.
+
+Verified: zero contrast failures across `/`, `/protection` and `/products`, both
+themes, both viewports.
+
 ### 2026-08-10 — Hero progress bar, and /protection
 
 **The segment labels came off the progress bar.** It is now a bare full-bleed
