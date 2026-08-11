@@ -31,6 +31,19 @@ export type HeroSegment = {
    * third is quiet — see docs/ARCHITECTURE.md for the brief.
    */
   image?: string;
+  /**
+   * Horizontal focal point for the background, as an `object-position` value.
+   *
+   * Only bites on narrow screens. A phone shows roughly a third of a landscape
+   * frame, and a centre slice cut the subject out entirely — on the agriculture
+   * frame it landed on empty paddy with the pump house off-screen.
+   *
+   * Defaults to the right edge, because every frame here was composed with its
+   * subject in the right third and its left kept quiet for the headline. Set
+   * this only for artwork that breaks that rule. Desktop is ~1.85:1 against a
+   * 1.79:1 image, so it crops almost nothing and stays centred.
+   */
+  focus?: string;
 };
 
 export const heroSegments: HeroSegment[] = [

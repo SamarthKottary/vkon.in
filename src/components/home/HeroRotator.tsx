@@ -103,7 +103,8 @@ export function HeroRotator({
                 fill
                 sizes="100vw"
                 priority={i === 0}
-                className={`object-cover transition-opacity duration-700 ${
+                style={{ "--focus": segment.focus ?? "100% 50%" } as React.CSSProperties}
+                className={`object-cover object-[var(--focus)] transition-opacity duration-700 sm:object-center ${
                   i === index ? "opacity-100" : "opacity-0"
                 }`}
               />
@@ -119,8 +120,8 @@ export function HeroRotator({
               none of it. On desktop the text stays in the left column and the
               horizontal gradient does most of the work, so the floor can back
               off and let the photograph through. */}
-          <div className="absolute inset-0 bg-band/65 sm:bg-band/25" />
-          <div className="absolute inset-0 bg-gradient-to-r from-band via-band/85 to-band/35" />
+          <div className="absolute inset-0 bg-band/45 sm:bg-band/10" />
+          <div className="absolute inset-0 bg-gradient-to-r from-band via-band/75 to-band/20" />
           <div className="absolute inset-0 bg-gradient-to-t from-band via-transparent to-band/60" />
         </div>
       )}
@@ -153,7 +154,11 @@ export function HeroRotator({
                     </p>
                   )}
 
-                  <p className="mt-8 max-w-xl text-lg leading-relaxed text-band-muted">
+                  {/* band-body, not band-muted. Over a photograph the dimmer
+                      grey forces the scrim darker to hold 4.5:1 — brightening
+                      the text by one step buys far more headroom than dimming
+                      the picture, and the picture is the point. */}
+                  <p className="mt-8 max-w-xl text-lg leading-relaxed text-band-body">
                     {segment.body}
                   </p>
                 </div>

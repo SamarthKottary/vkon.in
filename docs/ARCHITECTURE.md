@@ -487,6 +487,37 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-11 — Hero artwork: lighter scrim, mobile focal point
+
+Two problems, one of which had a counter-intuitive fix.
+
+**The phone was showing a 33 % centre slice of a landscape frame.** At 390×684
+the hero is 0.57:1 against a 1.79:1 image, so `object-cover` scales to height
+and discards two thirds of the width — on the agriculture frame that landed on
+empty paddy with the pump house entirely off-screen.
+
+The fix is `object-right` on mobile, `sm:object-center` above it, driven by a
+`--focus` custom property so individual artwork can override it. **Not a second
+image per segment**: art direction would mean a second file downloaded on the
+phone, and every frame here was already composed with its subject in the right
+third, so choosing *which* third to keep costs nothing. `HeroSegment.focus`
+exists for artwork that breaks that composition rule.
+
+**The scrim got lighter by making the text brighter.** The obvious move — dim
+the photograph less — failed: at `bg-band/45` on mobile, four body-copy runs
+dropped to 3.84:1 against the 4.5 they need. But the hero body was
+`text-band-muted`, the dimmest grey in the set. Moving it one step to
+`text-band-body` raises the luminance the ratio is computed from, so the same
+photograph passes with a much lighter scrim.
+
+Net: the floor went from `bg-band/65` → `/45` on mobile and `/25` → `/10` on
+desktop, the horizontal gradient from `via-band/85 to-band/35` →
+`via-band/75 to-band/20`, and contrast *improved* — 0 failures across 98 glyph
+runs with the tightest margin going from 1.06× to **1.22× required**.
+
+The general rule worth keeping: over photography, spend the contrast budget on
+the type, not on the image. Dimming the picture defeats the reason it is there.
+
 ### 2026-08-11 — Hero background photography
 
 Three generated backgrounds are live: `public/segments/{agriculture,home-automation,solar}.jpg`,
