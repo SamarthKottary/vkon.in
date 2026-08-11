@@ -50,6 +50,14 @@ export function ArrowLeftIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function ArrowDownIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden className={className}>
+      <path d="M12 4v16m0 0-6-6m6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function PhoneIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg {...base} className={className}>
@@ -87,6 +95,14 @@ export function PlayIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
       <path d="M8 5.5v13l11-6.5-11-6.5Z" />
+    </svg>
+  );
+}
+
+export function PauseIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M8 5h3v14H8V5Zm5 0h3v14h-3V5Z" />
     </svg>
   );
 }

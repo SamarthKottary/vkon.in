@@ -275,6 +275,22 @@
     display: none;
   }
 
+  /* Fill line under the active hero segment. Duration is set inline from
+     SLIDE_MS so the bar and the timer can never drift apart. */
+  .hero-progress {
+    width: 100%;
+    animation: hero-progress linear forwards;
+  }
+
+  @keyframes hero-progress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
   @media (min-width: 640px) {
     .hscroll {
       scroll-padding-left: 1.5rem;

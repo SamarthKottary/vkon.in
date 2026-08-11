@@ -151,12 +151,13 @@ scripts/       db-setup.mjs, db-seed.mjs, make-placeholder-images.py
 public/products/  demo-*.jpg (placeholder photography — delete when real)
 ```
 
-### Client components — all six
+### Client components — all seven
 
 | Component | Why |
 |---|---|
 | `theme/ThemeToggle` | Reads `data-theme` via `useSyncExternalStore` |
 | `layout/Header` | Drawer state, focus trap, Escape |
+| `home/HeroRotator` | Slide timer, pause control, reduced-motion opt-out |
 | `product/ProductCatalogue` | `useSearchParams` filter state |
 | `product/ProductMedia` | Selected media, deferred video embed |
 | `admin/LoginForm` | `useActionState` |
@@ -329,16 +330,23 @@ paints grey rectangles wherever the item count is not a multiple of the column
 count — visible as broken blocks with one product. Cards carry their own border
 and the grid uses a normal gap.
 
-**Category lists are ruled rows, not a card grid**, for the same reason: five
-categories in a three-column grid leaves a visible hole.
+**Category presentation must not be a wrapping card grid**, for the same
+reason: five categories in a three-column grid leaves a visible hole. It was a
+ruled directory until 2026-08-10 and is now one horizontal `CategoryRow` per
+category — a single-line track cannot produce an empty cell. A category with no
+products is dropped, never rendered as an empty row.
 
 **Accessible names must lead with their visible text.** An `aria-label` that
 replaces visible text breaks voice control. This is why the logo link has none
 and the delete confirmation reads "Confirm delete" before its screen-reader
 suffix.
 
-**Heading order must not skip a level.** `/products` needs its visually hidden
-`<h2>` because the masthead is `h1` and cards are `h3`.
+**Heading order must not skip a level.** `/products` used to need a visually
+hidden `<h2>` between the `h1` masthead and its `h3` cards; the category rows
+now supply real `h2`s, so it was removed. This is why `ProductCard` and
+`CategoryRow` both take a heading-level prop — the home page nests one level
+deeper (`h2` section → `h3` category → `h4` card) than the catalogue
+(`h1` → `h2` → `h3`). Hard-coding either breaks the other.
 
 **The footer reserves `pb-24 md:pb-0`** for the fixed mobile action bar.
 
@@ -479,15 +487,57 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-10 — Rotating hero
+
+**`home/HeroRotator`** (client) replaces the static hero headline. It cycles
+market segments — agriculture, home automation, solar — on a 5 s timer, with a
+WAGO-style fill line under the segment labels. Copy lives in
+`src/content/segments.ts`; delete an entry and the hero adjusts.
+
+Four decisions that are load-bearing rather than stylistic:
+
+- **All slides stay mounted, stacked in one CSS grid cell.** The hero is then as
+  tall as its tallest slide and never changes height. Swapping children instead
+  would shift the fold every five seconds.
+- **Inactive slides carry `inert`**, which removes them from the tab order and
+  the accessibility tree together. Without it, keyboard users tab into invisible
+  text and screen readers announce all three slides at once. Do *not* also set
+  `aria-hidden` on the slide's own headline — that mutes it on the slide that is
+  actually showing, which is a bug this component shipped with for one commit.
+- **Only slide one's headline is an `<h1>`.** All three are in the markup, so
+  three `<h1>` elements would be three to a crawler regardless of what is
+  visible. The rest are paragraphs wearing the same type scale.
+- **The pause button is a WCAG 2.2.2 requirement**, not a nicety: anything that
+  moves on its own for more than five seconds needs a stop mechanism, and hover
+  does not count because it cannot be reached from a keyboard. Autoplay is also
+  off entirely under `prefers-reduced-motion`, and pauses on tab blur.
+
+The CTA row sits *outside* the rotator so it does not move under the cursor. It
+now reads **Explore** and anchors to `#protection` (the "What takes a motor out"
+band), which carries `scroll-mt-16` to clear the sticky header.
+
+**Also in this change**
+- The hero's motor-range figure read `0.5–100 HP`, a placeholder predating the
+  company's product portfolio, which states **1–40 HP**. Corrected. The
+  `280–440 V` supply band is still unverified — it came from a competitor's
+  poster during the first build — and is now marked `TODO(vkon)`.
+- Product cards gain a desktop-only image zoom on hover
+  (`md:group-hover:scale-[1.06]`).
+- The card's `Video` text badge became a play glyph; the word read as a stray
+  field label.
+- Primary nav moved to sit beside the logo on the left.
+
 ### 2026-08-10 — Category rows, and content from the business plan
 
 **Catalogue layout.** Both the home page and `/products` now present products as
 one horizontal row per category rather than a single grid. `product/CategoryRow`
 is the shared piece; it is a **server component** — the track is native
 `overflow-x` with CSS scroll snap (`.hscroll` in globals.css), not a scripted
-carousel. Two reasons: the site targets low-end Android, where native scrolling
-beats anything scripted; and a carousel would have been the first client
-component in the public tree.
+carousel. The reason is that the site targets low-end Android, where native
+scrolling beats anything scripted. (This paragraph previously also argued that a
+carousel would be the first client component in the public tree — that stopped
+being true the same day, when the hero rotator landed. The scroll-snap argument
+stands on its own.)
 
 The affordance for "this scrolls" is the partially visible card at the right
 edge, so card widths (`17rem` / `19rem` at `sm`) are load-bearing — widen them

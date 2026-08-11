@@ -97,7 +97,12 @@ export default async function HomePage() {
         </Link>
       </Section>
 
-      <section className="bg-band py-16 sm:py-20 lg:py-24">
+      {/* The hero's Explore button lands here. `scroll-mt-16` clears the
+          sticky header, which would otherwise cover the heading on arrival. */}
+      <section
+        id="protection"
+        className="scroll-mt-16 bg-band py-16 sm:py-20 lg:py-24"
+      >
         <Container size="wide">
           <div className="grid gap-12 lg:grid-cols-[minmax(0,24rem)_1fr] lg:gap-20">
             <SectionHeading

@@ -1,6 +1,7 @@
-import Link from "next/link";
-import { ArrowRightIcon } from "@/components/icons/ui";
+import { ArrowDownIcon } from "@/components/icons/ui";
+import { HeroRotator } from "@/components/home/HeroRotator";
 import { Container } from "@/components/ui/Container";
+import { heroSegments } from "@/content/segments";
 import { site } from "@/content/site";
 import { telLink } from "@/lib/contact";
 
@@ -19,34 +20,19 @@ export function Hero() {
 
       <Container size="wide" className="relative">
         <div className="max-w-4xl py-20 sm:py-28 lg:py-36">
-          {/* TODO(vkon): add "Since <year>" here once the real founding year is
-              confirmed. It previously read 1999, which was the competitor's
-              founding year taken off their poster — false, and too close to
-              their brand claim. */}
-          <p className="label-tech text-band-accent">Made in India</p>
+          <HeroRotator segments={heroSegments} />
 
-          <h1 className="mt-6 text-[2.5rem] leading-[1.05] text-band-ink sm:text-6xl lg:text-7xl">
-            Protection between
-            <br />
-            your motor and
-            <br />
-            <span className="text-band-muted">the mains.</span>
-          </h1>
-
-          <p className="mt-8 max-w-xl text-lg leading-relaxed text-band-muted">
-            Electronic starters and control panels for agricultural pumps. Built
-            for the supply Indian borewells actually run on — 280 to 440 volts,
-            phases that drop out, and water that runs dry without warning.
-          </p>
-
-          <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-4">
-            <Link
-              href="/products"
+          {/* The calls to action sit outside the rotator so they hold still
+              while the message above them changes — a button that moves under
+              the cursor every five seconds is a button people misclick. */}
+          <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-4">
+            <a
+              href="#protection"
               className="link-cta border-band-line text-band-ink hover:border-band-accent hover:text-band-accent"
             >
-              View the range
-              <ArrowRightIcon className="h-4 w-4" />
-            </Link>
+              Explore
+              <ArrowDownIcon className="h-4 w-4" />
+            </a>
             <a
               href={telLink()}
               className="text-sm text-band-muted transition-colors hover:text-band-ink"
