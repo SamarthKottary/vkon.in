@@ -241,6 +241,11 @@ background (see §10). Both themes currently report **zero failures**.
 
 ## 7. Admin and security
 
+> Extending the admin? **[ADMIN.md](ADMIN.md)** covers it in depth — the full
+> data flow, a recipe for adding an editable field, and the open decisions
+> (editable hero figures, multi-admin, backups) with a recommendation each.
+> This section is the summary.
+
 `/admin` is a single-operator CMS.
 
 **Session.** `lib/auth.ts`. Password in `ADMIN_PASSWORD`, compared with

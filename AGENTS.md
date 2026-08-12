@@ -7,6 +7,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 # Project
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before making structural changes.
+Work on `/admin` also has [docs/ADMIN.md](docs/ADMIN.md) — the data flow, the
+rules for adding an editable field, and the open decisions.
 It records the layering, the design tokens and contrast rules, and a set of
 load-bearing constraints in §7 that each encode a real bug — breaking one
 reintroduces it.
