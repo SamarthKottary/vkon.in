@@ -313,6 +313,14 @@ reintroduces the stale-by-one-request bug in §3.
 between themes; its companion is `text-action-ink`. Same for `bg-band` →
 `text-band-ink`.
 
+**Fonts are committed files, never fetched at build time.** `next/font/google`
+downloads from fonts.googleapis.com during `next build`, which makes every
+build — including the Docker build inside `cicd/deploy.sh` — fail on a slow or
+interrupted connection, *after* the deploy has already pulled the commit.
+`src/app/fonts/` holds the same latin-subset woff2 files Google would have
+served, wired through `next/font/local`. Runtime bytes are identical; only the
+network dependency is gone.
+
 **Health checks must probe `/api/health`, never `/`.** Public reads fail soft,
 so the home page returns 200 with the database completely down. See §10a.
 
@@ -497,6 +505,29 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-12 — Fonts self-hosted, build no longer needs the network
+
+A local `npm run build` failed with `Failed to fetch 'Inter' from Google Fonts`
+and the same for IBM Plex Mono. The connection was up but slow — 5.7s to reach
+fonts.googleapis.com — and `next/font/google` timed out.
+
+That was worth more than a retry. `next/font/google` fetches at **build** time,
+and `cicd/deploy.sh` builds inside Docker on the server, so the same slow link
+would fail a deploy — after the console had already fast-forwarded the checkout,
+leaving a failed deploy against a moved HEAD.
+
+The three latin-subset woff2 files now live in `src/app/fonts/` (76 KB total:
+Inter variable 47 KB, Plex Mono 400/500 at 14.4 KB each) and load through
+`next/font/local`. These are the same files Google served, so runtime bytes and
+rendering are unchanged — `next/font/local` still generates the metric-adjusted
+fallback face that keeps CLS at zero.
+
+Verified: build succeeds with HTTP(S)_PROXY pointed at a dead port, the page
+issues no external requests, and all three faces report `loaded`.
+
+To update a face later, download the new woff2 and replace the file — there is
+no build step that will do it for you any more, which is the point.
 
 ### 2026-08-11 — Tinted ground, and horizontal product cards on the home page
 

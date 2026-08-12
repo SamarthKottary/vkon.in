@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import { ThemeScript } from "@/components/theme/ThemeScript";
 import { site } from "@/content/site";
 import "./globals.css";
@@ -12,17 +12,33 @@ import "./globals.css";
  * mono reserved for technical labels and spec values, is what makes an
  * industrial catalogue look like one.
  */
-const inter = Inter({
+/*
+ * The font files are committed, not fetched.
+ *
+ * `next/font/google` downloads from fonts.googleapis.com during `next build`.
+ * That turns every build — including the Docker build inside `cicd/deploy.sh`
+ * — into something that fails on a slow or interrupted connection, and it
+ * fails *after* the deploy has already pulled the new commit. It happened
+ * locally on 2026-08-12: two font fetches timed out and the build aborted.
+ *
+ * These are the same latin-subset woff2 files Google would have served, so
+ * runtime behaviour and bytes on the wire are unchanged. Only the build-time
+ * network dependency is gone. To update a face, download the new woff2 and
+ * replace the file.
+ */
+const inter = localFont({
   variable: "--font-inter",
-  subsets: ["latin"],
   display: "swap",
+  src: [{ path: "./fonts/Inter-latin.woff2", style: "normal", weight: "100 900" }],
 });
 
-const plexMono = IBM_Plex_Mono({
+const plexMono = localFont({
   variable: "--font-mono-plex",
-  subsets: ["latin"],
   display: "swap",
-  weight: ["400", "500"],
+  src: [
+    { path: "./fonts/IBMPlexMono-400-latin.woff2", style: "normal", weight: "400" },
+    { path: "./fonts/IBMPlexMono-500-latin.woff2", style: "normal", weight: "500" },
+  ],
 });
 
 export const metadata: Metadata = {
