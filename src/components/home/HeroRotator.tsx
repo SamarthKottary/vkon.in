@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PauseIcon, PlayIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import type { HeroSegment } from "@/content/segments";
@@ -94,10 +94,33 @@ export function HeroRotator({
 
   const running = autoplay && !paused;
 
+  /**
+   * Time left on the current slide.
+   *
+   * Pausing must freeze the slide where it stands, not restart it — so the
+   * timer cannot simply be a fresh SLIDE_MS on every resume. The cleanup below
+   * subtracts however long the timer actually ran, and the next run picks up
+   * the remainder. Declared before the timer effect so a slide change resets
+   * the budget before the new timer reads it.
+   */
+  const remainingRef = useRef(SLIDE_MS);
+  const startedAtRef = useRef(0);
+
+  useEffect(() => {
+    remainingRef.current = SLIDE_MS;
+  }, [index]);
+
   useEffect(() => {
     if (!running) return;
-    const timer = window.setTimeout(() => go(index + 1), SLIDE_MS);
-    return () => window.clearTimeout(timer);
+    startedAtRef.current = Date.now();
+    const timer = window.setTimeout(() => go(index + 1), remainingRef.current);
+    return () => {
+      window.clearTimeout(timer);
+      remainingRef.current = Math.max(
+        0,
+        remainingRef.current - (Date.now() - startedAtRef.current),
+      );
+    };
   }, [running, index, go]);
 
   /* A background tab still fires timers, so without this the carousel races
@@ -239,19 +262,28 @@ export function HeroRotator({
               >
                 <span className="sr-only">Show {segment.label}</span>
                 <span className="block h-0.5 w-full bg-band-line transition-colors group-hover:bg-band-muted">
-                  {/* Restarting the fill needs a fresh element, so the key
-                      carries the active index and the run state. */}
-                  <span
-                    key={`${i}-${index}-${running}`}
-                    style={
-                      active && running
-                        ? { animationDuration: `${SLIDE_MS}ms` }
-                        : undefined
-                    }
-                    className={`block h-0.5 origin-left bg-band-accent ${
-                      active ? (running ? "hero-progress" : "w-full") : "w-0"
-                    }`}
-                  />
+                  {/* The key is the slide index alone, so pausing does NOT
+                      remount this element — it only flips animation-play-state,
+                      which freezes the fill mid-travel and resumes from the
+                      same point. Keying on `running` (as this once did) tore
+                      the element down on pause, which snapped the line to full
+                      and restarted it from zero on resume. */}
+                  {active && autoplay ? (
+                    <span
+                      key={index}
+                      style={{
+                        animationDuration: `${SLIDE_MS}ms`,
+                        animationPlayState: running ? "running" : "paused",
+                      }}
+                      className="hero-progress block h-0.5 origin-center bg-band-accent"
+                    />
+                  ) : (
+                    <span
+                      className={`block h-0.5 origin-center bg-band-accent ${
+                        active ? "w-full" : "w-0"
+                      }`}
+                    />
+                  )}
                 </span>
               </button>
             );

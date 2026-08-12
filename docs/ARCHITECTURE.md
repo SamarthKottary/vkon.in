@@ -506,6 +506,33 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-12 — Progress bar: pause holds position, fill grows from the centre
+
+**Pausing now freezes the bar where it stands.** It used to snap to full and
+restart the slide from zero on resume, because the fill element was keyed on
+`${i}-${index}-${running}` — flipping `running` tore it down and rebuilt it.
+The key is the slide index alone now, and pausing only flips
+`animation-play-state`, which CSS freezes mid-travel.
+
+The timer had the same bug in JS form: a fresh `setTimeout(SLIDE_MS)` on every
+resume gave the slide a full five seconds again. `remainingRef` carries the
+balance — the effect cleanup subtracts however long the timer actually ran, and
+a slide change resets it. That reset effect must stay **declared before** the
+timer effect, or the new timer reads the old slide's remainder.
+
+Measured: 2.0s in → 51%, paused at 53%, held 2.5s → still 53%, resumed → 53%
+and climbing, slide advanced after the remainder rather than a fresh 5s.
+
+**The fill grows from the centre outwards**, not left to right (the WAGO-style
+edge fill became a Simple Energy-style centre fill on request). That is
+`origin-center` on the element — the keyframes are plain `scaleX(0)` →
+`scaleX(1)` and do not encode direction.
+
+**The figures sit lower.** Padding went from `pt-12 pb-14` to `pt-20 pb-7`
+(`sm:pt-24 sm:pb-9`), leaving 36px below the labels on desktop and 28px on
+mobile rather than a dead band of image. Contrast re-checked after the height
+change since it re-crops the artwork: still 0 of 230, tightest 1.04×.
+
 ### 2026-08-12 — Artwork runs behind the figures
 
 The hero figures (motor range, protections, phases, supply band) used to sit in
