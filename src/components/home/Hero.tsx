@@ -11,9 +11,27 @@ import { telLink } from "@/lib/contact";
  *
  * Dark, full-bleed, left-aligned, with the headline given room and nothing
  * competing with it — the NVIDIA move, held to WAGO's restraint. No gradient
- * glows, no floating device mock, no centred text. The figures sit on a ruled
- * strip along the bottom, which is where an industrial site puts its numbers.
+ * glows, no floating device mock, no centred text.
+ *
+ * The figures run along the bottom *inside* the rotator, so the photograph and
+ * its scrim continue behind them. They were a separately ruled band until
+ * 2026-08-12; over a picture those rules read as a wireframe laid on top, so
+ * spacing separates the figures now.
  */
+
+/* 1–40 HP is the range stated in the company's own product portfolio. It
+   previously read 0.5–100, a placeholder written before that document existed.
+
+   TODO(vkon): the 280–440 V band is unverified. It came from a competitor's
+   poster during the first build and has never been confirmed against a Vkon
+   panel. Check it or drop the figure. */
+const FIGURES = [
+  { value: "1–40", unit: "HP", label: "Motor range covered" },
+  { value: "12", unit: "", label: "Protections built in" },
+  { value: "3", unit: "phase", label: "Live amps & voltage" },
+  { value: "280–440", unit: "V", label: "Input supply band" },
+];
+
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-band">
@@ -21,10 +39,34 @@ export function Hero() {
 
       {/* The rotator owns the layout from here down, because its progress bar
           has to escape Container to reach both page edges. The calls to action
-          are passed in as children so they stay server-rendered — and so they
-          hold still while the message above them changes; a button that moves
-          under the cursor every five seconds is one people misclick. */}
-      <HeroRotator segments={heroSegments}>
+          and the figures are passed in as slots so they stay server-rendered —
+          and so the buttons hold still while the message above them changes; a
+          button that moves under the cursor every five seconds is one people
+          misclick. */}
+      <HeroRotator
+        segments={heroSegments}
+        footer={
+          <Container size="wide">
+            <dl className="grid grid-cols-2 gap-x-8 gap-y-9 pb-14 pt-12 sm:grid-cols-4 sm:pb-16">
+              {FIGURES.map((figure) => (
+                <div key={figure.label}>
+                  <dd className="font-mono text-2xl text-band-ink sm:text-3xl">
+                    {figure.value}
+                    {figure.unit && (
+                      <span className="ml-1 text-base text-band-body">
+                        {figure.unit}
+                      </span>
+                    )}
+                  </dd>
+                  <dt className="label-tech mt-2 text-band-body">
+                    {figure.label}
+                  </dt>
+                </div>
+              ))}
+            </dl>
+          </Container>
+        }
+      >
         <Link
           href="/protection"
           className="link-cta border-band-line text-band-ink hover:border-band-accent hover:text-band-accent"
@@ -39,47 +81,6 @@ export function Hero() {
           Or call {site.phone.display}
         </a>
       </HeroRotator>
-
-      <div className="relative border-t border-band-line">
-        <Container size="wide">
-          {/* 2×2 on mobile, 1×4 on desktop. Dividers are set per item rather
-              than with `divide-x`, which would put a left border on the item
-              that starts the second row on mobile. */}
-          <dl className="grid grid-cols-2 sm:grid-cols-4">
-            {[
-              /* 1–40 HP is the range stated in the company's own product
-                 portfolio. It previously read 0.5–100, which was a placeholder
-                 written before that document existed. */
-              { value: "1–40", unit: "HP", label: "Motor range covered" },
-              { value: "12", unit: "", label: "Protections built in" },
-              { value: "3", unit: "phase", label: "Live amps & voltage" },
-              /* TODO(vkon): unverified. This band came from a competitor's
-                 poster during the first build and has never been confirmed
-                 against a Vkon panel. Check it or remove the stat. */
-              { value: "280–440", unit: "V", label: "Input supply band" },
-            ].map((stat, index) => (
-              <div
-                key={stat.label}
-                className={`border-band-line py-7 sm:border-b-0 sm:py-8 ${
-                  index % 2 === 1 ? "border-l pl-5" : ""
-                } ${index < 2 ? "border-b" : ""} ${
-                  index > 0 ? "sm:border-l sm:pl-6" : ""
-                }`}
-              >
-                <dd className="font-mono text-2xl text-band-ink sm:text-3xl">
-                  {stat.value}
-                  {stat.unit && (
-                    <span className="ml-1 text-base text-band-muted">
-                      {stat.unit}
-                    </span>
-                  )}
-                </dd>
-                <dt className="label-tech mt-2 text-band-muted">{stat.label}</dt>
-              </div>
-            ))}
-          </dl>
-        </Container>
-      </div>
     </section>
   );
 }

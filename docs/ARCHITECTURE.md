@@ -506,6 +506,31 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-12 — Artwork runs behind the figures
+
+The hero figures (motor range, protections, phases, supply band) used to sit in
+a separately ruled band below the artwork. They now render inside `HeroRotator`
+via a `footer` slot, so the photograph and its scrim continue behind them, and
+the dividing rules are gone — over a picture those rules read as a wireframe
+laid on top, so spacing separates the figures instead.
+
+Two consequences that were not obvious:
+
+- **The taller hero re-crops the artwork.** Mobile went from ~684px to ~995px,
+  which drops the visible slice of a landscape frame from 32 % of its width to
+  22 %. A brighter part of the solar image moved in behind the body copy and
+  took six glyph runs below AA (worst 3.39 against 4.5).
+- **Fixed by rebalancing that one image, not by more overlay.** The solar frame
+  was a stop brighter than the other two across its whole sky; its exposure is
+  now at 0.76. Adding scrim would have darkened all three to solve one image's
+  problem, and the scrim had just been deliberately lightened.
+
+Verified: 0 failures across 230 glyph runs — slides *and* all 132 figure runs —
+both themes, both viewports, all three slides. **Tightest margin is 1.04×
+required**, which is thin: the mobile body copy over the agriculture and solar
+frames is the binding pair, and any further lightening of the scrim or
+brightening of artwork will break it there first.
+
 ### 2026-08-12 — Fonts self-hosted, build no longer needs the network
 
 A local `npm run build` failed with `Failed to fetch 'Inter' from Google Fonts`

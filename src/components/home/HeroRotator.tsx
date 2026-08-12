@@ -56,10 +56,17 @@ const HEADLINE =
 export function HeroRotator({
   segments,
   children,
+  footer,
 }: {
   segments: HeroSegment[];
   /** The call-to-action row, rendered on the server and slotted in below. */
   children?: ReactNode;
+  /**
+   * Rendered below the progress bar and *inside* the artwork's box, so the
+   * photograph and its scrim run behind it rather than stopping above it.
+   * Anything placed here sits on the image, so it must use band tokens.
+   */
+  footer?: ReactNode;
 }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -251,6 +258,8 @@ export function HeroRotator({
           })}
         </div>
       )}
+
+      {footer && <div className="relative">{footer}</div>}
 
       {/* Announces the change to a screen reader without moving focus. */}
       <p aria-live="polite" className="sr-only">
