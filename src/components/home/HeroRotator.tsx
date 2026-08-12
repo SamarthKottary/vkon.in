@@ -227,30 +227,10 @@ export function HeroRotator({
           </div>
         </div>
 
-        {/* Pinned to the container edge rather than dropped at the end of the
-            CTA row: `ml-auto` there would align it to the text column, which
-            leaves it stranded mid-page on a wide screen. Sitting just above
-            the bar, it reads as that bar's control. */}
-        {autoplay && count > 1 && (
-          <button
-            type="button"
-            onClick={() => setPaused((p) => !p)}
-            className="absolute bottom-0 right-5 flex h-9 w-9 items-center justify-center border border-band-line text-band-muted transition-colors hover:border-band-accent hover:text-band-ink sm:right-6 lg:right-8"
-          >
-            {paused ? (
-              <PlayIcon className="h-3.5 w-3.5" />
-            ) : (
-              <PauseIcon className="h-3.5 w-3.5" />
-            )}
-            <span className="sr-only">
-              {paused ? "Resume" : "Pause"} the rotating banner
-            </span>
-          </button>
-        )}
       </Container>
 
       {count > 1 && (
-        <div className="relative flex w-full justify-center gap-2.5">
+        <div className="relative flex w-full items-center justify-center gap-2.5">
           {segments.map((segment, i) => {
             const active = i === index;
             return (
@@ -269,7 +249,7 @@ export function HeroRotator({
                 {/* band-ink at low alpha, not band-line. Over a photograph the dark
                     line token disappears and the control reads as a single
                     mark, hiding how many slides there are. */}
-                <span className="block h-0.5 w-full bg-band-ink/30 transition-colors group-hover:bg-band-ink/60">
+                <span className="block h-[3px] w-full bg-band-ink/30 transition-colors group-hover:bg-band-ink/60">
                   {/* The key is the slide index alone, so pausing does NOT
                       remount this element — it only flips animation-play-state,
                       which freezes the fill mid-travel and resumes from the
@@ -283,11 +263,11 @@ export function HeroRotator({
                         animationDuration: `${SLIDE_MS}ms`,
                         animationPlayState: running ? "running" : "paused",
                       }}
-                      className="hero-progress block h-0.5 origin-left bg-band-accent"
+                      className="hero-progress block h-[3px] origin-left bg-band-accent"
                     />
                   ) : (
                     <span
-                      className={`block h-0.5 origin-left bg-band-accent ${
+                      className={`block h-[3px] origin-left bg-band-accent ${
                         active ? "w-full" : "w-0"
                       }`}
                     />
@@ -296,6 +276,27 @@ export function HeroRotator({
               </button>
             );
           })}
+
+          {/* Sits at the end of the marks, as their control. It was pinned to
+              the container's right edge while the bar ran full width; with the
+              marks centred that left it stranded on the far side of the page,
+              related to nothing. */}
+          {autoplay && (
+            <button
+              type="button"
+              onClick={() => setPaused((p) => !p)}
+              className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center border border-band-ink/30 text-band-ink/70 transition-colors hover:border-band-accent hover:text-band-ink"
+            >
+              {paused ? (
+                <PlayIcon className="h-3 w-3" />
+              ) : (
+                <PauseIcon className="h-3 w-3" />
+              )}
+              <span className="sr-only">
+                {paused ? "Resume" : "Pause"} the rotating banner
+              </span>
+            </button>
+          )}
         </div>
       )}
 
