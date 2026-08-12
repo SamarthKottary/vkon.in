@@ -48,10 +48,10 @@ const HEADLINE =
  *    own for over five seconds needs a stop control, and hover does not count
  *    because a keyboard cannot reach it.
  *
- * The progress bar is rendered outside `Container` on purpose, so it runs the
- * full width of the viewport at every breakpoint. Its segments are `flex-1`,
- * so adding a fourth or fifth entry to `heroSegments` re-divides the bar with
- * no layout change — nothing here is hard-coded to three.
+ * The progress marks are short fixed-width lines centred as a group, one per
+ * segment, with the fill travelling left to right. Adding a fourth or fifth
+ * entry to `heroSegments` adds a mark rather than resizing the others —
+ * nothing here is hard-coded to three.
  */
 export function HeroRotator({
   segments,
@@ -175,7 +175,10 @@ export function HeroRotator({
       )}
 
       <Container size="wide" className="relative">
-        <div className="max-w-4xl py-20 sm:py-28 lg:py-36">
+        {/* Asymmetric on purpose: the hero is trimmed from the bottom, where the
+            progress marks and figures follow, not from the top where the
+            headline needs air. */}
+        <div className="max-w-4xl pb-14 pt-20 sm:pb-16 sm:pt-28 lg:pb-20 lg:pt-36">
           <div className="grid">
             {segments.map((segment, i) => {
               const active = i === index;
@@ -247,7 +250,7 @@ export function HeroRotator({
       </Container>
 
       {count > 1 && (
-        <div className="relative flex w-full gap-1.5">
+        <div className="relative flex w-full justify-center gap-2.5">
           {segments.map((segment, i) => {
             const active = i === index;
             return (
@@ -256,12 +259,17 @@ export function HeroRotator({
                 type="button"
                 onClick={() => go(i)}
                 aria-current={active ? "true" : undefined}
-                /* The visible mark is 2px tall; the padding is what makes this
-                   a real touch target. */
-                className="group flex-1 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-band-accent"
+                /* Fixed narrow marks centred as a group, rather than
+                   `flex-1` marks spanning the viewport. The visible line is
+                   2px tall; the padding is what makes this a real touch
+                   target. */
+                className="group w-10 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-band-accent sm:w-14"
               >
                 <span className="sr-only">Show {segment.label}</span>
-                <span className="block h-0.5 w-full bg-band-line transition-colors group-hover:bg-band-muted">
+                {/* band-ink at low alpha, not band-line. Over a photograph the dark
+                    line token disappears and the control reads as a single
+                    mark, hiding how many slides there are. */}
+                <span className="block h-0.5 w-full bg-band-ink/30 transition-colors group-hover:bg-band-ink/60">
                   {/* The key is the slide index alone, so pausing does NOT
                       remount this element — it only flips animation-play-state,
                       which freezes the fill mid-travel and resumes from the
@@ -275,11 +283,11 @@ export function HeroRotator({
                         animationDuration: `${SLIDE_MS}ms`,
                         animationPlayState: running ? "running" : "paused",
                       }}
-                      className="hero-progress block h-0.5 origin-center bg-band-accent"
+                      className="hero-progress block h-0.5 origin-left bg-band-accent"
                     />
                   ) : (
                     <span
-                      className={`block h-0.5 origin-center bg-band-accent ${
+                      className={`block h-0.5 origin-left bg-band-accent ${
                         active ? "w-full" : "w-0"
                       }`}
                     />

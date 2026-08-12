@@ -506,6 +506,27 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-12 — Progress marks: short, centred, left to right
+
+The full-bleed bar became three short fixed-width marks (`w-10`, `sm:w-14`)
+centred as a group, and the fill went back to travelling left to right
+(`origin-left`). Measured: 3 marks of 56px spanning 626…814 of 1440 on desktop
+and 40px spanning 125…265 of 390 on mobile — centred at both.
+
+**The track had to change colour to survive the move.** At full width
+`bg-band-line` was legible; as a 56px mark over a photograph it vanished, and
+the control read as a single line with no hint that three slides exist. It is
+`bg-band-ink/30` now (`/60` on hover) — a light tint rather than a dark one,
+because the surface behind it is a picture, not the flat band.
+
+**The hero lost 173px of height**, all from the bottom: the text block went to
+`pb-14 sm:pb-16 lg:pb-20` against an unchanged `pt`, and the figures to
+`pt-12 sm:pt-14`. Desktop 1037 → 864, mobile 995 → 874. Asymmetric on purpose —
+the headline still needs air at the top.
+
+Contrast re-checked afterwards, because changing hero height re-crops the
+artwork behind the text: still 0 failures of 230 glyph runs, tightest 1.04×.
+
 ### 2026-08-12 — Progress bar: pause holds position, fill grows from the centre
 
 **Pausing now freezes the bar where it stands.** It used to snap to full and
@@ -811,15 +832,10 @@ themes, both viewports.
 
 ### 2026-08-10 — Hero progress bar, and /protection
 
-**The segment labels came off the progress bar.** It is now a bare full-bleed
-rule at the foot of the hero, divided into one `flex-1` button per segment. Two
-consequences worth keeping:
-
-- **It is rendered outside `Container`,** which is the only reason it reaches
-  both viewport edges. Moving it back inside re-inserts the page gutter.
-- **Nothing is hard-coded to three.** Verified by temporarily adding a fourth
-  segment: widths went 476→356 px on desktop and 126→93 px on mobile, still
-  flush 0…1440 and 0…390. Adding a category later needs no layout change.
+**The segment labels came off the progress bar.** It became a bare full-bleed
+rule at the foot of the hero, divided into one `flex-1` button per segment.
+(Superseded on 2026-08-12 — the marks are now short and centred. What survives
+is that **nothing is hard-coded to three**: adding a segment adds a mark.)
 
 The label survives as the eyebrow above the headline and as each button's
 accessible name (`Show Solar Pumping`) — a 2 px rule with no text would

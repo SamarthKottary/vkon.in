@@ -47,7 +47,7 @@ export function Hero() {
         segments={heroSegments}
         footer={
           <Container size="wide">
-            <dl className="grid grid-cols-2 gap-x-8 gap-y-8 pb-7 pt-20 sm:grid-cols-4 sm:pb-9 sm:pt-24">
+            <dl className="grid grid-cols-2 gap-x-8 gap-y-8 pb-7 pt-12 sm:grid-cols-4 sm:pb-8 sm:pt-14">
               {FIGURES.map((figure) => (
                 <div key={figure.label}>
                   <dd className="font-mono text-2xl text-band-ink sm:text-3xl">

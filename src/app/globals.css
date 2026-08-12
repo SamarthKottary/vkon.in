@@ -308,8 +308,8 @@
   /* Fill line under the active hero segment. Duration is set inline from
      SLIDE_MS so the bar and the timer can never drift apart.
 
-     It grows from the centre outwards, not left to right — the element carries
-     `origin-center`, so changing that class alone changes the direction. */
+     It travels left to right; the element carries `origin-left`, so changing
+     that one class is what changes the direction. */
   .hero-progress {
     width: 100%;
     animation: hero-progress linear forwards;
