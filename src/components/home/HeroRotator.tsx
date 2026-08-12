@@ -18,11 +18,14 @@ const SLIDE_MS = 5000;
  * slides silently rendered at 400 weight with normal tracking while the first
  * was 600 at -0.03em. Same family, same size, visibly different type.
  *
- * Stating the heading typography explicitly is what keeps the tag choice a
- * semantic decision rather than a visual one.
+ * The hero is set lighter than the rest of the site's headings by choice:
+ * regular weight at normal tracking, not the 600/-0.03em the base stylesheet
+ * gives an <h1>. `font-normal` and `tracking-normal` are therefore doing real
+ * work on slide one — remove them and it reverts to the heading style while the
+ * other two stay light.
  */
 const HEADLINE =
-  "mt-6 text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.03em] text-balance text-band-ink sm:text-6xl lg:text-7xl";
+  "mt-6 text-[2.5rem] font-normal leading-[1.05] tracking-normal text-band-ink sm:text-6xl lg:text-7xl";
 
 /**
  * Rotating hero, one market segment at a time.

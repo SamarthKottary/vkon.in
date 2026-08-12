@@ -347,7 +347,10 @@ never receives the base stylesheet's heading rules, so the later slides
 rendered at 400 weight and normal tracking against the first slide's 600 at
 -0.03em — same family, same size, visibly different type. The shared `HEADLINE`
 constant in `HeroRotator` is what keeps the tag a semantic choice rather than a
-visual one.
+visual one. The hero deliberately settled on the **lighter** of the two (400,
+normal tracking), so `font-normal` and `tracking-normal` in that constant are
+load-bearing on slide one: drop them and the `<h1>` reverts to 600/-0.03em
+while the paragraphs stay light.
 
 **Heading order must not skip a level.** `/products` used to need a visually
 hidden `<h2>` between the `h1` masthead and its `h3` cards; the category rows
