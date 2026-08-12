@@ -341,6 +341,14 @@ replaces visible text breaks voice control. This is why the logo link has none
 and the delete confirmation reads "Confirm delete" before its screen-reader
 suffix.
 
+**Hero slide headlines must state their typography explicitly.** Only slide one
+is an `<h1>`; the rest are `<p>` so the markup does not carry three. A `<p>`
+never receives the base stylesheet's heading rules, so the later slides
+rendered at 400 weight and normal tracking against the first slide's 600 at
+-0.03em — same family, same size, visibly different type. The shared `HEADLINE`
+constant in `HeroRotator` is what keeps the tag a semantic choice rather than a
+visual one.
+
 **Heading order must not skip a level.** `/products` used to need a visually
 hidden `<h2>` between the `h1` masthead and its `h3` cards; the category rows
 now supply real `h2`s, so it was removed. This is why `ProductCard` and

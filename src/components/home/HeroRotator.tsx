@@ -10,6 +10,21 @@ import type { HeroSegment } from "@/content/segments";
 const SLIDE_MS = 5000;
 
 /**
+ * Shared by all slides, and not optional.
+ *
+ * Only slide one is an <h1>; the rest are paragraphs so the markup does not
+ * carry three <h1> elements. But the weight and tracking here come from the
+ * base stylesheet's heading rules, which a <p> never receives — so the later
+ * slides silently rendered at 400 weight with normal tracking while the first
+ * was 600 at -0.03em. Same family, same size, visibly different type.
+ *
+ * Stating the heading typography explicitly is what keeps the tag choice a
+ * semantic decision rather than a visual one.
+ */
+const HEADLINE =
+  "mt-6 text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.03em] text-balance text-band-ink sm:text-6xl lg:text-7xl";
+
+/**
  * Rotating hero, one market segment at a time.
  *
  * Structure notes, each of which is load-bearing:
@@ -150,11 +165,11 @@ export function HeroRotator({
                   </p>
 
                   {i === 0 ? (
-                    <h1 className="mt-6 text-[2.5rem] leading-[1.05] text-band-ink sm:text-6xl lg:text-7xl">
+                    <h1 className={HEADLINE}>
                       <HeadlineLines segment={segment} />
                     </h1>
                   ) : (
-                    <p className="mt-6 text-[2.5rem] leading-[1.05] text-band-ink sm:text-6xl lg:text-7xl">
+                    <p className={HEADLINE}>
                       <HeadlineLines segment={segment} />
                     </p>
                   )}
