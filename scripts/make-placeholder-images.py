@@ -129,10 +129,74 @@ def draw_terminals():
     return img
 
 
+# ---------------------------------------------------------------------------
+# One placeholder per category, so a test catalogue has visually distinct
+# products rather than the same panel five times. Same drawing, different
+# fascia colour and plate text — except cable, which gets a coil, because a
+# control panel filed under "Cables" is confusing even in test data.
+# ---------------------------------------------------------------------------
+
+def draw_category_panel(fascia, model, sub):
+    img, d = base_canvas()
+    rounded(d, [250, 210, 950, 950], 18, CASE, CASE_EDGE, 3)
+    edge = tuple(max(0, c - 40) for c in fascia)
+    rounded(d, [300, 260, 900, 830], 10, fascia, edge, 2)
+
+    for i, colour in enumerate([(210, 60, 50), (240, 190, 40), (60, 110, 220)]):
+        cx = 380 + i * 90
+        d.ellipse([cx - 18, 300, cx + 18, 336], fill=colour, outline=(90, 90, 90))
+    d.ellipse([806, 300, 842, 336], fill=GREEN, outline=(90, 90, 90))
+
+    rounded(d, [340, 370, 860, 500], 6, LCD_BG, (40, 40, 40), 2)
+    d.text((364, 396), "06.2 06.1 06.2  3P", font=font(30, bold=True), fill=LCD_TEXT)
+    d.text((364, 444), "415  417  416  RUN", font=font(30, bold=True), fill=LCD_TEXT)
+
+    for i, (l1, l2) in enumerate([("MOTOR", "ON"), ("SET", ""), ("MOTOR", "OFF")]):
+        x = 360 + i * 180
+        colour = (40, 150, 90) if i == 0 else ((200, 60, 50) if i == 2 else (235, 235, 235))
+        rounded(d, [x, 560, x + 130, 690], 8, colour, (120, 120, 120), 2)
+        tc = (255, 255, 255) if i != 1 else INK
+        d.text((x + 65, 605), l1, font=font(20, bold=True), fill=tc, anchor="mm")
+        if l2:
+            d.text((x + 65, 632), l2, font=font(20, bold=True), fill=tc, anchor="mm")
+
+    d.text((600, 760), "VKON", font=font(30, bold=True), fill=INK, anchor="mm")
+    d.text((600, 796), model, font=font(19), fill=INK, anchor="mm")
+    d.text((600, 1040), sub, font=font(22), fill=(150, 156, 162), anchor="mm")
+
+    for i in range(5):
+        cx = 360 + i * 120
+        d.ellipse([cx - 22, 880, cx + 22, 924], fill=(60, 64, 68), outline=(35, 38, 42))
+    return img
+
+
+def draw_cable():
+    img, d = base_canvas()
+    for ring in range(5):
+        inset = ring * 26
+        d.ellipse([300 + inset, 300 + inset, 900 - inset, 900 - inset],
+                  outline=(48, 52, 56), width=16)
+    d.ellipse([470, 470, 730, 730], fill=BG)
+    d.line([(880, 600), (1010, 640)], fill=(48, 52, 56), width=26)
+    d.line([(1000, 636), (1030, 644)], fill=(196, 152, 32), width=18)
+    d.text((600, 1040), "PLACEHOLDER", font=font(22), fill=(150, 156, 162), anchor="mm")
+    return img
+
+
+CATEGORY_ART = [
+    ("demo-starter", lambda: draw_category_panel(FASCIA, "EC-DOL 3-10 HP", "PLACEHOLDER")),
+    ("demo-solar", lambda: draw_category_panel((70, 120, 190), "SOLAR MPPT 5 HP", "PLACEHOLDER")),
+    ("demo-auto-start", lambda: draw_category_panel((236, 236, 238), "AUTO START TIMER", "PLACEHOLDER")),
+    ("demo-accessory", lambda: draw_category_panel((120, 190, 150), "GSM MOBILE CONTROL", "PLACEHOLDER")),
+    ("demo-cable", draw_cable),
+]
+
+
 for name, fn in [
     ("demo-front", draw_front),
     ("demo-angle", draw_angle),
     ("demo-terminals", draw_terminals),
+    *CATEGORY_ART,
 ]:
     path = OUT / f"{name}.jpg"
     fn().save(path, "JPEG", quality=86, optimize=True)

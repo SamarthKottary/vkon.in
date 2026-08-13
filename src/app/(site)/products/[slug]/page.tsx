@@ -4,6 +4,7 @@ import { ContactStrip } from "@/components/home/ContactStrip";
 import { CheckIcon, PhoneIcon, WhatsAppIcon } from "@/components/icons/ui";
 import { ProductCard } from "@/components/product/ProductCard";
 import { ProductMedia } from "@/components/product/ProductMedia";
+import { RecordView } from "@/components/product/RecordView";
 import { ProtectionList } from "@/components/product/ProtectionList";
 import { SpecTable } from "@/components/product/SpecTable";
 import { Button } from "@/components/ui/Button";
@@ -71,6 +72,8 @@ export default async function ProductPage({
 
   return (
     <>
+
+    <RecordView slug={product.slug} />
       <div className="border-b border-line">
         <Container size="wide">
           <nav aria-label="Breadcrumb" className="py-4">

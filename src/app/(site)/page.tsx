@@ -1,6 +1,7 @@
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { Hero } from "@/components/home/Hero";
 import { CategoryBrowser } from "@/components/home/CategoryBrowser";
+import { RecentlyViewed } from "@/components/home/RecentlyViewed";
 import { Section, SectionHeading } from "@/components/ui/Section";
 import { categories } from "@/content/taxonomy";
 import { site } from "@/content/site";
@@ -66,6 +67,10 @@ export default async function HomePage() {
         </div>
 
       </Section>
+
+      {/* Renders nothing until the visitor has actually opened a product — it
+          reads their own browser, so the server has nothing to show. */}
+      <RecentlyViewed products={all} />
 
       <ContactStrip />
     </>

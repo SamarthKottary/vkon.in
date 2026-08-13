@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/icons/Logo";
 import { CloseIcon, MenuIcon, PhoneIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
@@ -18,12 +18,34 @@ import { telLink } from "@/lib/contact";
  * Dropping `backdrop-blur` also removed the containing block that used to trap
  * the fixed drawer, so the drawer no longer needs to be a sibling. It still is,
  * because a dialog belongs outside the banner landmark.
+ *
+ * It retracts on the way down the page and returns on the way up. Three rules
+ * keep that from being annoying:
+ *   - it never hides within the first HIDE_AFTER px, so the top of the page
+ *     always has its header;
+ *   - a movement under DELTA px is ignored, so momentum scrolling and the
+ *     rubber-band at the end of a page do not flicker it;
+ *   - it never hides while the mobile drawer is open, which would take the
+ *     close button off screen. That is the `!open` in the class expression,
+ *     not an effect — setting state from an effect is what the lint rule
+ *     `react-hooks/set-state-in-effect` exists to stop, and it is unnecessary
+ *     here because the render already knows both values.
+ * It only ever translates — staying in the DOM and in the tab order, so a
+ * keyboard user tabbing into it brings it straight back.
  */
+
+/** Scrolled distance before hiding is allowed at all. */
+const HIDE_AFTER = 120;
+/** Movement below this is treated as noise rather than a direction change. */
+const DELTA = 6;
 export function Header() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const [hidden, setHidden] = useState(false);
+  const lastYRef = useRef(0);
+  const tickingRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -67,12 +89,38 @@ export function Header() {
     };
   }, [open]);
 
+  const onScroll = useCallback(() => {
+    if (tickingRef.current) return;
+    tickingRef.current = true;
+
+    window.requestAnimationFrame(() => {
+      tickingRef.current = false;
+      const y = Math.max(0, window.scrollY);
+      const previous = lastYRef.current;
+
+      if (Math.abs(y - previous) < DELTA) return;
+      lastYRef.current = y;
+
+      setHidden(y > previous && y > HIDE_AFTER);
+    });
+  }, []);
+
+  useEffect(() => {
+    lastYRef.current = Math.max(0, window.scrollY);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [onScroll]);
+
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-line bg-surface">
+      <header
+        className={`sticky top-0 z-50 border-b border-line bg-surface transition-transform duration-300 ${
+          hidden && !open ? "-translate-y-full" : "translate-y-0"
+        }`}
+      >
         <Container size="wide">
           <div className="flex h-16 items-center justify-between gap-6">
             {/* Logo and nav travel together on the left, so the primary links
