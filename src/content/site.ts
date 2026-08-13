@@ -53,9 +53,7 @@ export const site = {
     // Leave a value empty to hide that icon in the footer.
     facebook: "",
     instagram: "",
-    linkedin: "",
     youtube: "",
-    x: "",
   },
 
   /**
