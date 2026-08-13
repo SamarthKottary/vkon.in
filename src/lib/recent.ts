@@ -34,9 +34,17 @@ export function getRecentSnapshot(): string {
   }
 }
 
-/** Server render has no storage, so the section starts empty and fills in. */
-export function getRecentServerSnapshot(): string {
-  return "";
+/**
+ * `null`, and deliberately not `""`.
+ *
+ * The two states have to be distinguishable. `""` means "storage was read and
+ * it is empty" — show the empty message. `null` means "not read yet", which is
+ * the server render and the hydration pass. Collapsing them would flash
+ * "nothing viewed yet" at a returning visitor for one frame before their list
+ * appeared.
+ */
+export function getRecentServerSnapshot(): string | null {
+  return null;
 }
 
 export function subscribeRecent(onChange: () => void): () => void {

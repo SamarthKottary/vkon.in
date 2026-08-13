@@ -32,7 +32,7 @@ const SHOWN = 6;
  * than linking to a 404.
  */
 export function RecentlyViewed({ products }: { products: Product[] }) {
-  const raw = useSyncExternalStore(
+  const raw = useSyncExternalStore<string | null>(
     subscribeRecent,
     getRecentSnapshot,
     getRecentServerSnapshot,
@@ -40,13 +40,16 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
 
   const recent = useMemo(() => {
     const bySlug = new Map(products.map((p) => [p.slug, p]));
-    return parseRecent(raw)
+    return parseRecent(raw ?? "")
       .map((slug) => bySlug.get(slug))
       .filter((p): p is Product => Boolean(p))
       .slice(0, SHOWN);
   }, [raw, products]);
 
-  if (recent.length === 0) return null;
+  // `null` is the pre-hydration state, not an empty list — see the note on
+  // `getRecentServerSnapshot`. Rendering the empty message here would show it
+  // for a frame to someone who does have a history.
+  if (raw === null) return null;
 
   return (
     <section className="border-t border-line py-14 sm:py-16">
@@ -56,13 +59,20 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
           Kept on this device only — nothing is sent to us.
         </p>
 
-        <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {recent.map((product) => (
-            <li key={product.id}>
-              <ProductCard product={product} orientation="horizontal" />
-            </li>
-          ))}
-        </ul>
+        {recent.length === 0 ? (
+          <p className="mt-8 border-t border-line pt-6 text-body">
+            You have not opened any products yet. The ones you look at will
+            appear here.
+          </p>
+        ) : (
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {recent.map((product) => (
+              <li key={product.id}>
+                <ProductCard product={product} orientation="horizontal" />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

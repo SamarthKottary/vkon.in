@@ -1,73 +1,72 @@
 import Image from "next/image";
-import { site } from "@/content/site";
 
 /**
- * Brand lockup: the circular badge as a mark, plus a legible wordmark.
+ * Brand lockup, supplied as two artworks — dark ink for light surfaces, white
+ * ink for dark ones — with their flat backgrounds keyed out to transparency.
  *
- * The badge itself contains "vkon AUTOMATION", but at 36px that inner text is
- * unreadable — so the mark carries recognition and the text carries the name.
- * Repeating the name across mark and wordmark is normal practice.
+ * Which one shows depends on *the surface*, not only the theme:
  *
- * The source is a JPEG on white, converted to a circular PNG with a transparent
- * surround (scripts note in DEPLOYMENT/README). The badge is dark navy, so on
- * dark surfaces it is set on a white plate — otherwise it disappears into the
- * footer.
+ *  - `tone="light"` means the mark sits on a permanently dark band (the
+ *    footer). That band is dark in both themes, so it always takes the
+ *    white-ink artwork and never swaps.
+ *  - `tone="dark"` means an ordinary page surface, which flips with the theme.
+ *    Both files are rendered and CSS picks one, because the theme lives in a
+ *    `data-theme` attribute rather than a media query — the `dark:` variant
+ *    reads that attribute, and it is already set before first paint by
+ *    ThemeScript, so there is no flash of the wrong mark.
  *
- * TODO(vkon): swap in an SVG when one exists — a 512px raster is heavier than
- * it needs to be and will soften on high-DPI screens at large sizes.
+ * The cost of the CSS swap is that a browser fetches both files on pages with
+ * a theme-dependent logo. They are ~30 KB each before optimisation and next/image
+ * serves far less, which is cheaper than the flash a JS swap would cause.
  */
-export function LogoMark({
-  className = "h-9 w-9",
-  onDark = false,
-}: {
-  className?: string;
-  onDark?: boolean;
-}) {
-  return (
-    <span
-      className={`relative inline-block shrink-0 overflow-hidden rounded-full ${
-        onDark ? "bg-white p-[2px]" : ""
-      } ${className}`}
-    >
-      <Image
-        src="/brand/vkon-logo.png"
-        alt=""
-        fill
-        sizes="40px"
-        priority
-        className="object-contain"
-      />
-    </span>
-  );
-}
+const LIGHT_SURFACE = "/brand/vkon-logo-light.png";
+const DARK_SURFACE = "/brand/vkon-logo-dark.png";
 
 export function Logo({
   className = "",
   tone = "dark",
 }: {
   className?: string;
-  /** `light` = sitting on a dark surface. */
+  /** `light` = sitting on a permanently dark surface, e.g. the footer. */
   tone?: "dark" | "light";
 }) {
-  const onDark = tone === "light";
+  if (tone === "light") {
+    return (
+      <span className={`inline-flex shrink-0 items-center ${className}`}>
+        <Image
+          src={DARK_SURFACE}
+          alt="Vkon Automation"
+          width={640}
+          height={262}
+          priority
+          className="h-9 w-auto"
+        />
+      </span>
+    );
+  }
 
   return (
-    <span className={`flex items-center gap-2.5 ${className}`}>
-      <LogoMark className="h-9 w-9" onDark={onDark} />
-      <span className="flex flex-col leading-none">
-        <span
-          className={`text-[1.3rem] font-semibold leading-none tracking-[-0.03em] ${
-            onDark ? "text-band-ink" : "text-ink"
-          }`}
-        >
-          {site.name}
-        </span>
-        <span
-          className={`label-tech mt-1 ${onDark ? "text-band-muted" : "text-muted"}`}
-        >
-          Automation
-        </span>
-      </span>
+    <span className={`inline-flex shrink-0 items-center ${className}`}>
+      <Image
+        src={LIGHT_SURFACE}
+        alt="Vkon Automation"
+        width={640}
+        height={257}
+        priority
+        className="h-9 w-auto dark:hidden"
+      />
+      {/* Same alt as the light one, and deliberately NOT aria-hidden. Only one
+          is ever displayed, and `display:none` takes the other out of the
+          accessibility tree — so marking this one decorative left the header
+          link with no accessible name at all in dark mode. */}
+      <Image
+        src={DARK_SURFACE}
+        alt="Vkon Automation"
+        width={640}
+        height={262}
+        priority
+        className="hidden h-9 w-auto dark:block"
+      />
     </span>
   );
 }
