@@ -8,37 +8,47 @@ import type { CategoryMeta, ProductCategory, ProtectionKey } from "@/lib/types";
  * needs to change about a product lives in the database.
  */
 
+/*
+ * TODO(vkon): the longer descriptions below are drafted from the company's own
+ * product portfolio and read well on the cards, but only the motor starter copy
+ * is written from confirmed material. Solar is listed in that document as a
+ * future product line, and there is very little source material on the cable
+ * and accessory ranges — confirm all three before launch.
+ */
 export const categories: CategoryMeta[] = [
   {
     key: "starter",
     label: "Motor Starters",
     description:
-      "Digital control panels for single and three phase agricultural pumps.",
+      "Digital control panels for single and three phase agricultural pumps, from 1 HP direct-on-line units through star-delta and fully automatic star-delta panels up to 40 HP. Every panel is wired, inspected and tested in house, with dry run, single phasing, overload and voltage protection acting on all three phases.",
     image: "/categories/starter.jpg",
   },
   {
     key: "solar",
     label: "Solar Systems",
     description:
-      "Controllers that run a pump on solar, on mains, or switch between them.",
+      "Controllers that run a pump on solar, on mains, or change over between the two automatically as the day allows. The same protection set watches the motor whichever source is driving it, so a cloudy afternoon or a weak feeder is handled without anyone standing at the pump house deciding what to switch and when.",
     image: "/categories/solar.jpg",
   },
   {
     key: "auto-start",
     label: "Auto Start Units",
-    description: "Standalone timers and preventors that add auto-start to any starter.",
+    description:
+      "Standalone timers and preventors that add automatic starting to a starter you already own. They bring the pump back when three phase supply returns within safe limits, after an adjustable delay so it never starts into an unstable line, and will run it on a repeating cycle through the night with nobody at the pump house.",
     image: "/categories/auto-start.jpg",
   },
   {
     key: "cable",
     label: "Cables",
-    description: "Submersible cable built for continuous underwater duty.",
+    description:
+      "Submersible cable built for continuous underwater duty, where ordinary wiring gives way at the joint long before the conductor itself does. Matched to the panel and the motor it will run rather than chosen afterwards from whatever is on the counter, because an undersized cable quietly undoes the protection in front of it.",
     image: "/categories/cable.jpg",
   },
   {
     key: "accessory",
     label: "Accessories",
-    description: "Mobile control units and add-ons for the Vkon range.",
+    description:
+      "Mobile control units and the small parts that live around a panel — GSM modules that switch the motor by call or SMS, float switches, pressure sensors and cable glands. Specified against the panel they sit beside rather than bought to fit afterwards, which is usually where a retrofitted accessory starts causing trouble.",
     image: "/categories/accessory.jpg",
   },
 ];

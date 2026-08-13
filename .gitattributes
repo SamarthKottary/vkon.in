@@ -1,0 +1,24 @@
+# Normalise line endings.
+#
+# This project is developed on Linux and Windows but *deploys* to Linux, and a
+# CRLF line ending in a shell script is not a style problem — the server fails
+# with `bad interpreter: /bin/bash^M` and the deploy dies. Forcing LF in the
+# working tree on every platform is what prevents a Windows checkout from
+# producing scripts the server cannot run.
+* text=auto eol=lf
+
+# Explicit for the files that would break loudest.
+*.sh    text eol=lf
+*.mjs   text eol=lf
+*.sql   text eol=lf
+*.json  text eol=lf
+
+# Never touched.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.avif  binary
+*.webp  binary
+*.woff2 binary
+*.pdf   binary
+*.ico   binary

@@ -151,12 +151,12 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
                 </span>
 
                 <h3 className="text-lg leading-snug">{category.label}</h3>
-                {/* Clamped so every card is the same height. Unclamped, a
-                    description that wraps to three lines on a phone where its
-                    neighbour wraps to two makes the whole row taller for that
-                    category — which moved everything below by 22px as you
-                    switched between them. */}
-                <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
+                {/* Ten, not seven. The copy is written to land on about seven
+                    lines at desktop width, but the same text needs ten on a
+                    390px card — clamping at seven cut it off mid-sentence on a
+                    phone. The clamp is a guard against runaway copy, not the
+                    target length. */}
+                <p className="mt-2 line-clamp-10 text-sm leading-relaxed text-muted">
                   {category.description}
                 </p>
 
@@ -174,14 +174,16 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
                 </span>
               </button>
 
-              {/* The reserved space. This block is always in the layout at a
-                  fixed height — six product rows plus the closing link — and
-                  only gains a visible panel when the card is open. That is what
-                  keeps the contact section still: opening or closing a card
-                  fills or empties this box rather than growing the page. */}
-              <div className="h-[21.5rem]">
+              {/* Dynamic: the panel sizes to its contents and the section
+                  grows when a card opens.
+
+                  This replaced a fixed-height reserved block on 2026-08-13, at
+                  the client's request. The trade-off is deliberate and worth
+                  knowing: the reserved block was what kept the contact section
+                  from moving when a card opened. With the panel dynamic, the
+                  page below shifts down by the panel's height. */}
+              {isOpen && (
                 <ul
-                  hidden={!isOpen}
                   id={`category-panel-${category.key}`}
                   /* Accent border, matching the open card above it: with the card
                      outlined in accent and the panel in the line token, the two
@@ -194,7 +196,7 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
                      same whichever card is open, so nothing below ever moves.
                      The bottom-anchored link is what stops a short list
                      looking like an unfinished box. */
-                  className="flex h-full flex-col border border-t-0 border-accent bg-surface-subtle px-6 py-2"
+                  className="flex flex-col border border-t-0 border-accent bg-surface-subtle px-6 py-2"
                 >
                   {items.slice(0, PANEL_LIMIT).map((product) => (
                     <li
@@ -228,7 +230,7 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
                     </Link>
                   </li>
                 </ul>
-              </div>
+              )}
             </li>
           );
         })}
