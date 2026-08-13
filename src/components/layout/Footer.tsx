@@ -1,9 +1,24 @@
 import Link from "next/link";
 import { Logo } from "@/components/icons/Logo";
+import {
+  FacebookIcon,
+  InstagramIcon,
+  LinkedInIcon,
+  XIcon,
+  YouTubeIcon,
+} from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import { footerNav } from "@/content/nav";
 import { formattedAddress, site } from "@/content/site";
 import { mailtoLink, telLink, whatsAppLink, generalEnquiryMessage } from "@/lib/contact";
+
+const socialLinks = [
+  { label: "Facebook", href: site.socials.facebook, Icon: FacebookIcon },
+  { label: "Instagram", href: site.socials.instagram, Icon: InstagramIcon },
+  { label: "LinkedIn", href: site.socials.linkedin, Icon: LinkedInIcon },
+  { label: "YouTube", href: site.socials.youtube, Icon: YouTubeIcon },
+  { label: "X", href: site.socials.x, Icon: XIcon },
+].filter((social) => social.href);
 
 /**
  * Contact lives here now that there is no dedicated contact page. The address
@@ -76,6 +91,27 @@ export function Footer() {
                 <dd className="text-band-body">{site.hours}</dd>
               </div>
             </dl>
+
+            {socialLinks.length > 0 && (
+              <nav className="mt-8" aria-label="Social media">
+                <p className="label-tech text-band-muted">Follow Vkon</p>
+                <ul className="mt-4 flex items-center gap-2">
+                  {socialLinks.map(({ label, href, Icon }) => (
+                    <li key={label}>
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Follow Vkon on ${label}`}
+                        className="flex h-9 w-9 items-center justify-center border border-band-line text-band-body transition-colors hover:border-band-accent hover:text-band-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-band-accent"
+                      >
+                        <Icon className="h-4 w-4" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )}
           </div>
 
           {footerNav.map((group) => (

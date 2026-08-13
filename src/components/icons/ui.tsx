@@ -82,6 +82,48 @@ export function WhatsAppIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function FacebookIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M13.7 21v-8h2.7l.4-3.1h-3.1V7.95c0-.9.25-1.51 1.54-1.51H16.9V3.67a22.9 22.9 0 0 0-2.42-.12c-2.4 0-4.04 1.47-4.04 4.16v2.19H7.72V13h2.72v8h3.26Z" />
+    </svg>
+  );
+}
+
+export function InstagramIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.4" cy="6.6" r=".8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function LinkedInIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M5.1 3.5a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8ZM3.5 8.8h3.2V20H3.5V8.8Zm5.2 0h3.06v1.53h.04c.43-.8 1.47-1.65 3.03-1.65 3.24 0 3.84 2.13 3.84 4.9V20h-3.2v-5.65c0-1.35-.03-3.08-1.88-3.08-1.88 0-2.17 1.47-2.17 2.98V20H8.7V8.8Z" />
+    </svg>
+  );
+}
+
+export function YouTubeIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M21.58 7.19a2.8 2.8 0 0 0-1.97-1.98C17.87 4.75 12 4.75 12 4.75s-5.87 0-7.61.46A2.8 2.8 0 0 0 2.42 7.2C1.97 8.93 1.97 12 1.97 12s0 3.07.45 4.81a2.8 2.8 0 0 0 1.97 1.98c1.74.46 7.61.46 7.61.46s5.87 0 7.61-.46a2.8 2.8 0 0 0 1.97-1.98c.45-1.74.45-4.81.45-4.81s0-3.07-.45-4.81ZM10.12 15.07V8.93L15.5 12l-5.38 3.07Z" />
+    </svg>
+  );
+}
+
+export function XIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M18.9 3.5h2.9l-6.34 7.25L22.92 20h-5.84l-4.57-5.97L7.3 20H4.4l6.78-7.75L4 3.5h6l4.13 5.46L18.9 3.5Zm-1.02 14.8h1.6L9.13 5.12H7.42L17.88 18.3Z" />
+    </svg>
+  );
+}
+
 export function MailIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg {...base} className={className}>
