@@ -37,26 +37,35 @@ export function Section({
 }
 
 /**
- * Section heading. Left-aligned always — centred body copy is one of the
- * strongest generic-template signals, and neither reference site uses it.
+ * Section heading.
+ *
+ * Left-aligned by default, and it should stay that way in most places —
+ * centred body copy is one of the strongest generic-template signals, and
+ * neither reference site uses it. `align="center"` exists for the one section
+ * that asks for it; it is an exception, not an option to reach for.
  */
 export function SectionHeading({
   eyebrow,
   title,
   description,
   tone = "light",
+  align = "left",
   className = "",
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
   tone?: "light" | "dark";
+  align?: "left" | "center";
   className?: string;
 }) {
   const isDark = tone === "dark";
+  const centred = align === "center";
 
   return (
-    <div className={`max-w-3xl ${className}`}>
+    <div
+      className={`max-w-3xl ${centred ? "mx-auto text-center" : ""} ${className}`}
+    >
       {eyebrow && (
         <p
           className={`label-tech mb-4 ${isDark ? "text-band-accent" : "text-accent"}`}
@@ -72,8 +81,8 @@ export function SectionHeading({
       {description && (
         <p
           className={`mt-5 max-w-2xl text-[1.0625rem] leading-relaxed ${
-            isDark ? "text-band-muted" : "text-body"
-          }`}
+            centred ? "mx-auto" : ""
+          } ${isDark ? "text-band-muted" : "text-body"}`}
         >
           {description}
         </p>

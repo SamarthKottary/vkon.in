@@ -14,27 +14,34 @@ export const categories: CategoryMeta[] = [
     label: "Motor Starters",
     description:
       "Digital control panels for single and three phase agricultural pumps.",
+    // Drop the file in and uncomment. Until then the card shows a line
+    // drawing — a referenced-but-missing image would 404 on every card.
+    // image: "/categories/starter.jpg",
   },
   {
     key: "solar",
     label: "Solar Systems",
     description:
       "Controllers that run a pump on solar, on mains, or switch between them.",
+    // image: "/categories/solar.jpg",
   },
   {
     key: "auto-start",
     label: "Auto Start Units",
     description: "Standalone timers and preventors that add auto-start to any starter.",
+    // image: "/categories/auto-start.jpg",
   },
   {
     key: "cable",
     label: "Cables",
     description: "Submersible cable built for continuous underwater duty.",
+    // image: "/categories/cable.jpg",
   },
   {
     key: "accessory",
     label: "Accessories",
     description: "Mobile control units and add-ons for the Vkon range.",
+    // image: "/categories/accessory.jpg",
   },
 ];
 

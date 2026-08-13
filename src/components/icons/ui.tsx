@@ -58,6 +58,14 @@ export function ArrowDownIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function ChevronDownIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden className={className}>
+      <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function PhoneIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg {...base} className={className}>

@@ -73,4 +73,11 @@ export type CategoryMeta = {
   key: ProductCategory;
   label: string;
   description: string;
+  /**
+   * Optional card image, e.g. "/categories/starter.jpg" in `public/`. Meant to
+   * be the category's products laid out together on a bench. Omit it and the
+   * card falls back to a line drawing, so a missing file is never a broken
+   * layout.
+   */
+  image?: string;
 };

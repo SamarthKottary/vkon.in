@@ -348,6 +348,32 @@
         animation-timeline: view();
         animation-range: entry 0% cover 18%;
       }
+
+      /* Staggered variant, for cards inside a horizontally scrolling track.
+         A plain `view()` on those cards would resolve against the track — it
+         is a scrollport — and time the animation to sideways scrolling instead
+         of the page. So the track publishes a *named* view timeline measured
+         against the document, the wrapper puts that name in scope, and each
+         card animates on it with its own offset range. That offset is the
+         stagger: card one finishes before card three starts. */
+      .reveal-stagger {
+        timeline-scope: --cards;
+      }
+
+      .reveal-stagger > ul {
+        view-timeline-name: --cards;
+      }
+
+      .reveal-stagger > ul > li {
+        animation: reveal-in linear both;
+        animation-timeline: --cards;
+      }
+
+      .reveal-stagger > ul > li:nth-child(1) { animation-range: entry 5% entry 55%; }
+      .reveal-stagger > ul > li:nth-child(2) { animation-range: entry 15% entry 65%; }
+      .reveal-stagger > ul > li:nth-child(3) { animation-range: entry 25% entry 75%; }
+      .reveal-stagger > ul > li:nth-child(4) { animation-range: entry 35% entry 85%; }
+      .reveal-stagger > ul > li:nth-child(n + 5) { animation-range: entry 45% entry 95%; }
     }
   }
 
@@ -363,7 +389,7 @@
 @keyframes reveal-in {
   from {
     opacity: 0;
-    transform: translateY(0.5rem);
+    transform: translateY(1.25rem);
   }
   to {
     opacity: 1;

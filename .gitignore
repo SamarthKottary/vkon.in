@@ -59,6 +59,15 @@ docs/Poster.pdf
 # contract value. This repo is PUBLIC — it must never be tracked.
 docs/f2.pdf
 
+# Editor scratch files. `.gitignore`'s `.env*` does NOT cover these: nano and
+# vim name their swap for `.env` as `..env.swp`, which starts with `..env`, so
+# the pattern misses it and `git add -A` would commit a buffer of the secrets
+# file to a public repo.
+*.swp
+*.swo
+*~
+.*.sw[a-p]
+
 # A clone of this repo made inside itself (easy to do when following
 # DEPLOYMENT.md Step 2 on the wrong machine). Nested repos get committed as a
 # gitlink, which is never what anyone wants.
