@@ -46,7 +46,14 @@ export default async function HomePage() {
     <>
       <Hero />
 
-      <Section size="wide" bordered={false}>
+      {/* Tight bottom padding: the reserved dropdown area below the cards
+          already supplies the breathing room, so the section's usual pb-16/24
+          stacked on top of it read as a dead band before the contact strip. */}
+      <Section size="wide" bordered={false} /* The `lg:pb-8` is not redundant. Section's own padding is
+             `py-16 sm:py-20 lg:py-24`, and a bare `sm:pb-8` loses at large
+             widths because the lg media query is emitted after the sm one —
+             media order beats property specificity. */
+          className="pb-6 sm:pb-8 lg:pb-8">
         <SectionHeading
           align="center"
           eyebrow="What we make"

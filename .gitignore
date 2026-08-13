@@ -84,3 +84,7 @@ vkon_logo.jpeg
 # Source PNGs for the hero backgrounds. Kept locally so the images can be
 # re-exported, but ~6.5 MB each — the committed asset is the JPEG beside them.
 public/segments/*.png
+
+# Same for the category artwork: the delivered files are PNG-named JPEGs (plus
+# one real PNG), kept locally for re-export. The committed asset is the .jpg.
+public/categories/*.png

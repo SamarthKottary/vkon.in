@@ -110,7 +110,6 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
       >
         {groups.map(({ category, items }) => {
           const isOpen = openKey === category.key;
-          const empty = items.length === 0;
 
           return (
             <li
@@ -119,16 +118,16 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
             >
               <button
                 type="button"
-                disabled={empty}
                 aria-expanded={isOpen}
-                aria-controls={empty ? undefined : `category-panel-${category.key}`}
+                aria-controls={`category-panel-${category.key}`}
                 onClick={() => setOpenKey(isOpen ? null : category.key)}
+                /* No dimmed state for empty categories. They are part of the
+                   range and read as available; greying them made four of the
+                   five look broken next to the one with stock. */
                 className={`flex min-h-[19rem] w-full flex-col border bg-surface-raised p-6 text-left shadow-card transition-[box-shadow,border-color] duration-200 ${
-                  empty
-                    ? "cursor-default border-line opacity-70"
-                    : isOpen
-                      ? "border-accent shadow-card-hover"
-                      : "border-line hover:border-line-strong hover:shadow-card-hover"
+                  isOpen
+                    ? "border-accent shadow-card-hover"
+                    : "border-line hover:border-line-strong hover:shadow-card-hover"
                 }`}
               >
                 <span /* 16:9, matching what the image generator actually offers. The
@@ -152,38 +151,55 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
                 </span>
 
                 <h3 className="text-lg leading-snug">{category.label}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
+                {/* Clamped so every card is the same height. Unclamped, a
+                    description that wraps to three lines on a phone where its
+                    neighbour wraps to two makes the whole row taller for that
+                    category — which moved everything below by 22px as you
+                    switched between them. */}
+                <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
                   {category.description}
                 </p>
 
                 <span className="mt-auto flex items-center justify-between gap-4 pt-6">
                   <span className="label-tech text-muted">
-                    {empty
+                    {items.length === 0
                       ? "Coming soon"
                       : `${items.length} product${items.length === 1 ? "" : "s"}`}
                   </span>
-                  {!empty && (
-                    <ChevronDownIcon
-                      className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
-                        isOpen ? "rotate-180 text-accent" : "text-muted"
-                      }`}
-                    />
-                  )}
+                  <ChevronDownIcon
+                    className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+                      isOpen ? "rotate-180 text-accent" : "text-muted"
+                    }`}
+                  />
                 </span>
               </button>
 
-              {isOpen && (
+              {/* The reserved space. This block is always in the layout at a
+                  fixed height — six product rows plus the closing link — and
+                  only gains a visible panel when the card is open. That is what
+                  keeps the contact section still: opening or closing a card
+                  fills or empties this box rather than growing the page. */}
+              <div className="h-[21.5rem]">
                 <ul
+                  hidden={!isOpen}
                   id={`category-panel-${category.key}`}
                   /* Accent border, matching the open card above it: with the card
                      outlined in accent and the panel in the line token, the two
-                     read as separate objects rather than one open card. */
-                  className="border border-t-0 border-accent bg-surface-subtle px-6 py-2"
+                     read as separate objects rather than one open card.
+
+                     Fixed height, not auto: categories hold different numbers
+                     of products, and letting the panel size to its contents
+                     moved everything below by up to 287px as you switched
+                     between them. At a fixed height the reserved space is the
+                     same whichever card is open, so nothing below ever moves.
+                     The bottom-anchored link is what stops a short list
+                     looking like an unfinished box. */
+                  className="flex h-full flex-col border border-t-0 border-accent bg-surface-subtle px-6 py-2"
                 >
                   {items.slice(0, PANEL_LIMIT).map((product) => (
                     <li
                       key={product.id}
-                      className="border-b border-line last:border-b-0"
+                      className="border-b border-line"
                     >
                       <Link
                         href={`/products/${product.slug}`}
@@ -195,18 +211,24 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
                     </li>
                   ))}
 
-                  {items.length > PANEL_LIMIT && (
-                    <li className="py-3">
-                      <Link
-                        href={`/products?category=${category.key}`}
-                        className="text-[0.9375rem] text-accent underline underline-offset-4"
-                      >
-                        {`All ${items.length} in ${category.label}`}
-                      </Link>
+                  {items.length === 0 && (
+                    <li className="py-3 text-[0.9375rem] text-muted">
+                      Nothing listed here yet — call us for what is available.
                     </li>
                   )}
+
+                  <li className="mt-auto border-t border-line py-3">
+                    <Link
+                      href={`/products?category=${category.key}`}
+                      className="text-[0.9375rem] text-accent underline underline-offset-4"
+                    >
+                      {items.length > PANEL_LIMIT
+                        ? `All ${items.length} in ${category.label}`
+                        : `Open ${category.label}`}
+                    </Link>
+                  </li>
                 </ul>
-              )}
+              </div>
             </li>
           );
         })}
