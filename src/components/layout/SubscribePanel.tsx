@@ -1,36 +1,31 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
+import { AlertIcon, ArrowRightIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import { subscribeAction, type SubscribeState } from "@/app/(site)/actions";
 
 /**
- * Mailing list sign-up, between the contact block and the footer.
+ * Mailing list sign-up. Rendered by `ContactStrip`, immediately above the
+ * contact block — see the note there for why the ordering lives in one place.
  *
- * It reads as its own object rather than as the top of the footer: a bordered
- * card on `surface-raised`, on a `surface` band, above the green footer. That
- * is three distinct tones in a row at the end of the page.
+ * One panel with the photograph behind all of it, rather than a coloured block
+ * beside a picture. The content sits in the left half; the right half is left
+ * to the photograph.
  *
- * It was on the dark band until 2026-08-18, sharing `bg-band` with the footer
- * and divided from it by one hairline — which made the end of the page a single
- * green slab with a form embedded in it. Being light also puts it on ordinary
- * `surface`/`ink` tokens, so it follows the theme like the rest of the page
- * instead of staying dark in both.
+ * **The scrim here is heavier than the hero's, and that is the artwork, not a
+ * preference.** This frame is a high-key paddy field under a pale sky — mean
+ * luminance 0.43, where the hero frames sit between 0.05 and 0.15. White text
+ * over it needs roughly twice the covering the hero needs. Every figure below
+ * was measured against the rendered pixels, not estimated; if the picture is
+ * ever swapped, re-measure rather than assuming these numbers carry over.
  *
- * Notes:
- *  - **The honeypot is hidden four ways** (off-screen, zero size, no pointer
- *    events, `tabIndex={-1}`) and carries `autoComplete="off"` so a browser's
- *    autofill does not helpfully fill it in and lock a real visitor out of the
- *    form. `aria-hidden` keeps it out of the accessibility tree, so a screen
- *    reader never meets it either.
- *  - **The form is replaced by its confirmation on success**, rather than
- *    keeping a filled field beside a message. `useActionState` does not reset
- *    the form, so leaving it would show "You're on the list" above an address
- *    still sitting in the box, which reads like it has not been sent.
- *  - **The status message is a live region**, so the outcome is announced
- *    rather than only being visible.
+ * `next/image` rather than a CSS background, unlike the version this replaced:
+ * the picture is now always displayed, so the element has layout, `sizes`
+ * resolves, and a phone is served a phone-sized variant instead of the largest
+ * one. The reasoning is in ARCHITECTURE §9.
  */
 export function SubscribePanel() {
   const [state, formAction] = useActionState<SubscribeState, FormData>(
@@ -41,90 +36,115 @@ export function SubscribePanel() {
   return (
     <section
       aria-labelledby="subscribe-heading"
-      className="border-t border-line bg-surface py-14 sm:py-16"
+      className="border-t border-line bg-surface py-14 sm:py-16 lg:py-20"
     >
       <Container size="wide">
-        <div className="border border-line bg-surface-raised p-7 shadow-card sm:p-10">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,26rem)_1fr] lg:items-center lg:gap-16">
-            <div>
+        <div className="relative overflow-hidden border border-line shadow-card">
+          <Image
+            src="/subscribe-background.jpg"
+            alt=""
+            fill
+            sizes="(min-width: 1280px) 76rem, 100vw"
+            className="object-cover"
+          />
+
+          {/* Three layers, same idiom as the hero: a flat floor for the narrow
+              layout where the copy spans the full width, a horizontal gradient
+              for the wide one where it stays left, and a vertical pass to stop
+              the pale sky washing out the heading. */}
+          <div aria-hidden className="absolute inset-0 bg-scrim/55 lg:bg-scrim/25" />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-r from-scrim/95 via-scrim/80 to-scrim/35"
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-b from-scrim/40 to-transparent"
+          />
+
+          <div className="relative px-7 py-12 sm:px-12 sm:py-16 lg:py-20">
+            <div className="max-w-xl">
               <h2
                 id="subscribe-heading"
-                className="text-[1.5rem] leading-tight sm:text-[1.75rem]"
+                className="text-[1.75rem] leading-tight text-band-ink sm:text-[2rem]"
               >
                 New panels, and what changed
               </h2>
-              <p className="mt-3 leading-relaxed text-body">
+              <p className="mt-4 max-w-md leading-relaxed text-band-body">
                 An occasional note when we add a product, change a rating or
                 publish something worth reading. No more than that.
               </p>
-            </div>
 
-            {state.status === "ok" ? (
-              <p
-                role="status"
-                className="flex items-start gap-3 border border-accent bg-accent-soft px-5 py-4 text-ink"
-              >
-                <CheckIcon className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
-                <span>
-                  {state.message}
-                  <span className="mt-1 block text-sm text-muted">
-                    We will only use it for the note described here.
-                  </span>
-                </span>
-              </p>
-            ) : (
-              <form action={formAction} className="max-w-xl">
-                <label
-                  htmlFor="subscribe-email"
-                  className="label-tech block text-muted"
+              {state.status === "ok" ? (
+                <p
+                  role="status"
+                  className="mt-8 flex max-w-md items-start gap-3 rounded-2xl border border-band-accent bg-scrim/80 px-5 py-4 text-band-ink"
                 >
-                  Email address
-                </label>
-
-                <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                  <input
-                    id="subscribe-email"
-                    name="email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    required
-                    placeholder="you@example.com"
-                    aria-invalid={state.status === "error"}
-                    aria-describedby="subscribe-note"
-                    className="min-w-0 flex-1 border border-line-strong bg-surface px-4 py-3 text-ink placeholder:text-muted focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-                  />
-                  <SubmitButton />
-                </div>
-
-                {/* Hidden from people, and from assistive technology, but
-                    present in the DOM for anything filling every field it
-                    finds. */}
-                <input
-                  type="text"
-                  name="company"
-                  tabIndex={-1}
-                  autoComplete="off"
-                  aria-hidden="true"
-                  className="pointer-events-none absolute left-[-9999px] h-0 w-0 opacity-0"
-                />
-
-                {state.status === "error" && (
-                  <p
-                    role="alert"
-                    className="mt-3 flex items-center gap-2 text-sm text-red-700"
-                  >
-                    <AlertIcon className="h-4 w-4 shrink-0" />
+                  <CheckIcon className="mt-0.5 h-5 w-5 shrink-0 text-band-accent" />
+                  <span>
                     {state.message}
-                  </p>
-                )}
-
-                <p id="subscribe-note" className="mt-3 text-sm text-muted">
-                  Your address, and nothing else. We do not pass it on, and you
-                  can ask us to remove it at any time.
+                    <span className="mt-1 block text-sm text-band-body">
+                      We will only use it for the note described here.
+                    </span>
+                  </span>
                 </p>
-              </form>
-            )}
+              ) : (
+                <form action={formAction} className="mt-8 max-w-md">
+                  <label
+                    htmlFor="subscribe-email"
+                    className="label-tech block text-band-muted"
+                  >
+                    Email address
+                  </label>
+
+                  {/* The pill is opaque, not translucent. Over a photograph a
+                      see-through field puts leaves behind the text a visitor is
+                      typing, and the placeholder contrast then depends on which
+                      part of the picture it lands on. */}
+                  <div className="mt-3 flex items-center gap-2 rounded-full border border-band-line bg-band p-1.5 pl-5 transition-colors focus-within:border-band-accent">
+                    <input
+                      id="subscribe-email"
+                      name="email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      required
+                      placeholder="you@example.com"
+                      aria-invalid={state.status === "error"}
+                      aria-describedby="subscribe-note"
+                      className="min-w-0 flex-1 bg-transparent py-2 text-band-ink placeholder:text-band-muted focus:outline-none"
+                    />
+                    <SubmitButton />
+                  </div>
+
+                  {/* Hidden from people and from assistive technology, but
+                      present in the DOM for anything filling every field. */}
+                  <input
+                    type="text"
+                    name="company"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-[-9999px] h-0 w-0 opacity-0"
+                  />
+
+                  {state.status === "error" && (
+                    <p
+                      role="alert"
+                      className="mt-3 flex items-center gap-2 text-sm text-band-ink"
+                    >
+                      <AlertIcon className="h-4 w-4 shrink-0 text-signal-500" />
+                      {state.message}
+                    </p>
+                  )}
+
+                  <p id="subscribe-note" className="mt-4 text-sm text-band-body">
+                    Your address, and nothing else. We do not pass it on, and
+                    you can ask us to remove it at any time.
+                  </p>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       </Container>
@@ -135,16 +155,22 @@ export function SubscribePanel() {
 function SubmitButton() {
   const { pending } = useFormStatus();
 
-  /* `text-action-ink`, never `text-white`: the action colour inverts between
-     themes, so a hard-coded white disappears on the light-on-dark button the
-     dark theme uses. ARCHITECTURE §9. */
+  /* `text-band` on `bg-band-accent`, not white: white on the accent green is
+     1.9:1. Both tokens are theme-invariant, so this pair holds in both. */
   return (
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex shrink-0 items-center justify-center gap-2 bg-action px-6 py-3 text-sm font-medium text-action-ink transition-colors hover:bg-action-hover disabled:opacity-60"
+      className="inline-flex shrink-0 items-center gap-2 rounded-full bg-band-accent px-4 py-2.5 text-sm font-medium text-band transition-opacity hover:opacity-90 disabled:opacity-60 sm:px-5"
     >
-      {pending && <SpinnerIcon className="h-4 w-4" />}
+      {/* The arrow goes at 390px, where the button was eating enough of the
+          pill to clip the placeholder mid-word. The spinner is not decoration —
+          it is the only signal the form is working — so it shows at every width. */}
+      {pending ? (
+        <SpinnerIcon className="h-4 w-4" />
+      ) : (
+        <ArrowRightIcon className="hidden h-4 w-4 sm:block" />
+      )}
       {pending ? "Signing up…" : "Subscribe"}
     </button>
   );

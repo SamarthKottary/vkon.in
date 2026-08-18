@@ -221,18 +221,27 @@ set: `surface`, `surface-subtle`, `surface-raised`, `ink`, `body`, `muted`,
 `line`, `line-strong`, `accent`, `accent-strong`, `accent-soft`, `action`,
 `action-hover`, `action-ink`, and the `band-*` family.
 
-### The band inversion
+### The band, and the inversion it no longer does
 
-This is the non-obvious part. The design has deliberately dark sections — the
-hero, the protection strip, the footer, the mobile action bar — sitting inside
-a light page. In dark mode those cannot simply stay dark: they would dissolve
-into the background and the page would become one flat slab.
+The design has deliberately dark sections — the hero, the protection strip, the
+footer, the mobile action bar — sitting inside a light page. In dark mode those
+cannot simply stay dark without dissolving into the background.
 
-So the `band` tokens **invert their role**. `--color-band` is *darker* than the
-surface in light mode (#14171A on white) and *lighter* than it in dark mode
-(#1B1F23 on #0E1113). The section reads as a distinct band either way. Band
-content uses `band-ink` / `band-body` / `band-muted` / `band-line` /
-`band-accent` rather than the page tokens.
+The `band` tokens used to **invert their role** for exactly that reason: darker
+than the surface in light mode, lighter than it in dark. **They no longer do.**
+On 2026-08-18 the client asked for the same near-black in both themes, and
+`--color-band` is now `#181D22` either way.
+
+Know what that costs, because it is the thing the inversion was buying: in dark
+mode the band separates from the `#0E1113` ground by 1.14, where the previous
+`#2A313A` gave 1.44. **The top hairline is now what marks a band, not the
+fill.** `band-line` is deliberately kept at the lighter `#3D4650` in dark mode
+rather than matching the light theme — remove or dim that border and the footer
+merges into the page with nothing to say where one ends. A band added in future
+must carry a border; it can no longer rely on its fill to be seen.
+
+Band content uses `band-ink` / `band-body` / `band-muted` / `band-line` /
+`band-accent` rather than the page tokens. Those did not change.
 
 `--color-action` inverts too — near-black in light, near-white in dark — so
 anything sitting on it must use `text-action-ink`, never `text-white`. Pairing
@@ -386,6 +395,16 @@ network dependency is gone.
 
 **Health checks must probe `/api/health`, never `/`.** Public reads fail soft,
 so the home page returns 200 with the database completely down. See §10a.
+
+**Decorative images may be CSS backgrounds; content images may not.** The rule
+is `next/image` everywhere, with one measured exception: a purely decorative
+picture that is hidden below a breakpoint. `<Image fill>` inside a
+`hidden lg:block` wrapper has no layout on a phone, so the browser cannot
+resolve `sizes` and falls back to the **largest** candidate — the subscribe
+panel's decoration was measured requesting `w=3840` at a 390px viewport, hidden.
+A `background-image` declared inside the media query is never fetched at all.
+The trade is losing automatic WebP; only take it for a small decorative file,
+and never for anything a reader needs.
 
 **Uploads must not be written into `public/`.** It is baked into the image at
 build time; runtime writes there vanish on the next deploy. §10a.
@@ -586,6 +605,76 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-18 — Sign-up rebuilt, floating call and WhatsApp
+
+**The sign-up is a dark block beside a taller photograph**, to a layout the
+client supplied. The overlap is the device: two flat rectangles side by side
+read as a table; one running past the other reads as a composition. The
+overhang is `lg:-my-10` eating into the section's `lg:py-20` — reduce that
+padding and the picture collides with whatever is above it.
+
+**Everything on the block uses band tokens, including inside the pill.** The
+obvious build — a white pill with `text-ink` in it, as the reference has —
+breaks in dark mode, because `ink` inverts to near-white while the pill stays
+light. `band` and `band-accent` no longer change between themes, so a pill built
+from them is correct in both with no variant. The button is `text-band` on
+`bg-band-accent`; white on that green is 1.9:1.
+
+The image slot measures **704×533 at a 1440px viewport — 4:3**. Artwork for it
+should be cut to that; `bg-cover` crops anything else.
+
+**Floating call and WhatsApp, bottom left, desktop only.** The phone number left
+the header's top right, where it was hostage to the header retracting on the way
+down the page. Notes:
+
+- **Desktop only is not an oversight.** A phone already has `MobileActionBar`;
+  two floating circles on top of it would be four ways to do two things,
+  covering content on the smallest screen. `hidden md:flex` here,
+  `md:hidden` there.
+- **Bottom left, not right** — the right is where a chat widget or cookie
+  banner lands, and where the browser paints its link-target tooltip.
+- **No WhatsApp brand green.** `MobileActionBar` already made that call. It is
+  also a contrast trap: #25D366 carries a white glyph at 1.98:1, under the 3:1
+  a meaningful icon needs. #1DA851 is the lightest WhatsApp green that clears
+  it, if the brand colour is ever wanted.
+- The wrapper is `pointer-events-none` with the buttons `pointer-events-auto`,
+  so the gap between the two circles does not swallow clicks on the page.
+
+### 2026-08-18 — Neutral scrim, black band in both themes, sign-up above contact
+
+Five client requests, plus one performance bug found while checking them.
+
+**The hero scrim is neutral** (`#0E1113`, was the green `#0A1F16`). The green
+cast was deliberate while the band was green; with the band neutral it read as a
+colour filter on the photographs rather than a house style. Neutral is also
+darker, so every hero contrast figure improved — tightest went 1.03× to 1.12×.
+
+**`--color-band` is the same near-black in both themes.** This ends the
+inversion §6 describes; that section now records what the inversion was buying
+and what carries the load instead (the top hairline). Text gained room, because
+the dark-mode fill got darker.
+
+**The sign-up moved above the contact block**, and is rendered *by*
+`ContactStrip` rather than by the layout. It sat between `<main>` and the footer,
+which put it below contact on every page. Moving it meant either editing the
+five pages that end with a `ContactStrip` — five places for one ordering rule to
+drift — or stating the rule once. It is stated once.
+
+**The sign-up card gained a photograph**, two panels from the starter range,
+cropped to ~1.13 for its column. The full bench shot is 1.8 and `object-cover`
+sliced four panels off mid-body.
+
+**And the bug.** That decoration is desktop-only, and the first implementation
+used `<Image fill>` in a `hidden lg:block` wrapper. Measured at a 390px
+viewport, the browser requested **`w=3840`** — the largest variant of a hidden
+decorative image, on the phone this site is built for. With no layout, `sizes`
+cannot resolve and the browser takes the biggest candidate. It is now a CSS
+background declared inside the media query, which is not fetched below `lg` at
+all; verified by counting requests at both widths. §9 records the rule.
+
+**Category counts moved before the name** in the sector panel, in a fixed-width
+slot so the names still start on one vertical line.
 
 ### 2026-08-18 — Sector cards can carry their own crop
 

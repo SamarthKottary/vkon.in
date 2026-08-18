@@ -217,17 +217,25 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
                           href={`/products?category=${category.key}`}
                           className="group flex items-center justify-between gap-4 py-3 text-[0.9375rem] text-ink transition-colors hover:text-accent"
                         >
-                          <span>
-                            {category.label}
-                            <span className="ml-2 text-sm text-muted">
+                          {/* Count first. It is a fixed-width slot so the
+                              names start on one vertical line — leading with a
+                              number that varies in width would ragged them. */}
+                          <span className="flex items-baseline gap-3">
+                            <span className="w-4 shrink-0 text-right font-mono text-sm text-muted">
                               {count}
                             </span>
+                            {category.label}
                           </span>
                           <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-1 group-hover:text-accent" />
                         </Link>
                       ) : (
                         <p className="flex items-center justify-between gap-4 py-3 text-[0.9375rem] text-muted">
-                          {category.label}
+                          <span className="flex items-baseline gap-3">
+                            {/* Empty, but the same width, so an unavailable
+                                category's name lines up with the rest. */}
+                            <span aria-hidden className="w-4 shrink-0" />
+                            {category.label}
+                          </span>
                           <span className="label-tech shrink-0">Coming soon</span>
                         </p>
                       )}

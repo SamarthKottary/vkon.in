@@ -141,17 +141,17 @@
   --color-band-line: #333b45;
   --color-band-accent: #4cae81;
 
-  /* Hero scrim. Deliberately NOT `band`.
-     Those two were one token until 2026-08-13, when `band` was lightened to a
-     real forest green and eight text runs over the hero artwork dropped below
-     AA. `band` has since gone neutral graphite, so the split now buys something
-     different but no less deliberate: **the photographs keep a green cast while
-     the furniture around them does not.** Green is the brand colour and this is
-     where it belongs — over the pictures — rather than as a slab behind the
-     footer. Recouple them and the hero turns grey.
-     It also stays much darker than any band, because it is doing a different
-     job: not "look like a section" but "carry white text over a sunlit field". */
-  --color-scrim: #0a1f16;
+  /* Hero scrim. Still NOT `band`, but no longer a different hue.
+     It was green (#0A1F16) from 2026-08-13, which put a green cast over every
+     hero photograph. That was deliberate while the band was green too; with the
+     band neutral it read as a colour filter on the pictures rather than a
+     house style, so it is now the same near-black as the dark theme's ground.
+     Kept as its own token because it is doing a different job from any band —
+     not "look like a section" but "carry white text over a sunlit field" — and
+     it is measured against photographs, not against a flat colour.
+     Neutral is also *darker* here (L 0.0054 against the green's 0.0110), so
+     every hero contrast figure improved rather than regressed. */
+  --color-scrim: #0e1113;
   /* For accent text sitting on a photograph rather than flat band. At 11px the
      label needs 4.5:1, and the old #4cae81 only cleared it against a heavy
      scrim — this step up is what lets the hero scrim stay light. brand-300.
@@ -211,35 +211,38 @@
   --color-action-hover: #ffffff;
   --color-action-ink: #14171a;
 
-  /* Elevated rather than darker, so bands stay legible as bands.
+  /* The SAME near-black as the light theme, at the client's request.
 
-     This one is set by separation from the page, not by text contrast. The
-     ground here is #0E1113, so a band at the light theme's #181D22 would sit
-     at 1.14 against it — the footer would dissolve into the page and the whole
-     rhythm §6 describes collapses. #2A313A gives 1.44, which is what the green
-     band it replaced had (1.47), so the band reads as a band exactly as before.
+     This is a deliberate departure from the inversion rule in §6 above, and the
+     cost is worth stating: the band no longer separates from the page by
+     luminance in dark mode. At #181D22 against the #0E1113 ground the ratio is
+     1.14, where the previous #2A313A gave 1.44. **The top hairline is now what
+     marks the band**, not the fill — which is why `band-line` is kept at the
+     lighter #3D4650 rather than dropped to the light theme's #333B45. Remove or
+     lighten that border and the footer merges into the page with nothing to say
+     where one ends.
 
-     Text has room at that lightness: ink 11.9, body 8.6, muted 6.7,
-     accent 4.8. Accent is now the binding constraint rather than muted. */
-  --color-band: #2a313a;
-  --color-band-raised: #333b45;
+     Text is unaffected and has more room than before, because the fill got
+     darker: ink 16.1, body 11.1, muted 8.6, accent 6.2. */
+  --color-band: #181d22;
+  --color-band-raised: #232930;
   --color-band-ink: #f2f4f5;
   --color-band-body: #ccd2d7;
   --color-band-muted: #b3bac0;
   --color-band-line: #3d4650;
   --color-band-accent: #4cae81;
 
-  /* Hero scrim. Deliberately NOT `band`.
-     Those two were one token until 2026-08-13, when `band` was lightened to a
-     real forest green and eight text runs over the hero artwork dropped below
-     AA. `band` has since gone neutral graphite, so the split now buys something
-     different but no less deliberate: **the photographs keep a green cast while
-     the furniture around them does not.** Green is the brand colour and this is
-     where it belongs — over the pictures — rather than as a slab behind the
-     footer. Recouple them and the hero turns grey.
-     It also stays much darker than any band, because it is doing a different
-     job: not "look like a section" but "carry white text over a sunlit field". */
-  --color-scrim: #0a1f16;
+  /* Hero scrim. Still NOT `band`, but no longer a different hue.
+     It was green (#0A1F16) from 2026-08-13, which put a green cast over every
+     hero photograph. That was deliberate while the band was green too; with the
+     band neutral it read as a colour filter on the pictures rather than a
+     house style, so it is now the same near-black as the dark theme's ground.
+     Kept as its own token because it is doing a different job from any band —
+     not "look like a section" but "carry white text over a sunlit field" — and
+     it is measured against photographs, not against a flat colour.
+     Neutral is also *darker* here (L 0.0054 against the green's 0.0110), so
+     every hero contrast figure improved rather than regressed. */
+  --color-scrim: #0e1113;
   /* For accent text sitting on a photograph rather than flat band. At 11px the
      label needs 4.5:1, and the old #4cae81 only cleared it against a heavy
      scrim — this step up is what lets the hero scrim stay light. brand-300.

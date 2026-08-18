@@ -4,13 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/icons/Logo";
-import { CloseIcon, MenuIcon, PhoneIcon } from "@/components/icons/ui";
+import { CloseIcon, MenuIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { ProductsMenu, type MenuSector } from "@/components/layout/ProductsMenu";
 import { primaryNav } from "@/content/nav";
-import { site } from "@/content/site";
-import { telLink } from "@/lib/contact";
 
 /**
  * Flat header on a hairline rule. No blur, no shadow, no colour change on
@@ -177,14 +175,11 @@ export function Header({ menu = [] }: { menu?: MenuSector[] }) {
               </nav>
             </div>
 
+            {/* The phone number used to sit here. It moved to the floating
+                buttons at the bottom left (`FloatingContact`), because this
+                header retracts on the way down the page and took the only way
+                to call with it. */}
             <div className="hidden items-center gap-5 md:flex">
-              <a
-                href={telLink()}
-                className="flex items-center gap-2 text-sm font-medium text-ink hover:text-accent"
-              >
-                <PhoneIcon className="h-4 w-4 text-muted" />
-                {site.phone.display}
-              </a>
               <ThemeToggle />
             </div>
 

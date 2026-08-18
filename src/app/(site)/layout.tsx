@@ -1,7 +1,7 @@
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
+import { FloatingContact } from "@/components/layout/FloatingContact";
 import { MobileActionBar } from "@/components/layout/MobileActionBar";
-import { SubscribePanel } from "@/components/layout/SubscribePanel";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { categoriesInSector, sectors } from "@/content/taxonomy";
 import { listProducts } from "@/lib/db/products";
@@ -58,12 +58,9 @@ export default async function SiteLayout({
       <main id="main" className="flex-1">
         {children}
       </main>
-      {/* Above the footer on every page in the group, so it follows the contact
-          block on the pages that have one and still exists on the pages that
-          do not. */}
-      <SubscribePanel />
       <Footer />
       <MobileActionBar />
+      <FloatingContact />
 
       <JsonLd data={organizationJsonLd()} />
     </>
