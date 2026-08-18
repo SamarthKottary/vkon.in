@@ -12,7 +12,7 @@ import {
   UploadIcon,
 } from "@/components/icons/ui";
 import { protectionMeta } from "@/components/icons/protections";
-import { categories, PROTECTION_KEYS } from "@/content/taxonomy";
+import { categoriesInSector, PROTECTION_KEYS, sectors } from "@/content/taxonomy";
 import type { Product, ProductImage } from "@/lib/types";
 import { saveProductAction, uploadImageAction, type ActionState } from "../actions";
 
@@ -96,11 +96,22 @@ export function ProductForm({ product }: { product?: Product }) {
             defaultValue={product?.category ?? "starter"}
             className={input()}
           >
-            {categories.map((category) => (
-              <option key={category.key} value={category.key}>
-                {category.label}
-              </option>
-            ))}
+            {/* Grouped by market. Flat, the list gives no hint which of the
+                three a category belongs to, and choosing wrongly files the
+                product under the wrong card on the home page. */}
+            {sectors.map((sector) => {
+              const options = categoriesInSector(sector.key);
+              if (options.length === 0) return null;
+              return (
+                <optgroup key={sector.key} label={sector.label}>
+                  {options.map((category) => (
+                    <option key={category.key} value={category.key}>
+                      {category.label}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
           </select>
         </Field>
 

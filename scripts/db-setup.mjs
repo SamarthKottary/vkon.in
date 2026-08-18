@@ -50,8 +50,14 @@ const client = new pg.Client({
 try {
   await client.connect();
   await client.query(schema);
-  const { rows } = await client.query("SELECT count(*)::int AS n FROM products");
-  console.log(`Schema applied. products table has ${rows[0].n} row(s).`);
+  const { rows } = await client.query(
+    "SELECT (SELECT count(*)::int FROM products) AS products," +
+      " (SELECT count(*)::int FROM subscribers) AS subscribers",
+  );
+  console.log(
+    `Schema applied. products: ${rows[0].products} row(s), ` +
+      `subscribers: ${rows[0].subscribers} row(s).`,
+  );
 } catch (error) {
   console.error("Setup failed:", error.message);
   process.exit(1);

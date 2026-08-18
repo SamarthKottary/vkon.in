@@ -1,9 +1,9 @@
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { Hero } from "@/components/home/Hero";
-import { CategoryBrowser } from "@/components/home/CategoryBrowser";
+import { SectorBrowser } from "@/components/home/SectorBrowser";
 import { RecentlyViewed } from "@/components/home/RecentlyViewed";
 import { Section, SectionHeading } from "@/components/ui/Section";
-import { categories } from "@/content/taxonomy";
+import { categoriesInSector, sectors } from "@/content/taxonomy";
 import { site } from "@/content/site";
 import { listProducts } from "@/lib/db/products";
 import { pageMetadata } from "@/lib/seo";
@@ -30,18 +30,26 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const all = await listProducts();
 
-  /* Every category gets a card, including empty ones — they are marked "Coming
-     soon" and cannot be opened. The range is part of what the section says, and
-     the browser only lists names, so an empty card costs a line rather than a
-     hole in a grid.
+  /* Every sector gets a card, including ones with nothing under them yet —
+     those are marked "Coming soon" and cannot be opened. The range is part of
+     what the section says, and the browser only lists names, so an empty card
+     costs a line rather than a hole in a grid.
 
-     Within a category, products flagged Featured in the admin come first. */
-  const groups = categories.map((category) => ({
-    category,
-    items: all
-      .filter((p) => p.category === category.key)
-      .sort((a, b) => Number(b.featured) - Number(a.featured)),
-  }));
+     Counting happens here rather than in the browser so the component stays a
+     view over data it is handed. It is a client component; giving it the whole
+     product list to count would ship every product's description to the
+     browser to render five numbers. */
+  const groups = sectors.map((sector) => {
+    const inSector = categoriesInSector(sector.key);
+    return {
+      sector,
+      categories: inSector.map((category) => ({
+        category,
+        count: all.filter((p) => p.category === category.key).length,
+      })),
+      total: all.filter((p) => sectorContains(inSector, p.category)).length,
+    };
+  });
 
   return (
     <>
@@ -58,12 +66,12 @@ export default async function HomePage() {
         <SectionHeading
           align="center"
           eyebrow="What we make"
-          title="Panels for every pump on the farm"
-          description="From a single-phase openwell set to a 40 HP fully automatic star-delta installation, with the mobile control and accessories that go alongside."
+          title="Three markets, the same build"
+          description="Agriculture is the range shipping today — starters, solar, auto start units, cable and accessories. Industrial and commercial are where the same panel discipline goes next. Open a card for what sits under each."
         />
 
         <div className="mt-12">
-          <CategoryBrowser groups={groups} />
+          <SectorBrowser groups={groups} />
         </div>
 
       </Section>
@@ -75,4 +83,12 @@ export default async function HomePage() {
       <ContactStrip />
     </>
   );
+}
+
+/** Whether a product's category is one of this sector's. */
+function sectorContains(
+  inSector: { key: string }[],
+  category: string,
+): boolean {
+  return inSector.some((c) => c.key === category);
 }

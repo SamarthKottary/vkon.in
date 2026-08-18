@@ -2,8 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
-import { CategoryRow } from "@/components/product/CategoryRow";
-import { categories } from "@/content/taxonomy";
+import { ProductRow } from "@/components/product/ProductRow";
+import { categories, sectorOf, sectors } from "@/content/taxonomy";
 import type { Product } from "@/lib/types";
 
 /**
@@ -12,36 +12,72 @@ import type { Product } from "@/lib/types";
  * Filter state lives in the URL so a filtered view is shareable and the footer's
  * `/products?category=starter` links land pre-filtered. Only categories that
  * actually contain products are offered — an empty filter is a dead end.
+ *
+ * Three filters, in the order the taxonomy reads: **market**, then **category**
+ * inside it, then **rating**. Picking a market narrows the category list to
+ * that market's categories and clears any category from another one — without
+ * that, `?sector=commercial&category=starter` is reachable by clicking two
+ * plausible things in sequence and shows nothing.
+ *
+ * Filters sit in a left rail on desktop and collapse above the results on a
+ * phone, where there is no room for two columns. The rail is sticky so the
+ * filters stay reachable while the results scroll past them.
  */
 export function ProductCatalogue({ products }: { products: Product[] }) {
   const router = useRouter();
   const params = useSearchParams();
 
+  const sector = params.get("sector") ?? "all";
   const category = params.get("category") ?? "all";
   const hp = params.get("hp") ?? "all";
 
-  const availableCategories = useMemo(
-    () => categories.filter((c) => products.some((p) => p.category === c.key)),
+  const availableSectors = useMemo(
+    () => sectors.filter((s) => products.some((p) => sectorOf(p.category) === s.key)),
     [products],
   );
 
-  const hpRanges = useMemo(
+  /* Categories that have products AND sit in the chosen market. The second
+     condition is what stops the rail offering a filter that can only ever
+     return nothing once a market is picked. */
+  const availableCategories = useMemo(
     () =>
-      Array.from(new Set(products.flatMap((p) => p.hpRanges))).sort((a, b) => {
-        const num = (s: string) => parseFloat(s.replace(/[^0-9.]/g, "")) || 0;
-        return num(a) - num(b);
-      }),
-    [products],
+      categories.filter(
+        (c) =>
+          products.some((p) => p.category === c.key) &&
+          (sector === "all" || c.sector === sector),
+      ),
+    [products, sector],
   );
+
+  /* Ratings offered are those of the products the *other two* filters already
+     admit — not every rating in the catalogue. Filtered to Commercial, the
+     full list offered "3 HP" and "10 HP" for a range of lighting modules that
+     have no rating at all, and picking one emptied the page.
+
+     Note what it does not depend on: `hp` itself. Narrowing the options to the
+     current selection would collapse the list to the one already chosen and
+     leave no way back. */
+  const hpRanges = useMemo(() => {
+    const inScope = products.filter(
+      (p) =>
+        (sector === "all" || sectorOf(p.category) === sector) &&
+        (category === "all" || p.category === category),
+    );
+    return Array.from(new Set(inScope.flatMap((p) => p.hpRanges))).sort((a, b) => {
+      const num = (s: string) => parseFloat(s.replace(/[^0-9.]/g, "")) || 0;
+      return num(a) - num(b);
+    });
+  }, [products, sector, category]);
 
   const filtered = useMemo(
     () =>
       products.filter(
         (p) =>
+          (sector === "all" || sectorOf(p.category) === sector) &&
           (category === "all" || p.category === category) &&
           (hp === "all" || p.hpRanges.includes(hp)),
       ),
-    [products, category, hp],
+    [products, sector, category, hp],
   );
 
   /* Rendered as one horizontal row per category rather than a single grid, so
@@ -59,117 +95,146 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
     [filtered],
   );
 
-  function setFilter(key: "category" | "hp", value: string) {
+  function setFilter(key: "sector" | "category" | "hp", value: string) {
     const next = new URLSearchParams(params.toString());
     if (value === "all") next.delete(key);
     else next.set(key, value);
+
+    /* Changing market drops the category, which almost certainly belonged to
+       the old one. Leaving it produces a filter pair with no possible result
+       and no obvious cause. The rating goes with either, for the same reason —
+       and unlike the others it would otherwise stay active while no longer
+       appearing in the rail, which is a filter you cannot see to clear. */
+    if (key === "sector") next.delete("category");
+    if (key === "sector" || key === "category") next.delete("hp");
+
     const q = next.toString();
     router.replace(q ? `/products?${q}` : "/products", { scroll: false });
   }
 
   return (
-    <div>
-      {/* Each CategoryRow supplies its own h2, so the heading order runs
-          h1 (masthead) → h2 (category) → h3 (product) without a gap. */}
-      <div className="border-y border-line">
-        <FilterRow
+    <div /* `minmax(0,1fr)` for the results, not `1fr`. A bare `1fr` is
+         `minmax(auto,1fr)`, and `auto` refuses to shrink below the column's
+         min-content width — which for a horizontal scroller is the width of
+         all its cards. The results column then expands and crushes the rail
+         into a two-character ribbon. */
+      className="lg:grid lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] lg:gap-12">
+      {/* The rail. `self-start` stops it stretching to the grid row height,
+          which would break `sticky`. */}
+      <aside className="lg:sticky lg:top-24 lg:self-start">
+        {/* Only offered when there is more than one market to choose between.
+            A single-option filter is a label pretending to be a control. */}
+        {availableSectors.length > 1 && (
+          <FilterGroup
+            label="Market"
+            className="mb-8"
+            options={[
+              { value: "all", label: "All markets" },
+              ...availableSectors.map((s) => ({ value: s.key, label: s.label })),
+            ]}
+            active={sector}
+            onSelect={(v) => setFilter("sector", v)}
+          />
+        )}
+
+        <FilterGroup
           label="Category"
           options={[
-            { value: "all", label: "All" },
+            { value: "all", label: "All products" },
             ...availableCategories.map((c) => ({ value: c.key, label: c.label })),
           ]}
           active={category}
           onSelect={(v) => setFilter("category", v)}
         />
+
         {hpRanges.length > 0 && (
-          <FilterRow
+          <FilterGroup
             label="Rating"
+            className="mt-8"
             options={[
-              { value: "all", label: "Any" },
+              { value: "all", label: "All ratings" },
               ...hpRanges.map((r) => ({ value: r, label: r })),
             ]}
             active={hp}
             onSelect={(v) => setFilter("hp", v)}
-            bordered
           />
         )}
+
+        <p aria-live="polite" className="label-tech mt-8 border-t border-line pt-5 text-muted">
+          {filtered.length === products.length
+            ? `${products.length} product${products.length === 1 ? "" : "s"}`
+            : `${filtered.length} of ${products.length} products`}
+        </p>
+      </aside>
+
+      <div className="mt-10 lg:mt-0">
+        {groups.length > 0 ? (
+          <div className="flex flex-col gap-14">
+            {groups.map((group, index) => (
+              <ProductRow
+                key={group.category.key}
+                category={group.category}
+                products={group.items}
+                priority={index === 0}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="border border-line py-20 text-center">
+            <p className="text-ink">No products match those filters.</p>
+            <button
+              type="button"
+              onClick={() => router.replace("/products", { scroll: false })}
+              className="mt-3 text-sm font-medium text-accent underline underline-offset-4"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
       </div>
-
-      <p aria-live="polite" className="label-tech py-6 text-muted">
-        {filtered.length === products.length
-          ? `${products.length} product${products.length === 1 ? "" : "s"}`
-          : `${filtered.length} of ${products.length} products`}
-      </p>
-
-      {groups.length > 0 ? (
-        <div className="flex flex-col gap-14">
-          {groups.map((group, index) => (
-            <CategoryRow
-              key={group.category.key}
-              category={group.category}
-              products={group.items}
-              lead="heading"
-              headingLevel="h2"
-              priority={index === 0}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="border border-line py-20 text-center">
-          <p className="text-ink">No products match those filters.</p>
-          <button
-            type="button"
-            onClick={() => router.replace("/products", { scroll: false })}
-            className="mt-3 text-sm font-medium text-accent underline underline-offset-4"
-          >
-            Clear filters
-          </button>
-        </div>
-      )}
     </div>
   );
 }
 
-function FilterRow({
+function FilterGroup({
   label,
   options,
   active,
   onSelect,
-  bordered = false,
+  className = "",
 }: {
   label: string;
   options: { value: string; label: string }[];
   active: string;
   onSelect: (value: string) => void;
-  bordered?: boolean;
+  className?: string;
 }) {
   return (
-    <div
-      className={`flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:gap-6 ${
-        bordered ? "border-t border-line" : ""
-      }`}
-    >
-      <span className="label-tech shrink-0 text-muted sm:w-20">{label}</span>
-      <div role="group" aria-label={label} className="flex flex-wrap gap-x-6 gap-y-2">
+    <div className={className}>
+      <p className="label-tech text-muted">{label}</p>
+      <ul role="group" aria-label={label} className="mt-3 flex flex-wrap gap-x-4 gap-y-1 lg:block">
         {options.map((option) => {
           const isActive = active === option.value;
           return (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() => onSelect(option.value)}
-              className={`border-b-2 pb-0.5 text-sm transition-colors ${
-                isActive
-                  ? "border-accent font-medium text-ink"
-                  : "border-transparent text-muted hover:border-line-strong hover:text-ink"
-              }`}
-            >
-              {option.label}
-            </button>
+            <li key={option.value}>
+              <button
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => onSelect(option.value)}
+                /* Left rule rather than a pill: the accent bar marks the active
+                   row without turning the rail into a set of buttons. */
+                className={`w-full border-l-2 py-1.5 text-left text-sm transition-colors lg:pl-3 ${
+                  isActive
+                    ? "border-accent font-medium text-ink"
+                    : "border-transparent text-muted hover:text-ink lg:hover:border-line-strong"
+                }`}
+              >
+                {option.label}
+              </button>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }

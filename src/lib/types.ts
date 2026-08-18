@@ -22,12 +22,32 @@ export type ProtectionKey =
   | "mobile-control"
   | "solar-powered";
 
+/**
+ * Top-level market sector. The three the hero rotates through, and the three
+ * cards in "What we make".
+ *
+ * A sector is not stored on a product. A product has a category, and a category
+ * belongs to exactly one sector — so the sector is derived, and moving a whole
+ * range from one sector to another is a one-line edit in `taxonomy.ts` rather
+ * than a database migration. See `sectorOf()` there.
+ */
+export type Sector = "agriculture" | "industrial" | "commercial";
+
+/**
+ * A product's category — the sub-category under a sector.
+ *
+ * The first five are agriculture, which is the whole shipping range today. The
+ * last two exist so the other two sectors are not empty shells; both are marked
+ * placeholder in `taxonomy.ts`.
+ */
 export type ProductCategory =
   | "starter"
   | "solar"
   | "auto-start"
   | "cable"
-  | "accessory";
+  | "accessory"
+  | "industrial-panel"
+  | "home-automation";
 
 export type ProductImage = {
   url: string;
@@ -71,6 +91,8 @@ export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt">;
 
 export type CategoryMeta = {
   key: ProductCategory;
+  /** Which sector's card this category appears under. */
+  sector: Sector;
   label: string;
   description: string;
   /**
@@ -80,4 +102,33 @@ export type CategoryMeta = {
    * layout.
    */
   image?: string;
+};
+
+export type SectorMeta = {
+  key: Sector;
+  label: string;
+  /** One line under the card heading, and the hero slide's supporting copy. */
+  description: string;
+  /**
+   * Card artwork. Shares the hero's photograph on purpose — the picture is the
+   * sector's identity, and showing the same frame in both places is what ties
+   * the rotating hero to the cards a screen below it. Point it at dedicated art
+   * later and nothing else has to change.
+   */
+  image?: string;
+};
+
+/**
+ * One address on the mailing list.
+ *
+ * Not a product of the admin form — visitors create these from the panel above
+ * the footer, and the admin only reads and deletes them.
+ */
+export type Subscriber = {
+  id: string;
+  /** Stored lower-cased and trimmed; see `lib/db/subscribers.ts`. */
+  email: string;
+  /** Path the address was submitted from, e.g. "/products". May be empty. */
+  source: string;
+  createdAt: string;
 };

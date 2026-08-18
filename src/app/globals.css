@@ -40,8 +40,10 @@
      body   #454D55 on #F7FAF8    8.2:1       #C3C9CF on #0E1113  11.3:1
      muted  #5A636C on #F7FAF8    5.8:1       #9BA3AB on #0E1113   7.4:1
      accent #1F7A4C on #F7FAF8    5.1:1       #4CAE81 on #0E1113   6.9:1
-     band-ink   #FFFFFF on #14171A 17.9:1     #F2F4F5 on #1B1F23  14.1:1
-     band-muted #9BA3AB on #14171A 7.0:1      #9BA3AB on #1B1F23   6.0:1
+     band-ink   #FFFFFF on #181D22 17.0:1     #F2F4F5 on #2A313A  11.9:1
+     band-body  #CCD2D7 on #181D22 11.1:1     #CCD2D7 on #2A313A   8.6:1
+     band-muted #B3BAC0 on #181D22  8.6:1     #B3BAC0 on #2A313A   6.7:1
+     band-accnt #4CAE81 on #181D22  6.2:1     #4CAE81 on #2A313A   4.8:1
 
    graphite-500 (#757E87) is 4.1:1 on white and 4.4:1 on graphite-950 — it fails
    AA for text at BOTH ends. `.label-tech` is 11px, so it needs the full 4.5:1,
@@ -107,17 +109,57 @@
   --color-action-hover: #333a41;
   --color-action-ink: #ffffff;
 
-  /* Intentionally-dark sections. See the note above. */
-  --color-band: #14171a;
-  --color-band-raised: #22282d;
+  /* Intentionally-dark sections. See the note above.
+
+     Graphite, after four attempts at green. The history is worth keeping
+     because it is a real constraint rather than a series of opinions:
+     #101E18 read as black; #0F3324 was a deep forest green; #175038 was a mid
+     forest green and needed every text token lightened with it to stay legible.
+     The client rejected all of them. This is the neutral the original design
+     called for, and the green now appears only as `accent` — one colour doing
+     one job, instead of a green slab with green text on it.
+
+     Deliberately NOT equal to `--color-ink` (#14171A) or `--color-action`.
+     A band that matches the action colour makes a primary button on it
+     invisible. Two steps lighter is enough to keep them apart while still
+     reading as near-black.
+
+     Going neutral gave back all the contrast the greens were spending:
+       ink 17.0  ·  body 11.1  ·  muted 8.6  ·  accent 6.2
+
+     **body and muted keep the brighter values the green band forced**, and are
+     not reverted to the darker pre-green greys. These two tokens serve the hero
+     over photographs as well as the flat band, and the hero is the binding
+     constraint — reverting them cost the slide body 0.4 and dropped it under
+     4.5 at phone width. On graphite the brighter pair costs nothing: there are
+     still three clear steps (17.0 / 11.1 / 8.6). */
+  --color-band: #181d22;
+  --color-band-raised: #232930;
   --color-band-ink: #ffffff;
-  --color-band-body: #c3c9cf;
-  --color-band-muted: #9ba3ab;
-  --color-band-line: #333a41;
+  --color-band-body: #ccd2d7;
+  --color-band-muted: #b3bac0;
+  --color-band-line: #333b45;
   --color-band-accent: #4cae81;
+
+  /* Hero scrim. Deliberately NOT `band`.
+     Those two were one token until 2026-08-13, when `band` was lightened to a
+     real forest green and eight text runs over the hero artwork dropped below
+     AA. `band` has since gone neutral graphite, so the split now buys something
+     different but no less deliberate: **the photographs keep a green cast while
+     the furniture around them does not.** Green is the brand colour and this is
+     where it belongs — over the pictures — rather than as a slab behind the
+     footer. Recouple them and the hero turns grey.
+     It also stays much darker than any band, because it is doing a different
+     job: not "look like a section" but "carry white text over a sunlit field". */
+  --color-scrim: #0a1f16;
   /* For accent text sitting on a photograph rather than flat band. At 11px the
-     label needs 4.5:1, and #4cae81 only clears it against a heavy scrim — this
-     step up is what lets the hero scrim stay light. brand-300. */
+     label needs 4.5:1, and the old #4cae81 only cleared it against a heavy
+     scrim — this step up is what lets the hero scrim stay light. brand-300.
+
+     Separate from `band-accent` on purpose: the two answer to different
+     backgrounds — this one to the scrim, `band-accent` to the flat band — and
+     they have converged and diverged twice already as the band moved. Changing
+     either must not silently drag the other. */
   --color-band-accent-strong: #7ecba6;
 
   /* Depth. Weak on purpose: enough to lift a card off white, not enough to
@@ -169,17 +211,43 @@
   --color-action-hover: #ffffff;
   --color-action-ink: #14171a;
 
-  /* Elevated rather than darker, so bands stay legible as bands. */
-  --color-band: #1b1f23;
-  --color-band-raised: #23282e;
+  /* Elevated rather than darker, so bands stay legible as bands.
+
+     This one is set by separation from the page, not by text contrast. The
+     ground here is #0E1113, so a band at the light theme's #181D22 would sit
+     at 1.14 against it — the footer would dissolve into the page and the whole
+     rhythm §6 describes collapses. #2A313A gives 1.44, which is what the green
+     band it replaced had (1.47), so the band reads as a band exactly as before.
+
+     Text has room at that lightness: ink 11.9, body 8.6, muted 6.7,
+     accent 4.8. Accent is now the binding constraint rather than muted. */
+  --color-band: #2a313a;
+  --color-band-raised: #333b45;
   --color-band-ink: #f2f4f5;
-  --color-band-body: #c3c9cf;
-  --color-band-muted: #9ba3ab;
-  --color-band-line: #343a41;
+  --color-band-body: #ccd2d7;
+  --color-band-muted: #b3bac0;
+  --color-band-line: #3d4650;
   --color-band-accent: #4cae81;
+
+  /* Hero scrim. Deliberately NOT `band`.
+     Those two were one token until 2026-08-13, when `band` was lightened to a
+     real forest green and eight text runs over the hero artwork dropped below
+     AA. `band` has since gone neutral graphite, so the split now buys something
+     different but no less deliberate: **the photographs keep a green cast while
+     the furniture around them does not.** Green is the brand colour and this is
+     where it belongs — over the pictures — rather than as a slab behind the
+     footer. Recouple them and the hero turns grey.
+     It also stays much darker than any band, because it is doing a different
+     job: not "look like a section" but "carry white text over a sunlit field". */
+  --color-scrim: #0a1f16;
   /* For accent text sitting on a photograph rather than flat band. At 11px the
-     label needs 4.5:1, and #4cae81 only clears it against a heavy scrim — this
-     step up is what lets the hero scrim stay light. brand-300. */
+     label needs 4.5:1, and the old #4cae81 only cleared it against a heavy
+     scrim — this step up is what lets the hero scrim stay light. brand-300.
+
+     Separate from `band-accent` on purpose: the two answer to different
+     backgrounds — this one to the scrim, `band-accent` to the flat band — and
+     they have converged and diverged twice already as the band moved. Changing
+     either must not silently drag the other. */
   --color-band-accent-strong: #7ecba6;
 
   /* A dark shadow on a dark surface does nothing. Depth here is a faint light
@@ -288,7 +356,7 @@
     border-color: var(--color-band-accent);
   }
 
-  /* Horizontal card track, used by CategoryRow on the home page and the
+  /* Horizontal card track, used by SectorBrowser on the home page and the
      catalogue. The scrollbar is hidden because the affordance is the partially
      visible card at the right edge; a native bar under a row of cards reads as
      a rendering fault on desktop. Hiding it costs nothing for access — the

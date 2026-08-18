@@ -9,41 +9,49 @@ import {
   ChevronDownIcon,
 } from "@/components/icons/ui";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
-import type { CategoryMeta, Product } from "@/lib/types";
+import type { CategoryMeta, SectorMeta } from "@/lib/types";
 
-/** Products listed inside an open card. Bounded so opening one does not shove
- *  the rest of the page a long way down; the card links on to the full list. */
-const PANEL_LIMIT = 6;
-
-export type CategoryGroup = { category: CategoryMeta; items: Product[] };
+export type SectorGroup = {
+  sector: SectorMeta;
+  /** The sector's sub-categories, with how many published products each holds. */
+  categories: { category: CategoryMeta; count: number }[];
+  /** Published products across the whole sector. */
+  total: number;
+};
 
 /**
- * The category browser on the home page.
+ * The sector browser on the home page — "What we make".
  *
- * A horizontal track of category cards — three across on a wide screen, one
- * (with the next peeking) on a phone — that pages with the arrow buttons or by
- * ordinary scrolling. Clicking a card opens a panel beneath the row listing
- * that category's products by name.
+ * A horizontal track of the three market sectors that pages with the arrow
+ * buttons or by ordinary scrolling. Opening a card lists that sector's
+ * sub-categories; each one links to the catalogue filtered to it.
+ *
+ * This replaced a browser over product categories on 2026-08-18, when the site
+ * gained a sector above them. The level shown here has to match the hero — a
+ * visitor who has just watched "Agriculture / Industrial / Commercial" rotate
+ * past reads the next section as the same three things opened up, and showing
+ * five product categories there instead read as a different taxonomy entirely.
  *
  * Notes worth keeping:
  *
  *  - **The panel belongs to its own card**, directly beneath it and the same
- *    width, so the products visibly belong to the category above them. The
+ *    width, so the sub-categories visibly belong to the sector above them. The
  *    track is `items-start` so only the opened card grows; the others keep
- *    their height instead of stretching to match. The cards carry a
- *    `min-h` so they still look even while closed.
+ *    their height instead of stretching to match. The cards carry a `min-h` so
+ *    they still look even while closed.
  *  - **Card widths are `calc` fractions of the container**, so exactly three
- *    land on a wide screen no matter how many categories exist. Adding a sixth
- *    category adds a card to scroll to; it does not shrink the other five.
+ *    land on a wide screen no matter how many sectors exist. A fourth adds a
+ *    card to scroll to; it does not shrink the other three.
  *  - **Arrows sit above the row, right-aligned, and disable at the ends**
  *    rather than disappearing, so the control never moves. They are hidden
  *    entirely when everything already fits, since a control that can never do
  *    anything is noise.
- *  - **Empty categories still get a card**, marked "Coming soon" and not
- *    expandable. They tell a visitor the range exists; a card that opened onto
- *    nothing would be a dead end.
+ *  - **A sub-category with nothing in it is listed but not linked.** The
+ *    catalogue only offers filters that have products behind them, so a link to
+ *    an empty one lands on "No products match those filters" — a dead end. It
+ *    reads "Coming soon" instead, which is the true statement anyway.
  */
-export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
+export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const trackRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
@@ -83,14 +91,14 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
       {showArrows && (
         <div className="mb-6 flex items-center justify-end gap-3">
           <PageButton
-            label="Previous categories"
+            label="Previous markets"
             disabled={!canScroll.left}
             onClick={() => page(-1)}
           >
             <ArrowLeftIcon className="h-4 w-4" />
           </PageButton>
           <PageButton
-            label="More categories"
+            label="More markets"
             disabled={!canScroll.right}
             onClick={() => page(1)}
           >
@@ -108,36 +116,38 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
         onScroll={sync}
         className="hscroll flex snap-x snap-mandatory items-start gap-6 overflow-x-auto"
       >
-        {groups.map(({ category, items }) => {
-          const isOpen = openKey === category.key;
+        {groups.map(({ sector, categories, total }) => {
+          const isOpen = openKey === sector.key;
+          const expandable = categories.length > 0;
 
           return (
             <li
-              key={category.key}
+              key={sector.key}
               className="w-[82%] flex-none snap-start sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)]"
             >
               <button
                 type="button"
                 aria-expanded={isOpen}
-                aria-controls={`category-panel-${category.key}`}
-                onClick={() => setOpenKey(isOpen ? null : category.key)}
-                /* No dimmed state for empty categories. They are part of the
-                   range and read as available; greying them made four of the
-                   five look broken next to the one with stock. */
+                aria-controls={`sector-panel-${sector.key}`}
+                disabled={!expandable}
+                onClick={() => setOpenKey(isOpen ? null : sector.key)}
+                /* No dimmed state for a sector with nothing under it. They are
+                   part of the range and read as available; greying them made
+                   the empty ones look broken next to the one with stock. */
                 className={`flex min-h-[19rem] w-full flex-col border bg-surface-raised p-6 text-left shadow-card transition-[box-shadow,border-color] duration-200 ${
                   isOpen
                     ? "border-accent shadow-card-hover"
                     : "border-line hover:border-line-strong hover:shadow-card-hover"
                 }`}
               >
-                <span /* 16:9, matching what the image generator actually offers. The
-                       plate and the artwork share a ratio on purpose: with
-                       `object-cover` any mismatch crops the flat-lay, and these
-                       compositions are a centred group with little margin. */
+                <span /* 16:9, matching what the image generator actually offers.
+                       The plate and the artwork share a ratio on purpose: with
+                       `object-cover` any mismatch crops the frame, and these are
+                       composed with the subject in the right third. */
                     className="relative -mx-6 -mt-6 mb-5 block aspect-video overflow-hidden border-b border-line bg-surface-subtle">
-                  {category.image ? (
+                  {sector.image ? (
                     <Image
-                      src={category.image}
+                      src={sector.image}
                       alt=""
                       fill
                       sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 82vw"
@@ -150,32 +160,36 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
                   )}
                 </span>
 
-                <h3 className="text-lg leading-snug">{category.label}</h3>
+                <h3 className="text-lg leading-snug">{sector.label}</h3>
                 {/* Ten, not seven. The copy is written to land on about seven
                     lines at desktop width, but the same text needs ten on a
                     390px card — clamping at seven cut it off mid-sentence on a
                     phone. The clamp is a guard against runaway copy, not the
                     target length. */}
                 <p className="mt-2 line-clamp-10 text-sm leading-relaxed text-muted">
-                  {category.description}
+                  {sector.description}
                 </p>
 
                 <span className="mt-auto flex items-center justify-between gap-4 pt-6">
                   <span className="label-tech text-muted">
-                    {items.length === 0
+                    {!expandable
                       ? "Coming soon"
-                      : `${items.length} product${items.length === 1 ? "" : "s"}`}
+                      : `${categories.length} ${
+                          categories.length === 1 ? "category" : "categories"
+                        }`}
                   </span>
-                  <ChevronDownIcon
-                    className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
-                      isOpen ? "rotate-180 text-accent" : "text-muted"
-                    }`}
-                  />
+                  {expandable && (
+                    <ChevronDownIcon
+                      className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+                        isOpen ? "rotate-180 text-accent" : "text-muted"
+                      }`}
+                    />
+                  )}
                 </span>
               </button>
 
-              {/* Dynamic: the panel sizes to its contents and the section
-                  grows when a card opens.
+              {/* Dynamic: the panel sizes to its contents and the section grows
+                  when a card opens.
 
                   This replaced a fixed-height reserved block on 2026-08-13, at
                   the client's request. The trade-off is deliberate and worth
@@ -184,51 +198,47 @@ export function CategoryBrowser({ groups }: { groups: CategoryGroup[] }) {
                   page below shifts down by the panel's height. */}
               {isOpen && (
                 <ul
-                  id={`category-panel-${category.key}`}
-                  /* Accent border, matching the open card above it: with the card
-                     outlined in accent and the panel in the line token, the two
-                     read as separate objects rather than one open card.
-
-                     Fixed height, not auto: categories hold different numbers
-                     of products, and letting the panel size to its contents
-                     moved everything below by up to 287px as you switched
-                     between them. At a fixed height the reserved space is the
-                     same whichever card is open, so nothing below ever moves.
-                     The bottom-anchored link is what stops a short list
-                     looking like an unfinished box. */
+                  id={`sector-panel-${sector.key}`}
+                  /* Accent border, matching the open card above it: with the
+                     card outlined in accent and the panel in the line token,
+                     the two read as separate objects rather than one open
+                     card. */
                   className="flex flex-col border border-t-0 border-accent bg-surface-subtle px-6 py-2"
                 >
-                  {items.slice(0, PANEL_LIMIT).map((product) => (
-                    <li
-                      key={product.id}
-                      className="border-b border-line"
-                    >
-                      <Link
-                        href={`/products/${product.slug}`}
-                        className="group flex items-center justify-between gap-4 py-3 text-[0.9375rem] text-ink transition-colors hover:text-accent"
-                      >
-                        {product.name}
-                        <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-1 group-hover:text-accent" />
-                      </Link>
+                  {categories.map(({ category, count }) => (
+                    <li key={category.key} className="border-b border-line">
+                      {count > 0 ? (
+                        <Link
+                          href={`/products?category=${category.key}`}
+                          className="group flex items-center justify-between gap-4 py-3 text-[0.9375rem] text-ink transition-colors hover:text-accent"
+                        >
+                          <span>
+                            {category.label}
+                            <span className="ml-2 text-sm text-muted">
+                              {count}
+                            </span>
+                          </span>
+                          <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-1 group-hover:text-accent" />
+                        </Link>
+                      ) : (
+                        <p className="flex items-center justify-between gap-4 py-3 text-[0.9375rem] text-muted">
+                          {category.label}
+                          <span className="label-tech shrink-0">Coming soon</span>
+                        </p>
+                      )}
                     </li>
                   ))}
 
-                  {items.length === 0 && (
-                    <li className="py-3 text-[0.9375rem] text-muted">
-                      Nothing listed here yet — call us for what is available.
+                  {total > 0 && (
+                    <li className="mt-auto border-t border-line py-3">
+                      <Link
+                        href={`/products?sector=${sector.key}`}
+                        className="text-[0.9375rem] text-accent underline underline-offset-4"
+                      >
+                        {`All ${total} in ${sector.label}`}
+                      </Link>
                     </li>
                   )}
-
-                  <li className="mt-auto border-t border-line py-3">
-                    <Link
-                      href={`/products?category=${category.key}`}
-                      className="text-[0.9375rem] text-accent underline underline-offset-4"
-                    >
-                      {items.length > PANEL_LIMIT
-                        ? `All ${items.length} in ${category.label}`
-                        : `Open ${category.label}`}
-                    </Link>
-                  </li>
                 </ul>
               )}
             </li>

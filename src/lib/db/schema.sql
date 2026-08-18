@@ -46,3 +46,30 @@ CREATE INDEX IF NOT EXISTS products_listing_idx
 
 CREATE INDEX IF NOT EXISTS products_category_idx
   ON products (category);
+
+-- ---------------------------------------------------------------------------
+-- Newsletter subscribers.
+--
+-- Collected by the panel above the footer and read at /admin/subscribers.
+-- Nothing sends mail from here — this is a list, not a mailer.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS subscribers (
+  id            TEXT PRIMARY KEY,
+
+  -- Stored lower-cased and trimmed by lib/db/subscribers.ts. The UNIQUE
+  -- constraint is only meaningful if the value is normalised before it gets
+  -- here: "A@b.com" and "a@b.com " are the same subscription to a person and
+  -- two rows to Postgres.
+  email         TEXT NOT NULL UNIQUE,
+
+  -- Which page the address came from, e.g. "/products". Purely for knowing
+  -- what is working; never shown to the subscriber.
+  source        TEXT NOT NULL DEFAULT '',
+
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The admin list is newest first, and that is the only way it is ever read.
+CREATE INDEX IF NOT EXISTS subscribers_created_idx
+  ON subscribers (created_at DESC);

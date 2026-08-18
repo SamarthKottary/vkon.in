@@ -7,6 +7,7 @@ import { Logo } from "@/components/icons/Logo";
 import { CloseIcon, MenuIcon, PhoneIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { ProductsMenu, type MenuSector } from "@/components/layout/ProductsMenu";
 import { primaryNav } from "@/content/nav";
 import { site } from "@/content/site";
 import { telLink } from "@/lib/contact";
@@ -38,8 +39,9 @@ import { telLink } from "@/lib/contact";
 const HIDE_AFTER = 120;
 /** Movement below this is treated as noise rather than a direction change. */
 const DELTA = 6;
-export function Header() {
+export function Header({ menu = [] }: { menu?: MenuSector[] }) {
   const [open, setOpen] = useState(false);
+  const [productsOpen, setProductsOpen] = useState(false);
   const pathname = usePathname();
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -89,6 +91,12 @@ export function Header() {
     };
   }, [open]);
 
+  /* No effect closing this on `pathname` change: every link inside the panel
+     calls `onClose` as it is followed, which is the only way to navigate from
+     it. Setting state from an effect is what `react-hooks/set-state-in-effect`
+     exists to stop. */
+  const closeProducts = useCallback(() => setProductsOpen(false), []);
+
   const onScroll = useCallback(() => {
     if (tickingRef.current) return;
     tickingRef.current = true;
@@ -117,11 +125,14 @@ export function Header() {
   return (
     <>
       <header
+        /* `relative` is what the dropdown positions against. It must not
+           retract while that panel is open, or the panel travels off screen
+           with it. */
         className={`sticky top-0 z-50 border-b border-line bg-surface transition-transform duration-300 ${
-          hidden && !open ? "-translate-y-full" : "translate-y-0"
+          hidden && !open && !productsOpen ? "-translate-y-full" : "translate-y-0"
         }`}
       >
-        <Container size="wide">
+        <Container size="wide" className="relative">
           <div className="flex h-16 items-center justify-between gap-6">
             {/* Logo and nav travel together on the left, so the primary links
                 sit next to the brand rather than floating mid-header. The
@@ -135,7 +146,19 @@ export function Header() {
 
               <nav aria-label="Primary" className="hidden md:ml-6 md:block">
                 <ul className="flex items-center">
-                  {primaryNav.map((link) => (
+                  <li>
+                    <ProductsMenu
+                      menu={menu}
+                      open={productsOpen}
+                      onToggle={() => setProductsOpen((v) => !v)}
+                      onClose={closeProducts}
+                      active={isActive("/products")}
+                    />
+                  </li>
+
+                  {primaryNav
+                    .filter((link) => link.href !== "/products")
+                    .map((link) => (
                     <li key={link.href}>
                       <Link
                         href={link.href}

@@ -1,19 +1,25 @@
+import type { Sector } from "@/lib/types";
+
 /**
  * Market segments shown in the rotating hero.
+ *
+ * These are the three **sectors**, not product categories — the same three
+ * `taxonomy.ts` defines, in the same order, and `key` is typed to `Sector` so
+ * the two cannot drift apart. A slide is the sector's pitch; the categories
+ * inside it are the job of the cards a screen below.
  *
  * Order matters — the first one is what a visitor sees before any JavaScript
  * runs, and its headline is the page's `<h1>`. Keep agriculture first.
  *
  * TODO(vkon): only the agriculture slide is written from confirmed material
- * (the product portfolio in the company plan). Home automation appears nowhere
- * in that document, and solar pumping is listed there as a *future* product
- * line rather than something shipping today. Both need real copy — and, more
- * importantly, a decision about whether the site should advertise them at all
- * before there is a product to sell. Delete a segment and the hero adjusts.
+ * (the product portfolio in the company plan). Industrial and commercial are
+ * both stated directions rather than shipping ranges, and the copy below is
+ * written to be true of an intent rather than of a catalogue. Rewrite both once
+ * there is a product list behind them. Delete a segment and the hero adjusts.
  */
 
 export type HeroSegment = {
-  key: string;
+  key: Sector;
   /**
    * Eyebrow above the headline, and the accessible name of this slide's button
    * on the progress bar. Keep it to one or two words.
@@ -56,21 +62,28 @@ export const heroSegments: HeroSegment[] = [
     body: "Electronic starters and control panels for agricultural pumps. Built for the supply Indian borewells actually run on — phases that drop out, voltage that swings, and water that runs dry without warning.",
   },
   {
-    key: "home-automation",
-    label: "Home Automation",
-    headline: ["Control the pump", "without walking"],
-    headlineTail: "to the pump.",
-    image: "/segments/home-automation.jpg",
-    // TODO(vkon): placeholder. Confirm what is actually offered here.
-    body: "Domestic pump control for homes, apartments and farmhouses. Start and stop from a phone, fill the overhead tank automatically, and keep the motor protected on the same board.",
+    key: "industrial",
+    label: "Industrial",
+    headline: ["Keep the line", "running when"],
+    headlineTail: "the supply won't.",
+    image: "/segments/industrial.jpg",
+    // TODO(vkon): placeholder. No industrial product list exists yet.
+    body: "Motor control and protection for industrial duty, where the load runs continuously and a stopped machine costs more in an afternoon than the panel driving it. The same protections, built to the ratings and enclosures a shop floor asks for.",
   },
   {
-    key: "solar",
-    label: "Solar Pumping",
-    headline: ["Run the pump", "on sunlight,"],
-    headlineTail: "not on diesel.",
-    image: "/segments/solar.jpg",
-    // TODO(vkon): the plan lists solar pump controllers as a future product line.
-    body: "Controllers that run a pump on solar, on mains, or switch between them as the day allows — with the same protection set watching the motor throughout.",
+    key: "commercial",
+    label: "Commercial",
+    headline: ["Lights that know", "when someone"],
+    headlineTail: "walks in.",
+    image: "/segments/commercial.jpg",
+    /* Left of centre, against the default right edge.
+       This frame breaks the composition rule the default assumes: its subject —
+       the lit staircase — is also the brightest thing in it, so a phone-width
+       crop of the right third put white text over lit concrete and measured
+       3.76:1. At 45% the crop is the shadowed wall and the opening beside it,
+       which is both darker and the more atmospheric half. */
+    focus: "45% 50%",
+    // TODO(vkon): placeholder. Confirm what is actually offered here.
+    body: "Home and building automation — a wardrobe that lights when it opens, a staircase that lights as you reach it and goes dark behind you. Wired and tested to the same standard as everything else we build.",
   },
 ];

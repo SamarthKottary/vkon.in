@@ -17,10 +17,20 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
+| `/admin/subscribers` | The mailing list. Read, export, remove. |
 
-One operator, one password, one thing to manage: **products**. Nothing else on
-the site is editable without a code change — not the hero copy, not the
-figures, not the category list, not the contact details.
+One operator, one password, two things to manage: **products**, and the
+**mailing list** those products get announced to. Nothing else on the site is
+editable without a code change — not the hero copy, not the figures, not the
+category list, not the contact details.
+
+The two are not symmetrical, and the difference matters:
+
+- **Products** are created here. The admin is the only writer.
+- **Subscribers** are created by *visitors*, through the sign-up above the
+  footer. The admin can only read, export and delete. There is deliberately no
+  "add subscriber" form — an address somebody did not type themselves has not
+  agreed to anything, and a list built that way is worth less than no list.
 
 Every admin route is `force-dynamic`. A cached admin page is a stale admin page.
 
@@ -111,10 +121,21 @@ point of a CMS. Reading Postgres per request costs one indexed query.
 image at build time; anything written there at runtime vanishes on the next
 deploy. `UPLOAD_DIR` points at a mounted volume.
 
-**Fixed vocabularies live in code, not the database.** Categories and protection
-keys are tied to icons and copy, so adding one is a code change either way.
-`content/taxonomy.ts` is the source. Unknown keys are filtered at read time, so
-removing one degrades instead of breaking a page.
+**Fixed vocabularies live in code, not the database.** Sectors, categories and
+protection keys are tied to icons, artwork and copy, so adding one is a code
+change either way. `content/taxonomy.ts` is the source. Unknown keys are
+filtered at read time, so removing one degrades instead of breaking a page.
+
+**A product's market comes from its category.** There is no market field on the
+form and there must not be one. `categories[].sector` in `content/taxonomy.ts`
+decides which of agriculture / industrial / commercial a product appears under,
+so filing it in the right category is the whole of the decision — and the
+`<select>` is grouped by market so that choice is visible while making it. See
+ARCHITECTURE §8 for why this is derived rather than stored.
+
+**Nothing here sends email.** `/admin/subscribers` collects and exports; no code
+path in this repo delivers a message. Read §7.6 before wiring up a sender —
+there are two obligations that are not met today.
 
 **Admin content can break public layouts.** The catalogue and home grids assume
 short values. A very long product name, or a figure like `1–40 HP three phase`,
@@ -225,12 +246,36 @@ The first is the recommendation. It gives genuine per-person accounts without
 writing a line of auth code, which for a two-person operation is the right
 trade. The existing password stays as a second factor behind it.
 
-### 7.3 Login rate limiting — *known gap*
+### 7.3 Login rate limiting — *known gap, now cheap to close*
 
-Not implemented. In-memory counters are per-instance and near useless once
-there is more than one; doing it properly needs a shared store. With a long
-password this is an accepted risk. Cloudflare Access (7.2) removes the exposure
-entirely, which is a better use of the same effort.
+Not implemented on login. The original reasoning was that in-memory counters are
+per-instance and near useless — true on serverless, and **not true here**: this
+deploys as a single container behind the tunnel, so one process is the whole
+application.
+
+`lib/rate-limit.ts` now exists, written for the public sign-up, and applying it
+to `loginAction` is about four lines. It is worth doing. Note the caveat in that
+file: if the site ever moves to a multi-instance host, both uses need a shared
+store instead.
+
+Cloudflare Access (7.2) removes the exposure entirely, which is still the better
+use of the same effort if you are doing one of them.
+
+### 7.3a "The password is right but it keeps asking again"
+
+Not an open decision — a trap worth naming, because it looks exactly like a
+wrong password.
+
+The session cookie is `Secure` in production, so a browser will only keep it on
+**https://**, or on `localhost` / `127.0.0.1`, which browsers treat as
+trustworthy origins. Reach the admin over plain HTTP on any other host — the LAN
+IP `next start` prints beside the localhost URL, for instance — and the cookie
+is silently discarded. The password is accepted, the redirect to
+`/admin/products` fires, that request arrives anonymous, and you land back on
+the sign-in form.
+
+`/admin` now detects this and says so. The fix is to use `localhost` locally, or
+https on the server; the cookie stays strict either way.
 
 ### 7.4 Database backups — *known gap, and the most serious one*
 
@@ -245,9 +290,41 @@ Tempting, pointless with one operator. Revisit if 7.2 lands and there are
 several people, at which point Cloudflare Access already logs who reached the
 admin and the only thing missing is what they changed.
 
+### 7.6 Actually sending to the mailing list — *two obligations first*
+
+The list exists; nothing delivers to it. Before anything does:
+
+1. **Every message needs a working unsubscribe link.** Today the only way off
+   the list is asking the operator to delete the row. That is fine for a list
+   nobody is mailing and indefensible for one that is.
+2. **Sign-up should become double opt-in.** Right now anyone can type anyone
+   else's address into the panel. Nothing is delivered, so nothing happens — the
+   moment a sender exists, that becomes a way to subscribe a stranger to your
+   mail. The fix is to mail a confirmation link and only write the row when it is
+   clicked, which means the `subscribers` table gains a `confirmed_at` and the
+   admin list learns to show pending rows differently.
+
+Both belong with the sender, not in this repo's current shape. The recommended
+route is an external service (a transactional or newsletter provider) that does
+list management, unsubscribe handling and delivery reputation properly — export
+the CSV into it rather than building a mailer here. Adding a mail dependency to
+a codebase whose whole dependency policy is `next`, `react`, `react-dom` needs
+to clear a high bar.
+
 ---
 
 ## Change log
+
+**2026-08-18** (later) — §7.3a added: the `Secure` cookie silently drops over
+plain HTTP on a non-localhost host, which presents as a rejected password. The
+login page now warns instead of bouncing without explanation.
+
+**2026-08-18** — Subscribers added: a second thing to manage, created by
+visitors rather than by the operator. New §7.6 on what sending to the list would
+require, and §7.3 revised — the in-memory limiter written for the sign-up makes
+login rate limiting cheap, because this is a single container and not
+serverless. §4 gained the rule that a product's market is derived from its
+category.
 
 **2026-08-12** — Created. Describes the admin as built, and records the open
 decisions discussed while building the public site.

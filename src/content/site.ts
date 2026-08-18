@@ -49,12 +49,46 @@ export const site = {
   /** Founding year, used in the footer and the About page. */
   founded: 2010, // TODO(vkon): confirm
 
-  socials: {
-    // Leave a value empty to hide that icon in the footer.
-    facebook: "",
-    instagram: "",
-    youtube: "",
-  },
+  /**
+   * Social profiles, in the order they appear in the footer.
+   *
+   * An array rather than a keyed object so the order is the data rather than
+   * whatever `Object.values` happens to produce, and so adding one is a single
+   * entry. `key` selects the icon in `components/layout/Footer.tsx`; an unknown
+   * key renders nothing rather than a blank circle. Remove an entry to drop it
+   * from both the footer and the `sameAs` in the structured data.
+   *
+   * URLs are the canonical profile links with share tracking stripped —
+   * `?igsh=`, `?utm_source=share_via`, `?s=11`, `?mibextid=` are all artefacts
+   * of copying a link out of a phone app, and they should not be baked into
+   * every page of a public site. Each was checked to still resolve.
+   */
+  socials: [
+    {
+      key: "facebook",
+      label: "Facebook",
+      /* TODO(vkon): this is a /share/ link, not a page vanity URL. It works,
+         but a real page URL (facebook.com/vkonautomation) would be better in
+         structured data and more obviously ours to anyone reading it. */
+      href: "https://www.facebook.com/share/1H1XReqGpB/",
+    },
+    {
+      key: "instagram",
+      label: "Instagram",
+      href: "https://www.instagram.com/vkonautomation",
+    },
+    { key: "x", label: "X", href: "https://x.com/vkonautomation" },
+    {
+      key: "youtube",
+      label: "YouTube",
+      href: "https://www.youtube.com/@Vkonautomation",
+    },
+    {
+      key: "linkedin",
+      label: "LinkedIn",
+      href: "https://www.linkedin.com/in/vkon-automation-b17087428",
+    },
+  ],
 
   /**
    * Free key from https://web3forms.com — it is a public, submit-only

@@ -9,6 +9,7 @@ import {
   slugExists,
   updateProduct,
 } from "@/lib/db/products";
+import { deleteSubscriber } from "@/lib/db/subscribers";
 import { deleteProductImages, uploadProductImage } from "@/lib/storage";
 import { CATEGORY_KEYS, PROTECTION_KEYS } from "@/content/taxonomy";
 import { parseVideoUrl } from "@/lib/video";
@@ -265,4 +266,28 @@ export async function uploadImageAction(
       alt: "",
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Subscribers
+//
+// Read-only in the admin apart from removal. Addresses are *created* by
+// visitors, through the unauthenticated action in `app/(site)/actions.ts` —
+// this half is only ever taking one off the list.
+// ---------------------------------------------------------------------------
+
+export async function deleteSubscriberAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  try {
+    await deleteSubscriber(id);
+  } catch (error) {
+    console.error("[admin] subscriber delete failed:", error);
+    redirect("/admin/subscribers?error=1");
+  }
+
+  redirect("/admin/subscribers?removed=1");
 }

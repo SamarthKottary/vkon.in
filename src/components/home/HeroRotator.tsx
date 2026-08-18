@@ -168,9 +168,34 @@ export function HeroRotator({
               none of it. On desktop the text stays in the left column and the
               horizontal gradient does most of the work, so the floor can back
               off and let the photograph through. */}
-          <div className="absolute inset-0 bg-band/30 sm:bg-band/5" />
-          <div className="absolute inset-0 bg-gradient-to-r from-band/85 via-band/55 to-band/15" />
-          <div className="absolute inset-0 bg-gradient-to-t from-band/65 via-transparent to-band/40" />
+          {/* `scrim`, not `band` — see the token's note in globals.css. The
+              band is now light enough to read as green on the footer, which is
+              too light to protect text over a sunlit photograph.
+
+              The floor lifts at `lg`, not at `sm`. It was `36 / sm:8`, which
+              left a hole at tablet width: the flat floor dropped at 640px but
+              the copy does not move into the left column until `lg` at 1024,
+              so between the two the body text spans nearly the full width and
+              runs out past the horizontal gradient into the bright side of the
+              frame. Measured against rendered pixels at 768px, the slide body
+              sat at 2.91:1 and 3.56:1 against the 4.5 it needs; an intermediate
+              `sm:30` step got it to 4.08 and `36` to 4.47, both still short.
+              The breakpoint has to match the one the *layout* changes at, which
+              is `lg`, and the floor needs 40 to clear it. 1440px is untouched.
+
+              The binding case is the commercial slide, which is currently a
+              stand-in frame with a bright sky across its middle. Real artwork
+              shot to the brief in docs/ARCHITECTURE.md — subject right, left
+              two-thirds quiet — will have far more headroom, and this floor can
+              come back down when it lands. Re-measure before changing it. */}
+          <div className="absolute inset-0 bg-scrim/40 lg:bg-scrim/8" />
+          {/* The mid stop is 64, not the 55 it was. The industrial frame puts a
+              bright overcast sky across the middle of the picture, exactly
+              where the slide body sits at desktop width — it measured 4.37:1
+              against the 4.5 it needs. The left and right stops are unchanged,
+              so the shadowed left and the bright right edge look as they did. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-scrim/85 via-scrim/64 to-scrim/15" />
+          <div className="absolute inset-0 bg-gradient-to-t from-scrim/65 via-transparent to-scrim/40" />
         </div>
       )}
 

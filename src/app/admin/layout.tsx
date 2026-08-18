@@ -35,12 +35,18 @@ export default async function AdminLayout({
               </Link>
 
               {authed && (
-                <nav aria-label="Admin">
+                <nav aria-label="Admin" className="flex items-center gap-5">
                   <Link
                     href="/admin/products"
                     className="text-sm text-muted hover:text-ink"
                   >
                     Products
+                  </Link>
+                  <Link
+                    href="/admin/subscribers"
+                    className="text-sm text-muted hover:text-ink"
+                  >
+                    Subscribers
                   </Link>
                 </nav>
               )}

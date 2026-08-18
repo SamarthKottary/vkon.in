@@ -70,7 +70,9 @@ export function organizationJsonLd() {
       addressCountry: site.address.country,
     },
     areaServed: "IN",
-    sameAs: Object.values(site.socials).filter(Boolean),
+    /* Google uses sameAs to tie the site to its social profiles. Reads the
+       same array the footer renders, so the two cannot disagree. */
+    sameAs: site.socials.map((s) => s.href),
   };
 }
 

@@ -114,7 +114,8 @@ src/
   app/
     layout.tsx              fonts + global metadata only (no chrome)
     (site)/
-      layout.tsx            Header, Footer, MobileActionBar, Organization JSON-LD
+      layout.tsx            Header, Footer, SubscribePanel, MobileActionBar, JSON-LD
+      actions.ts            PUBLIC server actions — the mailing-list sign-up
       page.tsx              home
       about/page.tsx
       products/page.tsx     catalogue
@@ -123,45 +124,59 @@ src/
       layout.tsx            admin chrome, reads auth state
       page.tsx              login
       LoginForm.tsx
-      actions.ts            ALL server actions — the security boundary
+      actions.ts            ALL admin server actions — the security boundary
       products/             list, ProductForm, new/, [id]/
+      subscribers/          mailing list: read, export, remove
     not-found.tsx           renders its own chrome (outside the (site) group)
     globals.css             design tokens + the contrast table
     sitemap.ts robots.ts opengraph-image.tsx icon.svg
 
   components/
-    layout/    Header (client), Footer, MobileActionBar, PageHero
-    home/      Hero, ContactStrip
-    product/   ProductCard, CategoryRow, ProductMedia (client),
+    layout/    Header (client), Footer, MobileActionBar, PageHero,
+               ProductsMenu (client), SubscribePanel (client)
+    home/      Hero, HeroRotator (client), SectorBrowser (client),
+               ContactStrip, RecentlyViewed (client)
+    product/   ProductCard, ProductRow (client), ProductMedia (client),
                ProductCatalogue (client), SpecTable, ProtectionList,
-               PanelPlaceholder
+               PanelPlaceholder, RecordView (client)
     icons/     protections.tsx (12-icon set), ui.tsx, Logo.tsx
     theme/     ThemeScript (pre-paint, inline), ThemeToggle (client)
     ui/        Button, Container, Section, Badge, JsonLd
 
-  content/     taxonomy.ts, site.ts, nav.ts
+  content/     taxonomy.ts (sectors + categories), segments.ts, site.ts, nav.ts
   lib/
-    db/        client.ts, products.ts, schema.sql
-    auth.ts    session + requireAdmin
-    storage.ts blob upload/delete
-    video.ts   YouTube/Vimeo URL → embed
+    db/          client.ts, products.ts, subscribers.ts, schema.sql
+    auth.ts      session + requireAdmin
+    rate-limit.ts in-memory fixed window; guards the public sign-up
+    recent.ts    recently-viewed slugs in localStorage
+    storage.ts   blob upload/delete
+    video.ts     YouTube/Vimeo URL → embed
     contact.ts seo.ts types.ts
 
 scripts/       db-setup.mjs, db-seed.mjs, make-placeholder-images.py
 public/products/  demo-*.jpg (placeholder photography — delete when real)
+public/segments/  one photograph per sector, used by the hero AND the cards
 ```
 
-### Client components — all seven
+### Client components
 
 | Component | Why |
 |---|---|
 | `theme/ThemeToggle` | Reads `data-theme` via `useSyncExternalStore` |
-| `layout/Header` | Drawer state, focus trap, Escape |
+| `layout/Header` | Drawer state, focus trap, Escape, hide-on-scroll |
+| `layout/ProductsMenu` | Dropdown state, outside-click, measured slider |
+| `layout/SubscribePanel` | `useActionState` over the public sign-up action |
 | `home/HeroRotator` | Slide timer, pause control, reduced-motion opt-out |
+| `home/SectorBrowser` | Open card, measured paging arrows |
+| `home/RecentlyViewed` | Reads localStorage via `useSyncExternalStore` |
 | `product/ProductCatalogue` | `useSearchParams` filter state |
+| `product/ProductRow` | Measured paging arrows over a scroll track |
 | `product/ProductMedia` | Selected media, deferred video embed |
+| `product/RecordView` | Writes the viewed slug to localStorage |
+| `home/CopyEmail` | Clipboard, with a mailto fallback |
 | `admin/LoginForm` | `useActionState` |
 | `admin/products/ProductForm` + `DeleteProductButton` | Form state, uploads, confirm step |
+| `admin/subscribers/SubscriberTools` + `DeleteSubscriberButton` | Clipboard, CSV, confirm step |
 
 Everything else is a server component.
 
@@ -278,7 +293,31 @@ a strong password this is an accepted risk — see §11.
 
 ## 8. Content model
 
-One table, `products` (`src/lib/db/schema.sql`). `src/lib/db/products.ts` is the
+### The taxonomy is two levels, and only one of them is stored
+
+**Sector → category → product.** Three sectors (agriculture, industrial,
+commercial), each holding one or more product categories, each holding products.
+
+A product row stores its **category** and nothing else. The sector is derived —
+`categories[].sector` in `src/content/taxonomy.ts` says which market each
+category belongs to, and `sectorOf()` looks it up. That is the whole reason
+there was no migration when the site gained a level above categories on
+2026-08-18, and it is why moving a range from one market to another is a
+one-line edit rather than an UPDATE over the table.
+
+The consequence to know: **a product cannot sit in two markets**, because its
+category cannot. If that is ever needed, it is a real schema change, not a
+tweak to the taxonomy file.
+
+Both levels are code, not database rows. Categories are tied to icons, copy and
+route parameters; sectors are tied to hero artwork and slide copy. Adding either
+is a code change whichever way it is stored.
+
+### Tables
+
+Two, both in `src/lib/db/schema.sql`.
+
+**`products`.** `src/lib/db/products.ts` is the
 only module that touches it, and `mapProductRow` is the single snake_case →
 camelCase bridge.
 
@@ -290,6 +329,16 @@ cannot get into a broken state.
 `protections` is a `TEXT[]` of keys from a fixed taxonomy, ticked as checkboxes.
 Unknown keys are filtered out at read time, so removing one from the taxonomy
 degrades instead of breaking a page.
+
+**`subscribers`.** `src/lib/db/subscribers.ts` is the only module that touches
+it. One address per row, stored lower-cased and trimmed so the `UNIQUE`
+constraint means what it looks like it means, plus the path it was submitted
+from. Written by the public action in `app/(site)/actions.ts`; read and deleted
+at `/admin/subscribers`.
+
+**Nothing in this codebase sends email.** The site collects addresses and
+exports them. Wiring up a sender brings obligations that are not met today —
+see §11.
 
 **Video is a URL, not a file.** `lib/video.ts` normalises watch links, youtu.be,
 /shorts/, /embed/ and Vimeo IDs into an embed. The product page renders a poster
@@ -303,8 +352,17 @@ never presses play.
 
 Each encodes a real bug. Breaking one reintroduces it.
 
-**`requireAdmin()` must be the first statement of every mutating server action.**
-See §7.
+**`requireAdmin()` must be the first statement of every mutating server action
+in `app/admin/actions.ts`.** See §7.
+
+**`app/(site)/actions.ts` is the one unauthenticated write path, and it stays
+that way.** Anything added there is reachable by anyone on the internet as a
+bare POST. The sign-up that lives there is guarded by a honeypot, a rate limit
+and the fact that the only visitor-supplied value reaching Postgres is an email
+that passed `normaliseEmail`. A new public action must justify itself against
+all three, or belong in the admin file instead.
+
+**A sector is derived from a category, never stored on a product.** §8.
 
 **Product-driven routes must stay `force-dynamic`.** Reintroducing ISR
 reintroduces the stale-by-one-request bug in §3.
@@ -345,14 +403,23 @@ and the grid uses a normal gap.
 
 **Category presentation must not be a wrapping card grid**, for the same
 reason: five categories in a three-column grid leaves a visible hole. It was a
-ruled directory until 2026-08-10 and is now one horizontal `CategoryRow` per
-category — a single-line track cannot produce an empty cell. A category with no
-products is dropped, never rendered as an empty row.
+ruled directory until 2026-08-10 and is now a single horizontal track
+everywhere it appears — `SectorBrowser` on the home page, `ProductRow` per
+category on the catalogue, fixed-width columns in the header dropdown. A
+one-line track cannot produce an empty cell. On the catalogue a category with
+no products is dropped, never rendered as an empty row.
 
 **Accessible names must lead with their visible text.** An `aria-label` that
 replaces visible text breaks voice control. This is why the logo link has none
 and the delete confirmation reads "Confirm delete" before its screen-reader
 suffix.
+
+**The hero scrim's flat floor must lift at `lg`, not `sm`.** It is the
+breakpoint at which the copy moves into the left column and the horizontal
+gradient starts doing the work. Lifting it at `sm` leaves 640–1023px with
+neither protection, and the slide body drops to 2.91:1 over a bright frame.
+Measure with the harness in the change log before changing it — and note the
+binding case is the commercial slide, which is currently stand-in artwork.
 
 **Hero slide headlines must state their typography explicitly.** Only slide one
 is an `<h1>`; the rest are `<p>` so the markup does not carry three. A `<p>`
@@ -489,7 +556,16 @@ probe `/api/health`.
 - **Company details are placeholder.** `grep -rn "TODO(vkon)" src/`.
 - **The demo product is fake.** `npm run db:seed` creates `ec-dol-demo` with
   drawn placeholder images and a public-domain video. Delete it from `/admin`.
-- **No login rate limiting.** §7.
+- **No login rate limiting.** §7. Note that the *sign-up* is limited, by
+  `lib/rate-limit.ts` — that limiter is sound only because this deploys as a
+  single container, and applying it to login would be worth doing for the same
+  reason.
+- **The mailing list has no unsubscribe and no confirmation.** Removing an
+  address means asking the operator, who deletes it at `/admin/subscribers`.
+  There is also no double opt-in, so anybody can put anybody else's address on
+  the list. Neither matters while nothing sends mail. Both become real the day
+  something does, and the sender is the right place to fix them — an unsubscribe
+  link in every message, and a confirmation mail before the row is written.
 - **No image resizing on upload.** An 8 MB photo is stored as uploaded and
   served through `next/image`; resizing before upload is still worth doing.
 - **No database backup.** The Postgres volume is the only copy. A nightly
@@ -510,6 +586,214 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-18 — Agriculture reframed, social profiles, menu counts dropped
+
+**The agriculture frame was a third empty and nobody had noticed.** The generator
+had drawn the photograph into only the right ~67% of a 16:9 canvas and filled
+the left third with a soft grey gradient; a hard seam sat at x=911 (33.1%, 9.4×
+the median column delta). An earlier repair smeared that third instead of
+removing it, which was invisible under the hero's scrim and obvious on the
+sector card, where the whole frame shows unscrimmed.
+
+The fix is a crop to the real pixels — `x 917..2752`, height chosen to hold
+1.792 — not a seam repair. Vertical detail across the frame went from ~0.30 in
+the smeared region to 4.0–6.1 everywhere. **The lesson generalises: check a hero
+frame on its card, not only in the hero.** The scrim hides a great deal.
+
+**Social profiles.** `site.socials` became an ordered array of
+`{key, label, href}`; `organizationJsonLd` reads the same array for `sameAs`, so
+the footer and the structured data cannot disagree. Five brand marks were added
+to `icons/ui.tsx` — filled rather than stroked, unlike every other icon in that
+file, because they are other companies' logos and only read at their own
+weights, and drawn without their enclosing tiles because the footer supplies the
+circle.
+
+Share tracking was stripped from every URL (`?igsh=`, `?utm_source=share_via`,
+`?s=11`, `?mibextid=`) — artefacts of copying a link out of a phone app, which
+should not be baked into every page of a public site. Each cleaned URL was
+checked to resolve.
+
+They sit on the **bottom bar**, not in the Company column: at `lg:grid-cols-5`
+that column is ~230px and five 40px targets plus gaps need 240, so they wrapped
+4-then-1 and read as a mistake.
+
+**The products dropdown no longer shows product counts.** A menu is for getting
+somewhere, and a number that changes whenever a product is saved is noise in a
+list of seven links. The count is still passed in, because whether a category
+has anything in it decides whether its row is a link at all.
+
+### 2026-08-18 — Graphite band, light sign-up panel, real sector artwork
+
+**Real hero photography for industrial and commercial** replaced the stand-ins.
+Both are shot to the brief in this file — subject in the right third, left third
+quiet — and both needed work before they could ship:
+
+- The commercial frame carried a **generator watermark** on a stair tread. It is
+  patched out with a feathered copy from the same tread further left.
+- Both arrived as 2 MB PNGs and are committed as ~200 KB JPEGs at native
+  resolution. The PNG originals are still in `public/segments/` alongside the
+  older unused ones; that directory now holds ~22 MB that is baked into the
+  Docker image and served by nothing.
+
+Two contrast fixes followed, both driven by the new frames:
+
+- **`commercial` gets `focus: "45% 50%"`.** That frame breaks the composition
+  rule the default right-edge crop assumes — its subject, the lit staircase, is
+  also the brightest thing in it, so a phone-width crop put white text over lit
+  concrete at 3.76:1. At 45% the crop is the shadowed wall instead.
+- **The horizontal gradient's mid stop went 55 → 64.** The industrial frame puts
+  a bright overcast sky across the middle of the picture, exactly where the slide
+  body sits at desktop width; it measured 4.37:1.
+
+**A trap worth knowing: `next/image` caches optimized variants by URL, not by
+file content.** Replacing `industrial.jpg` in place and rebuilding served the
+*stand-in's* optimized output, and the contrast run reported numbers identical
+to the previous artwork. `rm -rf .next/cache/images` is part of verifying an
+artwork change locally. A Docker deploy builds fresh, so production is unaffected.
+
+Follow-up to the entry below, all at the client's request, plus one bug each in
+the site and in the test harness.
+
+**The band is graphite: `#181D22` light / `#2A313A` dark.** It went through a
+lighter green (`#175038`) first, which the client also rejected, so the entry
+records where it landed rather than the intermediate step.
+
+Two things are worth keeping from the attempt:
+
+- **The band and its text tokens move together.** Lightening the band to a real
+  green dropped `band-muted` to 3.67 and `band-accent` to 3.43 — both failures —
+  so body, muted and accent all had to rise with it. Going neutral gave that
+  contrast back.
+- **`band-body` and `band-muted` kept the brighter values anyway.** They serve
+  the hero over photographs as well as the flat band, and the hero is the
+  binding constraint: reverting them to the pre-green greys cost the slide body
+  0.4 and dropped it under 4.5 at phone width. On graphite the brighter pair
+  costs nothing.
+
+The dark-theme value is set by **separation from the page**, not by text
+contrast. At the light theme's `#181D22` the dark footer sits at 1.14 against
+the `#0E1113` ground and dissolves into it; `#2A313A` gives 1.44, matching what
+the green band had.
+
+**The scrim stays green** (`#0A1F16`) and is now the *only* green surface. That
+is the point of the split: the photographs keep a green cast, the furniture
+around them does not. Recouple it to `band` and the hero turns grey.
+
+**`SubscribePanel` is a light card, not part of the footer.** It shared
+`bg-band` with the footer and was divided from it by one hairline, which made
+the end of the page a single green slab with a form embedded in it. It is now a
+bordered card on `surface-raised`, on a `surface` band, above the green footer —
+three distinct tones in a row — and on ordinary `surface`/`ink` tokens, so it
+follows the theme like the rest of the page instead of staying dark in both.
+
+**The products dropdown lists categories, not products.** With seven categories
+it had become a wall of product names doing the catalogue's job badly, and it
+grew every time a product was added. It is now one column per market listing
+that market's categories with a count each. `MenuCategory` became `MenuSector`,
+and the layout no longer ships product names to the browser at all.
+
+**A real bug: the hero scrim had a hole at tablet width.** The flat floor
+dropped at `sm` (640px) but the copy does not move into the left column until
+`lg` (1024px), so between the two the body text spanned nearly the full width
+and ran out past the horizontal gradient into the bright side of the frame.
+Measured against rendered pixels at 768px, two slide bodies sat at 2.91:1 and
+3.56:1 against the 4.5 they need. This predates the palette change — the
+lighter `band-body` improved it slightly. The floor now lifts at `lg`, matching
+the breakpoint the *layout* changes at, and is 40% below it. 390px and 1440px
+render identically to before.
+
+**And a bug in the measurement, which is why it went unseen.** The hero
+contrast harness hides text and samples the photograph underneath. Two faults
+made it report false passes:
+
+1. It set `color: transparent` on **leaf elements only**. "Explore" sits in a
+   `<Link>` that also holds an `<svg>`, and "1–40" in a `<dd>` that also holds a
+   `<span>` — neither is a leaf, so their text stayed painted and every such run
+   measured itself, reporting exactly 1.00.
+2. `.link-cta` and the phone link both `transition: color` over 150ms, so the
+   screenshot taken straight after hiding caught the glyphs mid-fade.
+
+Both are fixed (hide every element; inject `transition: none !important`). Any
+earlier "0 failures over artwork" figure in this log was measured with the
+faulty harness and should not be trusted — the current run is 0 of 342, tightest
+1.06×, and that one is trustworthy.
+
+**Also:** `/admin` now warns when it is reached over plain HTTP on a non-local
+host. `lib/auth.ts` sets `secure: true` in production, correctly — but it fails
+*silently*: the browser accepts the login, discards the cookie, and the redirect
+bounces straight back to the form, which reads as "my password is wrong". The
+check is detection only and does not weaken the cookie.
+
+### 2026-08-18 — Three markets above the categories, and a mailing list
+
+Two changes, at the client's request.
+
+**A sector level above the product categories.** The site now reads
+agriculture / industrial / commercial at the top, with the five agricultural
+categories (starters, solar, auto start, cable, accessories) sitting under
+agriculture, a placeholder `industrial-panel` under industrial, and
+`home-automation` under commercial.
+
+The important decision is that **a sector is not a column.** `CategoryMeta`
+gained `sector`, so the level exists entirely in `content/taxonomy.ts` and the
+`products` table did not change. `sectorOf()` derives a product's market from
+its category. The trade recorded in §8: a product cannot belong to two markets,
+because a category cannot.
+
+What moved with it:
+
+- `content/segments.ts` — the hero rotates the three sectors, and `key` is typed
+  `Sector` so the hero and the taxonomy cannot drift apart.
+- `home/CategoryBrowser` → `home/SectorBrowser`. Cards are sectors; opening one
+  lists its categories. The level shown here has to match the hero — a visitor
+  who has just watched three markets rotate past reads the next section as those
+  same three opened up, and five product categories there read as a different
+  taxonomy entirely. A category with no products is listed but **not linked**,
+  because the catalogue only offers filters that have products behind them.
+- `ProductCatalogue` — a Market filter above Category. Picking a market narrows
+  the category list to that market and clears a category (and rating) belonging
+  to another; without that, `?sector=commercial&category=starter` is reachable
+  by clicking two plausible things in sequence and shows nothing. The rating
+  options are now derived from the products the other two filters already admit,
+  for the same reason: filtered to Commercial, the full list offered HP ratings
+  for a range of lighting modules that have none.
+- `ProductsMenu` — columns carry their market name above the first column of
+  each run, so seven headings read as three groups. The repeated element is kept
+  and hidden rather than dropped, so every column heading stays on one baseline.
+- `ProductForm` — the category `<select>` is grouped by market with `<optgroup>`.
+  Flat, it gave no hint which market a category belonged to, and choosing wrongly
+  files a product under the wrong card on the home page.
+- Footer — "Markets" list added, and the grid went to `lg:grid-cols-5`. With
+  three link lists after a two-column address block, four columns dropped the
+  last list onto a second row under the address, reading as part of it.
+- `public/segments/industrial.jpg` and `commercial.jpg` added. **Both are
+  stand-ins** (copies of the solar and home-automation frames) so nothing 404s
+  while the real artwork is generated. Sector cards share the hero photographs
+  deliberately — one picture per market, in both places.
+- `product/CategoryRow.tsx` deleted. `ProductRow` replaced it on 2026-08-17 and
+  nothing had referenced it since.
+
+**A mailing list.** New `subscribers` table, a `SubscribePanel` above the footer
+on every page in the `(site)` group, and `/admin/subscribers` to read, export
+and remove.
+
+This adds the site's **first unauthenticated write path**, which is why §9 now
+carries a rule about it. Three guards, in `app/(site)/actions.ts`: a honeypot
+field that returns the ordinary success message so a bot gets no signal; a rate
+limit of five per address per ten minutes; and one column of one type, reached
+only by a value that passed `normaliseEmail`, through a parameterised query.
+
+`lib/rate-limit.ts` is new and is **in-memory on purpose**. That is only sound
+because the site deploys as one container behind the tunnel — on serverless each
+instance would keep its own counter. §11 records that login should get the same
+treatment for the same reason.
+
+Duplicate sign-ups get the same message as new ones. "You are already
+subscribed" would answer, for any address a stranger types, whether that person
+is on the list.
+
+Nothing sends mail. §11 records what that will require.
 
 ### 2026-08-12 — Progress marks: short, centred, left to right
 

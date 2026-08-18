@@ -9,7 +9,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "Products",
-  description: `The full ${site.name} range — three phase and single phase motor starters, star-delta panels, solar pump controllers, submersible cable and GSM mobile control.`,
+  description: `The full ${site.name} range — three phase and single phase motor starters, star-delta panels, solar pump controllers, submersible cable, GSM mobile control, and home automation for commercial installations.`,
   path: "/products",
 });
 
@@ -24,7 +24,7 @@ export default async function ProductsPage() {
       <PageHero
         eyebrow="Catalogue"
         title="Every panel we build"
-        description="Filter by category or by the motor rating you need. Every unit ships with the full protection set — the differences are in supply type, rating and starting method."
+        description="Filter by market, by category, or by the motor rating you need. Every panel ships with the full protection set — the differences are in supply type, rating and starting method."
         breadcrumb={[{ label: "Home", href: "/" }]}
       />
 

@@ -1,4 +1,10 @@
-import type { CategoryMeta, ProductCategory, ProtectionKey } from "@/lib/types";
+import type {
+  CategoryMeta,
+  ProductCategory,
+  ProtectionKey,
+  Sector,
+  SectorMeta,
+} from "@/lib/types";
 
 /**
  * Fixed vocabularies the admin picks from.
@@ -7,6 +13,60 @@ import type { CategoryMeta, ProductCategory, ProtectionKey } from "@/lib/types";
  * copy, so adding one is a code change either way. Everything a non-developer
  * needs to change about a product lives in the database.
  */
+
+/**
+ * The three markets, and the top level of the whole site.
+ *
+ * The hero rotates through these, "What we make" is one card each, and
+ * `/products?sector=…` filters by them. Order is the order they appear in all
+ * three places — agriculture first, because it is the only one with a shipping
+ * range today.
+ *
+ * Adding a fourth is this array plus a `sector` on the categories that belong
+ * to it. Nothing counts to three.
+ */
+export const sectors: SectorMeta[] = [
+  {
+    key: "agriculture",
+    label: "Agriculture",
+    description:
+      "Starters, panels and controllers for pumps on the farm — from a single-phase openwell set to a 40 HP fully automatic star-delta installation, with the cable and mobile control that go alongside. Built for the supply a rural feeder actually delivers: phases that drop out, voltage that swings, and a borewell that runs dry without warning.",
+    image: "/segments/agriculture.jpg",
+  },
+  {
+    key: "industrial",
+    label: "Industrial",
+    description:
+      "Control and protection for motors on the shop floor, where the load runs continuously and a stopped machine costs more in an afternoon than the panel driving it. The faults are the ones that destroy any motor — a lost phase, an overload, supply outside the safe band — and so is the answer. What changes is the rating and the enclosure.",
+    image: "/segments/industrial.jpg",
+  },
+  {
+    key: "commercial",
+    label: "Commercial",
+    description:
+      "Home and building automation — a wardrobe that lights when it opens, a staircase that lights as you reach it and goes dark behind you, and the sensors and timers behind both. Wired and tested to the same standard as the panels, so an automation fitted this year is still working in five rather than being the first thing in the house to fail.",
+    image: "/segments/commercial.jpg",
+  },
+];
+
+export const SECTOR_KEYS = sectors.map((s) => s.key) as Sector[];
+
+export function sectorLabel(key: Sector | string): string {
+  return sectors.find((s) => s.key === key)?.label ?? String(key);
+}
+
+export function isSector(value: unknown): value is Sector {
+  return typeof value === "string" && (SECTOR_KEYS as string[]).includes(value);
+}
+
+/** The sector a product's category belongs to, or null for an unknown key. */
+export function sectorOf(category: ProductCategory | string): Sector | null {
+  return categories.find((c) => c.key === category)?.sector ?? null;
+}
+
+export function categoriesInSector(key: Sector): CategoryMeta[] {
+  return categories.filter((c) => c.sector === key);
+}
 
 /*
  * TODO(vkon): the longer descriptions below are drafted from the company's own
@@ -18,6 +78,7 @@ import type { CategoryMeta, ProductCategory, ProtectionKey } from "@/lib/types";
 export const categories: CategoryMeta[] = [
   {
     key: "starter",
+    sector: "agriculture",
     label: "Motor Starters",
     description:
       "Digital control panels for single and three phase agricultural pumps, from 1 HP direct-on-line units through star-delta and fully automatic star-delta panels up to 40 HP. Every panel is wired, inspected and tested in house, with dry run, single phasing, overload and voltage protection acting on all three phases.",
@@ -25,6 +86,7 @@ export const categories: CategoryMeta[] = [
   },
   {
     key: "solar",
+    sector: "agriculture",
     label: "Solar Systems",
     description:
       "Controllers that run a pump on solar, on mains, or change over between the two automatically as the day allows. The same protection set watches the motor whichever source is driving it, so a cloudy afternoon or a weak feeder is handled without anyone standing at the pump house deciding what to switch and when.",
@@ -32,6 +94,7 @@ export const categories: CategoryMeta[] = [
   },
   {
     key: "auto-start",
+    sector: "agriculture",
     label: "Auto Start Units",
     description:
       "Standalone timers and preventors that add automatic starting to a starter you already own. They bring the pump back when three phase supply returns within safe limits, after an adjustable delay so it never starts into an unstable line, and will run it on a repeating cycle through the night with nobody at the pump house.",
@@ -39,6 +102,7 @@ export const categories: CategoryMeta[] = [
   },
   {
     key: "cable",
+    sector: "agriculture",
     label: "Cables",
     description:
       "Submersible cable built for continuous underwater duty, where ordinary wiring gives way at the joint long before the conductor itself does. Matched to the panel and the motor it will run rather than chosen afterwards from whatever is on the counter, because an undersized cable quietly undoes the protection in front of it.",
@@ -46,10 +110,38 @@ export const categories: CategoryMeta[] = [
   },
   {
     key: "accessory",
+    sector: "agriculture",
     label: "Accessories",
     description:
       "Mobile control units and the small parts that live around a panel — GSM modules that switch the motor by call or SMS, float switches, pressure sensors and cable glands. Specified against the panel they sit beside rather than bought to fit afterwards, which is usually where a retrofitted accessory starts causing trouble.",
     image: "/categories/accessory.jpg",
+  },
+
+  /*
+   * PLACEHOLDER(vkon). Industrial is a stated direction, not a shipping range —
+   * there is no product list for it yet, so this exists to give the sector a
+   * sub-category rather than an empty card. Replace the copy, or delete the
+   * entry and the Industrial card falls back to "Coming soon" on its own.
+   */
+  {
+    key: "industrial-panel",
+    sector: "industrial",
+    label: "Industrial Panels",
+    description:
+      "Motor control and protection for industrial duty, where a line runs continuously and a fault is measured in lost production rather than a missed watering. The same protections that keep a borewell motor alive apply to a shop-floor motor; the ratings, the enclosure and the duty cycle are what change.",
+  },
+
+  /*
+   * TODO(vkon): the range here is confirmed in kind — automatic lighting for
+   * wardrobes, staircases and the like — but not in detail. Ratings, sensor
+   * types and the actual product names still need to come from you.
+   */
+  {
+    key: "home-automation",
+    sector: "commercial",
+    label: "Home Automation",
+    description:
+      "Lighting that works without a switch. A wardrobe that lights when it opens, a staircase that lights as you reach it and goes dark behind you, and the sensors and timers behind both. Wired to the same standard as the panels, so an automation fitted today is still working in five years rather than being the first thing in the house to fail.",
   },
 ];
 

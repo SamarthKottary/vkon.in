@@ -183,12 +183,53 @@ def draw_cable():
     return img
 
 
+def draw_light_module(label):
+    """A sensor-and-strip module, for the commercial (home automation) demos.
+
+    A control panel filed under "Home Automation" would be as confusing as one
+    filed under "Cables", so these get their own drawing: a small enclosure with
+    a PIR dome, and a lit strip below it.
+    """
+    # Its own canvas rather than `base_canvas()`: that one draws a floor shadow
+    # under a full-height enclosure, and this module is half the height, so the
+    # shadow landed 200px clear of it.
+    img = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(img)
+    d.ellipse([300, 700, 900, 760], fill=(232, 234, 237))
+
+    # Module body
+    rounded(d, [300, 300, 900, 560], 16, CASE, CASE_EDGE, 3)
+    # PIR dome
+    d.ellipse([540, 340, 660, 460], fill=(238, 240, 242), outline=(180, 186, 192), width=3)
+    d.ellipse([566, 366, 634, 434], fill=(210, 214, 218), outline=(170, 176, 182), width=2)
+    # Status lamp and label
+    d.ellipse([340, 384, 376, 420], fill=GREEN, outline=(90, 90, 90))
+    d.text((600, 512), "VKON", font=font(26, bold=True), fill=INK, anchor="mm")
+
+    # Lit strip, warm falling off to either end.
+    for i in range(60):
+        x = 300 + i * 10
+        fade = 1 - abs(i - 29.5) / 34
+        warm = tuple(int(c) for c in (255 * fade + 240 * (1 - fade),
+                                      226 * fade + 240 * (1 - fade),
+                                      170 * fade + 242 * (1 - fade)))
+        d.rectangle([x, 640, x + 10, 700], fill=warm)
+    rounded(d, [300, 640, 900, 700], 8, None, CASE_EDGE, 3)
+
+    d.text((600, 790), label, font=font(24, bold=True), fill=INK, anchor="mm")
+    d.text((600, 1040), "PLACEHOLDER", font=font(22), fill=(150, 156, 162), anchor="mm")
+    return img
+
+
 CATEGORY_ART = [
     ("demo-starter", lambda: draw_category_panel(FASCIA, "EC-DOL 3-10 HP", "PLACEHOLDER")),
     ("demo-solar", lambda: draw_category_panel((70, 120, 190), "SOLAR MPPT 5 HP", "PLACEHOLDER")),
     ("demo-auto-start", lambda: draw_category_panel((236, 236, 238), "AUTO START TIMER", "PLACEHOLDER")),
     ("demo-accessory", lambda: draw_category_panel((120, 190, 150), "GSM MOBILE CONTROL", "PLACEHOLDER")),
     ("demo-cable", draw_cable),
+    ("demo-industrial", lambda: draw_category_panel((92, 100, 108), "INDUSTRIAL DOL 25 HP", "PLACEHOLDER")),
+    ("demo-wardrobe-light", lambda: draw_light_module("WARDROBE AUTO LIGHT")),
+    ("demo-staircase-light", lambda: draw_light_module("STAIRCASE AUTO LIGHT")),
 ]
 
 

@@ -1,5 +1,7 @@
 -- Demo catalogue: one product per category, for checking the site end to end
--- before real data exists.
+-- before real data exists. Agriculture is the real range; the industrial and
+-- home automation rows exist so those two markets are not empty shells while
+-- their product lists are still being written.
 --
 -- Run it on the server (the database has no host port, so it goes through the
 -- container):
@@ -69,12 +71,52 @@ INSERT INTO products (
   gen_random_uuid(), 'demo-gsm-mobile-control', 'DEMO GSM Mobile Control', 'accessory',
   'Switch the motor on or off from any phone, by call or SMS',
   E'DEMO PRODUCT — placeholder copy and drawn artwork.\n\nSwitches the motor from any phone by call or SMS and sends status back as a message. Fits alongside an existing panel.',
-  ARRAY['Any rating'],
+  ARRAY['Any HP'],
   ARRAY['Call or SMS control','Status reply by message','Fits an existing panel'],
   ARRAY['mobile-control'],
   '[{"label":"Type","value":"GSM remote control"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-accessory.jpg","alt":"DEMO GSM mobile control unit"}]'::jsonb,
   NULL, NULL, true, false, 1
+),
+
+-- Industrial. One row so the Industrial market has something behind it.
+(
+  gen_random_uuid(), 'demo-industrial-dol', 'DEMO Industrial DOL Panel', 'industrial-panel',
+  'Direct-on-line motor control for continuous industrial duty',
+  E'DEMO PRODUCT — placeholder copy and drawn artwork.\n\nMotor control and protection for industrial duty, where the load runs continuously and a stopped machine costs more in an afternoon than the panel driving it. Same protection set as the agricultural range, in the ratings and enclosure a shop floor asks for.',
+  ARRAY['15 HP','25 HP'],
+  ARRAY['Three phase amps and voltage on the display','Overload and single phasing protection','Sheet steel enclosure'],
+  ARRAY['single-phase','hv-lv','phase-reversal','overload-relay','voltage-current-sensing'],
+  '[{"label":"Type","value":"Direct on line (DOL)"},{"label":"Motor range","value":"15 – 25 HP"},{"label":"Supply","value":"3 phase"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"url":"/products/demo-industrial.jpg","alt":"DEMO industrial DOL panel, front view"}]'::jsonb,
+  NULL, NULL, true, false, 1
+),
+
+-- Commercial / home automation. The two the client named.
+-- No hp_ranges and no protections: both taxonomies are about motors, and
+-- padding these rows with either would put a lighting module in the pump
+-- rating filter.
+(
+  gen_random_uuid(), 'demo-wardrobe-auto-light', 'DEMO Wardrobe Auto Light', 'home-automation',
+  'Lights the wardrobe when the door opens, and goes dark when it shuts',
+  E'DEMO PRODUCT — placeholder copy and drawn artwork.\n\nA sensor and strip that light the inside of a wardrobe as the door opens and switch off behind it. No switch to find in the dark, and nothing left burning because somebody forgot.',
+  ARRAY[]::text[],
+  ARRAY['Door sensor, no switch to operate','Adjustable off delay','Warm white strip'],
+  ARRAY[]::text[],
+  '[{"label":"Type","value":"Door-sensed lighting module"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"url":"/products/demo-wardrobe-light.jpg","alt":"DEMO wardrobe auto light module and strip"}]'::jsonb,
+  NULL, NULL, true, true, 1
+),
+(
+  gen_random_uuid(), 'demo-staircase-auto-light', 'DEMO Staircase Auto Light', 'home-automation',
+  'Lights the stairs as you reach them and turns off behind you',
+  E'DEMO PRODUCT — placeholder copy and drawn artwork.\n\nMotion-sensed lighting for a staircase or passage. It lights the flight as you reach it, holds while there is movement, and goes off after an adjustable delay once the stairs are clear.',
+  ARRAY[]::text[],
+  ARRAY['Motion sensed, both directions','Adjustable hold time','Daylight cut-off so it stays off by day'],
+  ARRAY[]::text[],
+  '[{"label":"Type","value":"Motion-sensed lighting module"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"url":"/products/demo-staircase-light.jpg","alt":"DEMO staircase auto light module and strip"}]'::jsonb,
+  NULL, NULL, true, false, 2
 )
 ON CONFLICT (slug) DO UPDATE SET
   name = EXCLUDED.name,

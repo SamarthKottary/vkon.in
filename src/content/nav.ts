@@ -5,9 +5,25 @@ export const primaryNav: NavLink[] = [
   { href: "/about", label: "About" },
 ];
 
+/**
+ * Two link lists in the footer: the markets, then the agriculture range.
+ *
+ * Markets come first because they are the top of the taxonomy everywhere else
+ * on the site. The categories listed under "Agriculture" are the only ones with
+ * a shipping range, so listing every category across all three markets here
+ * would pad the column with links to "Coming soon".
+ */
 export const footerNav: { heading: string; links: NavLink[] }[] = [
   {
-    heading: "Products",
+    heading: "Markets",
+    links: [
+      { href: "/products?sector=agriculture", label: "Agriculture" },
+      { href: "/products?sector=industrial", label: "Industrial" },
+      { href: "/products?sector=commercial", label: "Commercial" },
+    ],
+  },
+  {
+    heading: "Agriculture",
     links: [
       { href: "/products?category=starter", label: "Motor Starters" },
       { href: "/products?category=solar", label: "Solar Systems" },

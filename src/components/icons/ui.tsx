@@ -201,3 +201,63 @@ export function ImageIcon({ className = "h-5 w-5" }: IconProps) {
     </svg>
   );
 }
+
+/* ---------------------------------------------------------------------------
+ * Brand marks.
+ *
+ * Filled rather than stroked, unlike everything above: these are other
+ * companies' logos and they are only recognisable at their own weights. Drawn
+ * as the bare glyph with no enclosing tile or roundel — the footer supplies the
+ * circle, so a mark with its own frame would sit in a box inside a circle.
+ *
+ * Kept hand-written for the same reason as the rest of this file: no runtime
+ * dependency. See the dependency policy in ARCHITECTURE.md §2.
+ * ------------------------------------------------------------------------- */
+
+const brand = {
+  viewBox: "0 0 24 24",
+  fill: "currentColor",
+  "aria-hidden": true,
+};
+
+export function FacebookIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...brand} className={className}>
+      <path d="M13.5 21v-8h2.68l.4-3.11H13.5V7.9c0-.9.25-1.51 1.54-1.51h1.65V3.61c-.29-.04-1.27-.12-2.41-.12-2.38 0-4.01 1.45-4.01 4.12v2.3H7.5V13h2.77v8h3.23Z" />
+    </svg>
+  );
+}
+
+export function InstagramIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...brand} className={className}>
+      <path d="M12 4.62c2.4 0 2.69.01 3.64.05.88.04 1.35.19 1.67.31.42.16.72.36 1.03.67.31.31.51.61.67 1.03.12.32.27.79.31 1.67.04.95.05 1.24.05 3.65s-.01 2.7-.05 3.65c-.4.88-.19 1.35-.31 1.67-.16.42-.36.72-.67 1.03-.31.31-.61.51-1.03.67-.32.12-.79.27-1.67.31-.95.04-1.24.05-3.64.05s-2.69-.01-3.64-.05c-.88-.04-1.35-.19-1.67-.31a2.78 2.78 0 0 1-1.03-.67 2.78 2.78 0 0 1-.67-1.03c-.12-.32-.27-.79-.31-1.67-.04-.95-.05-1.24-.05-3.65s.01-2.7.05-3.65c.04-.88.19-1.35.31-1.67.16-.42.36-.72.67-1.03.31-.31.61-.51 1.03-.67.32-.12.79-.27 1.67-.31.95-.04 1.24-.05 3.64-.05ZM12 3c-2.44 0-2.75.01-3.71.05-.96.05-1.61.2-2.19.42-.6.23-1.1.55-1.61 1.05-.5.5-.82 1.01-1.05 1.6-.22.58-.38 1.24-.42 2.2C3.01 9.28 3 9.59 3 12.03c0 2.44.01 2.75.05 3.71.05.96.2 1.61.42 2.19.23.6.55 1.1 1.05 1.61.5.5 1.01.82 1.6 1.05.58.22 1.24.38 2.2.42.96.04 1.27.05 3.71.05s2.75-.01 3.71-.05c.96-.05 1.61-.2 2.19-.42.6-.23 1.1-.55 1.61-1.05.5-.5.82-1.01 1.05-1.6.22-.58.38-1.24.42-2.2.04-.96.05-1.27.05-3.71s-.01-2.75-.05-3.71c-.05-.96-.2-1.61-.42-2.19a4.4 4.4 0 0 0-1.05-1.61 4.4 4.4 0 0 0-1.6-1.05c-.58-.22-1.24-.38-2.2-.42C14.78 3.01 14.47 3 12.03 3H12Z" />
+      <path d="M12 7.38a4.65 4.65 0 1 0 0 9.3 4.65 4.65 0 0 0 0-9.3Zm0 7.67a3.02 3.02 0 1 1 0-6.04 3.02 3.02 0 0 1 0 6.04Z" />
+      <circle cx="16.83" cy="7.19" r="1.09" />
+    </svg>
+  );
+}
+
+export function XIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...brand} className={className}>
+      <path d="M17.53 3h3.02l-6.6 7.54L21.7 21h-6.07l-4.76-6.22L5.42 21H2.4l7.06-8.07L2.6 3h6.22l4.3 5.69L17.53 3Zm-1.06 16.19h1.67L7.6 4.72H5.81l10.66 14.47Z" />
+    </svg>
+  );
+}
+
+export function YouTubeIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...brand} className={className}>
+      <path d="M21.58 7.19a2.5 2.5 0 0 0-1.76-1.77C18.25 5 12 5 12 5s-6.25 0-7.82.42a2.5 2.5 0 0 0-1.76 1.77C2 8.77 2 12 2 12s0 3.23.42 4.81a2.5 2.5 0 0 0 1.76 1.77C5.75 19 12 19 12 19s6.25 0 7.82-.42a2.5 2.5 0 0 0 1.76-1.77C22 15.23 22 12 22 12s0-3.23-.42-4.81ZM10 15.02V8.98L15.2 12 10 15.02Z" />
+    </svg>
+  );
+}
+
+export function LinkedInIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...brand} className={className}>
+      <path d="M6.94 4.94a1.94 1.94 0 1 1-3.88 0 1.94 1.94 0 0 1 3.88 0ZM3.2 8.48h3.6V21H3.2V8.48Zm5.9 0h3.45v1.71h.05c.48-.91 1.65-1.87 3.4-1.87 3.64 0 4.31 2.4 4.31 5.51V21h-3.6v-5.47c0-1.3-.02-2.98-1.82-2.98-1.82 0-2.1 1.42-2.1 2.89V21H9.1V8.48Z" />
+    </svg>
+  );
+}
