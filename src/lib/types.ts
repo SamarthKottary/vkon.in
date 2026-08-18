@@ -110,12 +110,21 @@ export type SectorMeta = {
   /** One line under the card heading, and the hero slide's supporting copy. */
   description: string;
   /**
-   * Card artwork. Shares the hero's photograph on purpose — the picture is the
-   * sector's identity, and showing the same frame in both places is what ties
-   * the rotating hero to the cards a screen below it. Point it at dedicated art
-   * later and nothing else has to change.
+   * Hero artwork: a full-bleed establishing shot, composed with its subject in
+   * the right third and its left kept quiet for the headline.
    */
   image?: string;
+  /**
+   * Card artwork, when the hero frame does not survive being shrunk.
+   *
+   * Falls back to `image`, and sharing one picture is still the default — it is
+   * what ties the rotating hero to the cards a screen below it. But the two
+   * framings want different things: a hero is 1440px of establishing shot,
+   * a card is 352px, and a wide vista at that size is a small grey rectangle
+   * with a subject you cannot make out. Set this to a tighter crop of the same
+   * scene when that happens.
+   */
+  cardImage?: string;
 };
 
 /**

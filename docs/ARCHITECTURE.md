@@ -587,6 +587,28 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-18 — Sector cards can carry their own crop
+
+`SectorMeta` gained an optional `cardImage`, falling back to `image`. Sharing one
+photograph between the hero and the card is still the default and still the
+point — it is what ties the rotating hero to the cards a screen below it. But
+the two framings want different things: **a hero is 1440px of establishing shot
+and a card is 352px.** The agriculture frame is a wide vista whose left half is
+morning mist over flat paddy — correct behind a headline, and at card size a
+grey rectangle with an indistinct building in it, which reads as an
+out-of-focus photograph rather than a distant one.
+
+`agriculture-card.jpg` is a tighter crop of the same scene with the pump house
+as the subject. The other two sectors still share their hero frame; the field
+exists for when they stop surviving the shrink.
+
+**Replacing artwork in place is cache-hostile**, which is worth stating because
+it caused a false alarm here. `/segments/agriculture.jpg` was corrected in
+place, and `cache-control: public, max-age=14400` on the optimized variants
+means a browser that loaded the old one keeps it for four hours — the server was
+serving the right file the whole time. New artwork under a new filename sidesteps
+every cache layer at once, and is the safer habit.
+
 ### 2026-08-18 — Agriculture reframed, social profiles, menu counts dropped
 
 **The agriculture frame was a third empty and nobody had noticed.** The generator

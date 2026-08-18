@@ -32,6 +32,12 @@ export const sectors: SectorMeta[] = [
     description:
       "Starters, panels and controllers for pumps on the farm — from a single-phase openwell set to a 40 HP fully automatic star-delta installation, with the cable and mobile control that go alongside. Built for the supply a rural feeder actually delivers: phases that drop out, voltage that swings, and a borewell that runs dry without warning.",
     image: "/segments/agriculture.jpg",
+    /* A tighter crop of the same scene. The hero frame is a wide vista whose
+       left half is morning mist over flat paddy — correct behind a headline,
+       and at 352px it shrank to a grey rectangle with an indistinct building in
+       it, which read as an out-of-focus photograph rather than a distant one.
+       This crop makes the pump house the subject. */
+    cardImage: "/segments/agriculture-card.jpg",
   },
   {
     key: "industrial",

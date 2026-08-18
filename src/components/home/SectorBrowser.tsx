@@ -143,11 +143,16 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
                 <span /* 16:9, matching what the image generator actually offers.
                        The plate and the artwork share a ratio on purpose: with
                        `object-cover` any mismatch crops the frame, and these are
-                       composed with the subject in the right third. */
+                       composed with the subject in the right third.
+
+                       `cardImage` first: a hero frame is an establishing shot at
+                       1440px and this plate is 352px, so a sector may supply a
+                       tighter crop of the same scene. Falls back to the hero
+                       image, which is still the common case. */
                     className="relative -mx-6 -mt-6 mb-5 block aspect-video overflow-hidden border-b border-line bg-surface-subtle">
-                  {sector.image ? (
+                  {(sector.cardImage ?? sector.image) ? (
                     <Image
-                      src={sector.image}
+                      src={(sector.cardImage ?? sector.image) as string}
                       alt=""
                       fill
                       sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 82vw"
