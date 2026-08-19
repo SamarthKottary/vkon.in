@@ -141,3 +141,23 @@ export type Subscriber = {
   source: string;
   createdAt: string;
 };
+
+/**
+ * One contact enquiry.
+ *
+ * Created by visitors from /contact; the admin only reads, marks handled and
+ * deletes. `handled` is a flag rather than a deletion because a dealt-with
+ * enquiry is still a record of who asked for what and when.
+ */
+export type Enquiry = {
+  id: string;
+  name: string;
+  email: string;
+  /** Optional — may be an empty string. */
+  phone: string;
+  message: string;
+  /** Path the enquiry was sent from. May be empty. */
+  source: string;
+  handled: boolean;
+  createdAt: string;
+};

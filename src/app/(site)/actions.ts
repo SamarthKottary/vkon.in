@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { createEnquiry } from "@/lib/db/enquiries";
 import { addSubscriber, normaliseEmail } from "@/lib/db/subscribers";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
@@ -99,4 +100,97 @@ function safePath(referer: string): string {
   } catch {
     return "";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Contact enquiries
+// ---------------------------------------------------------------------------
+
+export type EnquiryState = {
+  status: "idle" | "ok" | "error";
+  message?: string;
+  /** Per-field messages, so the form can point at what is wrong. */
+  fieldErrors?: Record<string, string>;
+};
+
+/* Tighter than the sign-up: an enquiry is a bigger write and there is no
+   legitimate reason to send three in ten minutes. */
+const ENQUIRY_LIMIT = { limit: 3, windowMs: 10 * 60 * 1000 };
+
+/** Bounds, enforced here rather than in the schema so an over-long message is
+ *  a sentence the visitor can act on instead of a database error. */
+const MAX = { name: 120, phone: 40, message: 4000 };
+
+export async function sendEnquiryAction(
+  _prev: EnquiryState,
+  formData: FormData,
+): Promise<EnquiryState> {
+  // Same honeypot as the sign-up: filled means a bot, and it gets the ordinary
+  // success message so it learns nothing.
+  if (String(formData.get("company") ?? "").trim()) {
+    return { status: "ok", message: "Thanks — we have your enquiry." };
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  const email = normaliseEmail(String(formData.get("email") ?? ""));
+  const phone = String(formData.get("phone") ?? "").trim();
+  const message = String(formData.get("message") ?? "").trim();
+
+  const fieldErrors: Record<string, string> = {};
+  if (!name) fieldErrors.name = "Please tell us your name.";
+  else if (name.length > MAX.name) fieldErrors.name = "That name is too long.";
+  if (!email) fieldErrors.email = "That does not look like an email address.";
+  if (phone.length > MAX.phone) fieldErrors.phone = "That number is too long.";
+  if (!message) fieldErrors.message = "Please tell us what you need.";
+  else if (message.length > MAX.message)
+    fieldErrors.message = `Please keep it under ${MAX.message} characters.`;
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return {
+      status: "error",
+      message: "Please check the highlighted fields.",
+      fieldErrors,
+    };
+  }
+
+  if (!isDatabaseConfigured()) {
+    return {
+      status: "error",
+      message: "The form is unavailable right now — please call or WhatsApp us.",
+    };
+  }
+
+  const requestHeaders = await headers();
+  const limited = rateLimit(
+    `enquiry:${clientKey(requestHeaders)}`,
+    ENQUIRY_LIMIT,
+  );
+
+  if (!limited.ok) {
+    return {
+      status: "error",
+      message: "Too many enquiries just now. Please call us instead.",
+    };
+  }
+
+  try {
+    await createEnquiry({
+      name,
+      email: email as string,
+      phone,
+      message,
+      source: safePath(requestHeaders.get("referer") ?? ""),
+    });
+  } catch (error) {
+    console.error("[enquiry] failed:", error);
+    return {
+      status: "error",
+      message: "Could not send that just now — please call or WhatsApp us.",
+    };
+  }
+
+  return {
+    status: "ok",
+    message: "Thanks — we have your enquiry.",
+  };
 }

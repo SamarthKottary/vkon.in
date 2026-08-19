@@ -73,3 +73,36 @@ CREATE TABLE IF NOT EXISTS subscribers (
 -- The admin list is newest first, and that is the only way it is ever read.
 CREATE INDEX IF NOT EXISTS subscribers_created_idx
   ON subscribers (created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- Contact enquiries.
+--
+-- Submitted from /contact and read at /admin/enquiries. Like `subscribers`,
+-- nothing here sends mail: the row IS the enquiry, and the admin is where it is
+-- read. See docs/ADMIN.md for the notification gap that follows from that.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS enquiries (
+  id            TEXT PRIMARY KEY,
+
+  name          TEXT NOT NULL,
+  email         TEXT NOT NULL,
+  -- Optional: a farmer may well prefer a call back and leave email blank-ish.
+  phone         TEXT NOT NULL DEFAULT '',
+  -- Free text. Length is capped in the action, not here, so an over-long
+  -- message is a validation message rather than a database error.
+  message       TEXT NOT NULL,
+
+  -- Path the enquiry was sent from, e.g. "/contact".
+  source        TEXT NOT NULL DEFAULT '',
+  -- Cleared by the operator once they have replied. Not deleted: a handled
+  -- enquiry is still a record of who asked for what.
+  handled       BOOLEAN NOT NULL DEFAULT FALSE,
+
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The admin list is unhandled-first then newest-first, and that is the only
+-- way it is ever read.
+CREATE INDEX IF NOT EXISTS enquiries_inbox_idx
+  ON enquiries (handled, created_at DESC);
