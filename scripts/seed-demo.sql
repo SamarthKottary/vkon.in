@@ -117,6 +117,17 @@ INSERT INTO products (
   '[{"label":"Type","value":"Motion-sensed lighting module"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-staircase-light.jpg","alt":"DEMO staircase auto light module and strip"}]'::jsonb,
   NULL, NULL, true, false, 2
+),
+(
+  gen_random_uuid(), 'demo-kitchen-undercabinet-light', 'DEMO Kitchen Under-Cabinet Light', 'home-automation',
+  'Lights the counter when a hand crosses the sensor beneath the cabinet',
+  E'DEMO PRODUCT — placeholder copy and drawn artwork.\n\nA warm-white strip mounted under a kitchen cabinet, switched by a wave sensor rather than a wall switch — hands full of vegetables need not stop to look. Adjustable timeout and daylight cut-off.',
+  ARRAY[]::text[],
+  ARRAY['Wave-sensed, no touch required','Adjustable off delay','Daylight cut-off so it stays off by day'],
+  ARRAY[]::text[],
+  '[{"label":"Type","value":"Wave-sensed lighting module"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"url":"/products/demo-wardrobe-light.jpg","alt":"DEMO kitchen under-cabinet light module and strip"}]'::jsonb,
+  NULL, NULL, true, false, 3
 )
 ON CONFLICT (slug) DO UPDATE SET
   name = EXCLUDED.name,

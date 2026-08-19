@@ -40,8 +40,32 @@ export function SubscribePanel() {
   return (
     <section
       aria-labelledby="subscribe-heading"
-      className="border-t border-line bg-surface py-14 sm:py-16 lg:py-20"
+      /* `isolate` so the -z-10 blurred bleed stays inside this section rather
+         than sliding behind neighbouring sections. `overflow-hidden` clips
+         the `scale-110` on the bleed image — that trick hides the transparent
+         edge halo that heavy blur otherwise paints around the frame. */
+      className="relative isolate overflow-hidden border-t border-line bg-surface py-14 sm:py-16 lg:py-20"
     >
+      {/* Bleed background (client request, 2026-08-19). Same photograph as
+          the sharp panel below, extended past the container to the viewport
+          edges and into the section's vertical padding. `blur-lg` (16px) —
+          dialled down from the initial `blur-3xl` at the client's second
+          pass — leaves the field and sky recognisable rather than smearing
+          them into a colour wash. `scale-105` overshoots the frame just
+          enough that the blur's soft edges are clipped rather than showing
+          as a transparent halo. */}
+      <Image
+        src="/subscribe-background.jpg"
+        alt=""
+        aria-hidden
+        fill
+        sizes="100vw"
+        className="-z-10 scale-105 object-cover object-[50%_78%] blur-lg"
+      />
+      {/* Light scrim over the bleed, so it does not overpower the neighbouring
+          sections. The sharp panel below carries its own three-layer scrim. */}
+      <div aria-hidden className="absolute inset-0 -z-10 bg-surface/40" />
+
       <Container size="wide">
         <div className="relative overflow-hidden border border-line shadow-card">
           <Image

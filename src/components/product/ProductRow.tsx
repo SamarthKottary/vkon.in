@@ -90,24 +90,20 @@ export function ProductRow({
         )}
       </div>
 
-      {/* Cards render vertical (image on top, content below) — matching the
-          `RelatedProducts` carousel on product pages, so a visitor going from
-          catalogue to a detail page and back sees the same card idiom.
-          Widths are ~15% narrower than the 1/2/3-per-row fractions the row
-          used to run at (client request): a card no longer fills the row, so
-          the peek of the next one is bigger and the section reads as less
-          dense. Same responsive pattern otherwise — one card wide on mobile,
-          then two, then three. */}
+      {/* Cards render vertical, sized to the same proportions as the
+          `RelatedProducts` carousel on the product detail page. Below `lg`
+          they lay out in **two rows**, filling column-first — the second
+          product sits below the first, the third to the right of the first,
+          then below, and so on — so a narrow viewport shows twice as many
+          cards without scrolling as far. At `lg` and up they collapse back
+          to one row, side by side, keeping the desktop showcase feel. */}
       <ul
         ref={trackRef}
         onScroll={sync}
-        className="hscroll mt-5 flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto"
+        className="hscroll mt-5 grid snap-x snap-mandatory grid-flow-col grid-rows-2 items-stretch gap-6 overflow-x-auto auto-cols-[82%] sm:auto-cols-[calc((100%-1.5rem)/2)] lg:auto-cols-[calc((100%-3rem)/3)] lg:grid-rows-1"
       >
         {products.map((product, index) => (
-          <li
-            key={product.id}
-            className="w-[63%] flex-none snap-start sm:w-[38%] lg:w-[25%]"
-          >
+          <li key={product.id} className="snap-start">
             <ProductCard product={product} priority={priority && index === 0} />
           </li>
         ))}
