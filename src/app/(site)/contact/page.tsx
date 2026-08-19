@@ -35,26 +35,22 @@ const MAP = { lat: 12.9558, lon: 78.2739, span: 0.04 };
  * surface. That is why `EnquiryForm` uses page tokens rather than `band-*` —
  * see the note on it before moving either.
  *
- * The masthead carries the headline and nothing else, at the client's request.
- * The breadcrumb moved below it rather than being dropped: it is navigation,
- * and losing it would leave this page with no route back that is not the
- * header.
+ * **The masthead carries a two-layer scrim** — a flat floor and a horizontal
+ * pass, both `bg-scrim/*`. The scrim came off briefly on 2026-08-19 and went
+ * back the same day: this photograph varies enough top-to-bottom (pale sky,
+ * bright tractors, darker crops) that white type without a scrim only just
+ * clears AA on the darker areas and fails on the lighter ones. A text-shadow
+ * was tried in that no-scrim interval; the scrim does the job more cleanly.
  *
- * **The map renders immediately, and it is OpenStreetMap rather than Google.**
- * That is the whole reason it can render immediately: §9 forbids third-party
- * embeds that load before a visitor asks, because a Google Maps iframe sets
- * advertising cookies on arrival. OSM sets none — it is a tile server, not an
- * ad network — so there is nothing to defer behind a click. It also needs no
- * API key, which keeps a deploy from depending on a billing account.
+ * **The map is Google Maps, overriding §9.** §9 forbids third-party embeds
+ * that load before a visitor asks, because a Google Maps iframe sets
+ * advertising cookies on arrival. The client asked for Google Maps anyway on
+ * 2026-08-19, and this note records the trade: on first arrival at this page,
+ * a visitor's browser talks to Google and stores its cookies whether or not
+ * they engage with the map. The `output=embed` URL avoids the API-key
+ * dependency, so a deploy still does not rely on a billing account.
  */
 export default function ContactPage() {
-  const bbox = [
-    MAP.lon - MAP.span,
-    MAP.lat - MAP.span / 2,
-    MAP.lon + MAP.span,
-    MAP.lat + MAP.span / 2,
-  ].join(",");
-
   const mapsQuery = encodeURIComponent(
     [
       site.address.street,
@@ -68,7 +64,8 @@ export default function ContactPage() {
   return (
     <>
       {/* Masthead. `isolate` so the -z-10 layers stay inside this section
-          rather than sliding behind the page background. */}
+          rather than sliding behind the page background. Heights are ~25%
+          shorter than the earlier crop (client request, 2026-08-19). */}
       <section className="relative isolate overflow-hidden">
         <Image
           src="/contactus-background.jpg"
@@ -79,8 +76,10 @@ export default function ContactPage() {
           className="-z-10 object-cover"
         />
 
-        {/* Two layers, not the hero's three: there is only a headline here, it
-            sits left, and it is large enough to need 3:1 rather than 4.5:1. */}
+        {/* Two layers: a flat floor for the narrow layout where the copy sits
+            over crops, and a horizontal pass so the pale sky at the top does
+            not wash the tagline out on wider screens where the text takes more
+            room. Same idiom as the hero and the sign-up panel. */}
         <div aria-hidden className="absolute inset-0 -z-10 bg-scrim/45 lg:bg-scrim/30" />
         <div
           aria-hidden
@@ -88,10 +87,13 @@ export default function ContactPage() {
         />
 
         <Container size="wide">
-          <div className="flex min-h-[16rem] items-end py-16 sm:min-h-[20rem] sm:py-20 lg:min-h-[24rem] lg:py-24">
+          <div className="flex min-h-[12rem] flex-col justify-end py-12 sm:min-h-[15rem] sm:py-14 lg:min-h-[18rem] lg:py-16">
             <h1 className="max-w-3xl text-[2.25rem] leading-[1.08] text-band-ink sm:text-5xl lg:text-[3.5rem]">
               Tell us what you&rsquo;re running
             </h1>
+            <p className="mt-3 max-w-2xl text-base leading-relaxed text-band-body sm:mt-4 sm:text-lg">
+              Call, WhatsApp or write below — all three reach the same desk.
+            </p>
           </div>
         </Container>
       </section>
@@ -133,15 +135,17 @@ export default function ContactPage() {
             <div>
               <h2 className="text-2xl sm:text-3xl">Where we are</h2>
 
-              {/* `loading="lazy"` so the tiles are not fetched for a visitor who
-                  never scrolls this far, and a `title` because an iframe with
-                  no accessible name is announced as "frame" and nothing else. */}
+              {/* Google Maps embed via the keyless `output=embed` URL — see
+                  the note at the top of this file for the §9 override. `lazy`
+                  so tiles are not fetched for a visitor who never scrolls
+                  here, and a `title` because an iframe without an accessible
+                  name is announced as "frame" and nothing else. */}
               <div className="mt-6 aspect-[4/3] w-full overflow-hidden border border-line bg-surface-subtle">
                 <iframe
                   title={`Map showing ${site.address.locality}, ${site.address.region}`}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${MAP.lat},${MAP.lon}`}
+                  src={`https://maps.google.com/maps?q=${MAP.lat},${MAP.lon}&z=15&output=embed`}
                   className="h-full w-full border-0"
                 />
               </div>

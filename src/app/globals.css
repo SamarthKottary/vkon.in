@@ -33,14 +33,16 @@
    mode. The section keeps reading as a distinct band either way.
 
    CONTRAST — every pair below is measured, both themes clear WCAG AA.
-   Light values are against the tinted ground #EDF4E6 (meadow, 2026-08-19); a
-   card sitting on #FFFFFF gains roughly 0.4 on each figure. Re-measure with
-   the DOM harness before shipping.
+   Light values are against the ground #F7FAF8 (near-white with a hair of
+   green); a card sitting on #FFFFFF gains roughly 0.3 on each figure. The
+   accent shifted to nature green #23703D on 2026-08-19; the darker canvas
+   was tried the same day and reverted, so accent contrast is now measured
+   against the near-white ground again.
      LIGHT                                    DARK
-     ink    #14171A on #EDF4E6   16.4:1       #F2F4F5 on #0E1113  16.9:1
-     body   #454D55 on #EDF4E6    7.4:1       #C3C9CF on #0E1113  11.3:1
-     muted  #5A636C on #EDF4E6    5.3:1       #9BA3AB on #0E1113   7.4:1
-     accent #23703D on #EDF4E6    5.5:1       #4CAE81 on #0E1113   6.9:1
+     ink    #14171A on #F7FAF8   17.1:1       #F2F4F5 on #0E1113  16.9:1
+     body   #454D55 on #F7FAF8    8.2:1       #C3C9CF on #0E1113  11.3:1
+     muted  #5A636C on #F7FAF8    5.8:1       #9BA3AB on #0E1113   7.4:1
+     accent #23703D on #F7FAF8    6.4:1       #4CAE81 on #0E1113   6.9:1
      band-ink   #FFFFFF on #181D22 17.0:1     #F2F4F5 on #2A313A  11.9:1
      band-body  #CCD2D7 on #181D22 11.1:1     #CCD2D7 on #2A313A   8.6:1
      band-muted #B3BAC0 on #181D22  8.6:1     #B3BAC0 on #2A313A   6.7:1
@@ -84,14 +86,15 @@
   --color-signal-700: #a66200;
 
   /* Semantic tokens — LIGHT values. Redefined under [data-theme="dark"].
-     The page ground carries a meadow-green tint (2026-08-19, client request),
-     stronger than the earlier hint of green, so pure-white `raised` cards lift
-     off the background visibly and not only by shadow. Body and muted still
-     clear AA against this ground; verify with the harness before shipping any
-     further shift, and keep this tint the same hue family as `--color-accent`
-     or the cards will read as one green surface on another. */
-  --color-surface: #edf4e6;
-  --color-surface-subtle: #e4eddc;
+     The page ground carries only a faint green cast rather than pure white,
+     so `raised` (still pure white) reads as a lifted card by tone as well as
+     by shadow. A stronger meadow tint was tried on 2026-08-19 and reverted
+     the same day — cards did pop harder but the whole page read as green,
+     while the accent alone (see below) carries the nature cue instead. Keep
+     the tint this weak — the measured contrast table above is quoted against
+     #FFFFFF and only stays true while surface is within a hair of it. */
+  --color-surface: #f7faf8;
+  --color-surface-subtle: #edf3ef;
   --color-surface-raised: #ffffff;
 
   --color-ink: #14171a;
@@ -102,9 +105,10 @@
   --color-line-strong: #c3c9cf;
 
   /* Accent used for links and active state — needs to lighten in dark.
-     Meadow-family (2026-08-19), one step warmer than the earlier forest green,
-     so it reads as the same species as the tinted surface. Any shift lighter
-     than this fails AA against the new ground — verify contrast before moving. */
+     Nature green (2026-08-19), one step warmer than the earlier forest green.
+     Sits on the near-white ground at 6.4:1, well clear of AA — the darker
+     canvas that briefly sat behind it was reverted, so this accent is now
+     the only thing carrying the nature cue on the page. */
   --color-accent: #23703d;
   --color-accent-strong: #1a5a2e;
   --color-accent-soft: #e1eeda;

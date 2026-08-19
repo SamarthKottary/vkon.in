@@ -623,7 +623,44 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
-### 2026-08-19 (latest) — Meadow palette, similar-products carousel, centred nav, floating buttons moved right
+### 2026-08-19 (latest, after revert) — Canvas reverted, contact masthead trimmed, Google Maps overrides §9
+
+**Canvas is back to the near-white ground.** The meadow tint added earlier the
+same day made the whole page read as green rather than reading as white pages
+with a green accent — the accent alone was doing the nature-cue better than a
+tinted ground was. `--color-surface` returned to `#F7FAF8` and
+`--color-surface-subtle` to `#EDF3EF`; the accent stayed on the new
+`#23703D`, which now sits on the near-white ground at 6.4:1 (was 5.5:1 on the
+darker meadow). The contact form's white card lost some of its "pop" as a
+result — it is still bordered and shadowed so it still reads as a card, but
+the effect is quieter. The EnquiryForm inputs kept `bg-surface-subtle`
+because it now provides a slightly more visible tint against the white card
+than the earlier `bg-surface` did.
+
+**Contact masthead trimmed by ~25%.** Min-heights went from 16/20/24rem to
+12/15/18rem, and a tagline was added under the H1. The scrim briefly came off
+during this session and went back the same day: this photograph varies too
+much top-to-bottom (pale sky, bright tractors, darker crops) for a white
+headline to sit on it without cover. A text-shadow was tried in the no-scrim
+interval; the scrim does the job more cleanly, so both scrim layers are back
+as they were.
+
+**A tagline sits under the H1.** "Call, WhatsApp or write below — all three
+reach the same desk." Positions the three contact channels as equal at the
+top of the page, and mirrors the copy under the form ("if the pump is down
+today, call — that is always faster than a form").
+
+**The map is Google Maps, overriding §9.** §9 forbids third-party embeds
+that load before a visitor asks, because a Google Maps iframe sets advertising
+cookies on arrival. Client asked for it anyway on 2026-08-19, and this entry
+records the trade: on first arrival at `/contact`, the visitor's browser
+talks to Google and stores its cookies whether or not they interact with the
+map. The keyless `maps.google.com/maps?q=...&output=embed` URL avoids the
+API-key dependency, so a deploy still does not rely on a billing account.
+The docstring on `app/(site)/contact/page.tsx` records the same override
+locally.
+
+### 2026-08-19 (later, superseded by canvas revert above) — Meadow palette, similar-products carousel, centred nav, floating buttons moved right
 
 **Surface tint shifted to meadow green** (client request). Canvas is now
 `#EDF4E6` and `surface-subtle` `#E4EDDC`, both a step greener and darker than
