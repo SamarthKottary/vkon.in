@@ -161,7 +161,12 @@ function SubmitButton() {
 }
 
 function input(error?: string): string {
-  return `w-full border bg-surface px-3.5 py-3 text-ink placeholder:text-muted focus:outline-none focus:ring-1 ${
+  /* `bg-surface-subtle`, not `bg-surface`: the form sits inside a white card
+     on the meadow canvas (contact page, 2026-08-19), so a surface-coloured
+     field would match the ground outside the card and read as a hole punched
+     through it. `surface-subtle` is one meadow step down, visible against the
+     white card without leaving the palette. */
+  return `w-full border bg-surface-subtle px-3.5 py-3 text-ink placeholder:text-muted focus:outline-none focus:ring-1 ${
     error
       ? "border-red-600 focus:border-red-600 focus:ring-red-600"
       : "border-line-strong focus:border-ink focus:ring-ink"

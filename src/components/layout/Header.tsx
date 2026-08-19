@@ -131,32 +131,33 @@ export function Header({ menu = [] }: { menu?: MenuSector[] }) {
         }`}
       >
         <Container size="wide" className="relative">
-          <div className="flex h-16 items-center justify-between gap-6">
-            {/* Logo and nav travel together on the left, so the primary links
-                sit next to the brand rather than floating mid-header. The
-                right-hand group is pushed over by justify-between on the
-                parent — exactly one of the two right-hand groups is ever
-                displayed, so it always resolves to a clean two-column bar. */}
-            <div className="flex items-center gap-1">
-              <Link href="/" className="shrink-0">
+          {/* Three tracks — logo left, nav centred, controls right. Both side
+              tracks are `md:flex-1` so the nav lands on the true horizontal
+              centre of the page rather than half-way between logo and controls
+              (which would drift with each label change). On mobile the nav is
+              hidden and `ml-auto` on the right group takes over the alignment. */}
+          <div className="flex h-16 items-center gap-6">
+            <div className="shrink-0 md:flex-1">
+              <Link href="/" className="inline-flex items-center">
                 <Logo />
               </Link>
+            </div>
 
-              <nav aria-label="Primary" className="hidden md:ml-6 md:block">
-                <ul className="flex items-center">
-                  <li>
-                    <ProductsMenu
-                      menu={menu}
-                      open={productsOpen}
-                      onToggle={() => setProductsOpen((v) => !v)}
-                      onClose={closeProducts}
-                      active={isActive("/products")}
-                    />
-                  </li>
+            <nav aria-label="Primary" className="hidden md:block">
+              <ul className="flex items-center">
+                <li>
+                  <ProductsMenu
+                    menu={menu}
+                    open={productsOpen}
+                    onToggle={() => setProductsOpen((v) => !v)}
+                    onClose={closeProducts}
+                    active={isActive("/products")}
+                  />
+                </li>
 
-                  {primaryNav
-                    .filter((link) => link.href !== "/products")
-                    .map((link) => (
+                {primaryNav
+                  .filter((link) => link.href !== "/products")
+                  .map((link) => (
                     <li key={link.href}>
                       <Link
                         href={link.href}
@@ -171,31 +172,26 @@ export function Header({ menu = [] }: { menu?: MenuSector[] }) {
                       </Link>
                     </li>
                   ))}
-                </ul>
-              </nav>
-            </div>
+              </ul>
+            </nav>
 
             {/* The phone number used to sit here. It moved to the floating
                 buttons at the bottom left (`FloatingContact`), because this
                 header retracts on the way down the page and took the only way
                 to call with it. */}
-            <div className="hidden items-center gap-5 md:flex">
+            <div className="ml-auto flex items-center gap-2 md:ml-0 md:flex-1 md:justify-end md:gap-5">
               <ThemeToggle />
-            </div>
-
-            <div className="flex items-center gap-2 md:hidden">
-              <ThemeToggle />
-            <button
-              ref={triggerRef}
-              type="button"
-              onClick={() => setOpen(true)}
-              aria-expanded={open}
-              aria-controls="mobile-menu"
-              className="-mr-2 inline-flex h-11 w-11 items-center justify-center text-ink hover:bg-surface-subtle md:hidden"
-            >
-              <MenuIcon />
-              <span className="sr-only">Open menu</span>
-            </button>
+              <button
+                ref={triggerRef}
+                type="button"
+                onClick={() => setOpen(true)}
+                aria-expanded={open}
+                aria-controls="mobile-menu"
+                className="-mr-2 inline-flex h-11 w-11 items-center justify-center text-ink hover:bg-surface-subtle md:hidden"
+              >
+                <MenuIcon />
+                <span className="sr-only">Open menu</span>
+              </button>
             </div>
           </div>
         </Container>

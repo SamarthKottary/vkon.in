@@ -3,7 +3,7 @@ import { generalEnquiryMessage, telLink, whatsAppLink } from "@/lib/contact";
 import { site } from "@/content/site";
 
 /**
- * Floating call and WhatsApp buttons, bottom left, desktop only.
+ * Floating call and WhatsApp buttons, bottom right, desktop only.
  *
  * These replace the phone number that sat in the header's top right. The header
  * retracts on the way down the page, which took the only way to call with it;
@@ -15,9 +15,9 @@ import { site } from "@/content/site";
  * on the smallest screen. The breakpoints are complementary: this is
  * `hidden md:flex`, that is `md:hidden`.
  *
- * **Bottom left, not bottom right.** The right is where a chat widget or a
- * cookie banner lands if either is ever added, and it is where a browser puts
- * its own link-target tooltip. The left is quieter.
+ * **Bottom right** (client request, 2026-08-19). Note: this is where a chat
+ * widget or cookie banner would land if either is ever added; put those on the
+ * left so the two do not stack, or accept that they will.
  *
  * No WhatsApp brand green. `MobileActionBar` already made that call — a
  * saturated green button competes with the page and with the accent — so these
@@ -28,7 +28,7 @@ import { site } from "@/content/site";
  */
 export function FloatingContact() {
   return (
-    <div className="pointer-events-none fixed bottom-6 left-6 z-40 hidden flex-col gap-3 md:flex">
+    <div className="pointer-events-none fixed bottom-6 right-6 z-40 hidden flex-col gap-3 md:flex">
       <FloatingButton
         href={whatsAppLink(generalEnquiryMessage)}
         label="Message us on WhatsApp"

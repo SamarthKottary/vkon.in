@@ -2,15 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { CheckIcon, PhoneIcon, WhatsAppIcon } from "@/components/icons/ui";
-import { ProductCard } from "@/components/product/ProductCard";
 import { ProductMedia } from "@/components/product/ProductMedia";
 import { RecordView } from "@/components/product/RecordView";
+import { RelatedProducts } from "@/components/product/RelatedProducts";
 import { ProtectionList } from "@/components/product/ProtectionList";
 import { SpecTable } from "@/components/product/SpecTable";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { JsonLd } from "@/components/ui/JsonLd";
-import { categoryLabel, sectorLabel, sectorOf } from "@/content/taxonomy";
+import { categoryLabel } from "@/content/taxonomy";
 import { site } from "@/content/site";
 import { getProductBySlug, listProducts } from "@/lib/db/products";
 import { productEnquiryMessage, telLink, whatsAppLink } from "@/lib/contact";
@@ -61,41 +61,15 @@ export default async function ProductPage({
 
   const all = await listProducts();
 
-  /* Related products, widened one step and no further.
-     
-     Two tiers: the same sub-category first, then anything else in the same
-     category. It does NOT fall through to the rest of the range — a third tier
-     was tried on 2026-08-19 and removed the same day, because "more from the
-     range" on a wardrobe light meant three submersible pump panels. A visitor
-     at the bottom of a product page is looking for an alternative to the thing
-     they are reading about, and something from another market is not one.
-     
-     The cost is accepted deliberately: a category holding a single product
-     shows no section at all, which is honest. Better an absent block than a
-     misleading one. `seen` keeps a product from being added twice as the tier
-     widens. */
-  const sector = sectorOf(product.category);
-  const others = all.filter((p) => p.id !== product.id);
-  const seen = new Set<string>();
-  const related: typeof others = [];
+  /* Related products: same sub-category only, never widened.
 
-  for (const tier of [
-    others.filter((p) => p.category === product.category),
-    others.filter((p) => sector !== null && sectorOf(p.category) === sector),
-  ]) {
-    for (const item of tier) {
-      if (related.length >= 3) break;
-      if (seen.has(item.id)) continue;
-      seen.add(item.id);
-      related.push(item);
-    }
-  }
-
-  /* Label what is on screen, not what was asked for. If the tier widened,
-     "Others in Cables" beside a solar controller is simply untrue. */
-  const relatedHeading = related.every((p) => p.category === product.category)
-    ? `Others in ${categoryLabel(product.category)}`
-    : `More from ${sectorLabel(sector as NonNullable<typeof sector>)}`;
+     A visitor at the bottom of a product page is looking for an alternative to
+     the thing they are reading about, and something from another sub-category
+     is not one. The section is absent when a sub-category holds a single
+     product — better an empty than a misleading one. */
+  const related = all.filter(
+    (p) => p.id !== product.id && p.category === product.category,
+  );
 
   // Blank lines separate paragraphs in the admin textarea.
   const paragraphs = product.description
@@ -236,12 +210,7 @@ export default async function ProductPage({
       {related.length > 0 && (
         <section className="border-t border-line py-14 sm:py-16">
           <Container size="wide">
-            <h2 className="text-2xl sm:text-3xl">{relatedHeading}</h2>
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {related.map((item) => (
-                <ProductCard key={item.id} product={item} />
-              ))}
-            </div>
+            <RelatedProducts heading="Similar products" products={related} />
           </Container>
         </section>
       )}

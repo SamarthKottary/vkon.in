@@ -623,6 +623,42 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-19 (latest) — Meadow palette, similar-products carousel, centred nav, floating buttons moved right
+
+**Surface tint shifted to meadow green** (client request). Canvas is now
+`#EDF4E6` and `surface-subtle` `#E4EDDC`, both a step greener and darker than
+before, so `surface-raised` (still pure white) reads as a lifted card by tone
+as well as by shadow. The `accent` family moved with it — `#23703D` /
+`#1A5A2E` / `#E1EEDA` — to keep it in the same hue species as the ground.
+Every semantic-token consumer picked the shift up automatically because
+components use `surface-*` and `accent-*` and nothing hard-codes the old hexes;
+grep for `1f7a4c` before deciding otherwise. The measured contrast table at
+the top of `globals.css` was updated with the new figures (accent 5.5 / muted
+5.3 / body 7.4 / ink 16.4), but the DOM harness has not been re-run — do that
+before shipping. Dark mode is unchanged.
+
+**Related products became a horizontal carousel and narrowed to the same
+sub-category only.** `src/components/product/RelatedProducts.tsx` is a new
+client component that reuses the `hscroll` idiom from `SectorBrowser` — paged
+arrows above, right-aligned, disabled at the ends, hidden when everything
+fits. The two-tier widen-to-sector fallback that lived in the product page is
+gone; if a sub-category holds a single product the block is absent, which is
+honest. Heading is a flat "Similar products" — the old dynamic
+`Others in [category]` / `More from [sector]` labelling went with the tier
+logic. The 3-item cap was dropped along with the grid.
+
+**Header nav is centred on the true page centre.** Restructured to three flex
+tracks with `md:flex-1` on both the logo and controls, so the nav lands at
+container-width/2 rather than halfway between logo and theme toggle (which
+drifted with each label change). Mobile layout is unchanged — logo left,
+theme + hamburger right via `ml-auto`.
+
+**Floating call and WhatsApp moved to bottom right** (client request,
+overriding the earlier "bottom left" note in the 2026-08-18 entry). The
+tradeoff recorded there still applies in reverse: a chat widget or cookie
+banner added later now conflicts with this position and should take the left
+instead, or accept the stack.
+
 ### 2026-08-18 — Sign-up rebuilt, floating call and WhatsApp
 
 **The sign-up is a dark block beside a taller photograph**, to a layout the

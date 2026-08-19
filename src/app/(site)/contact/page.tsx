@@ -111,7 +111,11 @@ export default function ContactPage() {
           </nav>
 
           <div className="mt-10 grid gap-12 lg:grid-cols-2 lg:gap-16">
-            <div>
+            {/* White card on the meadow canvas (2026-08-19 client request). The
+                map column stays open on the canvas by design — a single card
+                emphasises the form as the primary action, and the map iframe
+                already carries its own bordered plate. */}
+            <div className="border border-line bg-surface-raised p-6 shadow-card sm:p-8 lg:p-10">
               <h2 className="text-2xl sm:text-3xl">Send us an enquiry</h2>
               <p className="mt-4 max-w-xl leading-relaxed text-body">
                 Motor rating, supply type and location is usually all we need to
