@@ -90,21 +90,25 @@ export function ProductRow({
         )}
       </div>
 
+      {/* Cards render vertical (image on top, content below) — matching the
+          `RelatedProducts` carousel on product pages, so a visitor going from
+          catalogue to a detail page and back sees the same card idiom.
+          Widths are ~15% narrower than the 1/2/3-per-row fractions the row
+          used to run at (client request): a card no longer fills the row, so
+          the peek of the next one is bigger and the section reads as less
+          dense. Same responsive pattern otherwise — one card wide on mobile,
+          then two, then three. */}
       <ul
         ref={trackRef}
         onScroll={sync}
-        className="hscroll mt-5 flex snap-x snap-mandatory gap-4 overflow-x-auto"
+        className="hscroll mt-5 flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto"
       >
         {products.map((product, index) => (
           <li
             key={product.id}
-            className="w-[88%] flex-none snap-start sm:w-[calc((100%-1rem)/2)]"
+            className="w-[63%] flex-none snap-start sm:w-[38%] lg:w-[25%]"
           >
-            <ProductCard
-              product={product}
-              orientation="horizontal"
-              priority={priority && index === 0}
-            />
+            <ProductCard product={product} priority={priority && index === 0} />
           </li>
         ))}
       </ul>

@@ -228,8 +228,11 @@ function FilterGroup({
                 aria-pressed={isActive}
                 onClick={() => onSelect(option.value)}
                 /* Left rule rather than a pill: the accent bar marks the active
-                   row without turning the rail into a set of buttons. */
-                className={`w-full border-l-2 py-1.5 text-left text-sm transition-colors lg:pl-3 ${
+                   row without turning the rail into a set of buttons. `pl-3`
+                   applies on every breakpoint (was `lg:pl-3`), because on
+                   mobile the buttons sit in a wrapping flex row and the label
+                   was landing flush against the border. */
+                className={`w-full border-l-2 py-1.5 pl-3 text-left text-sm transition-colors ${
                   isActive
                     ? "border-accent font-medium text-ink"
                     : "border-transparent text-muted hover:text-ink lg:hover:border-line-strong"

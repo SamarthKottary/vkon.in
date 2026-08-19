@@ -623,6 +623,27 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-19 (latest, catalogue cards flipped vertical) — Catalogue cards vertical, filter padding fixed
+
+**The catalogue rows now use vertical `ProductCard`s** (image on top, content
+below), matching the `RelatedProducts` carousel on product detail pages so a
+visitor going catalogue → detail → back sees the same card idiom throughout.
+`ProductRow`'s track widths went from `88% / calc((100%-1rem)/2)` (mobile /
+sm) to `63% / 38% / 25%` (mobile / sm / lg), tightened in two passes at
+the client's request. Cards now run ~24% narrower than the strict 1/2/3
+fractions — on desktop that means about four cards fit per row with a peek
+of a fifth, on sm two and a bit, and on mobile a card no longer dominates
+the viewport. The dense catalogue reads as a row of samples now rather than
+a single showcase card at a time. The `HorizontalCard` variant of
+`ProductCard` is not deleted — nothing else uses it today, but the compact
+strip is a useful shape for future sections and the file already documents
+the two orientations.
+
+**Filter rail buttons picked up a mobile-only bug fix.** The `pl-3` on the
+option buttons was gated to `lg:` — on mobile, where filters wrap into a
+horizontal chip row, the option label sat flush against the 2-px accent
+border. Padding is now applied on every breakpoint.
+
 ### 2026-08-19 (latest, after revert) — Canvas reverted, contact masthead trimmed, Google Maps overrides §9
 
 **Canvas is back to the near-white ground.** The meadow tint added earlier the
