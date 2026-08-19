@@ -1,4 +1,5 @@
 import { ContactStrip } from "@/components/home/ContactStrip";
+import { SubscribePanel } from "@/components/layout/SubscribePanel";
 import { PageHero } from "@/components/layout/PageHero";
 import { Container } from "@/components/ui/Container";
 import { site } from "@/content/site";
@@ -111,6 +112,8 @@ export default function AboutPage() {
           </div>
         </Container>
       </section>
+
+      <SubscribePanel />
 
       <ContactStrip
         heading="Talk to us about your installation"

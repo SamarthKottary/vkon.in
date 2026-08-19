@@ -8,8 +8,12 @@ import { Container } from "@/components/ui/Container";
 import { subscribeAction, type SubscribeState } from "@/app/(site)/actions";
 
 /**
- * Mailing list sign-up. Rendered by `ContactStrip`, immediately above the
- * contact block — see the note there for why the ordering lives in one place.
+ * Mailing list sign-up.
+ *
+ * Placed by the pages that want it — home, about and contact — rather than by
+ * a shared block. It rendered from inside `ContactStrip` until 2026-08-19,
+ * which put it on every page that closes with contact details, including the
+ * catalogue and each product page.
  *
  * One panel with the photograph behind all of it, rather than a coloured block
  * beside a picture. The content sits in the left half; the right half is left

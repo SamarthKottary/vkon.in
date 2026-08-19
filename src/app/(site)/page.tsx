@@ -81,10 +81,10 @@ export default async function HomePage() {
           reads their own browser, so the server has nothing to show. */}
       <RecentlyViewed products={all} />
 
-      {/* Home page only. It used to render from inside `ContactStrip`, which
-          put it on all five pages that close with one — a newsletter prompt on
-          every page reads as nagging, and this is the page where somebody is
-          deciding whether they want to hear from us at all. */}
+      {/* Placed per page rather than from inside `ContactStrip`, which used to
+          put it on all five pages that close with one. Home, about and contact
+          carry it; the catalogue and product pages do not, because somebody
+          comparing panels is mid-task. */}
       <SubscribePanel />
 
       <ContactStrip />

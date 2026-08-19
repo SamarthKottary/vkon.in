@@ -1,7 +1,19 @@
 -- vkon.in schema.
 --
--- Applied idempotently by `npm run db:setup` (scripts/db-setup.mjs), so it is
--- safe to re-run against an existing database.
+-- Every statement is CREATE ... IF NOT EXISTS and nothing here drops or
+-- rewrites data, so this is safe to re-run against a live database.
+--
+-- LOCALLY:
+--   npm run db:setup
+--
+-- ON THE SERVER: **not** `npm run db:setup`. The app runs in Docker and the
+-- host checkout has no node_modules, so that script cannot import `pg`. The
+-- database has no host port either, so it goes through the container:
+--
+--   docker compose exec -T db psql -v ON_ERROR_STOP=1 -U vkon -d vkon < src/lib/db/schema.sql
+--
+-- Run it from the deploy directory (~/project2/vkon.in) after any deploy that
+-- adds a table or a column.
 
 CREATE TABLE IF NOT EXISTS products (
   id            TEXT PRIMARY KEY,

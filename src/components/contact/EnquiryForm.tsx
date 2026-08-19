@@ -21,11 +21,11 @@ import { sendEnquiryAction, type EnquiryState } from "@/app/(site)/actions";
  * this is a POST endpoint anyone can reach directly, so nothing here is a
  * control, only a convenience.
  *
- * **Built for the dark band, not a light surface.** It sits over a photograph
- * with a scrim, so every colour here is a `band-*` token. Dropping it onto a
- * pale section would render muted-grey labels on near-white. `band` and
- * `band-accent` are theme-invariant, which is why the button pair holds in
- * both themes without a `dark:` variant.
+ * **Built for an ordinary page surface.** It briefly sat over a photograph and
+ * used `band-*` tokens throughout; the contact page moved the artwork into a
+ * masthead on 2026-08-19 and the form back onto `surface`, so these are page
+ * tokens again. If it is ever put over artwork, every colour here has to flip
+ * back — muted grey on a dark photograph is unreadable, and so is the reverse.
  */
 export function EnquiryForm() {
   const uid = useId();
@@ -38,12 +38,12 @@ export function EnquiryForm() {
     return (
       <div
         role="status"
-        className="flex max-w-xl items-start gap-4 border border-band-accent bg-scrim/80 px-6 py-6"
+        className="flex max-w-xl items-start gap-4 border border-accent bg-accent-soft px-6 py-6"
       >
-        <CheckIcon className="mt-0.5 h-5 w-5 shrink-0 text-band-accent" />
+        <CheckIcon className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
         <div>
-          <p className="font-medium text-band-ink">{state.message}</p>
-          <p className="mt-2 text-sm leading-relaxed text-band-body">
+          <p className="font-medium text-ink">{state.message}</p>
+          <p className="mt-2 text-sm leading-relaxed text-body">
             We read these through the working day and reply on the same number
             or address you gave us. If it is urgent, call — that is always
             faster than a form.
@@ -60,9 +60,9 @@ export function EnquiryForm() {
       {state.message && (
         <p
           role="alert"
-          className="flex items-center gap-2 border-l-2 border-signal-500 bg-scrim/80 px-4 py-3 text-sm text-band-ink"
+          className="flex items-center gap-2 border-l-2 border-red-600 bg-surface-subtle px-4 py-3 text-sm text-red-700"
         >
-          <AlertIcon className="h-4 w-4 shrink-0 text-signal-500" />
+          <AlertIcon className="h-4 w-4 shrink-0" />
           {state.message}
         </p>
       )}
@@ -135,7 +135,7 @@ export function EnquiryForm() {
 
       <SubmitButton />
 
-      <p className="text-sm text-band-muted">
+      <p className="text-sm text-muted">
         We use what you send here to answer you and nothing else.
       </p>
     </form>
@@ -149,10 +149,10 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      /* `text-band` on `bg-band-accent`, not white: white on the accent green
-         is 1.9:1. Both tokens are theme-invariant, so the pair holds in light
-         and dark without a variant. */
-      className="inline-flex h-12 items-center justify-center gap-2 bg-band-accent px-8 text-sm font-medium text-band transition-opacity hover:opacity-90 disabled:opacity-60"
+      /* `text-action-ink`, never `text-white`: the action colour inverts
+         between themes and a hard-coded white disappears on the light-on-dark
+         button the dark theme uses. ARCHITECTURE §9. */
+      className="inline-flex h-12 items-center justify-center gap-2 bg-action px-8 text-sm font-medium text-action-ink transition-colors hover:bg-action-hover disabled:opacity-60"
     >
       {pending && <SpinnerIcon className="h-4 w-4" />}
       {pending ? "Sending…" : "Send enquiry"}
@@ -161,10 +161,10 @@ function SubmitButton() {
 }
 
 function input(error?: string): string {
-  return `w-full border bg-band-raised px-3.5 py-3 text-band-ink placeholder:text-band-muted focus:outline-none ${
+  return `w-full border bg-surface px-3.5 py-3 text-ink placeholder:text-muted focus:outline-none focus:ring-1 ${
     error
-      ? "border-signal-500 focus:border-signal-500"
-      : "border-band-line focus:border-band-accent"
+      ? "border-red-600 focus:border-red-600 focus:ring-red-600"
+      : "border-line-strong focus:border-ink focus:ring-ink"
   }`;
 }
 
@@ -193,21 +193,21 @@ function Field({
           block it added a line to this field and none to the one beside it, so
           Name and Phone sat at different heights in the same row. Block hints
           are for sentences; one-word qualifiers belong in the label. */}
-      <label htmlFor={id} className="label-tech block text-band-muted">
+      <label htmlFor={id} className="label-tech block text-muted">
         {label}
         {/* The asterisk is decorative — `required` on the control is what a
             screen reader announces, so this must not be read out as "star". */}
         {required && (
-          <span aria-hidden className="ml-1 text-band-accent">
+          <span aria-hidden className="ml-1 text-accent">
             *
           </span>
         )}
         {optional && <span className="ml-2 normal-case">(optional)</span>}
       </label>
-      {hint && <p className="mt-1.5 text-sm text-band-muted">{hint}</p>}
+      {hint && <p className="mt-1.5 text-sm text-muted">{hint}</p>}
       <div className="mt-2">{children}</div>
       {error && (
-        <p className="mt-2 text-sm text-signal-500">{error}</p>
+        <p className="mt-2 text-sm text-red-700">{error}</p>
       )}
     </div>
   );

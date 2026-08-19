@@ -70,7 +70,7 @@ Changing that is a real schema change.
 ```bash
 npm install
 docker start vkon-pg          # local Postgres, port 55433
-npm run db:setup              # idempotent; applies src/lib/db/schema.sql
+npm run db:setup              # local only — see §6 for the server
 npm run dev                   # http://localhost:3000
 ```
 
@@ -193,10 +193,28 @@ Push to `main` → GitHub webhook → self-hosted deploy console → `cicd/deplo
 only** and are gitignored: if `deploy.sh` were in the repo, push access would
 equal code execution on the host.
 
-**After deploying a schema change, run `npm run db:setup` on the server.** It is
-idempotent. The two most recent tables (`subscribers`, `enquiries`) both fail
-soft if missing — the forms say "unavailable, please call" rather than erroring —
-so a forgotten migration is quiet rather than loud.
+**After deploying a schema change, apply it — but not with `npm run db:setup`.**
+That script is for local development only. The app runs in Docker, the host
+checkout has no `node_modules`, and the script cannot import `pg`:
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'pg'
+```
+
+The database has no host port either, so the migration goes through the
+container. From the deploy directory:
+
+```bash
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U vkon -d vkon < src/lib/db/schema.sql
+```
+
+Every statement in `schema.sql` is `CREATE ... IF NOT EXISTS` and nothing drops
+or rewrites data, so it is safe to re-run. The same route applies to
+`scripts/seed-demo.sql`.
+
+A forgotten migration is **quiet, not loud**: `subscribers` and `enquiries` both
+fail soft, so the forms say "unavailable, please call" and the admin lists come
+back empty rather than erroring. Check after deploying a schema change.
 
 **This GitHub repo is PUBLIC.** `docs/Hosting.md`, `docs/cicd.md`,
 `docs/f2.pdf` (the client's business plan — pricing, salaries, a named client's

@@ -658,6 +658,23 @@ down the page. Notes:
 - The wrapper is `pointer-events-none` with the buttons `pointer-events-auto`,
   so the gap between the two circles does not swallow clicks on the page.
 
+### 2026-08-19 (later still) — Contact masthead, and the sign-up on three pages
+
+**The contact photograph is a masthead, not a backdrop.** It ran behind the
+whole page; it now occupies the top band carrying the headline and nothing
+else, and everything below sits on an ordinary surface. `EnquiryForm` went back
+to page tokens as a result — it had been converted to `band-*` when it sat over
+artwork, and the note on the component records that the two must move together.
+
+The breadcrumb moved below the masthead rather than being dropped. The client
+asked for the image to carry the headline alone; a breadcrumb is navigation, and
+removing it would leave the page with no route back except the header.
+
+**The sign-up is on home, about and contact.** Pages place it themselves. It
+rendered from inside `ContactStrip` until earlier the same day, which put it on
+every page closing with contact details — including the catalogue and each
+product page, where somebody is mid-task.
+
 ### 2026-08-19 (later) — Contact page reshaped, scrims lifted, related products narrowed
 
 **The contact page is now the form and the location, over a photograph.** The

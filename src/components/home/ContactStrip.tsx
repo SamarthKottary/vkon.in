@@ -8,10 +8,10 @@ import { generalEnquiryMessage, telLink, whatsAppLink } from "@/lib/contact";
  * Contact block. The closing section of every page.
  *
  * It rendered `SubscribePanel` above itself until 2026-08-19, which put the
- * sign-up on all five pages that end this way. The sign-up is now a home-page
- * block only, rendered by `app/(site)/page.tsx` — asking on every page is what
- * makes a newsletter prompt feel like nagging, and the home page is where
- * somebody is deciding whether they want to hear from you at all.
+ * sign-up on all five pages that end this way. Pages now place the sign-up
+ * themselves — home, about and contact do, the catalogue and product pages do
+ * not. Asking on every page is what makes a newsletter prompt read as nagging;
+ * asking where somebody is already reading about the company is not.
  *
  * Three channels as equal columns divided by rules — no card, no filled CTA
  * band, no centred "Get in touch!" heading. The phone number is set large in
