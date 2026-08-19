@@ -6,6 +6,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Project
 
+New to this project? Start with [docs/HANDOFF.md](docs/HANDOFF.md) — where
+things stand, how to run it, the traps that cost real time, and what is
+outstanding.
+
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before making structural changes.
 Work on `/admin` also has [docs/ADMIN.md](docs/ADMIN.md) — the data flow, the
 rules for adding an editable field, and the open decisions.

@@ -52,11 +52,13 @@ try {
   await client.query(schema);
   const { rows } = await client.query(
     "SELECT (SELECT count(*)::int FROM products) AS products," +
-      " (SELECT count(*)::int FROM subscribers) AS subscribers",
+      " (SELECT count(*)::int FROM subscribers) AS subscribers," +
+      " (SELECT count(*)::int FROM enquiries) AS enquiries",
   );
   console.log(
     `Schema applied. products: ${rows[0].products} row(s), ` +
-      `subscribers: ${rows[0].subscribers} row(s).`,
+      `subscribers: ${rows[0].subscribers} row(s), ` +
+      `enquiries: ${rows[0].enquiries} row(s).`,
   );
 } catch (error) {
   console.error("Setup failed:", error.message);

@@ -188,14 +188,14 @@ export function HeroRotator({
               shot to the brief in docs/ARCHITECTURE.md — subject right, left
               two-thirds quiet — will have far more headroom, and this floor can
               come back down when it lands. Re-measure before changing it. */}
-          <div className="absolute inset-0 bg-scrim/40 lg:bg-scrim/8" />
+          <div className="absolute inset-0 bg-scrim/38 lg:bg-scrim/7" />
           {/* The mid stop is 64, not the 55 it was. The industrial frame puts a
               bright overcast sky across the middle of the picture, exactly
               where the slide body sits at desktop width — it measured 4.37:1
               against the 4.5 it needs. The left and right stops are unchanged,
               so the shadowed left and the bright right edge look as they did. */}
-          <div className="absolute inset-0 bg-gradient-to-r from-scrim/85 via-scrim/64 to-scrim/15" />
-          <div className="absolute inset-0 bg-gradient-to-t from-scrim/65 via-transparent to-scrim/40" />
+          <div className="absolute inset-0 bg-gradient-to-r from-scrim/82 via-scrim/60 to-scrim/13" />
+          <div className="absolute inset-0 bg-gradient-to-t from-scrim/60 via-transparent to-scrim/36" />
         </div>
       )}
 

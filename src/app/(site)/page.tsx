@@ -1,6 +1,7 @@
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { Hero } from "@/components/home/Hero";
 import { SectorBrowser } from "@/components/home/SectorBrowser";
+import { SubscribePanel } from "@/components/layout/SubscribePanel";
 import { RecentlyViewed } from "@/components/home/RecentlyViewed";
 import { Section, SectionHeading } from "@/components/ui/Section";
 import { categoriesInSector, sectors } from "@/content/taxonomy";
@@ -66,8 +67,8 @@ export default async function HomePage() {
         <SectionHeading
           align="center"
           eyebrow="What we make"
-          title="Three markets, the same build"
-          description="Agriculture is the range shipping today — starters, solar, auto start units, cable and accessories. Industrial and commercial are where the same panel discipline goes next. Open a card for what sits under each."
+          title="Three categories, the same build"
+          description="Agriculture is the range shipping today — starters, solar, auto start units, cable and accessories. Industrial and commercial are where the same panel discipline goes next. Open a card for the sub-categories under each."
         />
 
         <div className="mt-12">
@@ -79,6 +80,12 @@ export default async function HomePage() {
       {/* Renders nothing until the visitor has actually opened a product — it
           reads their own browser, so the server has nothing to show. */}
       <RecentlyViewed products={all} />
+
+      {/* Home page only. It used to render from inside `ContactStrip`, which
+          put it on all five pages that close with one — a newsletter prompt on
+          every page reads as nagging, and this is the page where somebody is
+          deciding whether they want to hear from us at all. */}
+      <SubscribePanel />
 
       <ContactStrip />
     </>

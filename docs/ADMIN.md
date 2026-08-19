@@ -17,20 +17,25 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
+| `/admin/enquiries` | Contact-form inbox. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Read, export, remove. |
 
-One operator, one password, two things to manage: **products**, and the
-**mailing list** those products get announced to. Nothing else on the site is
+One operator, one password, three things to manage: **products**, the
+**mailing list** those products get announced to, and the **enquiries** people
+send from the contact page. Nothing else on the site is
 editable without a code change — not the hero copy, not the figures, not the
 category list, not the contact details.
 
 The two are not symmetrical, and the difference matters:
 
 - **Products** are created here. The admin is the only writer.
-- **Subscribers** are created by *visitors*, through the sign-up above the
-  footer. The admin can only read, export and delete. There is deliberately no
+- **Subscribers** are created by *visitors*, through the sign-up on the home
+  page. The admin can only read, export and delete. There is deliberately no
   "add subscriber" form — an address somebody did not type themselves has not
   agreed to anything, and a list built that way is worth less than no list.
+- **Enquiries** are also created by visitors, from `/contact`. The admin reads
+  them, marks them handled and deletes them. Read §7.7 — this one has a gap with
+  a business cost attached.
 
 Every admin route is `force-dynamic`. A cached admin page is a stale admin page.
 
@@ -133,9 +138,10 @@ so filing it in the right category is the whole of the decision — and the
 `<select>` is grouped by market so that choice is visible while making it. See
 ARCHITECTURE §8 for why this is derived rather than stored.
 
-**Nothing here sends email.** `/admin/subscribers` collects and exports; no code
-path in this repo delivers a message. Read §7.6 before wiring up a sender —
-there are two obligations that are not met today.
+**Nothing here sends email.** `/admin/subscribers` and `/admin/enquiries` both
+collect and display; no code path in this repo delivers a message. Read §7.6
+before wiring up a sender, and §7.7 for why enquiries make that more urgent than
+the mailing list does.
 
 **Admin content can break public layouts.** The catalogue and home grids assume
 short values. A very long product name, or a figure like `1–40 HP three phase`,
@@ -311,9 +317,42 @@ the CSV into it rather than building a mailer here. Adding a mail dependency to
 a codebase whose whole dependency policy is `next`, `react`, `react-dom` needs
 to clear a high bar.
 
+
+### 7.7 Nobody is told when an enquiry arrives — *the gap with a cost*
+
+The contact form writes a row and stops. There is no email, no SMS, no
+notification of any kind: **an enquiry is invisible until somebody opens
+`/admin/enquiries`.** For a business whose buyer has a stopped pump, an enquiry
+noticed two days late is a lost sale, not a delayed reply.
+
+Three things reduce the exposure today, and they are deliberate rather than
+incidental:
+
+1. The contact page puts **call and WhatsApp above the form**, so the fastest
+   channels are the obvious ones.
+2. The inbox counts what is **waiting for a reply** at the top of the page.
+3. Nothing marks itself handled; that is a person deciding they have replied.
+
+Closing it properly is one of:
+
+- **Forward each enquiry to WhatsApp or email on submit.** Smallest change that
+  actually works, and it needs an outbound provider — see §7.6, the same
+  decision. A WhatsApp Business API message to the office number is the closest
+  fit to how this business already operates.
+- **Poll the inbox from something that already alerts you.** Crude, but a cron
+  job hitting a count endpoint and messaging on a non-zero result needs no new
+  dependency in this repo.
+
+Until one of those exists, **the inbox needs checking through the working day**,
+and the page says so in as many words.
+
 ---
 
 ## Change log
+
+**2026-08-19** — Enquiries added: a third thing to manage, and the first one
+where not noticing it costs money. New §7.7 on the notification gap and the two
+ways to close it. §1 and §4 updated.
 
 **2026-08-18** (later) — §7.3a added: the `Secure` cookie silently drops over
 plain HTTP on a non-localhost host, which presents as a rejected password. The

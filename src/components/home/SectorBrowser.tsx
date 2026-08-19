@@ -91,14 +91,14 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
       {showArrows && (
         <div className="mb-6 flex items-center justify-end gap-3">
           <PageButton
-            label="Previous markets"
+            label="Previous categories"
             disabled={!canScroll.left}
             onClick={() => page(-1)}
           >
             <ArrowLeftIcon className="h-4 w-4" />
           </PageButton>
           <PageButton
-            label="More markets"
+            label="More categories"
             disabled={!canScroll.right}
             onClick={() => page(1)}
           >
@@ -180,7 +180,9 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
                     {!expandable
                       ? "Coming soon"
                       : `${categories.length} ${
-                          categories.length === 1 ? "category" : "categories"
+                          categories.length === 1
+                            ? "sub-category"
+                            : "sub-categories"
                         }`}
                   </span>
                   {expandable && (

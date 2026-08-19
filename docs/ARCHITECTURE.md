@@ -11,6 +11,10 @@ Last updated: 2026-08-10
 
 ---
 
+> New to this project? **[HANDOFF.md](HANDOFF.md)** is the orientation layer —
+> where things stand, how to run it, the traps that cost real time, and what is
+> outstanding. This file is the reference.
+
 ## 1. What this is
 
 A product catalogue and contact site for Vkon, who make electronic motor
@@ -115,9 +119,10 @@ src/
     layout.tsx              fonts + global metadata only (no chrome)
     (site)/
       layout.tsx            Header, Footer, SubscribePanel, MobileActionBar, JSON-LD
-      actions.ts            PUBLIC server actions — the mailing-list sign-up
+      actions.ts            PUBLIC server actions — sign-up and contact enquiry
       page.tsx              home
       about/page.tsx
+      contact/page.tsx      contact channels, enquiry form, address
       products/page.tsx     catalogue
       products/[slug]/      detail
     admin/
@@ -126,12 +131,14 @@ src/
       LoginForm.tsx
       actions.ts            ALL admin server actions — the security boundary
       products/             list, ProductForm, new/, [id]/
+      enquiries/            contact inbox: read, mark handled, remove
       subscribers/          mailing list: read, export, remove
     not-found.tsx           renders its own chrome (outside the (site) group)
     globals.css             design tokens + the contrast table
     sitemap.ts robots.ts opengraph-image.tsx icon.svg
 
   components/
+    contact/   EnquiryForm (client)
     layout/    Header (client), Footer, MobileActionBar, PageHero,
                ProductsMenu (client), SubscribePanel (client)
     home/      Hero, HeroRotator (client), SectorBrowser (client),
@@ -145,7 +152,7 @@ src/
 
   content/     taxonomy.ts (sectors + categories), segments.ts, site.ts, nav.ts
   lib/
-    db/          client.ts, products.ts, subscribers.ts, schema.sql
+    db/          client.ts, products.ts, subscribers.ts, enquiries.ts, schema.sql
     auth.ts      session + requireAdmin
     rate-limit.ts in-memory fixed window; guards the public sign-up
     recent.ts    recently-viewed slugs in localStorage
@@ -177,6 +184,8 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `admin/LoginForm` | `useActionState` |
 | `admin/products/ProductForm` + `DeleteProductButton` | Form state, uploads, confirm step |
 | `admin/subscribers/SubscriberTools` + `DeleteSubscriberButton` | Clipboard, CSV, confirm step |
+| `admin/enquiries/EnquiryActions` | Mark handled, confirm-delete step |
+| `contact/EnquiryForm` | `useActionState`, per-field errors |
 
 Everything else is a server component.
 
@@ -345,9 +354,16 @@ constraint means what it looks like it means, plus the path it was submitted
 from. Written by the public action in `app/(site)/actions.ts`; read and deleted
 at `/admin/subscribers`.
 
+**`enquiries`.** `src/lib/db/enquiries.ts` is the only module that touches it.
+One row per contact-form submission, with `handled` as a flag rather than a
+deletion — a dealt-with enquiry is still a record of who asked for what.
+
 **Nothing in this codebase sends email.** The site collects addresses and
-exports them. Wiring up a sender brings obligations that are not met today —
-see §11.
+enquiries and shows them in the admin. That is a bigger deal for enquiries than
+for the mailing list: **an enquiry sits unseen until somebody opens
+`/admin/enquiries`.** It is why the contact page puts phone and WhatsApp above
+the form rather than below it. Wiring up a sender brings obligations that are
+not met today — see §11 and ADMIN.md §7.6–7.7.
 
 **Video is a URL, not a file.** `lib/video.ts` normalises watch links, youtu.be,
 /shorts/, /embed/ and Vimeo IDs into an embed. The product page renders a poster
@@ -364,12 +380,13 @@ Each encodes a real bug. Breaking one reintroduces it.
 **`requireAdmin()` must be the first statement of every mutating server action
 in `app/admin/actions.ts`.** See §7.
 
-**`app/(site)/actions.ts` is the one unauthenticated write path, and it stays
-that way.** Anything added there is reachable by anyone on the internet as a
-bare POST. The sign-up that lives there is guarded by a honeypot, a rate limit
-and the fact that the only visitor-supplied value reaching Postgres is an email
-that passed `normaliseEmail`. A new public action must justify itself against
-all three, or belong in the admin file instead.
+**`app/(site)/actions.ts` is the only unauthenticated write path, and every
+action in it carries the same three guards.** Anything added there is reachable
+by anyone on the internet as a bare POST. Both actions there — the sign-up and
+the contact enquiry — have a honeypot that returns the ordinary success message
+so a bot learns nothing, a rate limit keyed on the client address, and bounded,
+validated values reaching Postgres through parameterised queries only. A new
+public action must carry all three, or belong in the admin file instead.
 
 **A sector is derived from a category, never stored on a product.** §8.
 
@@ -640,6 +657,113 @@ down the page. Notes:
   it, if the brand colour is ever wanted.
 - The wrapper is `pointer-events-none` with the buttons `pointer-events-auto`,
   so the gap between the two circles does not swallow clicks on the page.
+
+### 2026-08-19 (later) — Contact page reshaped, scrims lifted, related products narrowed
+
+**The contact page is now the form and the location, over a photograph.** The
+call / WhatsApp / email row across the top was removed at the client's request.
+That costs a visitor nothing — those channels are on the floating buttons, the
+mobile action bar and the footer — and it makes the page about the one thing it
+is for.
+
+**A live OpenStreetMap embed**, not Google and not deferred. §9 forbids
+third-party embeds that load before a visitor asks, because a Google Maps iframe
+sets advertising cookies on arrival; OSM is a tile server, not an ad network, so
+there is nothing to defer. It also needs no API key, so a deploy does not depend
+on a billing account. The pin is the centre of Kolar Gold Fields, not the works
+— `site.ts` is still a placeholder, and a pin on an unconfirmed street is worse
+than an honestly approximate one.
+
+`EnquiryForm` moved onto band tokens throughout, because it now sits over
+artwork. Dropping it back onto a pale section would render muted-grey labels on
+near-white; the component says so.
+
+**Scrims lifted on the hero and the sign-up.** The hero flat floor went 40 → 38
+and its gradients 85/64/15 → 82/60/13; the sign-up went 55/25 → 44/18. The floor
+is **pinned by one slide**: the commercial stairwell at 390px, where the body
+copy spans the full width and crosses the lit staircase. At 33 that run measured
+4.16:1 against the 4.5 it needs; 38 restores it to 4.73 (1.05×). Anything
+lighter needs either different artwork or a per-segment scrim strength, which
+does not exist yet.
+
+**Related products no longer cross categories.** The third tier added earlier
+today — fall through to the whole range — was removed the same day: "more from
+the range" on a wardrobe light meant three submersible pump panels. Two tiers
+now, and a category holding one product shows no section at all, which is
+honest. Better an absent block than a misleading one.
+
+**Three more harness faults, all of the same family: the sampler was reading
+something that is not a background.**
+
+1. Rects were in **viewport** space while the capture was the viewport, which
+   held only while the measured section fitted on screen. On the contact page it
+   does not, and `getImageData` past the canvas edge returns transparent black —
+   luminance 0, which reads as a spectacular pass or failure depending on the
+   text colour. Captures are now full-page with document-space rects, clamped to
+   the bitmap.
+2. The **floating buttons** render over the page, and in a full-page capture
+   they land on whatever is at their viewport position — a white glyph was being
+   read as the background of a label 800px down the document. Fixed overlays are
+   hidden during capture. This fix existed in `hero.mjs` and had not propagated
+   to the scripts derived from it, which is its own lesson.
+3. The DOM auditor reported the sign-up panel as white-on-white, because `bgOf`
+   walks ancestors for a background *colour* and a photograph is a sibling
+   `<img>`. It now detects covering artwork structurally and defers those runs
+   to the pixel samplers.
+
+None of the three was a site defect. All three were hiding whether there was
+one — which is the point of writing them down.
+
+### 2026-08-19 — Contact page, related products everywhere, taxonomy renamed
+
+**A contact page at `/contact`**, and with it the site's second unauthenticated
+write path. Direct channels run across the top, the enquiry form sits below with
+the address and hours beside it. That ordering is the design: this buyer has a
+pump that has stopped, a form is the slowest way to reach anyone, and **nothing
+here sends mail** — an enquiry waits in `enquiries` until somebody opens
+`/admin/enquiries`. Putting the form first would quietly make the slowest
+channel look like the intended one.
+
+The form stores rather than emails because that is what the existing
+architecture supports without a new dependency: the same shape as `subscribers`,
+reusing `lib/rate-limit.ts` and the honeypot, no third-party key. §11 and
+ADMIN.md §7.7 record the notification gap that follows.
+
+**No map embed.** A Maps iframe is a third-party request setting cookies before
+the visitor has done anything, which `ProductMedia` already refuses to do for
+YouTube — and the address in `site.ts` is still `TODO(vkon)`, so a pin would be
+confidently wrong. The address links out to a Maps search instead.
+
+**Related products now appear on every product.** The rule was "same category",
+and home automation is the only category with more than one product, so the
+section rendered on exactly one range and nothing anywhere else. It now widens
+in three tiers — same sub-category, then same category (sector), then the rest —
+and the heading names what is actually on screen, because "Others in Cables"
+above a lighting module is simply untrue.
+
+**The taxonomy was renamed in the interface only.** What the code calls `sector`
+is labelled **Category**, and what the code calls `category` is labelled
+**Sub-category**. The query parameters were deliberately left alone: `?sector=`
+and `?category=` are in links already shared and indexed, and renaming them
+would break every one. Expect that split when reading `ProductCatalogue`.
+
+**The sign-up is a home-page block again.** It was rendered from inside
+`ContactStrip`, which put it on all five pages that close with one. Asking on
+every page is what makes a newsletter prompt read as nagging.
+
+**Two harness corrections, both of which had been hiding real signal:**
+
+- The DOM contrast auditor reported four failures on the sign-up panel. False:
+  that panel is now text over a photographic `<img>`, and `bgOf` walks ancestors
+  for a background *colour*, so it found the page ground and concluded
+  white-on-white. It now detects a covering positioned `<img>` structurally and
+  defers those runs to the pixel sampler, which measures the panel at 1.38×.
+- The hero pixel sampler then reported "Motor range covered" at 1.03. Also
+  false, and more interesting: the **new floating buttons overlay that text at
+  768px**, so the sampler was reading a button's fill as the background of the
+  text it happens to cover. Fixed overlays are now hidden during capture. The
+  overlap itself is real and inherent to a floating button — content passes
+  under it — but it is an object you scroll past, not a background.
 
 ### 2026-08-18 — Neutral scrim, black band in both themes, sign-up above contact
 

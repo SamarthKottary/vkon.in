@@ -13,11 +13,17 @@ import type { Product } from "@/lib/types";
  * `/products?category=starter` links land pre-filtered. Only categories that
  * actually contain products are offered — an empty filter is a dead end.
  *
- * Three filters, in the order the taxonomy reads: **market**, then **category**
- * inside it, then **rating**. Picking a market narrows the category list to
- * that market's categories and clears any category from another one — without
+ * Three filters, in the order the taxonomy reads: **category**, then
+ * **sub-category** inside it, then **rating**. Picking a category narrows the
+ * sub-category list and clears any sub-category from another one — without
  * that, `?sector=commercial&category=starter` is reachable by clicking two
  * plausible things in sequence and shows nothing.
+ *
+ * Note the vocabulary split, because it is a trap: the URL and the code call
+ * these `sector` and `category`, the labels call them "category" and
+ * "sub-category". The client renamed the user-facing words on 2026-08-19;
+ * renaming the query parameters too would have broken every link already
+ * shared or indexed, so the internal names stayed.
  *
  * Filters sit in a left rail on desktop and collapse above the results on a
  * phone, where there is no room for two columns. The rail is sticky so the
@@ -100,8 +106,8 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
     if (value === "all") next.delete(key);
     else next.set(key, value);
 
-    /* Changing market drops the category, which almost certainly belonged to
-       the old one. Leaving it produces a filter pair with no possible result
+    /* Changing category drops the sub-category, which almost certainly belonged
+       to the old one. Leaving it produces a filter pair with no possible result
        and no obvious cause. The rating goes with either, for the same reason —
        and unlike the others it would otherwise stay active while no longer
        appearing in the rail, which is a filter you cannot see to clear. */
@@ -122,14 +128,14 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
       {/* The rail. `self-start` stops it stretching to the grid row height,
           which would break `sticky`. */}
       <aside className="lg:sticky lg:top-24 lg:self-start">
-        {/* Only offered when there is more than one market to choose between.
-            A single-option filter is a label pretending to be a control. */}
+        {/* Only offered when there is more than one to choose between. A
+            single-option filter is a label pretending to be a control. */}
         {availableSectors.length > 1 && (
           <FilterGroup
-            label="Market"
+            label="Category"
             className="mb-8"
             options={[
-              { value: "all", label: "All markets" },
+              { value: "all", label: "All categories" },
               ...availableSectors.map((s) => ({ value: s.key, label: s.label })),
             ]}
             active={sector}
@@ -138,9 +144,9 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
         )}
 
         <FilterGroup
-          label="Category"
+          label="Sub-category"
           options={[
-            { value: "all", label: "All products" },
+            { value: "all", label: "All sub-categories" },
             ...availableCategories.map((c) => ({ value: c.key, label: c.label })),
           ]}
           active={category}

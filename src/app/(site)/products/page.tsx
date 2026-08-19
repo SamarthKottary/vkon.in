@@ -24,7 +24,7 @@ export default async function ProductsPage() {
       <PageHero
         eyebrow="Catalogue"
         title="Every panel we build"
-        description="Filter by market, by category, or by the motor rating you need. Every panel ships with the full protection set — the differences are in supply type, rating and starting method."
+        description="Filter by category, by sub-category, or by the motor rating you need. Every panel ships with the full protection set — the differences are in supply type, rating and starting method."
         breadcrumb={[{ label: "Home", href: "/" }]}
       />
 

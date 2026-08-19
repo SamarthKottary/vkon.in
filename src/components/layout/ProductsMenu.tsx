@@ -169,14 +169,14 @@ export function ProductsMenu({
             {(canScroll.left || canScroll.right) && (
               <div className="flex items-center justify-end gap-2 pt-6">
                 <SlideButton
-                  label="Previous markets"
+                  label="Previous categories"
                   disabled={!canScroll.left}
                   onClick={() => page(-1)}
                 >
                   <ArrowLeftIcon className="h-4 w-4" />
                 </SlideButton>
                 <SlideButton
-                  label="More markets"
+                  label="More categories"
                   disabled={!canScroll.right}
                   onClick={() => page(1)}
                 >

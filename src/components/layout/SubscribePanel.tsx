@@ -45,21 +45,24 @@ export function SubscribePanel() {
             alt=""
             fill
             sizes="(min-width: 1280px) 76rem, 100vw"
-            className="object-cover"
+            /* Weighted low, not centred. `object-cover` on a wide frame in a
+               short band crops top and bottom evenly by default, and the
+               interesting half of this photograph is the lower one. */
+            className="object-cover object-[50%_78%]"
           />
 
           {/* Three layers, same idiom as the hero: a flat floor for the narrow
               layout where the copy spans the full width, a horizontal gradient
               for the wide one where it stays left, and a vertical pass to stop
               the pale sky washing out the heading. */}
-          <div aria-hidden className="absolute inset-0 bg-scrim/55 lg:bg-scrim/25" />
+          <div aria-hidden className="absolute inset-0 bg-scrim/44 lg:bg-scrim/18" />
           <div
             aria-hidden
-            className="absolute inset-0 bg-gradient-to-r from-scrim/95 via-scrim/80 to-scrim/35"
+            className="absolute inset-0 bg-gradient-to-r from-scrim/86 via-scrim/68 to-scrim/26"
           />
           <div
             aria-hidden
-            className="absolute inset-0 bg-gradient-to-b from-scrim/40 to-transparent"
+            className="absolute inset-0 bg-gradient-to-b from-scrim/32 to-transparent"
           />
 
           <div className="relative px-7 py-12 sm:px-12 sm:py-16 lg:py-20">

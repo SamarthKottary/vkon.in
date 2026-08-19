@@ -9,6 +9,7 @@ import {
   slugExists,
   updateProduct,
 } from "@/lib/db/products";
+import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
 import { deleteSubscriber } from "@/lib/db/subscribers";
 import { deleteProductImages, uploadProductImage } from "@/lib/storage";
 import { CATEGORY_KEYS, PROTECTION_KEYS } from "@/content/taxonomy";
@@ -290,4 +291,43 @@ export async function deleteSubscriberAction(formData: FormData): Promise<void> 
   }
 
   redirect("/admin/subscribers?removed=1");
+}
+
+// ---------------------------------------------------------------------------
+// Enquiries
+//
+// Read/mark/delete only. Enquiries are created by visitors through the
+// unauthenticated action in `app/(site)/actions.ts`.
+// ---------------------------------------------------------------------------
+
+export async function setEnquiryHandledAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  try {
+    await setEnquiryHandled(id, formData.get("handled") === "1");
+  } catch (error) {
+    console.error("[admin] enquiry update failed:", error);
+    redirect("/admin/enquiries?error=1");
+  }
+
+  redirect("/admin/enquiries");
+}
+
+export async function deleteEnquiryAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  try {
+    await deleteEnquiry(id);
+  } catch (error) {
+    console.error("[admin] enquiry delete failed:", error);
+    redirect("/admin/enquiries?error=1");
+  }
+
+  redirect("/admin/enquiries?removed=1");
 }
