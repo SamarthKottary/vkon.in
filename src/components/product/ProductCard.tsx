@@ -1,8 +1,5 @@
-"use client";
-
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
 import { ArrowRightIcon, PlayIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "./PanelPlaceholder";
 import { categoryLabel } from "@/content/taxonomy";
@@ -143,16 +140,18 @@ export function ProductCard({
  * the square plate a width equal to the card's height and crushed every line
  * into what was left.
  *
- * **Every spec row is rendered, and each wraps as a unit.** The spec list is
- * a wrapping flex row of `whitespace-nowrap` items, so a value never breaks
- * across lines mid-phrase — it moves to the next line whole. The block is
- * then capped to the image's height and clips, so it fills exactly the room
- * the card has at that breakpoint and never runs past the picture; an "etc"
- * marker appears over the last line when anything was cut. The full list
- * stays in the DOM, so the clip is visual only.
+ * **Four specs on a phone, five from `lg`**, the fifth hidden below that by
+ * CSS. Values wrap like ordinary text, so a long one takes two lines instead
+ * of overhanging the card, and a line carrying one spec is fine. Nothing is
+ * clipped and there is no height cap: the block grows to fit, so a spec is
+ * never half-shown or hidden. An "etc" marker closes the list wherever specs
+ * were left over.
  *
- * That capping is why this is a client component: how much fits is a layout
- * question, and the only honest answer comes from measuring after layout.
+ * This is deliberately dumb. It replaced a build that measured the rendered
+ * geometry and worked out how much fitted beside the image — which needed a
+ * client component, and still lost every value wider than its column, since a
+ * non-wrapping value has nowhere to go. Letting text wrap removed the problem
+ * rather than solving it, and this went back to being a server component.
  *
  * Fixed square rather than derived from the card height, so every card in a
  * row gets the same image size no matter how long its text runs.
@@ -178,138 +177,25 @@ function HorizontalCard({
       ? product.spec.map((row) => row.value)
       : product.hpRanges;
 
-  /* **Every spec is rendered; measurement decides how many are *shown*.**
-     The block is a fixed height matching the image, so it fills whatever room
-     the card has at that breakpoint rather than a fixed count. A server-side
-     character budget was tried first and had to be tuned to the narrowest
-     card, which left obvious empty space on every wider one.
+  /* A fixed count, and nothing is measured. Four specs on a phone, five from
+     `lg`, with the fifth simply hidden below that breakpoint — one render,
+     decided by CSS.
 
-     A spec is dropped only when it is not wholly visible: past the bottom of
-     the box, or run off the right edge of the card. The second is the one that
-     bites in practice — a value too long to wrap cannot move down a line, so
-     it overhangs the side and is cut there. A value is never left half-shown,
-     since that reads as a rendering fault rather than as truncation. One
-     further spec is given up only where the marker would not otherwise fit on
-     the line beside it.
+     This replaced a measure-then-hide build that clipped the list to the
+     image's height and worked out what fitted. It was the wrong shape for the
+     problem: the honest answer needed layout, layout needed a client
+     component, and every value wider than its column then had nowhere to go
+     and vanished. Specs now wrap across lines like ordinary text, so one can
+     take two lines and none is ever cut. There is no height cap, so the block
+     grows instead of hiding anything.
 
-     The marker lands on **that** line: it is positioned at the point the first
-     dropped spec would have started, so it continues the list from where it
-     stops rather than sitting apart from it.
+     The marker only appears where something is actually left over, which is
+     breakpoint-dependent: with exactly five specs the phone hides one and the
+     desktop hides none, so it shows below `lg` only. */
+  const shownSpecs = specs.slice(0, 5);
+  const etcVisibility =
+    specs.length > 5 ? "" : specs.length === 5 ? "lg:hidden" : null;
 
-     **Why this cannot oscillate**, which is the usual hazard with measure-then-
-     hide: dropped specs stay in the DOM at `opacity-0`, so they keep occupying
-     their space. Layout is therefore identical whatever the count, every pass
-     measures the same geometry, and the result is idempotent. Opacity also
-     keeps the full list in the accessibility tree, so a screen reader gets
-     every spec while the eye gets the ones that fit. */
-  const specRef = useRef<HTMLParagraphElement>(null);
-  const etcRef = useRef<HTMLSpanElement>(null);
-  const [shownSpecs, setShownSpecs] = useState(specs.length);
-  const [markerAt, setMarkerAt] = useState<{ left: number; top: number } | null>(
-    null,
-  );
-
-  useEffect(() => {
-    const el = specRef.current;
-    if (!el) return;
-
-    const measure = () => {
-      const items = Array.from(el.querySelectorAll<HTMLElement>("[data-spec]"));
-      if (items.length === 0) return;
-
-      /* Viewport rects, not `offsetLeft`/`offsetTop`. This block is
-         `display: flex`, so it establishes a formatting context and refuses to
-         overlap the float — the browser sets it *beside* the image instead.
-         Its offset parent is the wrapper, so every item's `offsetLeft` carried
-         that ~144px shift while `clientWidth` did not, and the comparison
-         between them reported the very first spec as overflowing. Rects are in
-         one coordinate space and cannot drift like that. */
-      const box = el.getBoundingClientRect();
-      if (box.width === 0) return;
-
-      const anchor = el.parentElement?.getBoundingClientRect();
-      const rects = items.map((item) => item.getBoundingClientRect());
-      const lineHeight = rects[0].height;
-
-      /* Everything wholly inside the box, which means clearing **both** edges:
-
-           - past the bottom — it landed on a fifth line and is not shown;
-           - past the right — a value too long to wrap cannot move to the next
-             line (it is `whitespace-nowrap`), so it runs off the side of the
-             card and is cut there instead. This is the case that shows up on
-             the fourth line of a narrow card.
-
-         The first item failing either ends the list; everything after it is
-         further down or further out still. */
-      let count = items.length;
-
-      for (let index = 0; index < rects.length; index += 1) {
-        const rect = rects[index];
-        const pastBottom = rect.bottom > box.bottom + 1;
-        const pastRight = rect.right > box.right + 1;
-
-        if (pastBottom || pastRight) {
-          count = index;
-          break;
-        }
-      }
-
-      /* Never hide everything. A value wider than the whole column fails the
-         right-edge test wherever it is put, so if the first one is that wide
-         the loop above stops at zero — and dropping it would take every spec
-         after it too. One clipped spec beats an empty line. */
-      count = Math.max(1, count);
-
-      if (count === items.length) {
-        setShownSpecs(count);
-        setMarkerAt(null);
-        return;
-      }
-
-      /* Give back specs one at a time until the marker fits on the line the
-         list stops at. Only bites when that line is nearly full — usually
-         nothing is given up. Always keeps one spec. */
-      const etcWidth = etcRef.current?.offsetWidth ?? 0;
-      while (count > 1) {
-        const last = rects[count - 1];
-        const onLastLine = last.bottom > box.bottom - lineHeight + 1;
-        if (!onLastLine) break;
-        if (last.right + etcWidth <= box.right + 1) break;
-        count -= 1;
-      }
-
-      /* Back into the wrapper's coordinates, which is what the absolutely
-         positioned marker is placed against. */
-      const last = rects[count - 1];
-      setShownSpecs(count);
-      setMarkerAt(
-        anchor && last
-          ? { left: last.right - anchor.left, top: last.top - anchor.top }
-          : { left: 0, top: 0 },
-      );
-    };
-
-    /* Fires once on observe, so no priming call — which would also be
-       setting state synchronously in an effect body. */
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-
-    /* And again once the webfont has swapped in. This box is a fixed height
-       and a full-width block, so its own dimensions never change once laid
-       out and the observer will not fire a second time — a first measurement
-       taken against fallback metrics would otherwise stick for good. Plex
-       Mono is wider than most fallbacks, so that reads as "nothing fits" and
-       collapses the list to a single spec. */
-    let cancelled = false;
-    document.fonts?.ready.then(() => {
-      if (!cancelled) measure();
-    });
-
-    return () => {
-      cancelled = true;
-      observer.disconnect();
-    };
-  }, [specs.length]);
 
   return (
     <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-9 shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
@@ -386,76 +272,50 @@ function HorizontalCard({
           and show the pair as two dots. The dot boxes supply the spacing
           instead. Each spec keeps its dots inside its own nowrap span, so the
           whole unit still wraps together and a dot is never orphaned. */}
-      {/* Height is **fixed at four lines**, not a maximum, and the same at
-          every width. Fixing it is what keeps the "etc" marker on the last
-          line in every card rather than wherever that card's content happened
-          to end, so the markers align across a row. It costs no space — the
-          float already reserves the image's full height beside it, so a short
-          spec list leaves that area blank either way.
+      {/* No height cap and no clipping — the block grows to whatever the
+          specs need, so a spec is never hidden. Values wrap like ordinary
+          text now, so a long one takes two lines rather than overhanging the
+          card, and a line holding a single spec is fine.
 
-          `leading-5` rather than `leading-relaxed` so the arithmetic is exact:
-          20px lines against a 5rem box is precisely four. At 1.625 the lines
-          were 19.5px, so the box ran 2px past the last line and the marker sat
-          just below the text it aligns with. */}
-      {specs.length > 0 && (
-        <div className="relative mt-1.5">
-          <p
-            ref={specRef}
-            className="flex h-[5rem] flex-wrap items-baseline gap-x-0 overflow-hidden pl-4 font-mono text-[0.75rem] leading-5 text-ink"
-          >
-            {specs.map((value, index) => (
+          `pl-4` pairs with the `-ml-4` on each leading dot: mid-line the dot
+          lands on the previous spec's trailing dot and the two superimpose,
+          reading as one; at a line start it falls clear into the padding. */}
+      {shownSpecs.length > 0 && (
+        <p className="mt-1.5 flex flex-wrap items-baseline gap-x-0 pl-4 font-mono text-[0.75rem] leading-5 text-ink">
+          {shownSpecs.map((value, index) => (
+            <span
+              key={`${value}-${index}`}
+              /* The fifth exists only from `lg`, where the card is wide
+                 enough to carry it. */
+              className={index === 4 ? "hidden lg:inline" : undefined}
+            >
               <span
-                key={`${value}-${index}`}
-                data-spec
-                /* `opacity-0`, not `hidden`: a dropped spec must keep its
-                   space or the measurement above would change every pass and
-                   never settle. See the note on the effect. */
-                className={`whitespace-nowrap ${
-                  index < shownSpecs ? "" : "opacity-0"
-                }`}
+                aria-hidden
+                className="-ml-4 inline-block w-4 text-center text-muted"
               >
-                <span
-                  aria-hidden
-                  className="-ml-4 inline-block w-4 text-center text-muted"
-                >
-                  ·
-                </span>
-                {value}
-                <span
-                  aria-hidden
-                  className="inline-block w-4 text-center text-muted"
-                >
-                  ·
-                </span>
+                ·
               </span>
-            ))}
-          </p>
+              {value}
+              <span
+                aria-hidden
+                className="inline-block w-4 text-center text-muted"
+              >
+                ·
+              </span>
+            </span>
+          ))}
 
-          {/* Always mounted, so the effect can read its width on the very pass
-              that decides whether to place it — `opacity-0` rather than
-              conditional rendering. Absolute, so carrying it permanently costs
-              no layout, and so it can be put exactly where the list stopped.
-              `aria-hidden` because it is a visual affordance only: the specs
-              it stands in for are still in the DOM above, so a screen reader
-              gets the whole list. */}
-          <span
-            ref={etcRef}
-            aria-hidden
-            style={markerAt ?? undefined}
-            className={`absolute whitespace-nowrap font-mono text-[0.75rem] leading-5 text-muted ${
-              markerAt ? "" : "opacity-0"
-            }`}
-          >
-            {/* Built exactly like a spec — same fixed-width dot boxes, same
-                `-ml-4` on the leading one. Placed at the point the next spec
-                would have started, that pull-back lands its dot on the last
-                shown spec's trailing dot and the two superimpose, so the
-                marker joins the list's rhythm instead of doubling a dot. */}
-            <span className="-ml-4 inline-block w-4 text-center">·</span>
-            etc
-            <span className="inline-block w-4 text-center">·</span>
-          </span>
-        </div>
+          {/* Built exactly like a spec so it sits in the same rhythm. */}
+          {etcVisibility !== null && (
+            <span aria-hidden className={etcVisibility || undefined}>
+              <span className="-ml-4 inline-block w-4 text-center text-muted">
+                ·
+              </span>
+              <span className="text-muted">etc</span>
+              <span className="inline-block w-4 text-center text-muted">·</span>
+            </span>
+          )}
+        </p>
       )}
 
       {/* `clear-left` is what turns this into an L: the name drops below the

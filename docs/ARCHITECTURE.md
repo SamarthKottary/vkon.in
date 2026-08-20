@@ -179,7 +179,6 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `product/ProductCatalogue` | `useSearchParams` filter state |
 | `product/ProductRow` | Measured paging arrows over a scroll track |
 | `product/RelatedProducts` | Measured paging arrows over a scroll track |
-| `product/ProductCard` | Detects whether the clipped spec list overflowed |
 | `product/ProductMedia` | Selected media, deferred video embed |
 | `product/RecordView` | Writes the viewed slug to localStorage |
 | `home/CopyEmail` | Clipboard, with a mailto fallback |
@@ -689,32 +688,36 @@ width. The build before this gave the image plate a width equal to the
 card's height (`self-stretch aspect-square`), which crushed the text into
 the remaining sliver on a phone.
 
-**The spec list is every row of the detail page's spec table, values only**,
-falling back to `hpRanges` for products with no spec rows. Two rules shape
-it, and both took several passes:
+**The spec list shows a fixed count — four specs, five from `lg`** — taken
+from the detail page's spec table, values only, falling back to `hpRanges`
+for products with no spec rows. The fifth is hidden below `lg` by CSS, and an
+"etc" marker closes the list where specs were left over. Values wrap like
+ordinary text, nothing is clipped, and the block has no height cap, so a spec
+is never half-shown or hidden.
 
-- *Each spec wraps whole.* The list is a flex row of `whitespace-nowrap`
-  items, so a value never splits mid-phrase across a line break. It was one
-  joined string first, which broke wherever the character landed.
-- *Dots bracket the list and open every line.* Each spec carries a leading
-  and a trailing dot in fixed-width boxes, with the leading one pulled back
-  by exactly that width (`-ml-4` against `w-4`). Mid-line it lands on the
-  previous spec's trailing dot and the pair superimposes, reading as one;
-  at a wrap it falls clear and opens the new line. `gap-x-0` is load-bearing
-  — any gap breaks the superimposition and shows two dots. This exists
-  because "a dot at the start of each rendered line" is not something a CSS
-  selector can express: line breaking happens at layout, so the same
-  separator has to render twice, closing one line and opening the next.
+*Dots bracket the list and open every line.* Each spec carries a leading and
+a trailing dot in fixed-width boxes, with the leading one pulled back by
+exactly that width (`-ml-4` against `w-4`). Mid-line it lands on the previous
+spec's trailing dot and the pair superimposes, reading as one; at a wrap it
+falls clear and opens the new line. `gap-x-0` is load-bearing — any gap
+breaks the superimposition and shows two dots. This exists because "a dot at
+the start of each rendered line" is not something a CSS selector can express:
+line breaking happens at layout, so the same separator has to render twice,
+closing one line and opening the next.
 
-**The list is capped to the image's height and clips**, so it fills whatever
-room the card has at that breakpoint rather than a fixed count, and never
-runs past the picture. `ProductCard` became a client component for this: it
-measures only *whether* the block overflowed, to show an "etc" marker over
-the last line. One boolean, and it never changes the content, so there is no
-loop between measuring and what is measured. A server-side character budget
-was tried first and had to be tuned to the narrowest card, which left
-visible empty space on every wider one. The full spec list stays in the DOM,
-so the clip is visual and assistive technology still gets everything.
+**The fixed count replaced two attempts at fitting the list to the space, and
+the reason both failed is worth keeping.** First a server-side character
+budget, which had to be tuned to the narrowest card and so left visible empty
+space on every wider one. Then measurement: `ProductCard` became a client
+component, clipped the list to the image's height and worked out what fitted.
+That one had a subtler fault — the block is `display: flex`, so it
+establishes a formatting context, refuses to overlap the float and is placed
+*beside* the image; its items' `offsetLeft` therefore carried that shift while
+`clientWidth` did not, and comparing them reported the first spec as
+overflowing every time. Even once corrected, any value wider than its column
+had nowhere to go, because `whitespace-nowrap` gives it no line to fall to.
+Letting text wrap dissolved the problem instead of solving it, and the card
+went back to being a server component.
 
 **`/about` was rebuilt on the client's own copy**, supplied 2026-08-20, and
 the placeholder text it replaced is gone. The page now follows `/contact`'s
