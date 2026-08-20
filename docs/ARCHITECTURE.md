@@ -691,6 +691,28 @@ product they already opened. The build before this gave the image plate a
 width equal to the card's height (`self-stretch aspect-square`), which
 crushed the text into the remaining sliver on a phone.
 
+**`/about` was rebuilt on the client's own copy**, supplied 2026-08-20, and
+the placeholder text it replaced is gone. The page now follows `/contact`'s
+shape — a photographic masthead over `aboutus-background.jpg` carrying the
+heading and one line, breadcrumb below the picture rather than on it, then
+ordinary surface sections using the same narrow-`label-tech`-rail idiom as
+the product detail page. `PageHero` is no longer used here. Sections run:
+About us → Vision & Goals → Instagram → Explore our products → sign-up.
+The copy is content, not prose to improve — the old text existed only
+because there was nothing real to put here.
+
+**The Instagram section is a profile card, not a live feed**, and that is a
+constraint rather than a preference. A real feed needs Meta's embed script or
+a third-party widget — both third-party requests setting cookies on arrival,
+which §9 forbids before a visitor asks — or the Graph API, which needs a
+Facebook app, a refreshing long-lived token and a dependency the runtime
+policy has no room for. The card costs nothing, never breaks, and links out.
+Revisit only if the client accepts the cookie trade, as they did for Maps.
+
+**Header nav reads "About Us" and "Contact Us"** (client request). Labels
+only — the routes stay `/about` and `/contact`, since those are indexed and
+shared. Footer wording was left alone.
+
 **Filter rail buttons picked up a mobile-only bug fix.** The `pl-3` on the
 option buttons was gated to `lg:` — on mobile, where filters wrap into a
 horizontal chip row, the option label sat flush against the 2-px accent
