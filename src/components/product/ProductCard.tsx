@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRightIcon, PlayIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "./PanelPlaceholder";
 import { categoryLabel } from "@/content/taxonomy";
@@ -140,10 +143,16 @@ export function ProductCard({
  * the square plate a width equal to the card's height and crushed every line
  * into what was left.
  *
- * **Every spec row is shown, and each one wraps as a unit.** The spec list is
+ * **Every spec row is rendered, and each wraps as a unit.** The spec list is
  * a wrapping flex row of `whitespace-nowrap` items, so a value never breaks
- * across lines mid-phrase — it moves to the next line whole. A product with
- * eight spec rows shows all eight, which is why nothing here is clamped.
+ * across lines mid-phrase — it moves to the next line whole. The block is
+ * then capped to the image's height and clips, so it fills exactly the room
+ * the card has at that breakpoint and never runs past the picture; an "etc"
+ * marker appears over the last line when anything was cut. The full list
+ * stays in the DOM, so the clip is visual only.
+ *
+ * That capping is why this is a client component: how much fits is a layout
+ * question, and the only honest answer comes from measuring after layout.
  *
  * Fixed square rather than derived from the card height, so every card in a
  * row gets the same image size no matter how long its text runs.
@@ -168,6 +177,31 @@ function HorizontalCard({
     product.spec.length > 0
       ? product.spec.map((row) => row.value)
       : product.hpRanges;
+
+  /* **Every spec is rendered; CSS decides how many are seen.** The block is
+     capped to the image's height and clips, so it fills whatever room the
+     card actually has at that breakpoint — four lines on a wide card, three
+     on a phone — instead of stopping at a fixed count. A character budget
+     was tried first and had to be tuned to the narrowest card, which left
+     obvious empty space on every wider one.
+
+     All this measures is *whether* the list overflows, so the "etc" marker
+     can be shown. That is one boolean and it never changes the content, so
+     there is no feedback loop between measuring and what is measured. */
+  const specRef = useRef<HTMLParagraphElement>(null);
+  const [clipped, setClipped] = useState(false);
+
+  useEffect(() => {
+    const el = specRef.current;
+    if (!el) return;
+    /* Fires once on observe, so no priming call — which would also be
+       setting state synchronously in an effect body. */
+    const observer = new ResizeObserver(() =>
+      setClipped(el.scrollHeight > el.clientHeight + 1),
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [specs.length]);
 
   return (
     <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-9 shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
@@ -240,26 +274,49 @@ function HorizontalCard({
           and show the pair as two dots. The dot boxes supply the spacing
           instead. Each spec keeps its dots inside its own nowrap span, so the
           whole unit still wraps together and a dot is never orphaned. */}
+      {/* `max-h` + `overflow-hidden` is what stops the list running below the
+          image — three lines beside the 96px image on a phone, four beside
+          the 112px one from `sm`. Line height is uniform (12px at 1.625), so
+          the cap lands on a line boundary rather than slicing one. */}
       {specs.length > 0 && (
-        <p className="mt-1.5 flex flex-wrap items-baseline gap-x-0 pl-4 font-mono text-[0.75rem] leading-relaxed text-ink">
-          {specs.map((value, index) => (
-            <span key={`${value}-${index}`} className="whitespace-nowrap">
-              <span
-                aria-hidden
-                className="-ml-4 inline-block w-4 text-center text-muted"
-              >
-                ·
+        <div className="relative mt-1.5">
+          <p
+            ref={specRef}
+            className="flex max-h-[3.75rem] flex-wrap items-baseline gap-x-0 overflow-hidden pl-4 font-mono text-[0.75rem] leading-relaxed text-ink sm:max-h-[5rem]"
+          >
+            {specs.map((value, index) => (
+              <span key={`${value}-${index}`} className="whitespace-nowrap">
+                <span
+                  aria-hidden
+                  className="-ml-4 inline-block w-4 text-center text-muted"
+                >
+                  ·
+                </span>
+                {value}
+                <span
+                  aria-hidden
+                  className="inline-block w-4 text-center text-muted"
+                >
+                  ·
+                </span>
               </span>
-              {value}
-              <span
-                aria-hidden
-                className="inline-block w-4 text-center text-muted"
-              >
-                ·
-              </span>
+            ))}
+          </p>
+
+          {/* Sits over the end of the last visible line, carrying the card's
+              own background so it masks whatever it covers. `aria-hidden`
+              because it is a visual affordance only — the specs it stands in
+              for are still in the DOM above, so a screen reader gets the
+              whole list rather than a truncated one. */}
+          {clipped && (
+            <span
+              aria-hidden
+              className="absolute bottom-0 right-0 bg-surface-raised pl-2 font-mono text-[0.75rem] leading-relaxed text-muted"
+            >
+              etc ·
             </span>
-          ))}
-        </p>
+          )}
+        </div>
       )}
 
       {/* `clear-left` is what turns this into an L: the name drops below the

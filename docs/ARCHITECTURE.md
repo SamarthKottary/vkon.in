@@ -178,6 +178,8 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `home/RecentlyViewed` | Reads localStorage via `useSyncExternalStore` |
 | `product/ProductCatalogue` | `useSearchParams` filter state |
 | `product/ProductRow` | Measured paging arrows over a scroll track |
+| `product/RelatedProducts` | Measured paging arrows over a scroll track |
+| `product/ProductCard` | Detects whether the clipped spec list overflowed |
 | `product/ProductMedia` | Selected media, deferred video embed |
 | `product/RecordView` | Writes the viewed slug to localStorage |
 | `home/CopyEmail` | Clipboard, with a mailto fallback |
@@ -681,15 +683,38 @@ you check what was actually uploaded and a crop there would hide a badly
 framed shot until it was live.
 
 **Recently viewed is an L-shaped card.** A floated fixed square image with
-the sub-category and a specification line beside it, and the product name
-clearing below via `clear-left` so it gets the card's full width. The
-specification line is the top three rows of the detail page's spec table,
-values only, joined with `·` — "Direct on line (DOL) · 3 – 10 HP · 3
-phase" — falling back to `hpRanges` for products with no spec rows. No
-tagline: the spec line describes more usefully for someone re-finding a
-product they already opened. The build before this gave the image plate a
-width equal to the card's height (`self-stretch aspect-square`), which
-crushed the text into the remaining sliver on a phone.
+the sub-category and the specification list beside it, and the product name
+and description clearing below via `clear-left` so they get the card's full
+width. The build before this gave the image plate a width equal to the
+card's height (`self-stretch aspect-square`), which crushed the text into
+the remaining sliver on a phone.
+
+**The spec list is every row of the detail page's spec table, values only**,
+falling back to `hpRanges` for products with no spec rows. Two rules shape
+it, and both took several passes:
+
+- *Each spec wraps whole.* The list is a flex row of `whitespace-nowrap`
+  items, so a value never splits mid-phrase across a line break. It was one
+  joined string first, which broke wherever the character landed.
+- *Dots bracket the list and open every line.* Each spec carries a leading
+  and a trailing dot in fixed-width boxes, with the leading one pulled back
+  by exactly that width (`-ml-4` against `w-4`). Mid-line it lands on the
+  previous spec's trailing dot and the pair superimposes, reading as one;
+  at a wrap it falls clear and opens the new line. `gap-x-0` is load-bearing
+  — any gap breaks the superimposition and shows two dots. This exists
+  because "a dot at the start of each rendered line" is not something a CSS
+  selector can express: line breaking happens at layout, so the same
+  separator has to render twice, closing one line and opening the next.
+
+**The list is capped to the image's height and clips**, so it fills whatever
+room the card has at that breakpoint rather than a fixed count, and never
+runs past the picture. `ProductCard` became a client component for this: it
+measures only *whether* the block overflowed, to show an "etc" marker over
+the last line. One boolean, and it never changes the content, so there is no
+loop between measuring and what is measured. A server-side character budget
+was tried first and had to be tuned to the narrowest card, which left
+visible empty space on every wider one. The full spec list stays in the DOM,
+so the clip is visual and assistive technology still gets everything.
 
 **`/about` was rebuilt on the client's own copy**, supplied 2026-08-20, and
 the placeholder text it replaced is gone. The page now follows `/contact`'s
