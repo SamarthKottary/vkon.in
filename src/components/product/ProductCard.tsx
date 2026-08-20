@@ -274,15 +274,23 @@ function HorizontalCard({
           and show the pair as two dots. The dot boxes supply the spacing
           instead. Each spec keeps its dots inside its own nowrap span, so the
           whole unit still wraps together and a dot is never orphaned. */}
-      {/* `max-h` + `overflow-hidden` is what stops the list running below the
-          image — three lines beside the 96px image on a phone, four beside
-          the 112px one from `sm`. Line height is uniform (12px at 1.625), so
-          the cap lands on a line boundary rather than slicing one. */}
+      {/* Height is **fixed**, not a maximum: exactly three lines beside the
+          96px image on a phone, four beside the 112px one from `sm`. Fixing
+          it is what keeps the "etc" marker on the last line in every card
+          rather than wherever that card's content happened to end, so the
+          markers align across a row. It costs no space — the float already
+          reserves the image's full height beside it, so a short spec list
+          leaves that area blank either way.
+
+          `leading-5` rather than `leading-relaxed` so the arithmetic is
+          exact: 20px lines against a 3.75rem / 5rem box is precisely 3 and 4
+          lines. At 1.625 the lines were 19.5px, so the box ran 2px past the
+          last line and the marker sat just below the text it aligns with. */}
       {specs.length > 0 && (
         <div className="relative mt-1.5">
           <p
             ref={specRef}
-            className="flex max-h-[3.75rem] flex-wrap items-baseline gap-x-0 overflow-hidden pl-4 font-mono text-[0.75rem] leading-relaxed text-ink sm:max-h-[5rem]"
+            className="flex h-[3.75rem] flex-wrap items-baseline gap-x-0 overflow-hidden pl-4 font-mono text-[0.75rem] leading-5 text-ink sm:h-[5rem]"
           >
             {specs.map((value, index) => (
               <span key={`${value}-${index}`} className="whitespace-nowrap">
@@ -311,7 +319,7 @@ function HorizontalCard({
           {clipped && (
             <span
               aria-hidden
-              className="absolute bottom-0 right-0 bg-surface-raised pl-2 font-mono text-[0.75rem] leading-relaxed text-muted"
+              className="absolute bottom-0 right-0 bg-surface-raised pl-2 font-mono text-[0.75rem] leading-5 text-muted"
             >
               etc ·
             </span>
