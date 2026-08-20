@@ -30,7 +30,7 @@ INSERT INTO products (
   ARRAY['3 – 7.5 HP','10 HP'],
   ARRAY['Three phase amps and voltage on the display','Instantaneous fault display naming the last trip','Auto start with adjustable power-on timer','Dry run protection with automatic restart'],
   ARRAY['dry-run','single-phase','hv-lv','phase-reversal','overload-relay','voltage-current-sensing'],
-  '[{"label":"Type","value":"Direct on line (DOL)"},{"label":"Motor range","value":"3 – 10 HP"},{"label":"Supply","value":"3 phase"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"label":"Type","value":"Direct on line (DOL)"},{"label":"Motor range","value":"3 – 10 HP"},{"label":"Supply","value":"3 phase"},{"label":"Starting method","value":"Full voltage"},{"label":"Display","value":"Three phase amps and volts"},{"label":"Sensing","value":"CT based, all three phases"},{"label":"Enclosure","value":"Powder coated sheet steel"},{"label":"Mounting","value":"Wall mounting"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-starter.jpg","alt":"DEMO DOL starter panel, front view"},{"url":"/products/demo-terminals.jpg","alt":"Terminal block detail"}]'::jsonb,
   NULL, NULL, true, true, 1
 ),
@@ -41,7 +41,7 @@ INSERT INTO products (
   ARRAY['3 HP','5 HP'],
   ARRAY['Automatic changeover between solar and mains','Dry run protection','Overload and voltage monitoring'],
   ARRAY['solar-powered','dry-run','overload-relay','hv-lv'],
-  '[{"label":"Type","value":"Solar / mains changeover"},{"label":"Motor range","value":"3 – 5 HP"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"label":"Type","value":"Solar / mains changeover"},{"label":"Motor range","value":"3 – 5 HP"},{"label":"Supply","value":"Solar array or mains"},{"label":"Changeover","value":"Automatic"},{"label":"Display","value":"Source and load status"},{"label":"Sensing","value":"CT based"},{"label":"Enclosure","value":"Powder coated sheet steel"},{"label":"Mounting","value":"Wall mounting"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-solar.jpg","alt":"DEMO solar pump controller, front view"}]'::jsonb,
   NULL, NULL, true, false, 1
 ),
@@ -52,7 +52,7 @@ INSERT INTO products (
   ARRAY['Up to 10 HP'],
   ARRAY['Adjustable restart delay','Separate on and off cycle timers','Works with an existing starter'],
   ARRAY['auto-start-timer','cyclic-timer','hv-lv'],
-  '[{"label":"Type","value":"Auto start / cyclic timer"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"label":"Type","value":"Auto start / cyclic timer"},{"label":"Motor range","value":"Up to 10 HP"},{"label":"Supply","value":"3 phase"},{"label":"Restart delay","value":"Adjustable"},{"label":"Cycle timers","value":"Separate on and off"},{"label":"Fitting","value":"Works with an existing starter"},{"label":"Enclosure","value":"ABS moulded"},{"label":"Mounting","value":"Wall mounting"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-auto-start.jpg","alt":"DEMO auto start timer, front view"}]'::jsonb,
   NULL, NULL, true, false, 1
 ),
@@ -63,7 +63,7 @@ INSERT INTO products (
   ARRAY['3 core'],
   ARRAY['Continuous underwater duty','Sized to the panel and motor'],
   ARRAY[]::text[],
-  '[{"label":"Type","value":"Flat submersible"},{"label":"Cores","value":"3"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"label":"Type","value":"Flat submersible"},{"label":"Cores","value":"3"},{"label":"Conductor","value":"Annealed copper"},{"label":"Insulation","value":"PVC, submersible grade"},{"label":"Duty","value":"Continuous underwater"},{"label":"Sizing","value":"Matched to panel and motor"},{"label":"Supplied as","value":"Coil"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-cable.jpg","alt":"DEMO submersible cable coil"}]'::jsonb,
   NULL, NULL, true, false, 1
 ),
@@ -74,7 +74,7 @@ INSERT INTO products (
   ARRAY['Any HP'],
   ARRAY['Call or SMS control','Status reply by message','Fits an existing panel'],
   ARRAY['mobile-control'],
-  '[{"label":"Type","value":"GSM remote control"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"label":"Type","value":"GSM remote control"},{"label":"Control","value":"Call or SMS"},{"label":"Status","value":"Reply by SMS"},{"label":"Network","value":"GSM, SIM required"},{"label":"Motor range","value":"Any HP"},{"label":"Fitting","value":"Fits an existing panel"},{"label":"Enclosure","value":"ABS moulded"},{"label":"Mounting","value":"Wall mounting"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-accessory.jpg","alt":"DEMO GSM mobile control unit"}]'::jsonb,
   NULL, NULL, true, false, 1
 ),
@@ -87,7 +87,7 @@ INSERT INTO products (
   ARRAY['15 HP','25 HP'],
   ARRAY['Three phase amps and voltage on the display','Overload and single phasing protection','Sheet steel enclosure'],
   ARRAY['single-phase','hv-lv','phase-reversal','overload-relay','voltage-current-sensing'],
-  '[{"label":"Type","value":"Direct on line (DOL)"},{"label":"Motor range","value":"15 – 25 HP"},{"label":"Supply","value":"3 phase"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"label":"Type","value":"Direct on line (DOL)"},{"label":"Motor range","value":"15 – 25 HP"},{"label":"Supply","value":"3 phase"},{"label":"Duty","value":"Continuous industrial"},{"label":"Display","value":"Three phase amps and volts"},{"label":"Sensing","value":"CT based, all three phases"},{"label":"Enclosure","value":"Sheet steel"},{"label":"Mounting","value":"Wall or floor"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-industrial.jpg","alt":"DEMO industrial DOL panel, front view"}]'::jsonb,
   NULL, NULL, true, false, 1
 ),
@@ -103,7 +103,7 @@ INSERT INTO products (
   ARRAY[]::text[],
   ARRAY['Door sensor, no switch to operate','Adjustable off delay','Warm white strip'],
   ARRAY[]::text[],
-  '[{"label":"Type","value":"Door-sensed lighting module"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"label":"Type","value":"Door-sensed lighting module"},{"label":"Sensor","value":"Magnetic door contact"},{"label":"Light source","value":"Warm white LED strip"},{"label":"Off delay","value":"Adjustable"},{"label":"Mounting","value":"Adhesive backed"},{"label":"Finish","value":"Aluminium channel"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-wardrobe-light.jpg","alt":"DEMO wardrobe auto light module and strip"}]'::jsonb,
   NULL, NULL, true, true, 1
 ),
@@ -114,7 +114,7 @@ INSERT INTO products (
   ARRAY[]::text[],
   ARRAY['Motion sensed, both directions','Adjustable hold time','Daylight cut-off so it stays off by day'],
   ARRAY[]::text[],
-  '[{"label":"Type","value":"Motion-sensed lighting module"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"label":"Type","value":"Motion-sensed lighting module"},{"label":"Sensor","value":"PIR motion, both directions"},{"label":"Light source","value":"Warm white LED strip"},{"label":"Hold time","value":"Adjustable"},{"label":"Daylight cut-off","value":"Built in"},{"label":"Mounting","value":"Surface or channel"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-staircase-light.jpg","alt":"DEMO staircase auto light module and strip"}]'::jsonb,
   NULL, NULL, true, false, 2
 ),
@@ -125,7 +125,7 @@ INSERT INTO products (
   ARRAY[]::text[],
   ARRAY['Wave-sensed, no touch required','Adjustable off delay','Daylight cut-off so it stays off by day'],
   ARRAY[]::text[],
-  '[{"label":"Type","value":"Wave-sensed lighting module"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
+  '[{"label":"Type","value":"Wave-sensed lighting module"},{"label":"Sensor","value":"IR wave, no touch"},{"label":"Light source","value":"Warm white LED strip"},{"label":"Off delay","value":"Adjustable"},{"label":"Daylight cut-off","value":"Built in"},{"label":"Mounting","value":"Under-cabinet channel"},{"label":"Supply","value":"PLACEHOLDER"},{"label":"Warranty","value":"PLACEHOLDER"}]'::jsonb,
   '[{"url":"/products/demo-wardrobe-light.jpg","alt":"DEMO kitchen under-cabinet light module and strip"}]'::jsonb,
   NULL, NULL, true, false, 3
 )

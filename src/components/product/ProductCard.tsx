@@ -127,19 +127,23 @@ export function ProductCard({
  * L. Reading order is deliberate (client, 2026-08-20):
  *
  *   ┌────────┐  Sub-category
- *   │ image  │  Type · Rating · Supply
- *   └────────┘
+ *   │ image  │  · Type · Rating ·
+ *   └────────┘  · Supply ·
+ *
  *   Name
+ *   Description
  *
- * The identifying pair sits beside the image; `clear-left` on the name drops
- * it below the float so it gets the card's full width however long it runs.
- * That is what keeps a long product name legible in a ~320px card on a phone
- * — the two-flex-column build this replaced gave the square plate a width
- * equal to the card's height and crushed every line into what was left.
+ * The sub-category and specs sit beside the image; `clear-left` on the name
+ * drops it and the description below the float so both get the card's full
+ * width however long they run. That is what keeps a long product name legible
+ * in a ~320px card on a phone — the two-flex-column build this replaced gave
+ * the square plate a width equal to the card's height and crushed every line
+ * into what was left.
  *
- * **No tagline here** (client, 2026-08-20). The spec line does the describing
- * instead, which is denser and more useful for someone re-finding a product
- * they already looked at. The vertical card still carries the tagline.
+ * **Every spec row is shown, and each one wraps as a unit.** The spec list is
+ * a wrapping flex row of `whitespace-nowrap` items, so a value never breaks
+ * across lines mid-phrase — it moves to the next line whole. A product with
+ * eight spec rows shows all eight, which is why nothing here is clamped.
  *
  * Fixed square rather than derived from the card height, so every card in a
  * row gets the same image size no matter how long its text runs.
@@ -155,21 +159,15 @@ function HorizontalCard({
 }) {
   const image = product.images[0];
 
-  /* The top of the detail page's spec table, run together on one line —
-     "Direct on line (DOL) · 3 – 10 HP · 3 phase". Values only: the labels
+  /* Every row of the detail page's spec table, values only — the labels
      ("Type", "Motor range", "Supply") are what a table column is for and
-     would double the length here for no gain.
-
-     Capped at three because that is what fits beside the image, and because
-     the fourth row is usually Warranty, which is not identifying. Falls back
-     to ratings for any product with no spec rows at all. */
-  const specLine =
+     would double the length here for no gain. Uncapped: a product with eight
+     spec rows shows all eight. Falls back to ratings for any product with no
+     spec rows at all. */
+  const specs =
     product.spec.length > 0
-      ? product.spec
-          .slice(0, 3)
-          .map((row) => row.value)
-          .join("  ·  ")
-      : product.hpRanges.join("  ·  ");
+      ? product.spec.map((row) => row.value)
+      : product.hpRanges;
 
   return (
     <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-9 shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
@@ -213,20 +211,71 @@ function HorizontalCard({
       {/* Beside the image: sub-category, then the specification line. */}
       <p className="label-tech text-muted">{categoryLabel(product.category)}</p>
 
-      {specLine && (
-        <p className="mt-1.5 line-clamp-3 font-mono text-[0.75rem] leading-relaxed text-ink">
-          {specLine}
+      {/* Wrapping flex rather than one joined string, so each spec is an
+          atomic unit: `whitespace-nowrap` stops a value breaking across lines
+          mid-phrase, and flex wrapping moves the whole value to the next line
+          the moment it no longer fits.
+
+          Target, with a dot after every spec *and* opening every line:
+
+              · spec1 · spec2 ·
+              · spec3 ·
+
+          Note what that asks for: mid-line, one dot sits between two specs,
+          but at a wrap the dot appears twice — closing the line above and
+          opening the line below. CSS has no "first on this line" selector, so
+          it cannot be written as a rule.
+
+          The way it is built: **every spec carries both a leading and a
+          trailing dot**, each in a fixed-width centred box, and the leading
+          dot is pulled back by exactly that width (`-ml-4` against the box's
+          `w-4`). Mid-line it therefore lands precisely on the previous spec's
+          trailing dot — two identical glyphs in identical boxes, superimposed,
+          reading as the single dot the design wants. When a spec wraps, the
+          pull-back has nothing to sit on and the dot falls at the line's
+          start, which is where the container's matching `pl-4` reserves room
+          for it.
+
+          `gap-x-0` is load-bearing: any gap would break the superimposition
+          and show the pair as two dots. The dot boxes supply the spacing
+          instead. Each spec keeps its dots inside its own nowrap span, so the
+          whole unit still wraps together and a dot is never orphaned. */}
+      {specs.length > 0 && (
+        <p className="mt-1.5 flex flex-wrap items-baseline gap-x-0 pl-4 font-mono text-[0.75rem] leading-relaxed text-ink">
+          {specs.map((value, index) => (
+            <span key={`${value}-${index}`} className="whitespace-nowrap">
+              <span
+                aria-hidden
+                className="-ml-4 inline-block w-4 text-center text-muted"
+              >
+                ·
+              </span>
+              {value}
+              <span
+                aria-hidden
+                className="inline-block w-4 text-center text-muted"
+              >
+                ·
+              </span>
+            </span>
+          ))}
         </p>
       )}
 
       {/* `clear-left` is what turns this into an L: the name drops below the
-          floated image instead of continuing beside it, so it gets the card's
-          full width however long it runs. */}
+          floated image instead of continuing beside it, so it and the
+          description get the card's full width however long they run. */}
       <Heading className="clear-left pt-3 text-[0.9375rem] leading-snug">
         <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
           {product.name}
         </Link>
       </Heading>
+
+      {product.tagline && (
+        <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-muted">
+          {product.tagline}
+        </p>
+      )}
 
       {/* `pb-9` on the card reserves the strip this sits in, so a tagline
           running to three lines cannot collide with it. */}

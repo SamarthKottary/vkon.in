@@ -90,9 +90,12 @@ export default function AboutPage() {
             <h1 className="max-w-3xl text-[2.25rem] leading-[1.08] text-band-ink sm:text-5xl lg:text-[3.5rem]">
               About Us
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-relaxed text-band-body sm:mt-4 sm:text-lg">
-              We make what matters work — automation and IoT for homes, farms
-              and industry.
+            <p className="mt-3 max-w-2xl text-base leading-relaxed text-band-ink sm:mt-4 sm:text-lg">
+              {site.legalName}: We make what future automation is all about.
+            </p>
+            <p className="mt-1.5 max-w-2xl text-base leading-relaxed text-band-body sm:text-lg">
+              Seamlessly connecting Agritech, Industry, and Smart Homes with
+              intelligent IoT solutions.
             </p>
           </div>
         </Container>
@@ -119,11 +122,11 @@ export default function AboutPage() {
               {/* The opening paragraph is the company's positioning statement,
                   so it is set larger than the body that follows it. */}
               <p className="text-lg leading-relaxed text-ink sm:text-xl">
-                At {site.name}, we&rsquo;re dedicated to improving people&rsquo;s
-                lives and the environment with automation and IoT technologies
-                that are more reliable, efficient, safe, and sustainable.
-                Because that&rsquo;s what really matters. And we&rsquo;re here
-                to make sure it works.
+                At {site.legalName}, we&rsquo;re dedicated to improving
+                people&rsquo;s lives and the environment with automation and
+                IoT technologies that are more reliable, efficient, safe, and
+                sustainable. Because that&rsquo;s what really matters. And
+                we&rsquo;re here to make sure it works.
               </p>
 
               <div className="mt-8 space-y-6 text-[1.0625rem] leading-relaxed text-body">
@@ -152,7 +155,7 @@ export default function AboutPage() {
               </ul>
 
               <p className="mt-8 text-[1.0625rem] leading-relaxed text-body">
-                Our vision at {site.name} is to guide society through this
+                Our vision at {site.legalName} is to guide society through this
                 technological shift. We build the bridges between complex
                 hardware and intuitive user experiences so that adapting to
                 automation doesn&rsquo;t feel complicated&mdash;it feels like
