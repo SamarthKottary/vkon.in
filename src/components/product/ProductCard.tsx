@@ -127,17 +127,19 @@ export function ProductCard({
  * L. Reading order is deliberate (client, 2026-08-20):
  *
  *   ┌────────┐  Sub-category
- *   │ image  │  Specification
+ *   │ image  │  Type · Rating · Supply
  *   └────────┘
  *   Name
- *   Description
  *
- * The short identifying pair sits beside the image; `clear-left` on the name
- * drops it and the description below the float so both get the card's full
- * width however long they run. That is what keeps a long product name legible
- * in a ~320px card on a phone — the two-flex-column build this replaced gave
- * the square plate a width equal to the card's height and crushed every line
- * into what was left.
+ * The identifying pair sits beside the image; `clear-left` on the name drops
+ * it below the float so it gets the card's full width however long it runs.
+ * That is what keeps a long product name legible in a ~320px card on a phone
+ * — the two-flex-column build this replaced gave the square plate a width
+ * equal to the card's height and crushed every line into what was left.
+ *
+ * **No tagline here** (client, 2026-08-20). The spec line does the describing
+ * instead, which is denser and more useful for someone re-finding a product
+ * they already looked at. The vertical card still carries the tagline.
  *
  * Fixed square rather than derived from the card height, so every card in a
  * row gets the same image size no matter how long its text runs.
@@ -153,15 +155,21 @@ function HorizontalCard({
 }) {
   const image = product.images[0];
 
-  /* Ratings are the specification for a motor product, but the lighting and
-     automation ranges carry none — `hpRanges` is empty on those by design, so
-     that they never appear in the catalogue's rating filter. Falling back to
-     the first spec row keeps a specification line on every card instead of
-     leaving a hole beside the image on exactly those products. */
+  /* The top of the detail page's spec table, run together on one line —
+     "Direct on line (DOL) · 3 – 10 HP · 3 phase". Values only: the labels
+     ("Type", "Motor range", "Supply") are what a table column is for and
+     would double the length here for no gain.
+
+     Capped at three because that is what fits beside the image, and because
+     the fourth row is usually Warranty, which is not identifying. Falls back
+     to ratings for any product with no spec rows at all. */
   const specLine =
-    product.hpRanges.length > 0
-      ? product.hpRanges.join("  ·  ")
-      : product.spec[0]?.value;
+    product.spec.length > 0
+      ? product.spec
+          .slice(0, 3)
+          .map((row) => row.value)
+          .join("  ·  ")
+      : product.hpRanges.join("  ·  ");
 
   return (
     <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-9 shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
@@ -206,25 +214,19 @@ function HorizontalCard({
       <p className="label-tech text-muted">{categoryLabel(product.category)}</p>
 
       {specLine && (
-        <p className="mt-1.5 line-clamp-2 font-mono text-[0.75rem] leading-relaxed text-ink">
+        <p className="mt-1.5 line-clamp-3 font-mono text-[0.75rem] leading-relaxed text-ink">
           {specLine}
         </p>
       )}
 
-      {/* `clear-left` is what turns this into an L: the name and description
-          drop below the floated image instead of continuing beside it, so
-          they get the card's full width however long they run. */}
+      {/* `clear-left` is what turns this into an L: the name drops below the
+          floated image instead of continuing beside it, so it gets the card's
+          full width however long it runs. */}
       <Heading className="clear-left pt-3 text-[0.9375rem] leading-snug">
         <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
           {product.name}
         </Link>
       </Heading>
-
-      {product.tagline && (
-        <p className="mt-1.5 line-clamp-3 text-[0.8125rem] leading-relaxed text-muted">
-          {product.tagline}
-        </p>
-      )}
 
       {/* `pb-9` on the card reserves the strip this sits in, so a tagline
           running to three lines cannot collide with it. */}

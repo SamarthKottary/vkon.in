@@ -623,7 +623,7 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
-### 2026-08-19 (latest, 2-row catalogue + subscribe bleed) — Catalogue cards vertical with 2-row mobile idiom, filter padding fixed, subscribe panel bleeds to viewport edges
+### 2026-08-20 — Catalogue is two independently scrolling rows, 1:1 imagery, recently-viewed reworked, subscribe panel bleeds to viewport edges
 
 **The catalogue rows use vertical `ProductCard`s**, sized to match the
 `RelatedProducts` carousel on product detail pages so a visitor going
@@ -636,24 +636,60 @@ target. The `HorizontalCard` variant of `ProductCard` is not deleted —
 nothing else uses it today, but the compact strip is a useful shape and the
 file already documents both orientations.
 
-**Below `lg` the track is a two-row grid, filling column-first.** `grid
-grid-flow-col` with two rows on mobile and sm; `lg:grid-rows-1` at desktop.
-The second card sits below the first, the third to the right of the first,
-the fourth below that, and so on — a narrow viewport shows twice as many
-cards without scrolling as far, and desktop keeps the single-row showcase.
-`auto-cols-*` sets column width per breakpoint since grid, not flex, now
-drives the layout.
+**Every category renders as two independently scrolling rows, at every
+breakpoint**, filling column-first: card 2 under card 1, card 3 beside card
+1, card 4 under card 3. Three cards show per row at `lg`, two at `sm`, one on
+a phone. `ProductRow` is now a heading plus two `Track`s, where `Track` is a
+self-contained scroller owning its own ref, scrollability state and arrow
+pair — which is what makes the two independent with no coordination between
+them.
 
-**The second row is conditional on the category holding a second product**
-(`products.length > 1 ? "grid-rows-2" : "grid-rows-1"`), and that condition
-is load-bearing. Grid materialises every *explicit* track whether or not an
-item lands in it, so a hard-coded `grid-rows-2` gave each single-product
-category an empty second row and — the visible part — the `gap-6` between
-the two tracks, which read as dead space between one category and the next
-heading. Six of the seven demo categories hold exactly one product, so this
-was visible the whole way down the catalogue on a phone. Verified against
-rendered HTML rather than by eye: one `grid-rows-2` for the three-product
-category, `grid-rows-1` for the other six.
+**The arrows live on each row, not on the category heading.** A single pair
+driving both rows would contradict the independence the split exists to
+provide. Each pair hides when its own row already fits and disables at its
+own ends.
+
+Two earlier builds of this are worth not repeating. The first used one
+`grid-flow-col grid-rows-2` track, which scrolled both rows together. The
+second split the rows below `lg` but merged them back into a single row at
+`lg` via `display: contents`, which worked but forced a sequential
+first-half/second-half split (column-first would have needed `order`, and
+that desyncs tab order from visual order). Two rows at all breakpoints made
+both problems disappear — no `display: contents`, no duplicated markup, and
+column-first ordering comes free.
+
+**The second row is only rendered when it has something in it**, and that
+condition is load-bearing. The grid build materialised every explicit track
+whether or not an item landed in it, so single-product categories got an
+empty second row plus its gap — dead space that read as a gap between one
+category and the next heading. Six of the seven demo categories hold exactly
+one product, so it was visible the whole way down the page. The flex build
+keeps the guard for the same reason: an empty `Track` still renders its
+margin.
+
+**Every plate that shows product photography is 1:1, and the photography is
+shot 1:1.** That pairing is the rule: catalogue card, product detail main
+image, detail thumbnails and the recently-viewed strip all use
+`aspect-square` with `object-cover`, so source and plate share a ratio and
+nothing is ever cropped. Give any one of those plates a different aspect and
+it silently starts cutting panels — invisible while the catalogue runs on
+drawn placeholder art, obvious on real photography. **Upload spec: square,
+1600×1600 preferred, 1200×1200 minimum.** Reaching this took several passes
+(`object-contain` with padding → `cover` at 4:3 → `cover` at 1:1); the admin
+thumbnails deliberately stayed `object-contain`, because the admin is where
+you check what was actually uploaded and a crop there would hide a badly
+framed shot until it was live.
+
+**Recently viewed is an L-shaped card.** A floated fixed square image with
+the sub-category and a specification line beside it, and the product name
+clearing below via `clear-left` so it gets the card's full width. The
+specification line is the top three rows of the detail page's spec table,
+values only, joined with `·` — "Direct on line (DOL) · 3 – 10 HP · 3
+phase" — falling back to `hpRanges` for products with no spec rows. No
+tagline: the spec line describes more usefully for someone re-finding a
+product they already opened. The build before this gave the image plate a
+width equal to the card's height (`self-stretch aspect-square`), which
+crushed the text into the remaining sliver on a phone.
 
 **Filter rail buttons picked up a mobile-only bug fix.** The `pl-3` on the
 option buttons was gated to `lg:` — on mobile, where filters wrap into a
