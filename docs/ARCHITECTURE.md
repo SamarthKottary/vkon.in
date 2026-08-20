@@ -179,6 +179,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `product/ProductCatalogue` | `useSearchParams` filter state |
 | `product/ProductRow` | Measured paging arrows over a scroll track |
 | `product/RelatedProducts` | Measured paging arrows over a scroll track |
+| `product/ProductCard` | Places the spec truncation mark from measured layout |
 | `product/ProductMedia` | Selected media, deferred video embed |
 | `product/RecordView` | Writes the viewed slug to localStorage |
 | `home/CopyEmail` | Clipboard, with a mailto fallback |
@@ -693,9 +694,32 @@ page's spec table, values only, falling back to `hpRanges` for products with
 no spec rows. Fixed height rather than a cap, so what follows lines up across
 a row; `leading-5` makes 6.25rem exactly five 20px lines, so the clip lands on
 a line boundary. Values wrap like ordinary text, so a long one takes two lines
-instead of overhanging the card. An "etc" marker closes the list where there
-were more specs than lines to hold them, and the block reserves that marker's
-column with `pr-14` so a spec is never left sitting underneath it.
+instead of overhanging the card.
+
+**Where the list runs past five lines, three dots replace the trailing dot of
+the last spec that fitted** — `· value···`, flush, no gap. `ProductCard` is a
+client component for this one measurement: which spec ends the fifth line
+depends on where the text wrapped, so only layout knows it.
+
+Three details of that measurement each cost a wrong render:
+
+- *Measure the trailing dot element, not the spec.* A spec's bounding rect is
+  the union of its lines, so a value that wraps inside itself reports the
+  wider line and the earlier top — the mark landed level with a line the value
+  had not finished on. A `Range` over the contents is no better: its last rect
+  is not the dot box, and lands early enough to cover the value's final
+  letter. The dot is an `inline-block`, so its own rect is exact.
+- *Clamp the mark, never step back a spec.* Where the last spec ends hard
+  against the right edge, retreating to an earlier one puts the mark mid-line,
+  tens of pixels adrift of the value it belongs to.
+- *Use rects, not `offsetLeft`.* The block is `display: flex`, so it
+  establishes a formatting context, refuses to overlap the float and is placed
+  beside the image; its items' offsets carry that shift while `clientWidth`
+  does not, and comparing them reports the first spec as overflowing every
+  time.
+
+It cannot oscillate: no spec is added or removed by the result, and the mark
+is absolutely positioned, so placing it changes no geometry.
 
 *Dots bracket the list and open every line.* Each spec carries a leading and
 a trailing dot in fixed-width boxes, with the leading one pulled back by

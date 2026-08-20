@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRightIcon, PlayIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "./PanelPlaceholder";
 import { categoryLabel } from "@/content/taxonomy";
@@ -143,15 +146,15 @@ export function ProductCard({
  * **The spec block is five lines at every width** — a fixed height, so what
  * follows lines up across a row. Values wrap like ordinary text, so a long one
  * takes two of those lines rather than overhanging the card, and a line
- * carrying one spec is fine. An "etc" marker closes the list where there were
- * more specs than lines to hold them, with its own column reserved on the
- * right so no spec is ever left underneath it.
+ * carrying one spec is fine. Where the list runs past those five lines, the
+ * mark sits **on the trailing dot of the last spec that fitted** — `· value···`
+ * with no gap — by measuring that dot after layout. No column is reserved for
+ * it, so every line runs the card's full width.
  *
- * This is deliberately dumb. It replaced a build that measured the rendered
- * geometry and worked out how much fitted beside the image — which needed a
- * client component, and still lost every value wider than its column, since a
- * non-wrapping value has nowhere to go. Letting text wrap removed the problem
- * rather than solving it, and this went back to being a server component.
+ * That measurement is the only reason this is a client component, and it is
+ * not avoidable: which spec ends the fifth line depends on where the text
+ * wrapped. Pinning the mark to the corner instead needs no JS but leaves a gap
+ * between the last value and the dots, which is what it looked like before.
  *
  * Fixed square rather than derived from the card height, so every card in a
  * row gets the same image size no matter how long its text runs.
@@ -186,14 +189,114 @@ function HorizontalCard({
      needed a client component, and still lost every value wider than its
      column because a non-wrapping value has no line to fall to. Letting text
      wrap dissolved the problem instead of solving it. */
-  const showEtc = specs.length > 5;
+  /* Where the truncation mark goes, in the wrapper's coordinates — or `null`
+     when the whole list fitted and there is nothing to mark.
 
-  /* Reserves the marker's own column on the right of the text, so a spec can
-     never end up underneath it — the last line either has room for its spec
-     beside the marker, or that spec wraps on and is cut, leaving the marker
-     alone there. Only applied where the marker shows, so no width is given up
-     for nothing. */
-  const specPadding = showEtc ? "pr-14" : "";
+     This has to be measured. The mark replaces the trailing dot of whichever
+     spec ends up last on the fifth line, and which spec that is depends on
+     where the text wrapped, which only layout knows. Pinning it to the corner
+     instead is what left a gap between the last spec and the dots.
+
+     **It cannot oscillate.** Specs are never added or removed by the result —
+     every one stays in the DOM at its own size, and the mark is absolutely
+     positioned, so placing it changes no geometry. Each pass measures exactly
+     what the last one did. */
+  const specRef = useRef<HTMLParagraphElement>(null);
+  const markRef = useRef<HTMLSpanElement>(null);
+  const [markAt, setMarkAt] = useState<{ left: number; top: number } | null>(
+    null,
+  );
+  const [shown, setShown] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = specRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const items = [...el.querySelectorAll<HTMLElement>("[data-spec]")];
+      if (items.length === 0) return;
+
+      /* Rects, not `offsetLeft`: this block is `display: flex`, so it
+         establishes a formatting context, refuses to overlap the float and is
+         placed beside the image. Its items' offsets carry that shift while
+         `clientWidth` does not, and comparing the two reports the first spec
+         as overflowing every time. */
+      const box = el.getBoundingClientRect();
+      if (box.width === 0) return;
+
+      const anchor = el.parentElement?.getBoundingClientRect();
+      if (!anchor) return;
+
+      const rects = items.map((item) => item.getBoundingClientRect());
+
+      let last = -1;
+      for (let index = 0; index < rects.length; index += 1) {
+        if (rects[index].bottom > box.bottom + 1) break;
+        last = index;
+      }
+
+      if (last === rects.length - 1 || last < 0) {
+        setShown(null);
+        setMarkAt(null);
+        return;
+      }
+
+      /* Everything past the last wholly-visible spec is hidden, not merely
+         left to the clip. A spec starting on the fifth line and wrapping onto
+         a sixth still paints that first line inside the box — so it appeared
+         half-cut *below* the truncation mark, which is the one thing the mark
+         is there to prevent. */
+      setShown(last + 1);
+
+      /* Sit on the last spec's trailing dot rather than after it, so the mark
+         reads as that dot widened to three rather than as a separate thing.
+         `DOT` is the `w-4` box each dot occupies.
+
+         Clamped, not stepped back to an earlier spec: where the last spec ends
+         hard against the right edge the mark would overhang by a few pixels,
+         and nudging it left covers the tail of that value. Retreating a spec
+         instead put the mark mid-line, tens of pixels adrift of the value it
+         belongs to. */
+      /* Measure the spec's **trailing dot element**, which is the thing being
+         replaced. Two nearer-looking options are both wrong: the spec's
+         bounding rect is the union of its lines, so a value that wraps inside
+         itself reports the wider line and the earlier top, putting the mark
+         level with a line the value had not finished on; and a `Range` over
+         the contents returns runs per line, whose last rect is not the dot box
+         and lands a few pixels early, far enough to cover the value's final
+         letter.
+
+         The dot is an `inline-block`, so its own rect is exact and already on
+         the right line. */
+      const dot = items[last].lastElementChild;
+      const dotRect = dot?.getBoundingClientRect() ?? rects[last];
+
+      const markWidth = markRef.current?.offsetWidth ?? 0;
+      const limit = box.right - markWidth;
+
+      setMarkAt({
+        left: Math.min(dotRect.left, limit) - anchor.left,
+        top: dotRect.top - anchor.top,
+      });
+    };
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+
+    /* Again once the webfont swaps in: this box is a fixed height and a
+       full-width block, so the observer will not fire a second time on its
+       own, and a first pass against fallback metrics would stick. */
+    let cancelled = false;
+    document.fonts?.ready.then(() => {
+      if (!cancelled) measure();
+    });
+
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [specs.length]);
+
 
 
   return (
@@ -286,10 +389,21 @@ function HorizontalCard({
       {specs.length > 0 && (
         <div className="relative mt-1.5">
           <p
-            className={`flex h-[6.25rem] flex-wrap items-baseline gap-x-0 overflow-hidden pl-4 font-mono text-[0.75rem] leading-5 text-ink ${specPadding}`}
+            ref={specRef}
+            className="flex h-[6.25rem] flex-wrap items-baseline gap-x-0 overflow-hidden pl-4 font-mono text-[0.75rem] leading-5 text-ink"
           >
             {specs.map((value, index) => (
-              <span key={`${value}-${index}`}>
+              <span
+                key={`${value}-${index}`}
+                data-spec
+                /* `opacity-0`, never `hidden`: a hidden spec must keep its
+                   space or the geometry changes on every pass and the
+                   measurement never settles. It also stays in the
+                   accessibility tree, so the full list is still read out. */
+                className={
+                  shown !== null && index >= shown ? "opacity-0" : undefined
+                }
+              >
                 <span
                   aria-hidden
                   className="-ml-4 inline-block w-4 text-center text-muted"
@@ -307,21 +421,21 @@ function HorizontalCard({
             ))}
           </p>
 
-          {/* Pinned to the last line rather than sitting in the flow, where
-              the clip would swallow it along with the specs it stands for. It
-              needs no background to mask what is under it, because the
-              `pr` above keeps the text out of this strip entirely — so it can
-              sit flush in the corner. */}
-          {showEtc && (
-            <span
-              aria-hidden
-              className="absolute bottom-0 right-0 font-mono text-[0.75rem] leading-5 text-muted"
-            >
-              <span className="inline-block w-4 text-center">·</span>
-              etc
-              <span className="inline-block w-4 text-center">·</span>
-            </span>
-          )}
+          {/* Three dots in place of the last visible spec's trailing one, so
+              the line closes `· value ···` with no gap. Always mounted so its
+              width can be read on the pass that positions it, and absolutely
+              placed so it disturbs no layout. It carries the card's background
+              to cover the single dot it stands in for. */}
+          <span
+            ref={markRef}
+            aria-hidden
+            style={markAt ?? undefined}
+            className={`absolute bg-surface-raised font-mono text-[0.75rem] leading-5 text-muted ${
+              markAt ? "" : "opacity-0"
+            }`}
+          >
+            ···
+          </span>
         </div>
       )}
 
