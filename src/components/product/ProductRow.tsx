@@ -28,32 +28,79 @@ export function ProductRow({
   products: Product[];
   priority?: boolean;
 }) {
-  const trackRef = useRef<HTMLUListElement>(null);
+  const deskRef = useRef<HTMLDivElement>(null);
+  const rowARef = useRef<HTMLUListElement>(null);
+  const rowBRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
 
-  const sync = useCallback(() => {
-    const el = trackRef.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
+  /* Three candidate scroll containers, only some of which are live at any
+     breakpoint: below `lg` the two row `<ul>`s scroll independently and the
+     wrapper is a plain column; at `lg` the `<ul>`s go `display: contents` and
+     the wrapper becomes the single scrolling grid. A container that is not
+     live reports `scrollWidth === clientWidth` (or 0 when it has no box), so
+     `max <= 0` filters it out rather than needing a breakpoint check here. */
+  const tracks = useCallback(() => {
+    /* Annotated rather than inferred: the literal would otherwise be typed
+       `(HTMLDivElement | HTMLUListElement | null)[]`, and `HTMLElement` is
+       not assignable to that union, so the narrowing predicate below is
+       rejected and every use downstream stays nullable. */
+    const candidates: (HTMLElement | null)[] = [
+      deskRef.current,
+      rowARef.current,
+      rowBRef.current,
+    ];
+    return candidates.filter((el): el is HTMLElement => el !== null);
   }, []);
 
-  useEffect(() => {
-    sync();
-    const el = trackRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(sync);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [sync, products.length]);
+  const sync = useCallback(() => {
+    let left = false;
+    let right = false;
 
+    for (const el of tracks()) {
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) continue;
+      if (el.scrollLeft > 4) left = true;
+      if (el.scrollLeft < max - 4) right = true;
+    }
+
+    setCanScroll({ left, right });
+  }, [tracks]);
+
+  /* No priming `sync()` call here: `observe()` fires the callback once for
+     each element as soon as it starts observing, so the initial measurement
+     arrives on its own. Calling it directly would also be setting state
+     synchronously in an effect body, which `react-hooks/set-state-in-effect`
+     rejects — the same rule the header's scroll handling is written around. */
+  useEffect(() => {
+    const observer = new ResizeObserver(sync);
+    for (const el of tracks()) observer.observe(el);
+    return () => observer.disconnect();
+  }, [sync, tracks, products.length]);
+
+  /* Pages every live track together. Manual scrolling stays independent —
+     that is the point of the split — but one arrow pair driving both rows
+     keeps a single control on the heading rather than a pair per row. */
   const page = (direction: 1 | -1) => {
-    const el = trackRef.current;
-    if (!el) return;
-    const first = el.firstElementChild as HTMLElement | null;
-    const step = first ? first.getBoundingClientRect().width + 16 : el.clientWidth;
-    el.scrollBy({ left: step * direction, behavior: "smooth" });
+    for (const el of tracks()) {
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) continue;
+      const first = el.querySelector("li");
+      const step = first
+        ? first.getBoundingClientRect().width + 24
+        : el.clientWidth;
+      el.scrollBy({ left: step * direction, behavior: "smooth" });
+    }
   };
+
+  /* Sequential halves, not alternating. The cards used to fill column-first
+     so card 2 sat under card 1, but that pairing only holds while the rows
+     move together — once each row scrolls on its own the column is broken by
+     the first swipe, and a straight first-half / second-half split is both
+     easier to follow and what lets `lg:contents` merge the two lists back
+     into one correctly-ordered row without reordering anything. */
+  const half = Math.ceil(products.length / 2);
+  const rowA = products.slice(0, half);
+  const rowB = products.slice(half);
 
   const showArrows = canScroll.left || canScroll.right;
   const headingId = `catalogue-${category.key}`;
@@ -90,34 +137,57 @@ export function ProductRow({
         )}
       </div>
 
-      {/* Cards render vertical, sized to the same proportions as the
-          `RelatedProducts` carousel on the product detail page. Below `lg`
-          they lay out in **two rows**, filling column-first — the second
-          product sits below the first, the third to the right of the first,
-          then below, and so on — so a narrow viewport shows twice as many
-          cards without scrolling as far. At `lg` and up they collapse back
-          to one row, side by side, keeping the desktop showcase feel.
+      {/* Below `lg`: two rows, each its own scroll container, so swiping one
+          leaves the other where it was. At `lg`: the two `<ul>`s go
+          `display: contents`, their `<li>`s become items of this wrapper's
+          grid, and the whole category is one side-by-side row again — no
+          duplicated markup, and no second copy of every product image, which
+          a `hidden lg:block` pair of layouts would have cost (see §9 on
+          hidden `<Image fill>` resolving `sizes` to the largest candidate).
 
-          **The second row is conditional on having a second product.** Grid
-          creates every explicit track whether or not anything lands in it, so
-          a hard-coded `grid-rows-2` gave each single-product category an empty
-          second row and, worse, the `gap-6` between the two tracks — which
-          read as dead space between one category and the next heading. Most
-          categories hold exactly one product today, so this was visible all
-          down the catalogue on a phone. */}
-      <ul
-        ref={trackRef}
+          The second row is only rendered when there is something in it. Grid
+          materialises every explicit track whether or not an item lands in
+          it, so an unconditional second row gave single-product categories an
+          empty track plus its `gap-6` — dead space that read as a gap between
+          one category and the next heading. Most categories hold exactly one
+          product today, so that was visible the whole way down the page. */}
+      <div
+        ref={deskRef}
         onScroll={sync}
-        className={`hscroll mt-5 grid snap-x snap-mandatory grid-flow-col items-stretch gap-6 overflow-x-auto auto-cols-[82%] sm:auto-cols-[calc((100%-1.5rem)/2)] lg:auto-cols-[calc((100%-3rem)/3)] lg:grid-rows-1 ${
-          products.length > 1 ? "grid-rows-2" : "grid-rows-1"
-        }`}
+        className="hscroll mt-5 flex flex-col gap-6 lg:grid lg:snap-x lg:snap-mandatory lg:grid-flow-col lg:auto-cols-[calc((100%-3rem)/3)] lg:items-stretch lg:overflow-x-auto"
       >
-        {products.map((product, index) => (
-          <li key={product.id} className="snap-start">
-            <ProductCard product={product} priority={priority && index === 0} />
-          </li>
-        ))}
-      </ul>
+        <ul
+          ref={rowARef}
+          onScroll={sync}
+          className="hscroll flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto lg:contents"
+        >
+          {rowA.map((product, index) => (
+            <li
+              key={product.id}
+              className="w-[82%] flex-none snap-start sm:w-[calc((100%-1.5rem)/2)] lg:w-auto"
+            >
+              <ProductCard product={product} priority={priority && index === 0} />
+            </li>
+          ))}
+        </ul>
+
+        {rowB.length > 0 && (
+          <ul
+            ref={rowBRef}
+            onScroll={sync}
+            className="hscroll flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto lg:contents"
+          >
+            {rowB.map((product) => (
+              <li
+                key={product.id}
+                className="w-[82%] flex-none snap-start sm:w-[calc((100%-1.5rem)/2)] lg:w-auto"
+              >
+                <ProductCard product={product} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }

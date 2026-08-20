@@ -19,12 +19,11 @@ import type { Product } from "@/lib/types";
  * silently starts cutting panels, which is invisible in review on drawn
  * placeholders and obvious on real photography.
  *
- * Both orientations therefore carry a **square** plate. The vertical card
- * sets it with `aspect-square` on a full-width plate; the horizontal strip
- * derives it from the card's own height (`self-stretch aspect-square`), which
- * is what keeps that plate flush rather than leaving dead grey beneath a
- * fixed-width square. The strip's plate was a fixed `w-24` portrait sliver
- * until 2026-08-19, which cropped ~35% off each side of a 1:1 photograph.
+ * Both orientations therefore carry a **square** plate: the vertical card as
+ * a full-width `aspect-square` band above its text, the horizontal strip as a
+ * floated fixed square with the text wrapping round it. The strip's plate was
+ * a `w-24` portrait sliver until 2026-08-19, which cropped ~35% off each side
+ * of a 1:1 photograph.
  *
  * `bg-surface-subtle` backs the plate, for the placeholder case and while an
  * image is loading.
@@ -124,11 +123,24 @@ export function ProductCard({
 /**
  * Compact strip: square image on the left, text on the right.
  *
- * The plate is square and takes its size from the card's height, so a row of
- * these keeps its images aligned in a vertical band down the grid. Cards whose
- * text runs to different heights therefore get slightly different plate
- * widths — the alternative was a fixed width, which forced the plate to a
- * portrait sliver and cropped the panel's sides away.
+ * The image is a **floated fixed square** and the text wraps around it in an
+ * L. Reading order is deliberate (client, 2026-08-20):
+ *
+ *   ┌────────┐  Sub-category
+ *   │ image  │  Specification
+ *   └────────┘
+ *   Name
+ *   Description
+ *
+ * The short identifying pair sits beside the image; `clear-left` on the name
+ * drops it and the description below the float so both get the card's full
+ * width however long they run. That is what keeps a long product name legible
+ * in a ~320px card on a phone — the two-flex-column build this replaced gave
+ * the square plate a width equal to the card's height and crushed every line
+ * into what was left.
+ *
+ * Fixed square rather than derived from the card height, so every card in a
+ * row gets the same image size no matter how long its text runs.
  */
 function HorizontalCard({
   product,
@@ -141,21 +153,35 @@ function HorizontalCard({
 }) {
   const image = product.images[0];
 
+  /* Ratings are the specification for a motor product, but the lighting and
+     automation ranges carry none — `hpRanges` is empty on those by design, so
+     that they never appear in the catalogue's rating filter. Falling back to
+     the first spec row keeps a specification line on every card instead of
+     leaving a hole beside the image on exactly those products. */
+  const specLine =
+    product.hpRanges.length > 0
+      ? product.hpRanges.join("  ·  ")
+      : product.spec[0]?.value;
+
   return (
-    <article className="group relative flex h-full border border-line bg-surface-raised shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
-      {/* Square plate, sized from the card's own height rather than a fixed
-          width: `self-stretch` takes the height the text column sets, and
-          `aspect-square` derives the width back from it. That keeps the plate
-          flush top-to-bottom — no dead grey below it — while staying 1:1, so
-          square photography fills it with nothing cropped. A fixed `w-24`
-          made this a portrait sliver, which cropped ~35% off each side. */}
-      <div className="relative aspect-square shrink-0 self-stretch overflow-hidden border-r border-line bg-surface-subtle">
+    <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-9 shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
+      {/* Floated, not a flex column. The text runs alongside the image and
+          then continues *underneath* it, wrapping round in an L — which is
+          what keeps a long product name readable in a ~320px card on a
+          phone. The previous build put the image in a full-height flex
+          column, so its square plate was as wide as the card was tall and
+          squeezed every line of text into the remaining sliver.
+
+          Fixed square rather than height-derived: the size is then the same
+          on every card regardless of how long its text runs, so the images
+          line up down a row. */}
+      <div className="relative float-left mr-4 h-24 w-24 overflow-hidden border border-line bg-surface-subtle sm:h-28 sm:w-28">
         {image ? (
           <Image
             src={image.url}
             alt={image.alt || product.name}
             fill
-            sizes="10rem"
+            sizes="7rem"
             priority={priority}
             className="object-cover transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
           />
@@ -176,29 +202,33 @@ function HorizontalCard({
         )}
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col p-4">
-        <p className="label-tech text-muted">{categoryLabel(product.category)}</p>
+      {/* Beside the image: sub-category, then the specification line. */}
+      <p className="label-tech text-muted">{categoryLabel(product.category)}</p>
 
-        <Heading className="mt-1.5 text-[0.9375rem] leading-snug">
-          <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
-            {product.name}
-          </Link>
-        </Heading>
+      {specLine && (
+        <p className="mt-1.5 line-clamp-2 font-mono text-[0.75rem] leading-relaxed text-ink">
+          {specLine}
+        </p>
+      )}
 
-        {product.tagline && (
-          <p className="mt-1.5 line-clamp-2 text-[0.8125rem] leading-relaxed text-muted">
-            {product.tagline}
-          </p>
-        )}
+      {/* `clear-left` is what turns this into an L: the name and description
+          drop below the floated image instead of continuing beside it, so
+          they get the card's full width however long they run. */}
+      <Heading className="clear-left pt-3 text-[0.9375rem] leading-snug">
+        <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
+          {product.name}
+        </Link>
+      </Heading>
 
-        {product.hpRanges.length > 0 && (
-          <p className="mt-auto pt-3 font-mono text-[0.75rem] text-ink">
-            {product.hpRanges.join(" · ")}
-          </p>
-        )}
-      </div>
+      {product.tagline && (
+        <p className="mt-1.5 line-clamp-3 text-[0.8125rem] leading-relaxed text-muted">
+          {product.tagline}
+        </p>
+      )}
 
-      <ArrowRightIcon className="absolute bottom-4 right-4 h-4 w-4 text-muted transition-transform duration-150 group-hover:translate-x-1 group-hover:text-accent" />
+      {/* `pb-9` on the card reserves the strip this sits in, so a tagline
+          running to three lines cannot collide with it. */}
+      <ArrowRightIcon className="absolute bottom-3.5 right-4 h-4 w-4 text-muted transition-transform duration-150 group-hover:translate-x-1 group-hover:text-accent" />
     </article>
   );
 }
