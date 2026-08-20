@@ -456,8 +456,34 @@ suffix.
 breakpoint at which the copy moves into the left column and the horizontal
 gradient starts doing the work. Lifting it at `sm` leaves 640–1023px with
 neither protection, and the slide body drops to 2.91:1 over a bright frame.
-Measure with the harness in the change log before changing it — and note the
-binding case is the commercial slide, which is currently stand-in artwork.
+The floor now lifts to nothing at `lg` rather than to a residual film; the
+breakpoint is what is load-bearing, not the value.
+
+**Scrims are shaped, not flat, and their right edge must stay clear.** This
+holds for the hero, both page mastheads (`/contact`, `/about`) and the
+sign-up panel. The darkness follows the text — heavy left, falling to
+transparent on the right — because every one of these frames has its subject
+on the right, and a flat floor or a full-width vertical pass dims it. Layers
+are: a mobile-only flat floor, a horizontal pass ending transparent, and one
+more shaped to wherever the copy sits (a bottom band where the copy is
+bottom-left, a top-left diagonal where it is top-left). Do not reintroduce a
+full-width vertical stop: that is what put a film over the whole frame, and
+the text it was protecting is served by the shaped layer instead.
+
+**The sign-up panel's mobile floor is the exception at 58.** Its frame is a
+high-key paddy field (mean luminance 0.43 against 0.05–0.15 for the hero) and
+at 390px the copy spans the panel's full width, so neither the left-weighted
+pass nor the diagonal covers its right half. It measured 4.09:1 at 44.
+
+**Hero contrast must be measured with `Range` rects, never element boxes.**
+The eyebrow is a full-width `<p>` holding one short word, so its element box
+spans the container. Sampling that reads the bright right of the frame as
+though it were behind text that is actually far left — it reported 2.3:1
+while the glyphs sat over an 85 %-covered edge, and sent two rounds of
+"fixes" in the wrong direction. Range rects hug the glyphs. The same run also
+has to filter to painted text: the rotator keeps every slide mounted, so
+inactive ones are in the DOM at `opacity: 0` and get measured against the
+visible slide's background unless `checkVisibility` excludes them.
 
 **Hero slide headlines must state their typography explicitly.** Only slide one
 is an `<h1>`; the rest are `<p>` so the markup does not carry three. A `<p>`

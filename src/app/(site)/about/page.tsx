@@ -79,10 +79,24 @@ export default function AboutPage() {
           className="-z-10 object-cover"
         />
 
-        <div aria-hidden className="absolute inset-0 -z-10 bg-scrim/45 lg:bg-scrim/30" />
+        {/* Shaped like the hero's: heavy left, falling to transparent at the
+            right edge so the photograph's subject is seen rather than dimmed.
+            The flat floor is mobile-only — at 390px the copy spans the full
+            width, so a left-weighted gradient covers none of it — and lifts
+            entirely at `lg`, where the copy stays in the left column.
+
+            The headline and tagline sit at the *bottom* left here, not the top,
+            so the third layer is a bottom band rather than the hero's top-left
+            diagonal. Measured against rendered pixels; see the note in
+            `HeroRotator`. */}
+        <div aria-hidden className="absolute inset-0 -z-10 bg-scrim/45 lg:bg-transparent" />
         <div
           aria-hidden
-          className="absolute inset-0 -z-10 bg-gradient-to-r from-scrim/80 via-scrim/55 to-scrim/25"
+          className="absolute inset-0 -z-10 bg-gradient-to-r from-scrim/82 via-scrim/58 to-transparent"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 bg-gradient-to-t from-scrim/55 via-transparent to-transparent"
         />
 
         <Container size="wide">

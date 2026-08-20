@@ -79,18 +79,23 @@ export function SubscribePanel() {
             className="object-cover object-[50%_78%]"
           />
 
-          {/* Three layers, same idiom as the hero: a flat floor for the narrow
-              layout where the copy spans the full width, a horizontal gradient
-              for the wide one where it stays left, and a vertical pass to stop
-              the pale sky washing out the heading. */}
-          <div aria-hidden className="absolute inset-0 bg-scrim/44 lg:bg-scrim/18" />
+          {/* Shaped like the hero's: heavy left, falling to transparent at the
+              right edge so the photograph is seen rather than filmed over.
+
+              The flat floor is mobile-only and heavier here than anywhere else
+              — 58. Two reasons compound: this frame is a high-key paddy field
+              (mean luminance 0.43, against 0.05–0.15 for the hero frames), and
+              at 390px the copy spans the panel's full width, so neither the
+              left-weighted pass nor the top-left diagonal covers its right
+              half. It measured 4.09:1 at 44 before this was raised. */}
+          <div aria-hidden className="absolute inset-0 bg-scrim/58 lg:bg-transparent" />
           <div
             aria-hidden
-            className="absolute inset-0 bg-gradient-to-r from-scrim/86 via-scrim/68 to-scrim/26"
+            className="absolute inset-0 bg-gradient-to-r from-scrim/88 via-scrim/70 to-transparent"
           />
           <div
             aria-hidden
-            className="absolute inset-0 bg-gradient-to-b from-scrim/32 to-transparent"
+            className="absolute inset-0 bg-gradient-to-br from-scrim/40 via-transparent to-transparent"
           />
 
           <div className="relative px-7 py-12 sm:px-12 sm:py-16 lg:py-20">

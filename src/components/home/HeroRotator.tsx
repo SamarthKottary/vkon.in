@@ -158,44 +158,64 @@ export function HeroRotator({
               />
             ) : null,
           )}
-          {/* Scrim, in three layers. Measured against real rendered pixels, not
-              estimated: without it the 11px eyebrow over the solar frame sits
-              at 2.9:1 where it needs 4.5.
+          {/* Scrim, in four layers, shaped so the darkness follows the text
+              rather than covering the frame. The left is heavy, it falls away
+              across the middle, and the right-hand edge is clear — which is
+              the point: the artwork's subject sits right and should be seen.
 
-              The flat floor is far heavier on mobile because the layout is
-              different, not because phones need dimmer pictures — at 390px the
-              copy spans the full width, so a left-weighted gradient covers
-              none of it. On desktop the text stays in the left column and the
-              horizontal gradient does most of the work, so the floor can back
-              off and let the photograph through. */}
-          {/* `scrim`, not `band` — see the token's note in globals.css. The
-              band is now light enough to read as green on the footer, which is
-              too light to protect text over a sunlit photograph.
+              Every value here is measured against rendered pixels, not
+              estimated. The harness hides the hero's text, screenshots the
+              section, and samples the real background under each glyph — using
+              **`Range` rects, not element boxes**. That distinction is not a
+              detail: the eyebrow is a full-width `<p>` holding one short word,
+              so its element box spans the whole container, and sampling it
+              reads the bright right of the frame as though it sat behind text
+              that is actually far left. It reported the eyebrow at 2.3:1 while
+              the glyphs were over an 85%-covered left edge.
 
-              The floor lifts at `lg`, not at `sm`. It was `36 / sm:8`, which
-              left a hole at tablet width: the flat floor dropped at 640px but
-              the copy does not move into the left column until `lg` at 1024,
-              so between the two the body text spans nearly the full width and
-              runs out past the horizontal gradient into the bright side of the
-              frame. Measured against rendered pixels at 768px, the slide body
-              sat at 2.91:1 and 3.56:1 against the 4.5 it needs; an intermediate
-              `sm:30` step got it to 4.08 and `36` to 4.47, both still short.
-              The breakpoint has to match the one the *layout* changes at, which
-              is `lg`, and the floor needs 40 to clear it. 1440px is untouched.
+              Current figures: 93 runs across 3 slides x 3 widths, 0 below AA,
+              tightest 5.41:1 on the mobile slide body.
 
-              The binding case is the commercial slide, which is currently a
-              stand-in frame with a bright sky across its middle. Real artwork
-              shot to the brief in docs/ARCHITECTURE.md — subject right, left
-              two-thirds quiet — will have far more headroom, and this floor can
-              come back down when it lands. Re-measure before changing it. */}
-          <div className="absolute inset-0 bg-scrim/38 lg:bg-scrim/7" />
-          {/* The mid stop is 64, not the 55 it was. The industrial frame puts a
-              bright overcast sky across the middle of the picture, exactly
-              where the slide body sits at desktop width — it measured 4.37:1
-              against the 4.5 it needs. The left and right stops are unchanged,
-              so the shadowed left and the bright right edge look as they did. */}
-          <div className="absolute inset-0 bg-gradient-to-r from-scrim/82 via-scrim/60 to-scrim/13" />
-          <div className="absolute inset-0 bg-gradient-to-t from-scrim/60 via-transparent to-scrim/36" />
+              Re-measure after any change. The binding case is the commercial
+              slide, a stand-in frame with a bright sky across its middle; real
+              artwork shot to the brief in docs/ARCHITECTURE.md — subject right,
+              left two-thirds quiet — will have more headroom than this. */}
+
+          {/* Flat floor, and mobile only. At 390px the copy spans the full
+              width, so a left-weighted gradient covers none of it. From `lg`
+              the text moves into the left column and the horizontal pass takes
+              over, so the floor lifts entirely and the photograph comes
+              through.
+
+              **The lift is at `lg`, not `sm`** — it was `36 / sm:8`, which left
+              a hole at tablet width: the floor dropped at 640px but the copy
+              does not move into the left column until 1024, so between the two
+              the body spanned nearly the full width and ran past the
+              horizontal gradient into the bright side. Measured at 768px it
+              sat at 2.91:1 and 3.56:1 against the 4.5 it needs. The breakpoint
+              has to match the one the *layout* changes at. */}
+          <div className="absolute inset-0 bg-scrim/38 lg:bg-transparent" />
+          {/* The horizontal pass, and the one that gives the frame its shape:
+              heavy left, falling away to **transparent** at the right edge so
+              the subject there is seen rather than dimmed. It was `to-scrim/13`
+              with a flat floor beneath it, which put a film over the whole
+              picture.
+
+              The mid stop is 62. At 50 the desktop slide body measured 4.41:1
+              against the 4.5 it needs — the industrial frame puts a bright
+              overcast sky exactly where that copy sits. It only affects the
+              left two-thirds, so raising it costs the bright edge nothing. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-scrim/85 via-scrim/62 to-transparent" />
+          {/* Bottom band only. The stats row spans the full width down there,
+              including the bright side, so it needs cover the mid and top of
+              the frame do not. Its top stop is transparent — a uniform
+              vertical pass is what dimmed the right-hand sky. */}
+          <div className="absolute inset-0 bg-gradient-to-t from-scrim/58 via-transparent to-transparent" />
+          {/* Top-left corner, following the eyebrow rather than the whole top
+              edge. At 11px it needs the full 4.5:1 and is the tightest text in
+              the hero; carrying that as a full-width vertical stop was what
+              darkened the top-right corner. */}
+          <div className="absolute inset-0 bg-gradient-to-br from-scrim/42 via-transparent to-transparent" />
         </div>
       )}
 
