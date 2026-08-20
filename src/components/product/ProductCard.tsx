@@ -321,7 +321,12 @@ function HorizontalCard({
               aria-hidden
               className="absolute bottom-0 right-0 bg-surface-raised pl-2 font-mono text-[0.75rem] leading-5 text-muted"
             >
-              etc ·
+              {/* Bracketed the same way a spec is, and with the same
+                  fixed-width dot boxes, so it sits in the rhythm of the list
+                  rather than reading as a different kind of thing. */}
+              <span className="inline-block w-4 text-center">·</span>
+              etc
+              <span className="inline-block w-4 text-center">·</span>
             </span>
           )}
         </div>
