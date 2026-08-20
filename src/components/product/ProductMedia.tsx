@@ -63,9 +63,10 @@ export function ProductMedia({
             fill
             sizes="(min-width: 1024px) 34rem, 92vw"
             priority
-            /* `object-cover`, filling the square plate (client request,
-               2026-08-19). Product photography is expected to be shot square
-               for this slot; anything that is not gets centre-cropped to it. */
+            /* `object-cover` on a square plate, fed square photography — so
+               this fills edge to edge and crops nothing. Every product image
+               plate on the site is 1:1 for exactly this reason; see the note
+               on `ProductCard`. */
             className="object-cover"
           />
         ) : playing && video ? (

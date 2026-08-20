@@ -11,14 +11,23 @@ import type { Product } from "@/lib/types";
  * A bordered rectangle, no radius beyond 2px, no shadow. Hover darkens the
  * border rather than lifting the card.
  *
- * **Both orientations fill their plate with `object-cover`** (client request,
- * 2026-08-19) — no padding, no letterboxing, so a picture reads as
- * photography rather than as a catalogue thumbnail. Anything whose subject
- * runs to the frame edge is centre-cropped: the vertical card to 4:3, the
- * horizontal strip to its narrow slot. That is an accepted trade while the
- * catalogue runs on drawn placeholders; real photography is to be shot to
- * those ratios. `bg-surface-subtle` still backs both plates, for the
- * placeholder case and while an image is loading.
+ * **Photography for this site is shot 1:1, and every plate that displays it
+ * is 1:1** (client decision, 2026-08-19) — this card, the product detail
+ * image and its thumbnails. Source and plate share a ratio, so `object-cover`
+ * fills edge to edge and crops *nothing*, anywhere. That guarantee is the
+ * whole point of the rule: give any of these plates a different aspect and it
+ * silently starts cutting panels, which is invisible in review on drawn
+ * placeholders and obvious on real photography.
+ *
+ * Both orientations therefore carry a **square** plate. The vertical card
+ * sets it with `aspect-square` on a full-width plate; the horizontal strip
+ * derives it from the card's own height (`self-stretch aspect-square`), which
+ * is what keeps that plate flush rather than leaving dead grey beneath a
+ * fixed-width square. The strip's plate was a fixed `w-24` portrait sliver
+ * until 2026-08-19, which cropped ~35% off each side of a 1:1 photograph.
+ *
+ * `bg-surface-subtle` backs the plate, for the placeholder case and while an
+ * image is loading.
  */
 export function ProductCard({
   product,
@@ -46,7 +55,7 @@ export function ProductCard({
 
   return (
     <article className="group relative flex h-full flex-col border border-line bg-surface-raised shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
-      <div className="relative aspect-[4/3] overflow-hidden border-b border-line bg-surface-subtle">
+      <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image
             src={image.url}
@@ -54,11 +63,11 @@ export function ProductCard({
             fill
             sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 92vw"
             priority={priority}
-            /* `object-cover` with no padding (client request, 2026-08-19):
-               the photograph fills the plate edge to edge rather than
-               floating inset on it. The trade is that a frame whose subject
-               runs to the edges gets cropped to 4:3 — shots for this card
-               want the panel centred with room around it. */
+            /* `object-cover` with no padding, on a plate whose ratio matches
+               the 1:1 photography spec — so this fills edge to edge and crops
+               nothing. The pairing is the point: `aspect-square` above and
+               this class are a matched set, and changing either alone starts
+               cutting panels. See the note on the component. */
             className="object-cover transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
           />
         ) : (
@@ -115,9 +124,11 @@ export function ProductCard({
 /**
  * Compact strip: square image on the left, text on the right.
  *
- * The image plate is a fixed width rather than a percentage, so a row of these
- * keeps its images aligned in a vertical band down the grid no matter how long
- * the product names run.
+ * The plate is square and takes its size from the card's height, so a row of
+ * these keeps its images aligned in a vertical band down the grid. Cards whose
+ * text runs to different heights therefore get slightly different plate
+ * widths — the alternative was a fixed width, which forced the plate to a
+ * portrait sliver and cropped the panel's sides away.
  */
 function HorizontalCard({
   product,
@@ -132,13 +143,19 @@ function HorizontalCard({
 
   return (
     <article className="group relative flex h-full border border-line bg-surface-raised shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
-      <div className="relative w-24 shrink-0 self-stretch overflow-hidden border-r border-line bg-surface-subtle sm:w-28">
+      {/* Square plate, sized from the card's own height rather than a fixed
+          width: `self-stretch` takes the height the text column sets, and
+          `aspect-square` derives the width back from it. That keeps the plate
+          flush top-to-bottom — no dead grey below it — while staying 1:1, so
+          square photography fills it with nothing cropped. A fixed `w-24`
+          made this a portrait sliver, which cropped ~35% off each side. */}
+      <div className="relative aspect-square shrink-0 self-stretch overflow-hidden border-r border-line bg-surface-subtle">
         {image ? (
           <Image
             src={image.url}
             alt={image.alt || product.name}
             fill
-            sizes="7rem"
+            sizes="10rem"
             priority={priority}
             className="object-cover transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
           />
