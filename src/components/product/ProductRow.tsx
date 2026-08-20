@@ -96,11 +96,21 @@ export function ProductRow({
           product sits below the first, the third to the right of the first,
           then below, and so on — so a narrow viewport shows twice as many
           cards without scrolling as far. At `lg` and up they collapse back
-          to one row, side by side, keeping the desktop showcase feel. */}
+          to one row, side by side, keeping the desktop showcase feel.
+
+          **The second row is conditional on having a second product.** Grid
+          creates every explicit track whether or not anything lands in it, so
+          a hard-coded `grid-rows-2` gave each single-product category an empty
+          second row and, worse, the `gap-6` between the two tracks — which
+          read as dead space between one category and the next heading. Most
+          categories hold exactly one product today, so this was visible all
+          down the catalogue on a phone. */}
       <ul
         ref={trackRef}
         onScroll={sync}
-        className="hscroll mt-5 grid snap-x snap-mandatory grid-flow-col grid-rows-2 items-stretch gap-6 overflow-x-auto auto-cols-[82%] sm:auto-cols-[calc((100%-1.5rem)/2)] lg:auto-cols-[calc((100%-3rem)/3)] lg:grid-rows-1"
+        className={`hscroll mt-5 grid snap-x snap-mandatory grid-flow-col items-stretch gap-6 overflow-x-auto auto-cols-[82%] sm:auto-cols-[calc((100%-1.5rem)/2)] lg:auto-cols-[calc((100%-3rem)/3)] lg:grid-rows-1 ${
+          products.length > 1 ? "grid-rows-2" : "grid-rows-1"
+        }`}
       >
         {products.map((product, index) => (
           <li key={product.id} className="snap-start">

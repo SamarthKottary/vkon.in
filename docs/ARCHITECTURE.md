@@ -637,12 +637,23 @@ nothing else uses it today, but the compact strip is a useful shape and the
 file already documents both orientations.
 
 **Below `lg` the track is a two-row grid, filling column-first.** `grid
-grid-rows-2 grid-flow-col` on mobile and sm; `lg:grid-rows-1` at desktop.
+grid-flow-col` with two rows on mobile and sm; `lg:grid-rows-1` at desktop.
 The second card sits below the first, the third to the right of the first,
 the fourth below that, and so on — a narrow viewport shows twice as many
 cards without scrolling as far, and desktop keeps the single-row showcase.
 `auto-cols-*` sets column width per breakpoint since grid, not flex, now
 drives the layout.
+
+**The second row is conditional on the category holding a second product**
+(`products.length > 1 ? "grid-rows-2" : "grid-rows-1"`), and that condition
+is load-bearing. Grid materialises every *explicit* track whether or not an
+item lands in it, so a hard-coded `grid-rows-2` gave each single-product
+category an empty second row and — the visible part — the `gap-6` between
+the two tracks, which read as dead space between one category and the next
+heading. Six of the seven demo categories hold exactly one product, so this
+was visible the whole way down the catalogue on a phone. Verified against
+rendered HTML rather than by eye: one `grid-rows-2` for the three-product
+category, `grid-rows-1` for the other six.
 
 **Filter rail buttons picked up a mobile-only bug fix.** The `pl-3` on the
 option buttons was gated to `lg:` — on mobile, where filters wrap into a

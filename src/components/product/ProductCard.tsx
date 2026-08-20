@@ -8,9 +8,17 @@ import type { Product } from "@/lib/types";
 /**
  * Catalogue card.
  *
- * A bordered rectangle, no radius beyond 2px, no shadow. The image sits on a
- * light grey plate so product photography on white does not dissolve into the
- * page. Hover darkens the border rather than lifting the card.
+ * A bordered rectangle, no radius beyond 2px, no shadow. Hover darkens the
+ * border rather than lifting the card.
+ *
+ * **The two orientations crop differently, deliberately.** The vertical card
+ * fills its 4:3 plate with `object-cover` (client request, 2026-08-19), so
+ * the picture reads as photography rather than as a catalogue thumbnail —
+ * at the cost of cropping anything whose subject runs to the frame edge. The
+ * horizontal strip keeps `object-contain` on a light grey plate, because its
+ * image slot is ~100px wide and cropping a panel into that leaves an
+ * unreadable sliver; there the plate is what stops product shots on white
+ * from dissolving into the page.
  */
 export function ProductCard({
   product,
@@ -46,7 +54,12 @@ export function ProductCard({
             fill
             sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 92vw"
             priority={priority}
-            className="object-contain p-6 transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
+            /* `object-cover` with no padding (client request, 2026-08-19):
+               the photograph fills the plate edge to edge rather than
+               floating inset on it. The trade is that a frame whose subject
+               runs to the edges gets cropped to 4:3 — shots for this card
+               want the panel centred with room around it. */
+            className="object-cover transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
