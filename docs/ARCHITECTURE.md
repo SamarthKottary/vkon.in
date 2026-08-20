@@ -688,12 +688,14 @@ width. The build before this gave the image plate a width equal to the
 card's height (`self-stretch aspect-square`), which crushed the text into
 the remaining sliver on a phone.
 
-**The spec list shows a fixed count — four specs, five from `lg`** — taken
-from the detail page's spec table, values only, falling back to `hpRanges`
-for products with no spec rows. The fifth is hidden below `lg` by CSS, and an
-"etc" marker closes the list where specs were left over. Values wrap like
-ordinary text, nothing is clipped, and the block has no height cap, so a spec
-is never half-shown or hidden.
+**The spec list is a five-line block at every width**, filled from the detail
+page's spec table, values only, falling back to `hpRanges` for products with
+no spec rows. Fixed height rather than a cap, so what follows lines up across
+a row; `leading-5` makes 6.25rem exactly five 20px lines, so the clip lands on
+a line boundary. Values wrap like ordinary text, so a long one takes two lines
+instead of overhanging the card. An "etc" marker closes the list where there
+were more specs than lines to hold them, and the block reserves that marker's
+column with `pr-14` so a spec is never left sitting underneath it.
 
 *Dots bracket the list and open every line.* Each spec carries a leading and
 a trailing dot in fixed-width boxes, with the leading one pulled back by

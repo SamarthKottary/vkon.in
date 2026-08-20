@@ -140,12 +140,12 @@ export function ProductCard({
  * the square plate a width equal to the card's height and crushed every line
  * into what was left.
  *
- * **Four specs on a phone, five from `lg`**, the fifth hidden below that by
- * CSS. Values wrap like ordinary text, so a long one takes two lines instead
- * of overhanging the card, and a line carrying one spec is fine. Nothing is
- * clipped and there is no height cap: the block grows to fit, so a spec is
- * never half-shown or hidden. An "etc" marker closes the list wherever specs
- * were left over.
+ * **The spec block is five lines at every width** — a fixed height, so what
+ * follows lines up across a row. Values wrap like ordinary text, so a long one
+ * takes two of those lines rather than overhanging the card, and a line
+ * carrying one spec is fine. An "etc" marker closes the list where there were
+ * more specs than lines to hold them, with its own column reserved on the
+ * right so no spec is ever left underneath it.
  *
  * This is deliberately dumb. It replaced a build that measured the rendered
  * geometry and worked out how much fitted beside the image — which needed a
@@ -177,24 +177,23 @@ function HorizontalCard({
       ? product.spec.map((row) => row.value)
       : product.hpRanges;
 
-  /* A fixed count, and nothing is measured. Four specs on a phone, five from
-     `lg`, with the fifth simply hidden below that breakpoint — one render,
-     decided by CSS.
+  /* Whether to close the list with a marker. Nothing is measured, so this is
+     a count comparison rather than a fact about the render: more specs than
+     there are lines to hold them almost certainly means some were cut.
 
-     This replaced a measure-then-hide build that clipped the list to the
-     image's height and worked out what fitted. It was the wrong shape for the
-     problem: the honest answer needed layout, layout needed a client
-     component, and every value wider than its column then had nowhere to go
-     and vanished. Specs now wrap across lines like ordinary text, so one can
-     take two lines and none is ever cut. There is no height cap, so the block
-     grows instead of hiding anything.
+     A measure-then-hide build came before this and is worth not repeating: it
+     clipped the list to the image's height and computed what fitted, which
+     needed a client component, and still lost every value wider than its
+     column because a non-wrapping value has no line to fall to. Letting text
+     wrap dissolved the problem instead of solving it. */
+  const showEtc = specs.length > 5;
 
-     The marker only appears where something is actually left over, which is
-     breakpoint-dependent: with exactly five specs the phone hides one and the
-     desktop hides none, so it shows below `lg` only. */
-  const shownSpecs = specs.slice(0, 5);
-  const etcVisibility =
-    specs.length > 5 ? "" : specs.length === 5 ? "lg:hidden" : null;
+  /* Reserves the marker's own column on the right of the text, so a spec can
+     never end up underneath it — the last line either has room for its spec
+     beside the marker, or that spec wraps on and is cut, leaving the marker
+     alone there. Only applied where the marker shows, so no width is given up
+     for nothing. */
+  const specPadding = showEtc ? "pr-14" : "";
 
 
   return (
@@ -272,50 +271,58 @@ function HorizontalCard({
           and show the pair as two dots. The dot boxes supply the spacing
           instead. Each spec keeps its dots inside its own nowrap span, so the
           whole unit still wraps together and a dot is never orphaned. */}
-      {/* No height cap and no clipping — the block grows to whatever the
-          specs need, so a spec is never hidden. Values wrap like ordinary
-          text now, so a long one takes two lines rather than overhanging the
-          card, and a line holding a single spec is fine.
+      {/* **Five lines, at every width.** Fixed, not a maximum, so every card's
+          block is the same height and what follows it lines up across a row.
+          20px lines (`leading-5`) against 6.25rem is exactly five, so the clip
+          lands on a line boundary rather than slicing through one.
+
+          Values wrap like ordinary text, so a long spec takes two of those
+          lines rather than overhanging the card, and a line carrying a single
+          spec is fine.
 
           `pl-4` pairs with the `-ml-4` on each leading dot: mid-line the dot
           lands on the previous spec's trailing dot and the two superimpose,
           reading as one; at a line start it falls clear into the padding. */}
-      {shownSpecs.length > 0 && (
-        <p className="mt-1.5 flex flex-wrap items-baseline gap-x-0 pl-4 font-mono text-[0.75rem] leading-5 text-ink">
-          {shownSpecs.map((value, index) => (
-            <span
-              key={`${value}-${index}`}
-              /* The fifth exists only from `lg`, where the card is wide
-                 enough to carry it. */
-              className={index === 4 ? "hidden lg:inline" : undefined}
-            >
-              <span
-                aria-hidden
-                className="-ml-4 inline-block w-4 text-center text-muted"
-              >
-                ·
+      {specs.length > 0 && (
+        <div className="relative mt-1.5">
+          <p
+            className={`flex h-[6.25rem] flex-wrap items-baseline gap-x-0 overflow-hidden pl-4 font-mono text-[0.75rem] leading-5 text-ink ${specPadding}`}
+          >
+            {specs.map((value, index) => (
+              <span key={`${value}-${index}`}>
+                <span
+                  aria-hidden
+                  className="-ml-4 inline-block w-4 text-center text-muted"
+                >
+                  ·
+                </span>
+                {value}
+                <span
+                  aria-hidden
+                  className="inline-block w-4 text-center text-muted"
+                >
+                  ·
+                </span>
               </span>
-              {value}
-              <span
-                aria-hidden
-                className="inline-block w-4 text-center text-muted"
-              >
-                ·
-              </span>
-            </span>
-          ))}
+            ))}
+          </p>
 
-          {/* Built exactly like a spec so it sits in the same rhythm. */}
-          {etcVisibility !== null && (
-            <span aria-hidden className={etcVisibility || undefined}>
-              <span className="-ml-4 inline-block w-4 text-center text-muted">
-                ·
-              </span>
-              <span className="text-muted">etc</span>
-              <span className="inline-block w-4 text-center text-muted">·</span>
+          {/* Pinned to the last line rather than sitting in the flow, where
+              the clip would swallow it along with the specs it stands for. It
+              needs no background to mask what is under it, because the
+              `pr` above keeps the text out of this strip entirely — so it can
+              sit flush in the corner. */}
+          {showEtc && (
+            <span
+              aria-hidden
+              className="absolute bottom-0 right-0 font-mono text-[0.75rem] leading-5 text-muted"
+            >
+              <span className="inline-block w-4 text-center">·</span>
+              etc
+              <span className="inline-block w-4 text-center">·</span>
             </span>
           )}
-        </p>
+        </div>
       )}
 
       {/* `clear-left` is what turns this into an L: the name drops below the
