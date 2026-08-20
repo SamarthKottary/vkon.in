@@ -63,7 +63,10 @@ export function ProductMedia({
             fill
             sizes="(min-width: 1024px) 34rem, 92vw"
             priority
-            className="object-contain p-8"
+            /* `object-cover`, filling the square plate (client request,
+               2026-08-19). Product photography is expected to be shot square
+               for this slot; anything that is not gets centre-cropped to it. */
+            className="object-cover"
           />
         ) : playing && video ? (
           <iframe
@@ -125,7 +128,7 @@ export function ProductMedia({
                     alt=""
                     fill
                     sizes="6rem"
-                    className="object-contain p-1.5"
+                    className="object-cover"
                   />
                 ) : (
                   <span className="flex h-full w-full items-center justify-center bg-action text-action-ink">
