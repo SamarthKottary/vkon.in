@@ -135,7 +135,12 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
             {recent.map((product) => (
               <li
                 key={product.id}
-                className="w-[82%] flex-none snap-start sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)]"
+                /* Wider on a phone than the other tracks' 82%: this card puts
+                   a 112px image and a spec column side by side, and at 82% the
+                   column was too narrow for a spec to fit on one line at all.
+                   The peek of the next card is smaller as a result, which is
+                   the trade. */
+                className="w-[92%] flex-none snap-start sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)]"
               >
                 <ProductCard product={product} orientation="horizontal" />
               </li>
