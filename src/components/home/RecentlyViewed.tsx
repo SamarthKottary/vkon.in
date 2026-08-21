@@ -38,13 +38,16 @@ const SHOWN = 6;
  * Fixed proportional card widths so a card added to the history adds a card
  * to scroll to rather than shrinks the visible three.
  *
- * **Exactly one card is popped at a time**, same idiom as
- * `home/FeaturedProducts`: whichever card's own centre sits closest to the
- * track's centre is popped by default, checked on scroll and resize, and
- * pointing at a different card overrides it rather than adding to it. See
- * that component's comment for why the track takes vertical padding rather
- * than `overflow-visible`, why a plain wheel needs its own handler, and why
- * this measures rects directly instead of using `IntersectionObserver`.
+ * **Exactly one card is popped at a time, and none is until the visitor has
+ * done something** — arriving on the section is not "reaching" a card, so
+ * nothing pops on load, same idiom as `home/FeaturedProducts`: whichever
+ * card's own centre sits closest to the track's centre is popped once the
+ * `interacted` flag is set by a first real scroll or hover, checked on scroll
+ * and resize, and pointing at a different card overrides it rather than
+ * adding to it. See that component's comment for why the track takes
+ * vertical padding rather than `overflow-visible`, why a plain wheel needs
+ * its own handler, and why this measures rects directly instead of using
+ * `IntersectionObserver`.
  */
 export function RecentlyViewed({ products }: { products: Product[] }) {
   const raw = useSyncExternalStore<string | null>(
@@ -65,6 +68,10 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
   const [centeredId, setCenteredId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  /* Nothing is popped until the visitor actually does something — see the
+     comment on the component. Set true on the first real scroll or hover and
+     never reset. */
+  const [interacted, setInteracted] = useState(false);
   /* See `home/FeaturedProducts` for why a real mouse hover only counts on a
      device that genuinely has one — a touch tap's stray `mouseenter` would
      otherwise stick the border on whatever card was first touched. */
@@ -74,7 +81,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     setHoverCapable(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
   }, []);
 
-  const poppedId = hoverCapable ? (hoveredId ?? centeredId) : centeredId;
+  const poppedId = interacted ? (hoverCapable ? hoveredId ?? centeredId : centeredId) : null;
 
   const sync = useCallback(() => {
     const el = trackRef.current;
@@ -107,6 +114,17 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, [sync, recent.length]);
+
+  /* The scroll handler, not `sync` itself — see `home/FeaturedProducts` for
+     why: `sync` also runs from the mount and resize effect above, where
+     nothing has actually been "reached" yet. Also clears a stale hover, for
+     the reason described there — a wheel scroll can shift a different card
+     under a cursor that never itself moved. */
+  const onScroll = () => {
+    setInteracted(true);
+    setHoveredId(null);
+    sync();
+  };
 
   const page = (direction: 1 | -1) => {
     const el = trackRef.current;
@@ -170,7 +188,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
         ) : (
           <ul
             ref={trackRef}
-            onScroll={sync}
+            onScroll={onScroll}
             onWheel={onWheel}
             className="hscroll mt-8 flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto px-1 py-4"
           >
@@ -178,7 +196,10 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
               <li
                 key={product.id}
                 data-product-id={product.id}
-                onMouseEnter={() => setHoveredId(product.id)}
+                onMouseEnter={() => {
+                  setInteracted(true);
+                  setHoveredId(product.id);
+                }}
                 onMouseLeave={() => setHoveredId(null)}
                 /* Wider on a phone than the other tracks' 82%: this card puts
                    a 112px image and a spec column side by side, and at 82% the

@@ -675,9 +675,22 @@ centred-card check and dropped the same day: it only reports a change on
 crossing one of a fixed set of ratio thresholds, so the centred card could go
 stale for stretches of a scroll rather than tracking it continuously.
 
+A wheel-driven scroll also turned out to leave a stale `hoveredId` in place —
+it shifts a different card under a cursor that never itself moved, and
+browsers do not re-fire `mouseenter`/`mouseleave` just because content moved
+under a stationary pointer. The scroll handler clears `hoveredId` for exactly
+that reason.
+
+**Nothing pops on load, even though a card already sits centred at rest.**
+An `interacted` flag holds the pop off until the visitor's first real scroll
+or hover — arriving on the page is not "reaching" a card. It is set from the
+scroll *handler*, not from `sync` itself, since `sync` also runs from the
+mount and resize effect where nothing has been reached yet.
+
 `RecentlyViewed` picked up the same treatment the same day: centred snap in
-place of `snap-start`, the same one-popped-card-at-a-time state, and the same
-wheel handling and direct-measurement centring.
+place of `snap-start`, the same one-popped-card-at-a-time state, the same
+wheel handling and direct-measurement centring, and the same `interacted`
+gate.
 
 ### 2026-08-20 — Catalogue is two independently scrolling rows, 1:1 imagery, recently-viewed reworked, subscribe panel bleeds to viewport edges
 
