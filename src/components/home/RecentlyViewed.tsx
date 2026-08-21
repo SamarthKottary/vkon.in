@@ -90,7 +90,12 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+    // `raw` starts `null` (pre-hydration — see the note below), and this
+    // component returns `null` in that state without rendering `<section>`
+    // at all, so `sectionRef.current` is still empty on this effect's first
+    // run. Re-running once `raw` resolves is what lets it actually attach,
+    // rather than bailing out here permanently on an empty dependency array.
+  }, [raw]);
 
   const poppedId = inView ? (hoverCapable ? hoveredId ?? centeredId : centeredId) : null;
 
