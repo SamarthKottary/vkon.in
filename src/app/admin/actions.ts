@@ -284,7 +284,7 @@ export async function savePageSeoAction(
   const paths = formData.getAll("path").map(String);
   const titles = formData.getAll("title").map(String);
   const descriptions = formData.getAll("description").map(String);
-  const allowed = new Set(SEO_PAGES.map((page) => page.path));
+  const allowed = new Set<string>(SEO_PAGES.map((page) => page.path));
 
   try {
     for (let index = 0; index < paths.length; index += 1) {
