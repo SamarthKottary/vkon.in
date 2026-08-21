@@ -12,7 +12,7 @@ import { resolvePageMetadata } from "@/lib/db/pageSeo";
 
 export async function generateMetadata() {
   return resolvePageMetadata({
-    title: `${site.name} — Motor Starters & Control Panels for Agriculture`,
+    title: `${site.legalName} — Motor Starters, Industrial Panels & Home Automation`,
     description: site.description,
     path: "/",
     absoluteTitle: true,
