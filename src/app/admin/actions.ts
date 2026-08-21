@@ -1,11 +1,14 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isAdminConfigured, login, logout, requireAdmin } from "@/lib/auth";
 import {
   createProduct,
   deleteProduct,
   getProductById,
+  nextSortOrder,
+  reorderProducts,
   slugExists,
   updateProduct,
 } from "@/lib/db/products";
@@ -129,9 +132,11 @@ function parseImages(formData: FormData): ProductImage[] {
 // Product create / update
 // ---------------------------------------------------------------------------
 
-async function buildInput(
-  formData: FormData,
-): Promise<{ input: ProductInput; fieldErrors: Record<string, string> }> {
+async function buildInput(formData: FormData): Promise<{
+  // `sortOrder` is set by the caller — see the comment on `saveProductAction`.
+  input: Omit<ProductInput, "sortOrder">;
+  fieldErrors: Record<string, string>;
+}> {
   const fieldErrors: Record<string, string> = {};
 
   const name = String(formData.get("name") ?? "").trim();
@@ -159,8 +164,6 @@ async function buildInput(
       (PROTECTION_KEYS as readonly string[]).includes(k),
     );
 
-  const sortOrderRaw = Number(formData.get("sortOrder"));
-
   return {
     fieldErrors,
     input: {
@@ -178,7 +181,7 @@ async function buildInput(
       spec: parseSpec(formData.get("spec")),
       published: formData.get("published") === "on",
       featured: formData.get("featured") === "on",
-      sortOrder: Number.isFinite(sortOrderRaw) ? sortOrderRaw : 0,
+      sortOrder,
     },
   };
 }
@@ -190,13 +193,13 @@ export async function saveProductAction(
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "").trim() || null;
-  const { input, fieldErrors } = await buildInput(formData);
+  const { input: draft, fieldErrors } = await buildInput(formData);
 
   if (Object.keys(fieldErrors).length > 0) {
     return { fieldErrors, error: "Please fix the highlighted fields." };
   }
 
-  if (await slugExists(input.slug, id ?? undefined)) {
+  if (await slugExists(draft.slug, id ?? undefined)) {
     return {
       fieldErrors: { slug: "Another product already uses this URL." },
       error: "Please fix the highlighted fields.",
@@ -207,9 +210,11 @@ export async function saveProductAction(
     if (id) {
       const existing = await getProductById(id);
       if (!existing) return { error: "That product no longer exists." };
-      await updateProduct(id, input);
+      // Order is set from the admin list's drag handles, not this form —
+      // carry the existing value through rather than reset it to 0.
+      await updateProduct(id, { ...draft, sortOrder: existing.sortOrder });
     } else {
-      await createProduct(input);
+      await createProduct({ ...draft, sortOrder: await nextSortOrder() });
     }
   } catch (error) {
     console.error("[admin] save failed:", error);
@@ -237,6 +242,22 @@ export async function deleteProductAction(formData: FormData): Promise<void> {
   }
 
   redirect("/admin/products?deleted=1");
+}
+
+/**
+ * Persists the order the admin list's drag handles left the products in.
+ *
+ * No redirect: this is called from a client component that already holds the
+ * dragged-to order in state and has re-rendered with it, so a navigation here
+ * would only interrupt that with a round trip. `revalidatePath` clears the
+ * cached list instead, so the next real visit (or a manual refresh) reads the
+ * order that was just written rather than a stale one.
+ */
+export async function reorderProductsAction(ids: string[]): Promise<void> {
+  await requireAdmin();
+  if (ids.length === 0) return;
+  await reorderProducts(ids);
+  revalidatePath("/admin/products");
 }
 
 // ---------------------------------------------------------------------------

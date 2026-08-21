@@ -228,3 +228,31 @@ export async function slugExists(slug: string, exceptId?: string): Promise<boole
   );
   return rows.length > 0;
 }
+
+/** One past the highest `sort_order` in use, so a new product is appended
+ *  after the last one in the admin list rather than landing at 0 and jumping
+ *  ahead of everything already arranged there. */
+export async function nextSortOrder(): Promise<number> {
+  const rows = await query<{ max: number | null }>(
+    `SELECT MAX(sort_order) AS max FROM products`,
+  );
+  return (rows[0]?.max ?? -1) + 1;
+}
+
+/** Persists the admin list's drag order as `sort_order` — 0 for the first id,
+ *  counting up. One statement rather than one `UPDATE` per product: `unnest`
+ *  zips the id and position arrays into rows and joins them back in, so the
+ *  whole reorder commits atomically instead of leaving the list half-written
+ *  if a later id in a per-row loop failed. */
+export async function reorderProducts(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await query(
+    `UPDATE products AS p
+     SET sort_order = data.ord, updated_at = now()
+     FROM (
+       SELECT id, ord FROM unnest($1::uuid[], $2::int[]) AS t(id, ord)
+     ) AS data
+     WHERE p.id = data.id`,
+    [ids, ids.map((_, index) => index)],
+  );
+}

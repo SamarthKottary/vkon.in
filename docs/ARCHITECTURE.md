@@ -681,16 +681,20 @@ browsers do not re-fire `mouseenter`/`mouseleave` just because content moved
 under a stationary pointer. The scroll handler clears `hoveredId` for exactly
 that reason.
 
-**Nothing pops on load, even though a card already sits centred at rest.**
-An `interacted` flag holds the pop off until the visitor's first real scroll
-or hover — arriving on the page is not "reaching" a card. It is set from the
-scroll *handler*, not from `sync` itself, since `sync` also runs from the
-mount and resize effect where nothing has been reached yet.
+**Nothing pops until this section itself is in the viewport, and it un-pops on
+scrolling away.** An `IntersectionObserver` on the section root (threshold
+0.4) drives an `inView` flag gating the popped id — separate from the other
+`IntersectionObserver`-shaped idea already rejected above for the centred-card
+check itself; this one only ever needs a single boolean, so the ratio-
+threshold gap that ruled it out there does not apply here. Arriving on the
+page is not "reaching" a card, and scrolling on past it should let go of it —
+an earlier build used a one-way `interacted` flag set by the first scroll or
+hover instead, which never un-popped once it was true.
 
 `RecentlyViewed` picked up the same treatment the same day: centred snap in
 place of `snap-start`, the same one-popped-card-at-a-time state, the same
-wheel handling and direct-measurement centring, and the same `interacted`
-gate.
+wheel handling and direct-measurement centring, and the same section-level
+`inView` gate.
 
 ### 2026-08-20 — Catalogue is two independently scrolling rows, 1:1 imagery, recently-viewed reworked, subscribe panel bleeds to viewport edges
 

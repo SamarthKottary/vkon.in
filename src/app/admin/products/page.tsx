@@ -1,14 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { PencilIcon, PlusIcon } from "@/components/icons/ui";
-import { Badge } from "@/components/ui/Badge";
+import { PlusIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
-import { categoryLabel } from "@/content/taxonomy";
 import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listProducts } from "@/lib/db/products";
-import { DeleteProductButton } from "./DeleteProductButton";
+import { ProductReorder } from "./ProductReorder";
 
 export const dynamic = "force-dynamic";
 
@@ -71,70 +68,13 @@ export default async function AdminProductsPage({
             </p>
           </div>
         ) : (
-          <ul>
-            {products.map((product) => (
-              <li
-                key={product.id}
-                className="flex flex-wrap items-center gap-4 border-b border-line p-4 last:border-b-0 sm:flex-nowrap"
-              >
-                <div className="relative h-14 w-14 shrink-0 border border-line bg-surface-subtle">
-                  {product.images[0] ? (
-                    <Image
-                      src={product.images[0].url}
-                      alt=""
-                      fill
-                      sizes="3.5rem"
-                      className="object-contain p-1"
-                    />
-                  ) : (
-                    <span className="label-tech flex h-full w-full items-center justify-center text-muted">
-                      —
-                    </span>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      href={`/admin/products/${product.id}`}
-                      className="truncate font-medium text-ink hover:text-accent"
-                    >
-                      {product.name}
-                    </Link>
-                    {!product.published && <Badge tone="warn">Draft</Badge>}
-                    {product.featured && <Badge tone="brand">Featured</Badge>}
-                  </div>
-                  <p className="label-tech mt-1.5 truncate text-muted">
-                    {categoryLabel(product.category)} · /{product.slug}
-                    {product.videoUrl ? " · video" : ""}
-                    {product.images.length
-                      ? ` · ${product.images.length} image${product.images.length === 1 ? "" : "s"}`
-                      : ""}
-                  </p>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-1">
-                  {product.published && (
-                    <Link
-                      href={`/products/${product.slug}`}
-                      target="_blank"
-                      className="px-3 py-2 text-sm text-muted hover:text-ink"
-                    >
-                      View
-                    </Link>
-                  )}
-                  <Link
-                    href={`/admin/products/${product.id}`}
-                    className="inline-flex items-center gap-1.5 border border-line-strong px-3 py-2 text-sm text-ink hover:border-ink"
-                  >
-                    <PencilIcon className="h-3.5 w-3.5" />
-                    Edit
-                  </Link>
-                  <DeleteProductButton id={product.id} name={product.name} />
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="border-b border-line px-4 py-2 text-sm text-muted">
+              Drag a row (or use its up/down arrows) to set the order the
+              catalogue lists these in.
+            </p>
+            <ProductReorder products={products} />
+          </>
         )}
       </div>
     </Container>

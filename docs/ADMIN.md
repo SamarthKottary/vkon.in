@@ -94,9 +94,15 @@ hidden fields. The client form is a convenience, never a control:
 | `category` | Must be in `CATEGORY_KEYS`; anything else silently becomes `starter`. |
 | `protections` | Filtered to known keys; unknown ones are dropped. |
 | `videoUrl` | Must parse as YouTube or Vimeo, else rejected with a field error. |
-| `sortOrder` | `Number.isFinite` or 0. |
 | lists | `parseLines` — one per line, blanks dropped. |
 | `spec` | `parseSpec` — `Label: value` per line, or `Label \| value`. |
+
+`sortOrder` is not a form field at all — `ProductForm` never submits it.
+`saveProductAction` sets it itself: a new product gets `nextSortOrder()`
+(one past the current highest, so it always lands last), an edit carries the
+existing row's value through unchanged. The only way to change it is
+`ProductReorder` on the list page — drag a row, or use its up/down buttons —
+which calls `reorderProductsAction` with the full ordered id list.
 
 **Uploads** are validated in `lib/storage.ts`: 8 MB limit, and only
 `image/jpeg`, `image/png`, `image/webp`, `image/avif`. The `accept` attribute on

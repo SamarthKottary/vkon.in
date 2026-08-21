@@ -85,12 +85,14 @@ export default async function HomePage() {
           heading has nothing to sit above otherwise. */}
       {featured.length > 0 && (
         <Section size="wide">
-          <SectionHeading
-            align="center"
-            eyebrow="Featured"
-            title="Picked from the range"
-            description="A handful pulled out from the catalogue — swipe or scroll through, or hover a card to see it lift."
-          />
+          {/* Left-aligned, same as `RecentlyViewed`'s heading below it —
+              not the centred `SectionHeading` used elsewhere on this page. */}
+          <div>
+            <h2 className="text-xl leading-snug sm:text-2xl">Featured products</h2>
+            <p className="mt-2 text-sm text-muted">
+              A handful pulled out from the catalogue.
+            </p>
+          </div>
 
           <div className="mt-12">
             <FeaturedProducts products={featured} />

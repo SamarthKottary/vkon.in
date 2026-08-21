@@ -271,19 +271,9 @@ export function ProductForm({ product }: { product?: Product }) {
           </label>
         </div>
 
-        <Field
-          id={`${uid}-sortOrder`}
-          label="Sort order"
-          hint="Lower numbers come first in the catalogue."
-        >
-          <input
-            id={`${uid}-sortOrder`}
-            name="sortOrder"
-            type="number"
-            defaultValue={product?.sortOrder ?? 0}
-            className={`${input()} max-w-32 font-mono`}
-          />
-        </Field>
+        {/* Catalogue order is set from the product list's drag handles, not
+            here — a number typed once tends to drift from what the list
+            actually shows the moment two products swap places. */}
       </Panel>
 
       <div className="flex items-center gap-3 border-t border-line pt-6">

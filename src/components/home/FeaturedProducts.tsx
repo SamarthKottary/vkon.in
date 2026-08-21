@@ -19,22 +19,26 @@ import type { Product } from "@/lib/types";
  *    horizontal delta on a two-finger swipe and need no help; a plain mouse
  *    wheel only ever sends a vertical one, which a horizontal-only track
  *    otherwise ignores completely.
- *  - **Exactly one card is ever popped, and none is until the visitor has
- *    done something.** Arriving on the page is not "reaching" a card, so
- *    nothing pops on load even though one already sits centred — the
- *    `interacted` flag holds that off until the first real scroll or hover.
- *    From there, whichever card's own centre sits closest to the track's
- *    centre is popped by default, checked by measuring rects on scroll and
- *    resize, the same way `sync` below already measures for the paging
- *    arrows. Pointing at a *different* card overrides it: `hoveredId` wins
- *    over the centred one whenever it is set, so hovering never leaves two
- *    cards popped at once.
+ *  - **Exactly one card is ever popped, and only while this section itself is
+ *    in view.** Scrolling the *page* to reach the section pops the centred
+ *    card; scrolling past it and away un-pops it — arriving is what "reaches"
+ *    a card here, not pointing at the row. An `IntersectionObserver` on the
+ *    section root (not the track) drives that, separately from the one below
+ *    that finds which card is centred. From there, whichever card's own
+ *    centre sits closest to the track's centre is popped by default, checked
+ *    by measuring rects on scroll and resize, the same way `sync` below
+ *    already measures for the paging arrows. Pointing at a *different* card
+ *    overrides it: `hoveredId` wins over the centred one whenever it is set,
+ *    so hovering never leaves two cards popped at once.
  *
- *    (An earlier build used `IntersectionObserver` with a narrowed root
- *    margin instead. It only reports an intersection change on crossing one
- *    of a fixed set of ratio thresholds, so a card change mid-scroll could go
- *    unreported until the ratio happened to cross one — this direct measure
- *    has no such gap.)
+ *    (An earlier build used the narrowed-root-margin `IntersectionObserver`
+ *    trick for the centred-card check too, and a plain "has the visitor done
+ *    anything yet" flag for the section-in-view check. The first only reports
+ *    an intersection change on crossing one of a fixed set of ratio
+ *    thresholds, so a card change mid-scroll could go unreported until the
+ *    ratio happened to cross one — this direct measure has no such gap. The
+ *    second stayed popped forever once set, rather than un-popping on leaving
+ *    the section, which is what this component is for.)
  *
  * The track carries generous vertical padding rather than `overflow-visible`
  * — horizontal scrolling needs `overflow-x: auto`, and the CSS overflow
@@ -43,14 +47,14 @@ import type { Product } from "@/lib/types";
  * without room either side to rise into.
  */
 export function FeaturedProducts({ products }: { products: Product[] }) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
   const [centeredId, setCenteredId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  /* Nothing is popped until the visitor actually does something — arriving
-     on the page is not "reaching" a card. Set true on the first real scroll
-     or hover and never reset, so once engaged the track behaves as before. */
-  const [interacted, setInteracted] = useState(false);
+  /* Whether the section itself is in the viewport — see the comment on the
+     component for why this, and not an interaction flag, gates the pop. */
+  const [inView, setInView] = useState(false);
   /* A touch tap can fire a stray `mouseenter` with no matching `mouseleave`,
      which would stick `hoveredId` on whatever card was first touched and
      hide the border from the card actually centred afterwards. Trusting it
@@ -62,13 +66,31 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     setHoverCapable(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
   }, []);
 
-  const poppedId = interacted ? (hoverCapable ? hoveredId ?? centeredId : centeredId) : null;
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { threshold: 0.4 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const poppedId = inView ? (hoverCapable ? hoveredId ?? centeredId : centeredId) : null;
 
   const sync = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
     const max = el.scrollWidth - el.clientWidth;
     setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
+
+    /* A scroll can shift a different card under a cursor that never itself
+       moved — the wheel handler below does exactly that — and browsers do
+       not re-fire `mouseenter`/`mouseleave` just because content moved under
+       a stationary pointer. Clearing it here stops that stale hover from
+       masking the centred card's border until the mouse genuinely moves. */
+    setHoveredId(null);
 
     const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
     let bestId: string | null = null;
@@ -83,18 +105,6 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     }
     setCenteredId(bestId);
   }, []);
-
-  /* The scroll handler, not `sync` itself: `sync` also runs from the mount
-     and resize effect below, where nothing has actually been "reached" yet
-     and a card popping on its own would contradict the whole point of this
-     flag. Clears a stale hover for the same reason described above it did
-     before this flag existed — a wheel scroll can shift a different card
-     under a cursor that never itself moved. */
-  const onScroll = () => {
-    setInteracted(true);
-    setHoveredId(null);
-    sync();
-  };
 
   useEffect(() => {
     sync();
@@ -127,7 +137,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const showArrows = canScroll.left || canScroll.right;
 
   return (
-    <div>
+    <div ref={rootRef}>
       {showArrows && (
         <div className="mb-6 flex items-center justify-end gap-3">
           <PageButton
@@ -149,7 +159,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
 
       <ul
         ref={trackRef}
-        onScroll={onScroll}
+        onScroll={sync}
         onWheel={onWheel}
         aria-label="Featured products"
         className="hscroll flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto px-1 py-4"
@@ -158,10 +168,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
           <li
             key={product.id}
             data-product-id={product.id}
-            onMouseEnter={() => {
-              setInteracted(true);
-              setHoveredId(product.id);
-            }}
+            onMouseEnter={() => setHoveredId(product.id)}
             onMouseLeave={() => setHoveredId(null)}
             className={`relative w-[82%] flex-none snap-center rounded-[2px] transition-[transform,box-shadow,outline-color] duration-300 ease-out sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
               poppedId === product.id
