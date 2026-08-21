@@ -49,3 +49,41 @@ When managing the site, the operator should follow these guidelines for the best
 
 - **Robots & Sitemap:** Next.js automatically generates `robots.txt` and `sitemap.xml` based on the App Router conventions. Custom sitemap logic (e.g., dynamically listing all product URLs) lives in `src/app/sitemap.ts`.
 - **Force Dynamic:** Because SEO overrides can change at any time via the admin panel, all affected pages are exported with `export const dynamic = "force-dynamic"`. Caching was evaluated and explicitly rejected to ensure that admin changes immediately reflect on the live site without requiring a rebuild or encountering stale cache invalidation issues.
+
+### How to Add a New Static Page to the Admin Panel
+
+If you create a new public-facing static page (e.g., `/services`) and want its metadata to be editable in the `/admin/seo` interface, follow these two steps:
+
+1. **Register the Route:**
+   Open `src/lib/seo.ts` and add your new route to the `SEO_PAGES` array:
+   ```typescript
+   export const SEO_PAGES = [
+     // ... existing pages
+     { path: "/services", label: "Services" },
+   ] as const;
+   ```
+   *The page will instantly appear as a section in the SEO admin interface.*
+
+2. **Wire the Page Component:**
+   In your new page component (e.g., `src/app/(site)/services/page.tsx`), import and use the `resolvePageMetadata` function so it can read from the database:
+   ```typescript
+   import { resolvePageMetadata } from "@/lib/db/pageSeo";
+
+   export const dynamic = "force-dynamic";
+
+   export async function generateMetadata() {
+     return resolvePageMetadata({
+       path: "/services",
+       title: "Services | Vkon",
+       description: "Default fallback description for services.",
+     });
+   }
+   ```
+
+## 6. Search Engine Indexing Timeline
+
+When you make a change in the `/admin/seo` panel (or anywhere on the site), the update is **instantly live** for visitors on the website. However, it will **not immediately update in Google Search**.
+
+- **Googlebot Crawling:** Search engines periodically send automated bots (like Googlebot) to read the site. They only update their search results *after* they crawl your site and notice the change.
+- **The Delay:** This process typically takes anywhere from a few days to a few weeks, depending on how often Google decides to visit.
+- **Forcing an Update:** If you make a critical SEO change (e.g., fixing a typo in a product name) and need it updated in search results faster, log into your **Google Search Console**, enter the specific page URL, and click **"Request Indexing"**. This places the URL into a priority queue and usually updates the search snippet within 24 to 48 hours.

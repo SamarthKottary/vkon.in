@@ -1,4 +1,5 @@
 import { listPageSeo } from "@/lib/db/pageSeo";
+import { Container } from "@/components/ui/Container";
 import { SeoForm } from "./SeoForm";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export default async function SeoPage() {
   const initial = await listPageSeo();
 
   return (
-    <div className="max-w-3xl">
+    <Container size="narrow">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
           Static SEO
@@ -24,6 +25,6 @@ export default async function SeoPage() {
       </div>
 
       <SeoForm initial={initial} />
-    </div>
+    </Container>
   );
 }
