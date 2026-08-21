@@ -15,6 +15,7 @@ export const site = {
   legalName: "Vkon Automation",
   domain: "vkon.in",
   logo: "https://vkon.in/brand/vkon-logo-round.jpeg",
+  ogImage: "https://vkon.in/brand/vkon-og-banner.jpeg",
   /**
    * Public origin. Overridable so a staging deploy does not emit canonical
    * URLs and structured data pointing at production.
@@ -22,7 +23,7 @@ export const site = {
   url: process.env.SITE_URL?.replace(/\/$/, "") || "https://vkon.in",
   tagline: "Motor protection that holds",
   description:
-    "Vkon builds advanced motor starters, industrial control panels, and smart home automation systems with robust built-in protection and mobile control.",
+    "Advanced motor starters, industrial panels, and smart home automation with robust built-in protection and mobile control.",
 
   phone: {
     display: "+91 82170 86719",

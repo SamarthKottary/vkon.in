@@ -34,7 +34,7 @@ export function pageMetadata({
   absoluteTitle?: boolean;
 }): Metadata {
   const url = `${site.url}${path}`;
-  const resolvedImages = images?.length ? images : [site.logo];
+  const resolvedImages = images?.length ? images : [site.ogImage];
 
   return {
     title: absoluteTitle ? { absolute: title } : title,
