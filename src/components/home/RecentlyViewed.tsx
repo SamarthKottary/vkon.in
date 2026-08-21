@@ -195,14 +195,19 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
             ref={trackRef}
             onScroll={sync}
             onWheel={onWheel}
+            onMouseOver={(event) => {
+              const card = (event.target as HTMLElement).closest<HTMLElement>(
+                "[data-product-id]",
+              );
+              if (card) setHoveredId(card.dataset.productId ?? null);
+            }}
+            onMouseLeave={() => setHoveredId(null)}
             className="hscroll mt-8 flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto px-1 py-4"
           >
             {recent.map((product) => (
               <li
                 key={product.id}
                 data-product-id={product.id}
-                onMouseEnter={() => setHoveredId(product.id)}
-                onMouseLeave={() => setHoveredId(null)}
                 /* Wider on a phone than the other tracks' 82%: this card puts
                    a 112px image and a spec column side by side, and at 82% the
                    column was too narrow for a spec to fit on one line at all.

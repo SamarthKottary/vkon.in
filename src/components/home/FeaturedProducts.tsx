@@ -55,11 +55,10 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   /* Whether the section itself is in the viewport — see the comment on the
      component for why this, and not an interaction flag, gates the pop. */
   const [inView, setInView] = useState(false);
-  /* A touch tap can fire a stray `mouseenter` with no matching `mouseleave`,
-     which would stick `hoveredId` on whatever card was first touched and
-     hide the border from the card actually centred afterwards. Trusting it
-     only where hover genuinely exists keeps every other device on the
-     centred card, which a swipe does keep up to date. */
+  /* A touch tap can fire a stray `mouseover` that would stick `hoveredId` on
+     whatever card was first touched and hide the border from the card the
+     swipe later centres. Trusting hover only where a fine pointer genuinely
+     exists keeps every touch device on the centred card. */
   const [hoverCapable, setHoverCapable] = useState(false);
 
   useEffect(() => {
