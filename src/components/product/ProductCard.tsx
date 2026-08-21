@@ -396,13 +396,19 @@ function HorizontalCard({
               <span
                 key={`${value}-${index}`}
                 data-spec
-                /* `opacity-0`, never `hidden`: a hidden spec must keep its
+                /* `whitespace-nowrap` is what makes the value an atomic unit:
+                   without it a multi-word value like "Direct on line (DOL)"
+                   breaks mid-phrase, which both looks wrong and leaves the
+                   flex-wrapped line short of the card's right edge instead of
+                   moving the whole value down.
+
+                   `opacity-0`, never `hidden`: a hidden spec must keep its
                    space or the geometry changes on every pass and the
                    measurement never settles. It also stays in the
                    accessibility tree, so the full list is still read out. */
-                className={
-                  shown !== null && index >= shown ? "opacity-0" : undefined
-                }
+                className={`whitespace-nowrap${
+                  shown !== null && index >= shown ? " opacity-0" : ""
+                }`}
               >
                 <span
                   aria-hidden
