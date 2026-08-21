@@ -9,8 +9,8 @@ import { sendEnquiryAction, type EnquiryState } from "@/app/(site)/actions";
  * The contact form.
  *
  * Four fields and nothing else. Every extra field on an enquiry form is a
- * reason not to fill it in, and the two things Vkon actually needs — what motor
- * you are running and where you are — are prompted for in the message
+ * reason not to fill it in, and the two things Vkon actually needs — what
+ * you are after and where you are — are prompted for in the message
  * placeholder rather than broken into selects the visitor has to decode.
  *
  * On success the form is replaced by its confirmation. `useActionState` does
@@ -44,9 +44,8 @@ export function EnquiryForm() {
         <div>
           <p className="font-medium text-ink">{state.message}</p>
           <p className="mt-2 text-sm leading-relaxed text-body">
-            We read these through the working day and reply on the same number
-            or address you gave us. If it is urgent, call — that is always
-            faster than a form.
+            We’ll reply on the number or address you gave, through the working
+            day. Urgent? Call — it’s faster than a form.
           </p>
         </div>
       </div>
@@ -107,7 +106,7 @@ export function EnquiryForm() {
       <Field
         id={`${uid}-message`}
         label="What do you need?"
-        hint="Motor rating, supply type and your location is usually enough."
+        hint="The product or job, the rating or size, and your location is usually enough."
         error={error("message")}
         required
       >
@@ -117,7 +116,7 @@ export function EnquiryForm() {
           rows={6}
           required
           maxLength={4000}
-          placeholder="I run a 7.5 HP submersible on three phase near Kolar and want a panel with dry run protection…"
+          placeholder="e.g. a starter for a 7.5 HP borewell pump, an industrial panel, or home automation — plus your location…"
           className={`${input(error("message"))} resize-y leading-relaxed`}
         />
       </Field>

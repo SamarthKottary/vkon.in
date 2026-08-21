@@ -10,7 +10,7 @@ import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "Contact",
-  description: `Send an enquiry to ${site.name} — motor starters and control panels built in ${site.address.locality}, ${site.address.region}. Tell us the motor rating and your location and we will point you at the right panel.`,
+  description: `Send an enquiry to ${site.name} — motor starters, control panels, solar and home automation, built in ${site.address.locality}, ${site.address.region}. Tell us what you need and we'll point you at the right product and your nearest dealer.`,
   path: "/contact",
 });
 
@@ -99,7 +99,7 @@ export default function ContactPage() {
         <Container size="wide">
           <div className="flex min-h-[12rem] flex-col justify-end py-12 sm:min-h-[15rem] sm:py-14 lg:min-h-[18rem] lg:py-16">
             <h1 className="max-w-3xl text-[2.25rem] leading-[1.08] text-band-ink sm:text-5xl lg:text-[3.5rem]">
-              Tell us what you&rsquo;re running
+              Tell us what you need
             </h1>
             <p className="mt-3 max-w-2xl text-base leading-relaxed text-band-body sm:mt-4 sm:text-lg">
               Call, WhatsApp or write below — all three reach the same desk.
@@ -130,11 +130,10 @@ export default function ContactPage() {
             <div className="border border-line bg-surface-raised p-6 shadow-card sm:p-8 lg:p-10">
               <h2 className="text-2xl sm:text-3xl">Send us an enquiry</h2>
               <p className="mt-4 max-w-xl leading-relaxed text-body">
-                Motor rating, supply type and location is usually all we need to
-                point you at the right panel and your nearest dealer. We read
-                these through the working day and reply on whichever of your
-                phone or email you leave below. If the pump is down today, call
-                — that is always faster than a form.
+                Tell us what you need and where you are &mdash; pumps, panels,
+                solar or home automation. We&rsquo;ll point you at the right
+                product and your nearest dealer, and reply by phone or email.
+                Urgent? Call &mdash; it&rsquo;s faster than a form.
               </p>
 
               <div className="mt-10">
