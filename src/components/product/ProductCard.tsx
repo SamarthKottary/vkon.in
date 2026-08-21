@@ -442,6 +442,24 @@ function HorizontalCard({
           >
             ···
           </span>
+
+          {/* The cut specs, in full, on hover or keyboard focus of the card
+              (`group` is the `<article>`) — and on a phone, on press-and-hold,
+              since there is no hover there. Same box, same size: it overlays
+              the truncated preview rather than growing the card, and scrolls
+              internally for whatever did not fit. `aria-hidden` because the
+              preview list beside it already carries every value for a screen
+              reader; this is a sighted-pointer convenience only. */}
+          {markAt && (
+            <div
+              aria-hidden
+              className="absolute inset-0 hidden overflow-y-auto bg-surface-raised p-1 font-mono text-[0.75rem] leading-5 text-ink opacity-0 transition-opacity duration-150 group-hover:block group-hover:opacity-100 group-focus-within:block group-focus-within:opacity-100 group-active:block group-active:opacity-100"
+            >
+              {specs.map((value, index) => (
+                <p key={`${value}-${index}`}>· {value}</p>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
