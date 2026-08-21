@@ -39,11 +39,12 @@ const SHOWN = 6;
  * to scroll to rather than shrinks the visible three.
  *
  * **Exactly one card is popped at a time**, same idiom as
- * `home/FeaturedProducts`: `IntersectionObserver` keeps whichever card sits
- * centred in the track popped by default, on every device, and pointing at a
- * different card overrides it rather than adding to it. See that component's
- * comment for why the track takes vertical padding rather than
- * `overflow-visible` and why a plain wheel needs its own handler.
+ * `home/FeaturedProducts`: whichever card's own centre sits closest to the
+ * track's centre is popped by default, checked on scroll and resize, and
+ * pointing at a different card overrides it rather than adding to it. See
+ * that component's comment for why the track takes vertical padding rather
+ * than `overflow-visible`, why a plain wheel needs its own handler, and why
+ * this measures rects directly instead of using `IntersectionObserver`.
  */
 export function RecentlyViewed({ products }: { products: Product[] }) {
   const raw = useSyncExternalStore<string | null>(
@@ -83,6 +84,19 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
       left: el.scrollLeft > 4,
       right: el.scrollLeft < max - 4,
     });
+
+    const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
+    let bestId: string | null = null;
+    let bestDistance = Infinity;
+    for (const card of el.querySelectorAll<HTMLElement>("[data-product-id]")) {
+      const rect = card.getBoundingClientRect();
+      const distance = Math.abs(rect.left + rect.width / 2 - trackMid);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestId = card.dataset.productId ?? null;
+      }
+    }
+    setCenteredId(bestId);
   }, []);
 
   useEffect(() => {
@@ -93,43 +107,6 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, [sync, recent.length]);
-
-  /* Whichever card sits in the middle fifth of the track counts as centred.
-     Runs regardless of pointer type, so there is always a popped card even
-     when the mouse is resting outside the track altogether. */
-  useEffect(() => {
-    const el = trackRef.current;
-    if (!el) return;
-
-    const ratios = new Map<string, number>();
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const id = (entry.target as HTMLElement).dataset.productId;
-          if (!id) continue;
-          ratios.set(id, entry.isIntersecting ? entry.intersectionRatio : 0);
-        }
-
-        let bestId: string | null = null;
-        let bestRatio = 0;
-        for (const [id, ratio] of ratios) {
-          if (ratio > bestRatio) {
-            bestRatio = ratio;
-            bestId = id;
-          }
-        }
-        setCenteredId(bestRatio > 0 ? bestId : null);
-      },
-      { root: el, rootMargin: "0px -40% 0px -40%", threshold: [0, 0.5, 1] },
-    );
-
-    for (const card of el.querySelectorAll<HTMLElement>("[data-product-id]")) {
-      observer.observe(card);
-    }
-
-    return () => observer.disconnect();
-  }, [recent]);
 
   const page = (direction: 1 | -1) => {
     const el = trackRef.current;

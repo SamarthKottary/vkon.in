@@ -175,8 +175,8 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `layout/SubscribePanel` | `useActionState` over the public sign-up action |
 | `home/HeroRotator` | Slide timer, pause control, reduced-motion opt-out |
 | `home/SectorBrowser` | Open card, measured paging arrows |
-| `home/FeaturedProducts` | Measured paging arrows, wheel-to-scroll, `IntersectionObserver` centred-card detection |
-| `home/RecentlyViewed` | Reads localStorage via `useSyncExternalStore`; measured paging arrows, wheel-to-scroll, `IntersectionObserver` centred-card detection |
+| `home/FeaturedProducts` | Measured paging arrows, wheel-to-scroll, measured centred-card detection |
+| `home/RecentlyViewed` | Reads localStorage via `useSyncExternalStore`; measured paging arrows, wheel-to-scroll, measured centred-card detection |
 | `product/ProductCatalogue` | `useSearchParams` filter state |
 | `product/ProductRow` | Measured paging arrows over a scroll track |
 | `product/RelatedProducts` | Measured paging arrows over a scroll track |
@@ -659,19 +659,25 @@ previously-unused `listFeaturedProducts`. It reuses the `hscroll` track idiom
 but snaps `center` rather than `start`, and exactly one card is popped
 (scaled and lifted) at a time — a heavier motion than the rest of the site's
 plain hover lift, kept scoped to this one track rather than changed on
-`ProductCard` itself. `IntersectionObserver` keeps the track's centred card
-popped by default on every device — not just touch — and `onMouseEnter` /
-`onMouseLeave` on each card overrides it: `hoveredId ?? centeredId` is the one
-popped class applied, so pointing at a different card always un-pops the
-centred one instead of popping both. The track carries vertical padding
-rather than `overflow-visible` so the lifted card has room to rise into
-without clipping — `overflow-x: auto` forces the other axis to `auto` too,
-so `visible` was never actually available here.
+`ProductCard` itself. Whichever card's own centre is closest to the track's
+centre is popped by default, measured on scroll and resize the same way
+`sync` already measures for the paging arrows; a real mouse hover overrides
+it — `hoveredId ?? centeredId` is the one popped class applied, gated so only
+a genuinely hover-capable device (`(hover: hover) and (pointer: fine)`) trusts
+`hoveredId` at all, since a touch tap can fire a stray `mouseenter` with no
+matching `mouseleave` and stick the pop on whatever was first touched. The
+track carries vertical padding rather than `overflow-visible` so the lifted
+card has room to rise into without clipping — `overflow-x: auto` forces the
+other axis to `auto` too, so `visible` was never actually available here.
+
+`IntersectionObserver` against a narrowed root margin was tried first for the
+centred-card check and dropped the same day: it only reports a change on
+crossing one of a fixed set of ratio thresholds, so the centred card could go
+stale for stretches of a scroll rather than tracking it continuously.
 
 `RecentlyViewed` picked up the same treatment the same day: centred snap in
 place of `snap-start`, the same one-popped-card-at-a-time state, and the same
-wheel and `IntersectionObserver` handling. The two tracks now share the idiom
-rather than one being the odd one out.
+wheel handling and direct-measurement centring.
 
 ### 2026-08-20 — Catalogue is two independently scrolling rows, 1:1 imagery, recently-viewed reworked, subscribe panel bleeds to viewport edges
 

@@ -19,12 +19,19 @@ import type { Product } from "@/lib/types";
  *    horizontal delta on a two-finger swipe and need no help; a plain mouse
  *    wheel only ever sends a vertical one, which a horizontal-only track
  *    otherwise ignores completely.
- *  - **Exactly one card is ever popped.** `IntersectionObserver` keeps
- *    whichever card sits centred in the track popped by default — this runs
- *    on every device, not just touch, so resting the mouse and doing nothing
- *    still shows a popped card. Pointing at a *different* card overrides it:
- *    `hoveredId` wins over the centred one whenever it is set, so hovering
- *    never leaves two cards popped at once.
+ *  - **Exactly one card is ever popped.** Whichever card's own centre sits
+ *    closest to the track's centre is popped by default — checked by
+ *    measuring rects on scroll and resize, the same way `sync` below already
+ *    measures for the paging arrows, so there is always a popped card even
+ *    when the mouse is resting outside the track altogether. Pointing at a
+ *    *different* card overrides it: `hoveredId` wins over the centred one
+ *    whenever it is set, so hovering never leaves two cards popped at once.
+ *
+ *    (An earlier build used `IntersectionObserver` with a narrowed root
+ *    margin instead. It only reports an intersection change on crossing one
+ *    of a fixed set of ratio thresholds, so a card change mid-scroll could go
+ *    unreported until the ratio happened to cross one — this direct measure
+ *    has no such gap.)
  *
  * The track carries generous vertical padding rather than `overflow-visible`
  * — horizontal scrolling needs `overflow-x: auto`, and the CSS overflow
@@ -55,6 +62,19 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     if (!el) return;
     const max = el.scrollWidth - el.clientWidth;
     setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
+
+    const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
+    let bestId: string | null = null;
+    let bestDistance = Infinity;
+    for (const card of el.querySelectorAll<HTMLElement>("[data-product-id]")) {
+      const rect = card.getBoundingClientRect();
+      const distance = Math.abs(rect.left + rect.width / 2 - trackMid);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestId = card.dataset.productId ?? null;
+      }
+    }
+    setCenteredId(bestId);
   }, []);
 
   useEffect(() => {
@@ -65,45 +85,6 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, [sync, products.length]);
-
-  /* Whichever card sits in the middle fifth of the track counts as centred —
-     narrow enough that two neighbours are never both inside it at once, wide
-     enough to hold a card through the small overshoot a snap settles from.
-     Runs regardless of pointer type, so there is always a popped card even
-     when the mouse is resting outside the track altogether. */
-  useEffect(() => {
-    const el = trackRef.current;
-    if (!el) return;
-
-    const ratios = new Map<string, number>();
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const id = (entry.target as HTMLElement).dataset.productId;
-          if (!id) continue;
-          ratios.set(id, entry.isIntersecting ? entry.intersectionRatio : 0);
-        }
-
-        let bestId: string | null = null;
-        let bestRatio = 0;
-        for (const [id, ratio] of ratios) {
-          if (ratio > bestRatio) {
-            bestRatio = ratio;
-            bestId = id;
-          }
-        }
-        setCenteredId(bestRatio > 0 ? bestId : null);
-      },
-      { root: el, rootMargin: "0px -40% 0px -40%", threshold: [0, 0.5, 1] },
-    );
-
-    for (const card of el.querySelectorAll<HTMLElement>("[data-product-id]")) {
-      observer.observe(card);
-    }
-
-    return () => observer.disconnect();
-  }, [products.length]);
 
   /** Pages by one card, measured from the DOM so it follows the breakpoint. */
   const page = (direction: 1 | -1) => {
