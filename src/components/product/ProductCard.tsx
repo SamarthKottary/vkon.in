@@ -300,12 +300,7 @@ function HorizontalCard({
 
 
   return (
-    /* `hover:overflow-visible` and `hover:z-20` are what let the spec block
-       below grow past its collapsed height on hover instead of clipping —
-       the card pops up and over whatever is beneath it in the page rather
-       than pushing the row's layout around. `relative` keeps that z-index
-       meaningful against its siblings. */
-    <article className="group relative z-0 h-full overflow-hidden border border-line bg-surface-raised p-4 pb-9 shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:z-20 hover:-translate-y-0.5 hover:overflow-visible hover:border-line-strong hover:shadow-card-hover focus-within:z-20 focus-within:overflow-visible active:z-20 active:overflow-visible">
+    <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-9 shadow-card transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
       {/* Floated, not a flex column. The text runs alongside the image and
           then continues *underneath* it, wrapping round in an L — which is
           what keeps a long product name readable in a ~320px card on a
@@ -393,14 +388,9 @@ function HorizontalCard({
           reading as one; at a line start it falls clear into the padding. */}
       {specs.length > 0 && (
         <div className="relative mt-1.5">
-          {/* `max-h`, not `h`: it fixes the collapsed height at 5 lines as
-             before, but — unlike a plain `h` — lets the box grow past that
-             on hover, so the transition has something to animate. Paired
-             with the parent's `hover:overflow-visible`, the extra lines push
-             out below the card instead of being clipped. */}
           <p
             ref={specRef}
-            className="flex max-h-[6.25rem] flex-wrap items-baseline gap-x-0 overflow-hidden pl-4 font-mono text-[0.75rem] leading-5 text-ink transition-[max-height] duration-300 ease-out group-hover:max-h-[40rem] group-focus-within:max-h-[40rem] group-active:max-h-[40rem]"
+            className="flex h-[6.25rem] flex-wrap items-baseline gap-x-0 overflow-hidden pl-4 font-mono text-[0.75rem] leading-5 text-ink"
           >
             {specs.map((value, index) => (
               <span
@@ -415,14 +405,9 @@ function HorizontalCard({
                    `opacity-0`, never `hidden`: a hidden spec must keep its
                    space or the geometry changes on every pass and the
                    measurement never settles. It also stays in the
-                   accessibility tree, so the full list is still read out.
-                   `group-hover`/`group-focus-within` bring it back as the box
-                   grows, so hovering reveals the rest rather than just
-                   making room for it. */
+                   accessibility tree, so the full list is still read out. */
                 className={`whitespace-nowrap${
-                  shown !== null && index >= shown
-                    ? " opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 group-active:opacity-100"
-                    : ""
+                  shown !== null && index >= shown ? " opacity-0" : ""
                 }`}
               >
                 <span
@@ -446,16 +431,12 @@ function HorizontalCard({
               the line closes `· value ···` with no gap. Always mounted so its
               width can be read on the pass that positions it, and absolutely
               placed so it disturbs no layout. It carries the card's background
-              to cover the single dot it stands in for.
-
-              Fades out with the hover/focus grow: once the box is tall
-              enough to show the rest, a mark saying "more was cut" is no
-              longer true. */}
+              to cover the single dot it stands in for. */}
           <span
             ref={markRef}
             aria-hidden
             style={markAt ?? undefined}
-            className={`absolute bg-surface-raised font-mono text-[0.75rem] leading-5 text-muted transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0 group-active:opacity-0 ${
+            className={`absolute bg-surface-raised font-mono text-[0.75rem] leading-5 text-muted ${
               markAt ? "" : "opacity-0"
             }`}
           >
