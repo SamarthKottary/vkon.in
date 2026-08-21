@@ -37,7 +37,18 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
   const [centeredId, setCenteredId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const poppedId = hoveredId ?? centeredId;
+  /* A touch tap can fire a stray `mouseenter` with no matching `mouseleave`,
+     which would stick `hoveredId` on whatever card was first touched and
+     hide the border from the card actually centred afterwards. Trusting it
+     only where hover genuinely exists keeps every other device on the
+     centred card, which a swipe does keep up to date. */
+  const [hoverCapable, setHoverCapable] = useState(false);
+
+  useEffect(() => {
+    setHoverCapable(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+  }, []);
+
+  const poppedId = hoverCapable ? (hoveredId ?? centeredId) : centeredId;
 
   const sync = useCallback(() => {
     const el = trackRef.current;
@@ -149,10 +160,10 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
             data-product-id={product.id}
             onMouseEnter={() => setHoveredId(product.id)}
             onMouseLeave={() => setHoveredId(null)}
-            className={`w-[82%] flex-none snap-center rounded-[2px] transition-[transform,box-shadow,outline-color] duration-300 ease-out sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
+            className={`relative w-[82%] flex-none snap-center rounded-[2px] transition-[transform,box-shadow,outline-color] duration-300 ease-out sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
               poppedId === product.id
-                ? "-translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
-                : "outline outline-2 -outline-offset-2 outline-transparent"
+                ? "z-10 -translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
+                : "z-0 outline outline-2 -outline-offset-2 outline-transparent"
             }`}
           >
             <ProductCard product={product} priority={index === 0} />
