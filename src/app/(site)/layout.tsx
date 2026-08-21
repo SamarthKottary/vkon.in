@@ -1,6 +1,7 @@
 import { Footer } from "@/components/layout/Footer";
 import { FloatingContact } from "@/components/layout/FloatingContact";
 import { Header } from "@/components/layout/Header";
+import { IntroSplash } from "@/components/layout/IntroSplash";
 import { MobileActionBar } from "@/components/layout/MobileActionBar";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { categoriesInSector, sectors } from "@/content/taxonomy";
@@ -47,6 +48,8 @@ export default async function SiteLayout({
 
   return (
     <>
+      <IntroSplash />
+
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[70] focus:bg-action focus:px-5 focus:py-3 focus:text-sm focus:font-medium focus:text-action-ink"

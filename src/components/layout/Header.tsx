@@ -138,7 +138,9 @@ export function Header({ menu = [] }: { menu?: MenuSector[] }) {
               hidden and `ml-auto` on the right group takes over the alignment. */}
           <div className="flex h-16 items-center gap-6">
             <div className="shrink-0 md:flex-1">
-              <Link href="/" className="inline-flex items-center">
+              {/* `data-brand-logo` is the landing target the intro splash flies
+                  its logo to; see `layout/IntroSplash`. */}
+              <Link href="/" data-brand-logo className="inline-flex items-center">
                 <Logo />
               </Link>
             </div>

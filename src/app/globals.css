@@ -503,6 +503,34 @@
   .tilt[data-active="true"] .tilt-glare {
     opacity: 1;
   }
+
+  /* Brand intro cover — see `layout/IntroSplash`. The logo flips in on its Y
+     axis, then JS flies it to the header logo; the background here fades as it
+     travels, and the container self-clears (`intro-clear`) as a no-JS safety
+     net. The background is a separate layer so it can fade while the logo it
+     sits behind stays fully opaque through its flight. */
+  .intro-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    animation: intro-clear 0s linear 2.6s forwards;
+  }
+
+  .intro-splash-bg {
+    position: absolute;
+    inset: 0;
+    background: var(--color-surface);
+    animation: intro-cover 0.8s ease-in 1.1s forwards;
+  }
+
+  .intro-splash-logo {
+    position: relative;
+    animation: intro-logo 1.05s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+    transform-style: preserve-3d;
+    will-change: transform, opacity;
+  }
 }
 
 @keyframes reveal-in {
@@ -513,6 +541,34 @@
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes intro-logo {
+  0% {
+    opacity: 0;
+    transform: perspective(900px) rotateY(-95deg) scale(0.82);
+  }
+  60% {
+    opacity: 1;
+    transform: perspective(900px) rotateY(0deg) scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(900px) rotateY(0deg) scale(1);
+  }
+}
+
+@keyframes intro-cover {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes intro-clear {
+  to {
+    visibility: hidden;
+    pointer-events: none;
   }
 }
 

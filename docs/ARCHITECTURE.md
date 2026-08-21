@@ -173,6 +173,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `layout/Header` | Drawer state, focus trap, Escape, hide-on-scroll |
 | `layout/ProductsMenu` | Dropdown state, outside-click, measured slider |
 | `layout/SubscribePanel` | `useActionState` over the public sign-up action |
+| `layout/IntroSplash` | Session-gated brand intro; logo flies to the header logo (measured) |
 | `home/HeroRotator` | Slide timer, pause control, reduced-motion opt-out |
 | `home/SectorBrowser` | Open card, measured paging arrows |
 | `home/FeaturedProducts` | Measured paging arrows, wheel-to-scroll, measured centred-card detection |
@@ -652,6 +653,33 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-21 — Brand intro splash on first visit
+
+`layout/IntroSplash`, mounted in the `(site)` layout (not root — admin gets no
+splash), covers the page on a fresh visit: the logo flips in on its Y axis at
+centre, then flies up and lands on the header's real logo — spinning a full
+turn on the way — while the cover fades to reveal the site behind it. The
+landing is a measured hand-off: the header logo carries `data-brand-logo`, the
+splash measures its box live and transitions `translate/scale` to match, so it
+lands pixel-accurate at any breakpoint and the identical header logo is already
+underneath when the splash unmounts. (The spin needs both transforms to share
+one function list — `translate … perspective … rotateY … scale` — since
+mismatched lists interpolate as matrices and a 360° matrix is identity, i.e. no
+spin.)
+
+Once per browser session via a `sessionStorage` flag: the layout already
+persists across client navigation, so it mounts once per full load, and the
+flag stops a hard refresh replaying it within the same session.
+
+It covers rather than gates — the page renders underneath from first paint, so
+content and crawlers are unaffected; the cover is a `fixed`, `aria-hidden`
+overlay whose background fades to reveal the page and whose container
+self-clears to `visibility: hidden` / `pointer-events: none` via a CSS
+animation, so it never traps a click even if the component's timer never fires.
+`prefers-reduced-motion` collapses the animation and shortens the timer, so
+those visitors get no hold. No dependency: one client component, CSS keyframes,
+the existing brand PNGs.
 
 ### 2026-08-21 — About page gained icons and a 3D tilt
 
