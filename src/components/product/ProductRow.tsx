@@ -126,33 +126,8 @@ function Track({
     el.scrollBy({ left: step * direction, behavior: "smooth" });
   };
 
-  const showArrows = canScroll.left || canScroll.right;
-
   return (
-    <div>
-      {/* Hidden entirely when the row already fits — a control that can never
-          do anything is noise, and with two rows there would be two of them.
-          They disable at the ends rather than vanishing, so the pair does not
-          move while you use it. */}
-      {showArrows && (
-        <div className="mb-2 flex items-center justify-end gap-2">
-          <PageButton
-            label={`Previous ${category}, ${rowLabel}`}
-            disabled={!canScroll.left}
-            onClick={() => page(-1)}
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-          </PageButton>
-          <PageButton
-            label={`More ${category}, ${rowLabel}`}
-            disabled={!canScroll.right}
-            onClick={() => page(1)}
-          >
-            <ArrowRightIcon className="h-4 w-4" />
-          </PageButton>
-        </div>
-      )}
-
+    <div className="relative">
       <ul
         ref={trackRef}
         onScroll={sync}
@@ -168,27 +143,50 @@ function Track({
           </li>
         ))}
       </ul>
+
+      {/* Paging arrows overlaid on the track's left and right edges, vertically
+          centred over the cards, rather than above the row. Each shows only
+          when that direction can still scroll, so a control never sits dead
+          over a card and the row that already fits shows none. */}
+      {canScroll.left && (
+        <PageButton
+          label={`Previous ${category}, ${rowLabel}`}
+          onClick={() => page(-1)}
+          className="left-2"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+        </PageButton>
+      )}
+      {canScroll.right && (
+        <PageButton
+          label={`More ${category}, ${rowLabel}`}
+          onClick={() => page(1)}
+          className="right-2"
+        >
+          <ArrowRightIcon className="h-4 w-4" />
+        </PageButton>
+      )}
     </div>
   );
 }
 
 function PageButton({
   label,
-  disabled,
   onClick,
+  className = "",
   children,
 }: {
   label: string;
-  disabled: boolean;
   onClick: () => void;
+  /** Positioning against the track — `left-2` or `right-2`. */
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
-      className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface-raised text-ink transition-colors hover:border-ink disabled:cursor-default disabled:text-muted disabled:opacity-40"
+      className={`absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface-raised text-ink shadow-card-hover transition-colors hover:border-ink ${className}`}
     >
       {children}
       <span className="sr-only">{label}</span>
