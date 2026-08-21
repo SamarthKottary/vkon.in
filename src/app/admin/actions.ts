@@ -181,7 +181,6 @@ async function buildInput(formData: FormData): Promise<{
       spec: parseSpec(formData.get("spec")),
       published: formData.get("published") === "on",
       featured: formData.get("featured") === "on",
-      sortOrder,
     },
   };
 }
