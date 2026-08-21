@@ -85,13 +85,6 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     const max = el.scrollWidth - el.clientWidth;
     setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
 
-    /* A scroll can shift a different card under a cursor that never itself
-       moved — the wheel handler below does exactly that — and browsers do
-       not re-fire `mouseenter`/`mouseleave` just because content moved under
-       a stationary pointer. Clearing it here stops that stale hover from
-       masking the centred card's border until the mouse genuinely moves. */
-    setHoveredId(null);
-
     const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
     let bestId: string | null = null;
     let bestDistance = Infinity;
@@ -169,10 +162,24 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
         )}
       </div>
 
+      {/* Hover is read from one `mouseover` on the track, not per-card
+          `mouseenter`/`mouseleave`: moving between cards that way passes
+          through a frame with nothing hovered, and the pop flicked back to
+          the centred card for that frame. `mouseover` resolves the card under
+          the pointer directly with no gap, and a move over the inter-card gap
+          keeps the last card rather than clearing — only leaving the whole
+          track clears. */}
       <ul
         ref={trackRef}
         onScroll={sync}
         onWheel={onWheel}
+        onMouseOver={(event) => {
+          const card = (event.target as HTMLElement).closest<HTMLElement>(
+            "[data-product-id]",
+          );
+          if (card) setHoveredId(card.dataset.productId ?? null);
+        }}
+        onMouseLeave={() => setHoveredId(null)}
         aria-label="Featured products"
         className="hscroll mt-8 flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto px-1 py-4"
       >
@@ -180,8 +187,6 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
           <li
             key={product.id}
             data-product-id={product.id}
-            onMouseEnter={() => setHoveredId(product.id)}
-            onMouseLeave={() => setHoveredId(null)}
             className={`relative w-[82%] flex-none snap-center sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
               poppedId === product.id ? "z-10" : "z-0"
             }`}

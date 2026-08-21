@@ -108,13 +108,6 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
       right: el.scrollLeft < max - 4,
     });
 
-    /* A scroll can shift a different card under a cursor that never itself
-       moved — the wheel handler below does exactly that — and browsers do
-       not re-fire `mouseenter`/`mouseleave` just because content moved under
-       a stationary pointer. Clearing it here stops that stale hover from
-       masking the centred card's border until the mouse genuinely moves. */
-    setHoveredId(null);
-
     const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
     let bestId: string | null = null;
     let bestDistance = Infinity;
