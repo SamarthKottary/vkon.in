@@ -696,6 +696,21 @@ place of `snap-start`, the same one-popped-card-at-a-time state, the same
 wheel handling and direct-measurement centring, and the same section-level
 `inView` gate.
 
+`FloatingContact` (the fixed call/WhatsApp buttons) and the footer's social
+row also changed the same day. Each button now hovers to its own brand
+colour via a `--hover-color` CSS variable (Tailwind's build-time class scan
+cannot see a colour built from a prop, so an arbitrary class per button would
+ship no rule), reversing the earlier "no brand colour, shared band tokens"
+call.
+
+`FloatingContact` briefly moved from `fixed` to `sticky` the same day, then
+returned to `fixed`: the sticky version made the controls participate in the
+footer's scroll boundary and visually line up with the copyright/social row.
+It now renders after `Footer` in the site layout, outside that row and outside
+the footer's containing block, so the buttons remain independent fixed
+bottom-right controls. Its hover colours remain per-button through the
+`--hover-color` CSS variable.
+
 ### 2026-08-20 — Catalogue is two independently scrolling rows, 1:1 imagery, recently-viewed reworked, subscribe panel bleeds to viewport edges
 
 **The catalogue rows use vertical `ProductCard`s**, sized to match the

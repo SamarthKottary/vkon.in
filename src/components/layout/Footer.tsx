@@ -22,10 +22,11 @@ export function Footer() {
   return (
     <footer className="border-t border-band-line bg-band pb-24 text-band-muted md:pb-0">
       <Container size="wide">
-        {/* Five columns at lg, not four: the address block spans two and there
-            are three link lists after it. At four the last list dropped onto a
-            second row on its own, under the address, reading as part of it. */}
-        <div className="grid gap-12 py-16 md:grid-cols-3 lg:grid-cols-5 lg:gap-8">
+        <div>
+          {/* Five columns at lg, not four: the address block spans two and there
+              are three link lists after it. At four the last list dropped onto a
+              second row on its own, under the address, reading as part of it. */}
+          <div className="grid gap-12 py-16 md:grid-cols-3 lg:grid-cols-5 lg:gap-8">
           {/* Full row at tablet. At md:grid-cols-3 this column was a third of
               the width, which left ~160px for an email address needing 214 —
               it wrapped mid-word between 768 and 1023px only. */}
@@ -105,6 +106,8 @@ export function Footer() {
               </ul>
             </nav>
           ))}
+          </div>
+
         </div>
 
         {/* The social row lives on the bottom bar, not in the Company column.
@@ -112,7 +115,10 @@ export function Footer() {
             their gaps need 240 — they wrapped 4-then-1, which looks like a
             mistake. The bottom bar has the full width and puts them opposite
             the copyright, which is where a visitor looks for them anyway. */}
-        <div className="flex flex-col gap-6 border-t border-band-line py-6 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          data-footer-social-row
+          className="flex flex-col gap-6 border-t border-band-line py-6 sm:flex-row sm:items-center sm:justify-between"
+        >
           <div className="flex flex-col gap-1.5 text-xs sm:flex-row sm:items-center sm:gap-3">
             <p>
               © {new Date().getFullYear()} {site.legalName}
@@ -145,6 +151,24 @@ const SOCIAL_ICONS: Record<string, (p: { className?: string }) => React.ReactEle
 };
 
 /**
+ * Hover colour per platform, on the same reasoning as the two floating
+ * buttons in `FloatingContact`: each brand's own colour rather than one
+ * shared accent, since a colour-only change against this row's dark `band`
+ * background reads fine without the white-glyph-on-fill contrast problem
+ * that ruled out WhatsApp's full brand green there.
+ *
+ * `x` gets the platform's own off-white rather than its black mark, which
+ * would vanish against this same dark background.
+ */
+const SOCIAL_HOVER_COLOR: Record<string, string> = {
+  facebook: "#1877F2",
+  instagram: "#E1306C",
+  x: "#E7E9EA",
+  youtube: "#FF0000",
+  linkedin: "#0A66C2",
+};
+
+/**
  * Profile links, as a row of circular buttons.
  *
  * Each carries a visible-text-equivalent accessible name ("Vkon on YouTube")
@@ -165,6 +189,7 @@ function SocialLinks() {
       {site.socials.map((social) => {
         const Icon = SOCIAL_ICONS[social.key];
         if (!Icon) return null;
+        const hoverColor = SOCIAL_HOVER_COLOR[social.key] ?? "var(--color-band-accent)";
 
         return (
           <li key={social.key}>
@@ -172,7 +197,14 @@ function SocialLinks() {
               href={social.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-band-line text-band-body transition-colors hover:border-band-accent hover:text-band-ink"
+              /* See `FloatingContact`'s `FloatingButton` for why the colour is
+                 a CSS variable rather than a per-icon Tailwind arbitrary
+                 class: one built from a template string is invisible to
+                 Tailwind's build-time scan and ships no rule at all. Scale
+                 and lift pair with the colour change for the same reason
+                 they were added there — colour alone read as static. */
+              style={{ "--hover-color": hoverColor } as React.CSSProperties}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-band-line text-band-body transition-[transform,border-color,color] duration-200 hover:-translate-y-1 hover:scale-110 hover:border-[var(--hover-color)] hover:text-[var(--hover-color)] active:scale-95"
             >
               <Icon className="h-[18px] w-[18px]" />
               <span className="sr-only">{`Vkon on ${social.label}`}</span>

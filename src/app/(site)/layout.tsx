@@ -1,6 +1,6 @@
 import { Footer } from "@/components/layout/Footer";
-import { Header } from "@/components/layout/Header";
 import { FloatingContact } from "@/components/layout/FloatingContact";
+import { Header } from "@/components/layout/Header";
 import { MobileActionBar } from "@/components/layout/MobileActionBar";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { categoriesInSector, sectors } from "@/content/taxonomy";
@@ -59,8 +59,8 @@ export default async function SiteLayout({
         {children}
       </main>
       <Footer />
-      <MobileActionBar />
       <FloatingContact />
+      <MobileActionBar />
 
       <JsonLd data={organizationJsonLd()} />
     </>
