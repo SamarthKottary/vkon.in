@@ -19,10 +19,11 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products/[id]` | Edit. |
 | `/admin/enquiries` | Contact-form inbox. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Read, export, remove. |
+| `/admin/seo` | Static page SEO overrides. |
 
-One operator, one password, three things to manage: **products**, the
-**mailing list** those products get announced to, and the **enquiries** people
-send from the contact page. Nothing else on the site is
+One operator, one password, four things to manage: **products**, the
+**mailing list** those products get announced to, **enquiries** people
+send from the contact page, and **SEO** overrides. Nothing else on the site is
 editable without a code change — not the hero copy, not the figures, not the
 category list, not the contact details.
 

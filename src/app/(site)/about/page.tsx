@@ -17,13 +17,16 @@ import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { site } from "@/content/site";
-import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/seo";
+import { resolvePageMetadata } from "@/lib/db/pageSeo";
 
-export const metadata = pageMetadata({
-  title: "About Us",
-  description: `${site.legalName} builds smart automation and IoT technology for homes, farms and industry — more reliable, efficient, safe and sustainable.`,
-  path: "/about",
-});
+export async function generateMetadata() {
+  return resolvePageMetadata({
+    title: "About Us",
+    description: `${site.legalName} builds smart automation and IoT technology for homes, farms and industry — more reliable, efficient, safe and sustainable.`,
+    path: "/about",
+  });
+}
 
 /**
  * About Us.

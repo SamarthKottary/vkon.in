@@ -5,15 +5,17 @@ import { ArrowRightIcon } from "@/components/icons/ui";
 import { PageHero } from "@/components/layout/PageHero";
 import { Container } from "@/components/ui/Container";
 import { protectionGroups } from "@/content/taxonomy";
-import { pageMetadata } from "@/lib/seo";
+import { resolvePageMetadata } from "@/lib/db/pageSeo";
 import type { ProtectionKey } from "@/lib/types";
 
-export const metadata = pageMetadata({
-  title: "Protection",
-  description:
-    "What actually destroys an agricultural pump motor — dry running, single phasing, phase reversal, voltage outside the safe band, overload — and what a Vkon panel does about each one.",
-  path: "/protection",
-});
+export async function generateMetadata() {
+  return resolvePageMetadata({
+    title: "Protection",
+    description:
+      "What actually destroys an agricultural pump motor — dry running, single phasing, phase reversal, voltage outside the safe band, overload — and what a Vkon panel does about each one.",
+    path: "/protection",
+  });
+}
 
 /**
  * One protection page for the whole range, not one per market segment.

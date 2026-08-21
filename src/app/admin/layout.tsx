@@ -54,6 +54,12 @@ export default async function AdminLayout({
                   >
                     Subscribers
                   </Link>
+                  <Link
+                    href="/admin/seo"
+                    className="text-sm text-muted hover:text-ink"
+                  >
+                    SEO
+                  </Link>
                 </nav>
               )}
             </div>

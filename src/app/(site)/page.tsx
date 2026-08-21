@@ -8,14 +8,16 @@ import { Section, SectionHeading } from "@/components/ui/Section";
 import { categoriesInSector, sectors } from "@/content/taxonomy";
 import { site } from "@/content/site";
 import { listFeaturedProducts, listProducts } from "@/lib/db/products";
-import { pageMetadata } from "@/lib/seo";
+import { resolvePageMetadata } from "@/lib/db/pageSeo";
 
-export const metadata = pageMetadata({
-  title: `${site.name} — Motor Starters & Control Panels for Agriculture`,
-  description: site.description,
-  path: "/",
-  absoluteTitle: true,
-});
+export async function generateMetadata() {
+  return resolvePageMetadata({
+    title: `${site.name} — Motor Starters & Control Panels for Agriculture`,
+    description: site.description,
+    path: "/",
+    absoluteTitle: true,
+  });
+}
 
 /**
  * Rendered per request.

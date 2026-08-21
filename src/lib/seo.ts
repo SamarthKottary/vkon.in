@@ -69,6 +69,8 @@ export function organizationJsonLd() {
     name: site.legalName,
     alternateName: site.name,
     url: site.url,
+    logo: site.logo,
+    image: site.logo,
     description: site.description,
     telephone: site.phone.href,
     email: site.email,

@@ -6,13 +6,16 @@ import { SubscribePanel } from "@/components/layout/SubscribePanel";
 import { Container } from "@/components/ui/Container";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { formattedAddress, site } from "@/content/site";
-import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
+import { breadcrumbJsonLd } from "@/lib/seo";
+import { resolvePageMetadata } from "@/lib/db/pageSeo";
 
-export const metadata = pageMetadata({
-  title: "Contact",
-  description: `Send an enquiry to ${site.name} — motor starters, control panels, solar and home automation, built in ${site.address.locality}, ${site.address.region}. Tell us what you need and we'll point you at the right product and your nearest dealer.`,
-  path: "/contact",
-});
+export async function generateMetadata() {
+  return resolvePageMetadata({
+    title: "Contact",
+    description: `Send an enquiry to ${site.name} — motor starters, control panels, solar and home automation, built in ${site.address.locality}, ${site.address.region}. Tell us what you need and we'll point you at the right product and your nearest dealer.`,
+    path: "/contact",
+  });
+}
 
 export const dynamic = "force-dynamic";
 

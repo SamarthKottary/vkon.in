@@ -14,6 +14,7 @@ export const site = {
   name: "Vkon",
   legalName: "Vkon Automation",
   domain: "vkon.in",
+  logo: "https://vkon.in/brand/vkon-logo-light.png",
   /**
    * Public origin. Overridable so a staging deploy does not emit canonical
    * URLs and structured data pointing at production.

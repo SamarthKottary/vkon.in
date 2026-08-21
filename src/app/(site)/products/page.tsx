@@ -5,13 +5,15 @@ import { ProductCatalogue } from "@/components/product/ProductCatalogue";
 import { Container } from "@/components/ui/Container";
 import { site } from "@/content/site";
 import { listProducts } from "@/lib/db/products";
-import { pageMetadata } from "@/lib/seo";
+import { resolvePageMetadata } from "@/lib/db/pageSeo";
 
-export const metadata = pageMetadata({
-  title: "Products",
-  description: `The full ${site.name} range — three phase and single phase motor starters, star-delta panels, solar pump controllers, submersible cable, GSM mobile control, and home automation for commercial installations.`,
-  path: "/products",
-});
+export async function generateMetadata() {
+  return resolvePageMetadata({
+    title: "Products",
+    description: `The full ${site.name} range — three phase and single phase motor starters, star-delta panels, solar pump controllers, submersible cable, GSM mobile control, and home automation for commercial installations.`,
+    path: "/products",
+  });
+}
 
 /** Rendered per request so a newly saved product appears immediately. */
 export const dynamic = "force-dynamic";
