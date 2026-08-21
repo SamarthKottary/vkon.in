@@ -182,18 +182,27 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
             data-product-id={product.id}
             onMouseEnter={() => setHoveredId(product.id)}
             onMouseLeave={() => setHoveredId(null)}
-            /* `transition`, not `transition-[transform,…]`: in Tailwind v4
-               `scale-*` and `-translate-*` set the separate `scale`/`translate`
-               CSS properties, which a `transform`-only transition list does not
-               cover — so the pop applied instantly. The full `transition`
-               utility includes scale, translate, box-shadow and outline-color. */
-            className={`relative w-[82%] flex-none snap-center rounded-[2px] transition duration-300 ease-out sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
-              poppedId === product.id
-                ? "z-10 -translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
-                : "z-0 outline outline-2 -outline-offset-2 outline-transparent"
+            className={`relative w-[82%] flex-none snap-center sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
+              poppedId === product.id ? "z-10" : "z-0"
             }`}
           >
-            <ProductCard product={product} priority={index === 0} />
+            {/* The pop transform sits on this inner layer, never on the `<li>`
+                that carries the hover handlers: scaling and lifting the hover
+                target itself moves its edge out from under the pointer, which
+                fires `mouseleave` → `mouseenter` in a loop — the border flicked
+                back to the centred card and back again, worst on the last card
+                near the track edge. The `<li>` only toggles z-index (no reflow,
+                no jitter); this layer pops. `transition` (not a `transform`-only
+                list) because v4's `scale`/`translate` are their own properties. */}
+            <div
+              className={`h-full rounded-[2px] transition duration-300 ease-out ${
+                poppedId === product.id
+                  ? "-translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
+                  : "outline outline-2 -outline-offset-2 outline-transparent"
+              }`}
+            >
+              <ProductCard product={product} priority={index === 0} />
+            </div>
           </li>
         ))}
       </ul>
