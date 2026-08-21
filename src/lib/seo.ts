@@ -34,6 +34,7 @@ export function pageMetadata({
   absoluteTitle?: boolean;
 }): Metadata {
   const url = `${site.url}${path}`;
+  const resolvedImages = images?.length ? images : [site.logo];
 
   return {
     title: absoluteTitle ? { absolute: title } : title,
@@ -46,13 +47,13 @@ export function pageMetadata({
       siteName: site.name,
       type: "website",
       locale: "en_IN",
-      ...(images?.length ? { images } : {}),
+      images: resolvedImages,
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      ...(images?.length ? { images } : {}),
+      images: resolvedImages,
     },
   };
 }

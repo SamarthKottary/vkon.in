@@ -22,7 +22,7 @@ export const site = {
   url: process.env.SITE_URL?.replace(/\/$/, "") || "https://vkon.in",
   tagline: "Motor protection that holds",
   description:
-    "Vkon builds electronic motor starters and control panels for agricultural pumps — dry run, phase reversal, high and low voltage protection built in, with mobile control available across the range.",
+    "Vkon builds advanced motor starters, industrial control panels, and smart home automation systems with robust built-in protection and mobile control.",
 
   phone: {
     display: "+91 82170 86719",
