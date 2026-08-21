@@ -177,6 +177,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `home/SectorBrowser` | Open card, measured paging arrows |
 | `home/FeaturedProducts` | Measured paging arrows, wheel-to-scroll, measured centred-card detection |
 | `home/RecentlyViewed` | Reads localStorage via `useSyncExternalStore`; measured paging arrows, wheel-to-scroll, measured centred-card detection |
+| `about/TiltCard` | Pointer-tracked 3D tilt, fine-pointer devices only |
 | `product/ProductCatalogue` | `useSearchParams` filter state |
 | `product/ProductRow` | Measured paging arrows over a scroll track |
 | `product/RelatedProducts` | Measured paging arrows over a scroll track |
@@ -651,6 +652,26 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-21 — About page gained icons and a 3D tilt
+
+The three markets ("In daily living / agriculture / industry") went from a
+bordered bulleted list to a three-up grid of `about/TiltCard`s, each with a
+themed hand-drawn icon (`HomeIcon` / `SproutIcon` / `FactoryIcon`, added to
+`icons/ui`). `TiltCard` is the site's one genuinely decorative flourish: it
+writes `--rx`/`--ry` from the pointer over the card and the `.tilt` utility in
+globals.css turns those into a small 3D rotation. It runs on fine-pointer
+devices only (`(hover: hover) and (pointer: fine)`, checked once) so a phone
+renders a flat card and spends nothing, and the global reduced-motion rule
+already flattens the transition. The vision/culture/goals headings carry
+square (`rounded-[2px]`) accent icon badges — `TargetIcon` / `HeartIcon` /
+`FlagIcon` — and the culture/goals bullets became accent check marks.
+
+Kept inside the design language rather than departing from it: 2px corners
+(the round badge stays reserved for the market cards' floating marks), accent
+used only on the marks, copy still left-aligned, no new dependency (icons are
+hand-drawn SVG, the tilt is CSS transforms). New scroll-reveal (`.reveal`) on
+the market grid and the Instagram/Products cards.
 
 ### 2026-08-21 — Home page gained a "Featured products" row
 

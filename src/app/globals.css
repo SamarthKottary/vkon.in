@@ -464,6 +464,45 @@
       linear-gradient(to bottom, rgb(255 255 255 / 0.06) 1px, transparent 1px);
     background-size: 4rem 4rem;
   }
+
+  /* Pointer-tracked 3D tilt, driven by `TiltCard`. The component writes `--rx`
+     and `--ry` from the cursor position and toggles `data-active`; everything
+     visual is here. `data-active` gives a near-instant follow while the pointer
+     is over the card and a slower ease back to flat on leave. The card only
+     ever gets a `data-active` from a device with a fine pointer — see the
+     component — so a phone never runs this, and the global reduced-motion rule
+     already flattens the transition for anyone who asks. */
+  .tilt {
+    transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.5s ease;
+    transform-style: preserve-3d;
+  }
+
+  .tilt[data-active="true"] {
+    transition: transform 0.08s ease-out;
+  }
+
+  /* Children that should stand off the card face while it tilts, for depth. */
+  .tilt-layer {
+    transform: translateZ(2.2rem);
+  }
+
+  /* Cursor-tracked sheen for a tilt card. `--mx`/`--my` are written by
+     `TiltCard`; the highlight sits where the pointer is and fades in only
+     while the card is active, so a card at rest carries none of it. */
+  .tilt-glare {
+    background: radial-gradient(
+      18rem circle at var(--mx, 50%) var(--my, 50%),
+      rgb(255 255 255 / 0.14),
+      transparent 45%
+    );
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .tilt[data-active="true"] .tilt-glare {
+    opacity: 1;
+  }
 }
 
 @keyframes reveal-in {

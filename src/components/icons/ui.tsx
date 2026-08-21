@@ -225,6 +225,74 @@ export function ImageIcon({ className = "h-5 w-5" }: IconProps) {
 }
 
 /* ---------------------------------------------------------------------------
+ * Theme marks. Same 24×24 stroke grid as the rest of this file — used on the
+ * About page to anchor the three markets and the vision/culture/goals blocks.
+ * ------------------------------------------------------------------------- */
+
+/** Smart home — daily living. */
+export function HomeIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M4 10.8 12 4l8 6.8" />
+      <path d="M6 9.4V20h12V9.4" />
+      <path d="M10 20v-5.5h4V20" />
+    </svg>
+  );
+}
+
+/** Sprout — agriculture. */
+export function SproutIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 20v-7.5" />
+      <path d="M12 13C11 9.8 7.6 8.2 4.5 9.4c.6 3.2 4 5 7.5 3.6Z" />
+      <path d="M12 12c.9-2.5 3.6-3.8 6-2.9-.5 2.5-3.2 3.8-6 2.9Z" />
+    </svg>
+  );
+}
+
+/** Factory — industry. */
+export function FactoryIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3 21h18" />
+      <path d="M4 21V11l5 3v-3l5 3V6h6v15" />
+      <path d="M13 21v-3.5h4V21" />
+    </svg>
+  );
+}
+
+/** Target — vision. */
+export function TargetIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="4.7" />
+      <circle cx="12" cy="12" r="1.1" />
+    </svg>
+  );
+}
+
+/** Heart — culture. */
+export function HeartIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 20s-7-4.3-7-9.2A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 7 2.8C19 15.7 12 20 12 20Z" />
+    </svg>
+  );
+}
+
+/** Flag — goals. */
+export function FlagIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6 21V4" />
+      <path d="M6 5h11l-2 3.5L17 12H6" />
+    </svg>
+  );
+}
+
+/* ---------------------------------------------------------------------------
  * Brand marks.
  *
  * Filled rather than stroked, unlike everything above: these are other
