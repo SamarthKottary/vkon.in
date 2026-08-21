@@ -1,4 +1,5 @@
 import { ContactStrip } from "@/components/home/ContactStrip";
+import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { Hero } from "@/components/home/Hero";
 import { SectorBrowser } from "@/components/home/SectorBrowser";
 import { SubscribePanel } from "@/components/layout/SubscribePanel";
@@ -6,7 +7,7 @@ import { RecentlyViewed } from "@/components/home/RecentlyViewed";
 import { Section, SectionHeading } from "@/components/ui/Section";
 import { categoriesInSector, sectors } from "@/content/taxonomy";
 import { site } from "@/content/site";
-import { listProducts } from "@/lib/db/products";
+import { listFeaturedProducts, listProducts } from "@/lib/db/products";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
@@ -29,7 +30,10 @@ export const metadata = pageMetadata({
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const all = await listProducts();
+  const [all, featured] = await Promise.all([
+    listProducts(),
+    listFeaturedProducts(8),
+  ]);
 
   /* Every sector gets a card, including ones with nothing under them yet —
      those are marked "Coming soon" and cannot be opened. The range is part of
@@ -76,6 +80,23 @@ export default async function HomePage() {
         </div>
 
       </Section>
+
+      {/* Renders nothing when there are no featured products — the section
+          heading has nothing to sit above otherwise. */}
+      {featured.length > 0 && (
+        <Section size="wide">
+          <SectionHeading
+            align="center"
+            eyebrow="Featured"
+            title="Picked from the range"
+            description="A handful pulled out from the catalogue — swipe or scroll through, or hover a card to see it lift."
+          />
+
+          <div className="mt-12">
+            <FeaturedProducts products={featured} />
+          </div>
+        </Section>
+      )}
 
       {/* Renders nothing until the visitor has actually opened a product — it
           reads their own browser, so the server has nothing to show. */}

@@ -37,6 +37,12 @@ const SHOWN = 6;
  * right-aligned, disabled at the ends and hidden when the whole list fits.
  * Fixed proportional card widths so a card added to the history adds a card
  * to scroll to rather than shrinks the visible three.
+ *
+ * **The centred card lifts and scales**, same idiom as `home/FeaturedProducts`
+ * — hover on a mouse, or whichever card `IntersectionObserver` finds sat in
+ * the track's middle fifth on a touch swipe, since touch has no hover to key
+ * off. See that component's comment for why the track takes vertical padding
+ * rather than `overflow-visible` and why a plain wheel needs its own handler.
  */
 export function RecentlyViewed({ products }: { products: Product[] }) {
   const raw = useSyncExternalStore<string | null>(
@@ -55,6 +61,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
 
   const trackRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const sync = useCallback(() => {
     const el = trackRef.current;
@@ -75,12 +82,54 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     return () => observer.disconnect();
   }, [sync, recent.length]);
 
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+
+    const ratios = new Map<string, number>();
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.productId;
+          if (!id) continue;
+          ratios.set(id, entry.isIntersecting ? entry.intersectionRatio : 0);
+        }
+
+        let bestId: string | null = null;
+        let bestRatio = 0;
+        for (const [id, ratio] of ratios) {
+          if (ratio > bestRatio) {
+            bestRatio = ratio;
+            bestId = id;
+          }
+        }
+        setActiveId(bestRatio > 0 ? bestId : null);
+      },
+      { root: el, rootMargin: "0px -40% 0px -40%", threshold: [0, 0.5, 1] },
+    );
+
+    for (const card of el.querySelectorAll<HTMLElement>("[data-product-id]")) {
+      observer.observe(card);
+    }
+
+    return () => observer.disconnect();
+  }, [recent]);
+
   const page = (direction: 1 | -1) => {
     const el = trackRef.current;
     if (!el) return;
     const first = el.firstElementChild as HTMLElement | null;
     const step = first ? first.getBoundingClientRect().width + 16 : el.clientWidth;
     el.scrollBy({ left: step * direction, behavior: "smooth" });
+  };
+
+  /** A plain mouse wheel's vertical delta pages the row; a trackpad's own
+   *  horizontal delta is left alone so its native momentum keeps working. */
+  const onWheel = (event: React.WheelEvent<HTMLUListElement>) => {
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    event.currentTarget.scrollBy({ left: event.deltaY });
+    event.preventDefault();
   };
 
   // `null` is the pre-hydration state, not an empty list — see the note on
@@ -130,17 +179,23 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
           <ul
             ref={trackRef}
             onScroll={sync}
-            className="hscroll mt-8 flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto"
+            onWheel={onWheel}
+            className="hscroll mt-8 flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto px-1 py-4"
           >
             {recent.map((product) => (
               <li
                 key={product.id}
+                data-product-id={product.id}
                 /* Wider on a phone than the other tracks' 82%: this card puts
                    a 112px image and a spec column side by side, and at 82% the
                    column was too narrow for a spec to fit on one line at all.
                    The peek of the next card is smaller as a result, which is
                    the trade. */
-                className="w-[92%] flex-none snap-start sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)]"
+                className={`w-[92%] flex-none snap-center transition-[transform,box-shadow] duration-300 ease-out sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] ${
+                  activeId === product.id
+                    ? "-translate-y-2.5 scale-[1.05] shadow-card-hover"
+                    : "hover:-translate-y-2.5 hover:scale-[1.05] hover:shadow-card-hover"
+                }`}
               >
                 <ProductCard product={product} orientation="horizontal" />
               </li>

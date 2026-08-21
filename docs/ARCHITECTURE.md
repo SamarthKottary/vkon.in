@@ -175,7 +175,8 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `layout/SubscribePanel` | `useActionState` over the public sign-up action |
 | `home/HeroRotator` | Slide timer, pause control, reduced-motion opt-out |
 | `home/SectorBrowser` | Open card, measured paging arrows |
-| `home/RecentlyViewed` | Reads localStorage via `useSyncExternalStore` |
+| `home/FeaturedProducts` | Measured paging arrows, wheel-to-scroll, `IntersectionObserver` centred-card detection |
+| `home/RecentlyViewed` | Reads localStorage via `useSyncExternalStore`; measured paging arrows, wheel-to-scroll, `IntersectionObserver` centred-card detection |
 | `product/ProductCatalogue` | `useSearchParams` filter state |
 | `product/ProductRow` | Measured paging arrows over a scroll track |
 | `product/RelatedProducts` | Measured paging arrows over a scroll track |
@@ -650,6 +651,23 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-21 — Home page gained a "Featured products" row
+
+New section between the sector browser and recently-viewed, fed by the
+previously-unused `listFeaturedProducts`. It reuses the `hscroll` track idiom
+but snaps `center` rather than `start`, and its active card (hover, or
+centred by a swipe on touch, via `IntersectionObserver`) scales and lifts —
+a heavier motion than the rest of the site's plain hover lift, kept scoped to
+this one track rather than changed on `ProductCard` itself. The track carries
+vertical padding rather than `overflow-visible` so the lifted card has room
+to rise into without clipping — `overflow-x: auto` forces the other axis to
+`auto` too, so `visible` was never actually available here.
+
+`RecentlyViewed` picked up the same treatment the same day: centred snap in
+place of `snap-start`, the same scale/lift on the centred or hovered card, and
+the same wheel and `IntersectionObserver` handling. The two tracks now share
+the idiom rather than one being the odd one out.
 
 ### 2026-08-20 — Catalogue is two independently scrolling rows, 1:1 imagery, recently-viewed reworked, subscribe panel bleeds to viewport edges
 
