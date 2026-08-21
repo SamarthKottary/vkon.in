@@ -215,7 +215,9 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                    column was too narrow for a spec to fit on one line at all.
                    The peek of the next card is smaller as a result, which is
                    the trade. */
-                className={`relative w-[92%] flex-none snap-center rounded-[2px] transition-[transform,box-shadow,outline-color] duration-300 ease-out sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] ${
+                /* See `FeaturedProducts`: `transition` (not a `transform`-only
+                   list) so v4's `scale`/`translate` properties animate too. */
+                className={`relative w-[92%] flex-none snap-center rounded-[2px] transition duration-300 ease-out sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] ${
                   poppedId === product.id
                     ? "z-10 -translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
                     : "z-0 outline outline-2 -outline-offset-2 outline-transparent"

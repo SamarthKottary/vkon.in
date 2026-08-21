@@ -182,7 +182,12 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
             data-product-id={product.id}
             onMouseEnter={() => setHoveredId(product.id)}
             onMouseLeave={() => setHoveredId(null)}
-            className={`relative w-[82%] flex-none snap-center rounded-[2px] transition-[transform,box-shadow,outline-color] duration-300 ease-out sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
+            /* `transition`, not `transition-[transform,…]`: in Tailwind v4
+               `scale-*` and `-translate-*` set the separate `scale`/`translate`
+               CSS properties, which a `transform`-only transition list does not
+               cover — so the pop applied instantly. The full `transition`
+               utility includes scale, translate, box-shadow and outline-color. */
+            className={`relative w-[82%] flex-none snap-center rounded-[2px] transition duration-300 ease-out sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
               poppedId === product.id
                 ? "z-10 -translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
                 : "z-0 outline outline-2 -outline-offset-2 outline-transparent"

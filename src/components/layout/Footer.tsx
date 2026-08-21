@@ -204,7 +204,7 @@ function SocialLinks() {
                  and lift pair with the colour change for the same reason
                  they were added there — colour alone read as static. */
               style={{ "--hover-color": hoverColor } as React.CSSProperties}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-band-line text-band-body transition-[transform,border-color,color] duration-200 hover:-translate-y-1 hover:scale-110 hover:border-[var(--hover-color)] hover:text-[var(--hover-color)] active:scale-95"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-band-line text-band-body transition-[transform,translate,scale,border-color,color] duration-200 hover:-translate-y-1 hover:scale-110 hover:border-[var(--hover-color)] hover:text-[var(--hover-color)] active:scale-95"
             >
               <Icon className="h-[18px] w-[18px]" />
               <span className="sr-only">{`Vkon on ${social.label}`}</span>

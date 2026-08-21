@@ -109,7 +109,7 @@ function FloatingButton({
          built from a prop is invisible to that scan and would ship no rule
          at all. */
       style={{ "--hover-color": hoverColor } as React.CSSProperties}
-      className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-band-line bg-band text-band-ink shadow-card-hover transition-[transform,box-shadow,border-color,color] duration-200 hover:-translate-y-1 hover:scale-110 hover:border-[var(--hover-color)] hover:text-[var(--hover-color)] hover:shadow-card-hover active:scale-95"
+      className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-band-line bg-band text-band-ink shadow-card-hover transition-[transform,translate,scale,box-shadow,border-color,color] duration-200 hover:-translate-y-1 hover:scale-110 hover:border-[var(--hover-color)] hover:text-[var(--hover-color)] hover:shadow-card-hover active:scale-95"
     >
       {children}
       <span className="sr-only">{label}</span>
