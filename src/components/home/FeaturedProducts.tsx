@@ -19,17 +19,12 @@ import type { Product } from "@/lib/types";
  *    horizontal delta on a two-finger swipe and need no help; a plain mouse
  *    wheel only ever sends a vertical one, which a horizontal-only track
  *    otherwise ignores completely.
- *  - **The active card scales and lifts, on hover or centred by a swipe.**
- *    A mouse never rests "in the middle" of a touch scroller, so touch gets
- *    its own trigger: `IntersectionObserver` against a narrow centre band of
- *    the track, watching for whichever card is currently sat in it.
- *
- *    That trigger only runs on a device with no hover to speak of. On a
- *    mouse it stays live in the background — the track still scrolls, a card
- *    still sits centred — and without this guard the centred card kept its
- *    "active" class while the mouse hovered a different one, popping two
- *    cards at once. `(hover: none)` is a one-time check: hover capability
- *    does not change over a page's life.
+ *  - **Exactly one card is ever popped.** `IntersectionObserver` keeps
+ *    whichever card sits centred in the track popped by default — this runs
+ *    on every device, not just touch, so resting the mouse and doing nothing
+ *    still shows a popped card. Pointing at a *different* card overrides it:
+ *    `hoveredId` wins over the centred one whenever it is set, so hovering
+ *    never leaves two cards popped at once.
  *
  * The track carries generous vertical padding rather than `overflow-visible`
  * — horizontal scrolling needs `overflow-x: auto`, and the CSS overflow
@@ -40,12 +35,9 @@ import type { Product } from "@/lib/types";
 export function FeaturedProducts({ products }: { products: Product[] }) {
   const trackRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [touchOnly, setTouchOnly] = useState(false);
-
-  useEffect(() => {
-    setTouchOnly(window.matchMedia("(hover: none)").matches);
-  }, []);
+  const [centeredId, setCenteredId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const poppedId = hoveredId ?? centeredId;
 
   const sync = useCallback(() => {
     const el = trackRef.current;
@@ -63,12 +55,12 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     return () => observer.disconnect();
   }, [sync, products.length]);
 
-  /* Whichever card sits in the middle fifth of the track counts as active —
+  /* Whichever card sits in the middle fifth of the track counts as centred —
      narrow enough that two neighbours are never both inside it at once, wide
      enough to hold a card through the small overshoot a snap settles from.
-     Skipped on a hover-capable device: see the comment on the component. */
+     Runs regardless of pointer type, so there is always a popped card even
+     when the mouse is resting outside the track altogether. */
   useEffect(() => {
-    if (touchOnly) return;
     const el = trackRef.current;
     if (!el) return;
 
@@ -90,7 +82,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
             bestId = id;
           }
         }
-        setActiveId(bestRatio > 0 ? bestId : null);
+        setCenteredId(bestRatio > 0 ? bestId : null);
       },
       { root: el, rootMargin: "0px -40% 0px -40%", threshold: [0, 0.5, 1] },
     );
@@ -100,7 +92,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     }
 
     return () => observer.disconnect();
-  }, [products.length, touchOnly]);
+  }, [products.length]);
 
   /** Pages by one card, measured from the DOM so it follows the breakpoint. */
   const page = (direction: 1 | -1) => {
@@ -155,10 +147,12 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
           <li
             key={product.id}
             data-product-id={product.id}
-            className={`w-[82%] flex-none snap-center transition-[transform,box-shadow] duration-300 ease-out sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
-              touchOnly && activeId === product.id
-                ? "-translate-y-2.5 scale-[1.05] shadow-card-hover"
-                : "hover:-translate-y-2.5 hover:scale-[1.05] hover:shadow-card-hover"
+            onMouseEnter={() => setHoveredId(product.id)}
+            onMouseLeave={() => setHoveredId(null)}
+            className={`w-[82%] flex-none snap-center rounded-[2px] transition-[transform,box-shadow,outline-color] duration-300 ease-out sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
+              poppedId === product.id
+                ? "-translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
+                : "outline outline-2 -outline-offset-2 outline-transparent"
             }`}
           >
             <ProductCard product={product} priority={index === 0} />

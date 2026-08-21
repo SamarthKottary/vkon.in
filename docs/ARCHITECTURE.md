@@ -656,18 +656,22 @@ a §9 constraint.
 
 New section between the sector browser and recently-viewed, fed by the
 previously-unused `listFeaturedProducts`. It reuses the `hscroll` track idiom
-but snaps `center` rather than `start`, and its active card (hover, or
-centred by a swipe on touch, via `IntersectionObserver`) scales and lifts —
-a heavier motion than the rest of the site's plain hover lift, kept scoped to
-this one track rather than changed on `ProductCard` itself. The track carries
-vertical padding rather than `overflow-visible` so the lifted card has room
-to rise into without clipping — `overflow-x: auto` forces the other axis to
-`auto` too, so `visible` was never actually available here.
+but snaps `center` rather than `start`, and exactly one card is popped
+(scaled and lifted) at a time — a heavier motion than the rest of the site's
+plain hover lift, kept scoped to this one track rather than changed on
+`ProductCard` itself. `IntersectionObserver` keeps the track's centred card
+popped by default on every device — not just touch — and `onMouseEnter` /
+`onMouseLeave` on each card overrides it: `hoveredId ?? centeredId` is the one
+popped class applied, so pointing at a different card always un-pops the
+centred one instead of popping both. The track carries vertical padding
+rather than `overflow-visible` so the lifted card has room to rise into
+without clipping — `overflow-x: auto` forces the other axis to `auto` too,
+so `visible` was never actually available here.
 
 `RecentlyViewed` picked up the same treatment the same day: centred snap in
-place of `snap-start`, the same scale/lift on the centred or hovered card, and
-the same wheel and `IntersectionObserver` handling. The two tracks now share
-the idiom rather than one being the odd one out.
+place of `snap-start`, the same one-popped-card-at-a-time state, and the same
+wheel and `IntersectionObserver` handling. The two tracks now share the idiom
+rather than one being the odd one out.
 
 ### 2026-08-20 — Catalogue is two independently scrolling rows, 1:1 imagery, recently-viewed reworked, subscribe panel bleeds to viewport edges
 

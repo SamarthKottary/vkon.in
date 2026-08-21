@@ -38,11 +38,12 @@ const SHOWN = 6;
  * Fixed proportional card widths so a card added to the history adds a card
  * to scroll to rather than shrinks the visible three.
  *
- * **The centred card lifts and scales**, same idiom as `home/FeaturedProducts`
- * — hover on a mouse, or whichever card `IntersectionObserver` finds sat in
- * the track's middle fifth on a touch swipe, since touch has no hover to key
- * off. See that component's comment for why the track takes vertical padding
- * rather than `overflow-visible` and why a plain wheel needs its own handler.
+ * **Exactly one card is popped at a time**, same idiom as
+ * `home/FeaturedProducts`: `IntersectionObserver` keeps whichever card sits
+ * centred in the track popped by default, on every device, and pointing at a
+ * different card overrides it rather than adding to it. See that component's
+ * comment for why the track takes vertical padding rather than
+ * `overflow-visible` and why a plain wheel needs its own handler.
  */
 export function RecentlyViewed({ products }: { products: Product[] }) {
   const raw = useSyncExternalStore<string | null>(
@@ -61,12 +62,9 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
 
   const trackRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [touchOnly, setTouchOnly] = useState(false);
-
-  useEffect(() => {
-    setTouchOnly(window.matchMedia("(hover: none)").matches);
-  }, []);
+  const [centeredId, setCenteredId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const poppedId = hoveredId ?? centeredId;
 
   const sync = useCallback(() => {
     const el = trackRef.current;
@@ -87,11 +85,10 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     return () => observer.disconnect();
   }, [sync, recent.length]);
 
-  /* Whichever card sits in the middle fifth of the track counts as active;
-     skipped on a hover-capable device, or the centred card would keep its
-     "active" class while the mouse hovered a different one, popping both. */
+  /* Whichever card sits in the middle fifth of the track counts as centred.
+     Runs regardless of pointer type, so there is always a popped card even
+     when the mouse is resting outside the track altogether. */
   useEffect(() => {
-    if (touchOnly) return;
     const el = trackRef.current;
     if (!el) return;
 
@@ -113,7 +110,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
             bestId = id;
           }
         }
-        setActiveId(bestRatio > 0 ? bestId : null);
+        setCenteredId(bestRatio > 0 ? bestId : null);
       },
       { root: el, rootMargin: "0px -40% 0px -40%", threshold: [0, 0.5, 1] },
     );
@@ -123,7 +120,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     }
 
     return () => observer.disconnect();
-  }, [recent, touchOnly]);
+  }, [recent]);
 
   const page = (direction: 1 | -1) => {
     const el = trackRef.current;
@@ -195,15 +192,17 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
               <li
                 key={product.id}
                 data-product-id={product.id}
+                onMouseEnter={() => setHoveredId(product.id)}
+                onMouseLeave={() => setHoveredId(null)}
                 /* Wider on a phone than the other tracks' 82%: this card puts
                    a 112px image and a spec column side by side, and at 82% the
                    column was too narrow for a spec to fit on one line at all.
                    The peek of the next card is smaller as a result, which is
                    the trade. */
-                className={`w-[92%] flex-none snap-center transition-[transform,box-shadow] duration-300 ease-out sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] ${
-                  touchOnly && activeId === product.id
-                    ? "-translate-y-2.5 scale-[1.05] shadow-card-hover"
-                    : "hover:-translate-y-2.5 hover:scale-[1.05] hover:shadow-card-hover"
+                className={`w-[92%] flex-none snap-center rounded-[2px] transition-[transform,box-shadow,outline-color] duration-300 ease-out sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] ${
+                  poppedId === product.id
+                    ? "-translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
+                    : "outline outline-2 -outline-offset-2 outline-transparent"
                 }`}
               >
                 <ProductCard product={product} orientation="horizontal" />
