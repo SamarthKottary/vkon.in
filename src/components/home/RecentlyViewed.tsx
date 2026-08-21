@@ -62,6 +62,11 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
   const trackRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [touchOnly, setTouchOnly] = useState(false);
+
+  useEffect(() => {
+    setTouchOnly(window.matchMedia("(hover: none)").matches);
+  }, []);
 
   const sync = useCallback(() => {
     const el = trackRef.current;
@@ -82,7 +87,11 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     return () => observer.disconnect();
   }, [sync, recent.length]);
 
+  /* Whichever card sits in the middle fifth of the track counts as active;
+     skipped on a hover-capable device, or the centred card would keep its
+     "active" class while the mouse hovered a different one, popping both. */
   useEffect(() => {
+    if (touchOnly) return;
     const el = trackRef.current;
     if (!el) return;
 
@@ -114,7 +123,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     }
 
     return () => observer.disconnect();
-  }, [recent]);
+  }, [recent, touchOnly]);
 
   const page = (direction: 1 | -1) => {
     const el = trackRef.current;
@@ -192,7 +201,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                    The peek of the next card is smaller as a result, which is
                    the trade. */
                 className={`w-[92%] flex-none snap-center transition-[transform,box-shadow] duration-300 ease-out sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] ${
-                  activeId === product.id
+                  touchOnly && activeId === product.id
                     ? "-translate-y-2.5 scale-[1.05] shadow-card-hover"
                     : "hover:-translate-y-2.5 hover:scale-[1.05] hover:shadow-card-hover"
                 }`}

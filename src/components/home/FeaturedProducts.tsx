@@ -24,6 +24,13 @@ import type { Product } from "@/lib/types";
  *    its own trigger: `IntersectionObserver` against a narrow centre band of
  *    the track, watching for whichever card is currently sat in it.
  *
+ *    That trigger only runs on a device with no hover to speak of. On a
+ *    mouse it stays live in the background — the track still scrolls, a card
+ *    still sits centred — and without this guard the centred card kept its
+ *    "active" class while the mouse hovered a different one, popping two
+ *    cards at once. `(hover: none)` is a one-time check: hover capability
+ *    does not change over a page's life.
+ *
  * The track carries generous vertical padding rather than `overflow-visible`
  * — horizontal scrolling needs `overflow-x: auto`, and the CSS overflow
  * rules compute the other axis to `auto` too the moment one axis isn't
@@ -34,6 +41,11 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const trackRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [touchOnly, setTouchOnly] = useState(false);
+
+  useEffect(() => {
+    setTouchOnly(window.matchMedia("(hover: none)").matches);
+  }, []);
 
   const sync = useCallback(() => {
     const el = trackRef.current;
@@ -53,8 +65,10 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
 
   /* Whichever card sits in the middle fifth of the track counts as active —
      narrow enough that two neighbours are never both inside it at once, wide
-     enough to hold a card through the small overshoot a snap settles from. */
+     enough to hold a card through the small overshoot a snap settles from.
+     Skipped on a hover-capable device: see the comment on the component. */
   useEffect(() => {
+    if (touchOnly) return;
     const el = trackRef.current;
     if (!el) return;
 
@@ -86,7 +100,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     }
 
     return () => observer.disconnect();
-  }, [products.length]);
+  }, [products.length, touchOnly]);
 
   /** Pages by one card, measured from the DOM so it follows the breakpoint. */
   const page = (direction: 1 | -1) => {
@@ -142,7 +156,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
             key={product.id}
             data-product-id={product.id}
             className={`w-[82%] flex-none snap-center transition-[transform,box-shadow] duration-300 ease-out sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
-              activeId === product.id
+              touchOnly && activeId === product.id
                 ? "-translate-y-2.5 scale-[1.05] shadow-card-hover"
                 : "hover:-translate-y-2.5 hover:scale-[1.05] hover:shadow-card-hover"
             }`}
