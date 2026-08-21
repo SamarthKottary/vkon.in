@@ -6,14 +6,11 @@
 -- LOCALLY:
 --   npm run db:setup
 --
--- ON THE SERVER: **not** `npm run db:setup`. The app runs in Docker and the
--- host checkout has no node_modules, so that script cannot import `pg`. The
--- database has no host port either, so it goes through the container:
---
---   docker compose exec -T db psql -v ON_ERROR_STOP=1 -U vkon -d vkon < src/lib/db/schema.sql
---
--- Run it from the deploy directory (~/project2/vkon.in) after any deploy that
--- adds a table or a column.
+-- ON THE SERVER:
+-- The database is automatically updated on every deploy!
+-- The `db-setup` service in `docker-compose.yml` mounts this file and runs it
+-- against the database when the container stack starts. Since every statement 
+-- is safe and idempotent, it effortlessly ensures the live DB is up to date.
 
 CREATE TABLE IF NOT EXISTS products (
   id            TEXT PRIMARY KEY,

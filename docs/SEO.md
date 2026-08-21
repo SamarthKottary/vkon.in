@@ -49,7 +49,7 @@ When managing the site, the operator should follow these guidelines for the best
 
 - **Robots & Sitemap:** Next.js automatically generates `robots.txt` and `sitemap.xml` based on the App Router conventions. Custom sitemap logic (e.g., dynamically listing all product URLs) lives in `src/app/sitemap.ts`.
 - **Force Dynamic:** Because SEO overrides can change at any time via the admin panel, all affected pages are exported with `export const dynamic = "force-dynamic"`. Caching was evaluated and explicitly rejected to ensure that admin changes immediately reflect on the live site without requiring a rebuild or encountering stale cache invalidation issues.
-- **Database Schema Updates:** The SEO implementation relies on the `page_seo` table and `seo_title`/`seo_description` columns on the `products` table. After deploying these changes to the server, **you must apply the schema updates**. On the server (using Docker), run: `docker compose exec -T db psql -v ON_ERROR_STOP=1 -U vkon -d vkon < src/lib/db/schema.sql`. For local development, simply run `npm run db:setup`.
+- **Database Schema Updates:** The SEO implementation relies on the `page_seo` table and `seo_title`/`seo_description` columns on the `products` table. Schema migrations are now **fully automated**. When you push code to the server, the new `db-setup` Docker service automatically detects the `schema.sql` file and applies any new tables or columns. For local development, you can manually run `npm run db:setup`.
 
 ### How to Add a New Static Page to the Admin Panel
 

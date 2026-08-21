@@ -56,6 +56,19 @@ services:
       retries: 5
       start_period: 10s
 
+  db-setup:
+    image: postgres:16-alpine
+    container_name: vkon-db-setup
+    profiles: ["tunnel", "default"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./src/lib/db/schema.sql:/schema.sql:ro
+    command: psql -h db -U vkon -d vkon -v ON_ERROR_STOP=1 -f /schema.sql
+
   # ------------------------------------------------------------------------
   # Cloudflare Tunnel — the client's own Cloudflare account.
   #
