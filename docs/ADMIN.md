@@ -94,6 +94,8 @@ hidden fields. The client form is a convenience, never a control:
 | `category` | Must be in `CATEGORY_KEYS`; anything else silently becomes `starter`. |
 | `protections` | Filtered to known keys; unknown ones are dropped. |
 | `videoUrl` | Must parse as YouTube or Vimeo, else rejected with a field error. |
+| `seoTitle` | Trimmed, capped at 70 chars. Blank falls back to the product name at render. |
+| `seoDescription` | Trimmed, capped at 200 chars. Blank falls back to the tagline. |
 | lists | `parseLines` — one per line, blanks dropped. |
 | `spec` | `parseSpec` — `Label: value` per line, or `Label \| value`. |
 

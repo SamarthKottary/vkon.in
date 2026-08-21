@@ -14,8 +14,10 @@ import {
 } from "@/lib/db/products";
 import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
 import { deleteSubscriber } from "@/lib/db/subscribers";
+import { upsertPageSeo } from "@/lib/db/pageSeo";
 import { deleteProductImages, uploadProductImage } from "@/lib/storage";
 import { CATEGORY_KEYS, PROTECTION_KEYS } from "@/content/taxonomy";
+import { SEO_PAGES } from "@/lib/seo";
 import { parseVideoUrl } from "@/lib/video";
 import type {
   ProductCategory,
@@ -181,6 +183,8 @@ async function buildInput(formData: FormData): Promise<{
       spec: parseSpec(formData.get("spec")),
       published: formData.get("published") === "on",
       featured: formData.get("featured") === "on",
+      seoTitle: String(formData.get("seoTitle") ?? "").trim().slice(0, 70),
+      seoDescription: String(formData.get("seoDescription") ?? "").trim().slice(0, 200),
     },
   };
 }
@@ -257,6 +261,47 @@ export async function reorderProductsAction(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   await reorderProducts(ids);
   revalidatePath("/admin/products");
+}
+
+// ---------------------------------------------------------------------------
+// Static-page SEO
+// ---------------------------------------------------------------------------
+
+/**
+ * Saves the meta title and description overrides for the static routes.
+ *
+ * The form submits parallel `path` / `title` / `description` arrays, one entry
+ * per editable page. Only paths in `SEO_PAGES` are written — the list is the
+ * allowlist, so a forged `path` field cannot create arbitrary rows. Values are
+ * trimmed and capped to the lengths search engines actually use.
+ */
+export async function savePageSeoAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const paths = formData.getAll("path").map(String);
+  const titles = formData.getAll("title").map(String);
+  const descriptions = formData.getAll("description").map(String);
+  const allowed = new Set(SEO_PAGES.map((page) => page.path));
+
+  try {
+    for (let index = 0; index < paths.length; index += 1) {
+      const path = paths[index];
+      if (!allowed.has(path)) continue;
+      await upsertPageSeo(
+        path,
+        (titles[index] ?? "").trim().slice(0, 70),
+        (descriptions[index] ?? "").trim().slice(0, 200),
+      );
+    }
+  } catch (error) {
+    console.error("[admin] page SEO save failed:", error);
+    return { error: "Could not save. Check the database connection and retry." };
+  }
+
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

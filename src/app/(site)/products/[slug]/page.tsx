@@ -42,8 +42,9 @@ export async function generateMetadata({
   const hp = product.hpRanges.length ? ` — ${product.hpRanges.join(", ")}` : "";
 
   return pageMetadata({
-    title: `${product.name}${hp}`,
-    description: product.tagline || product.description.slice(0, 160),
+    title: product.seoTitle || `${product.name}${hp}`,
+    description:
+      product.seoDescription || product.tagline || product.description.slice(0, 160),
     path: `/products/${product.slug}`,
     images: product.images.map((image) => image.url),
   });

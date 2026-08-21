@@ -17,6 +17,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
        crawler the page exists, so this entry is load-bearing, not routine. */
     { path: "/protection", priority: 0.8 },
     { path: "/about", priority: 0.7 },
+    { path: "/contact", priority: 0.7 },
   ];
 
   return [

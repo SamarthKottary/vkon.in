@@ -654,6 +654,18 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-21 — Per-product SEO overrides
+
+Products gained two optional columns, `seo_title` and `seo_description`
+(`schema.sql`, plus `ALTER TABLE … ADD COLUMN IF NOT EXISTS` so an existing
+database migrates on the next deploy's schema run). They surface as an **SEO**
+panel in `ProductForm` and flow through the usual path — `Product` type,
+`mapProductRow`, `WRITE_VALUES`/`writeParams` (now params `$17`/`$18`) and the
+`createProduct` insert. The product page's `generateMetadata` uses them when
+set and falls back to the product name and tagline when blank, so nothing
+changes for products that leave them empty. The admin action trims and caps
+them (70 / 200 chars). No dependency, no new component.
+
 ### 2026-08-21 — Brand intro splash on first visit
 
 `layout/IntroSplash`, mounted in the `(site)` layout (not root — admin gets no

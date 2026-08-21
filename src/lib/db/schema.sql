@@ -48,6 +48,11 @@ CREATE TABLE IF NOT EXISTS products (
   featured      BOOLEAN NOT NULL DEFAULT FALSE,
   sort_order    INTEGER NOT NULL DEFAULT 0,
 
+  -- Optional per-product SEO overrides. Blank falls back to name/tagline at
+  -- render time — see generateMetadata in products/[slug]/page.tsx.
+  seo_title       TEXT NOT NULL DEFAULT '',
+  seo_description TEXT NOT NULL DEFAULT '',
+
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -58,6 +63,24 @@ CREATE INDEX IF NOT EXISTS products_listing_idx
 
 CREATE INDEX IF NOT EXISTS products_category_idx
   ON products (category);
+
+-- Added 2026-08-21: per-product SEO overrides. `ADD COLUMN IF NOT EXISTS`
+-- brings an existing database up to date without touching its data, so this
+-- stays safe to re-run alongside the CREATE above.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS seo_title       TEXT NOT NULL DEFAULT '';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS seo_description TEXT NOT NULL DEFAULT '';
+
+-- ---------------------------------------------------------------------------
+-- Per-page SEO overrides for the static routes, editable at /admin/seo.
+-- One row per path; a blank value falls back to the page's built-in metadata
+-- at render time, so an empty table changes nothing.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS page_seo (
+  path        TEXT PRIMARY KEY,
+  title       TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- ---------------------------------------------------------------------------
 -- Newsletter subscribers.

@@ -2,6 +2,18 @@ import type { Metadata } from "next";
 import { formattedAddress, site } from "@/content/site";
 import type { Product } from "./types";
 
+/**
+ * The static routes whose SEO is editable at /admin/seo. Product pages manage
+ * their own SEO on the product form, so they are not listed here.
+ */
+export const SEO_PAGES = [
+  { path: "/", label: "Home" },
+  { path: "/products", label: "Products" },
+  { path: "/protection", label: "Protection" },
+  { path: "/about", label: "About" },
+  { path: "/contact", label: "Contact" },
+] as const;
+
 /** Builds page metadata with sensible Open Graph and Twitter defaults. */
 export function pageMetadata({
   title,

@@ -238,6 +238,45 @@ export function ProductForm({ product }: { product?: Product }) {
         </ul>
       </Panel>
 
+      <Panel
+        title="SEO"
+        note="Optional. Controls how this product looks in Google and when its link is shared. Leave blank to use the name and tagline."
+      >
+        <Field
+          id={`${uid}-seoTitle`}
+          label="Meta title"
+          hint="Around 60 characters. Blank uses the product name."
+        >
+          <input
+            id={`${uid}-seoTitle`}
+            name="seoTitle"
+            defaultValue={product?.seoTitle}
+            maxLength={70}
+            placeholder={product?.name || "EC-DOL Starter — 3 phase, full protection"}
+            className={input()}
+          />
+        </Field>
+
+        <Field
+          id={`${uid}-seoDescription`}
+          label="Meta description"
+          hint="Around 155 characters. Blank uses the tagline."
+        >
+          <textarea
+            id={`${uid}-seoDescription`}
+            name="seoDescription"
+            defaultValue={product?.seoDescription}
+            rows={3}
+            maxLength={200}
+            placeholder={
+              product?.tagline ||
+              "Three phase DOL starter with dry run, phase reversal and voltage protection."
+            }
+            className={`${input()} resize-y`}
+          />
+        </Field>
+      </Panel>
+
       <Panel title="Publishing">
         <div className="space-y-3">
           <label className="flex cursor-pointer items-start gap-3 text-sm">

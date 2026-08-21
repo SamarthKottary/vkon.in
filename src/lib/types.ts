@@ -82,6 +82,10 @@ export type Product = {
   published: boolean;
   featured: boolean;
   sortOrder: number;
+  /** Optional meta-title override; blank falls back to the product name. */
+  seoTitle: string;
+  /** Optional meta-description override; blank falls back to the tagline. */
+  seoDescription: string;
   createdAt: string;
   updatedAt: string;
 };
