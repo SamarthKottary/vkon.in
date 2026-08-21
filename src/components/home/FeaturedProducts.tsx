@@ -138,31 +138,43 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
 
   return (
     <div ref={rootRef}>
-      {showArrows && (
-        <div className="mb-6 flex items-center justify-end gap-3">
-          <PageButton
-            label="Previous featured product"
-            disabled={!canScroll.left}
-            onClick={() => page(-1)}
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-          </PageButton>
-          <PageButton
-            label="More featured products"
-            disabled={!canScroll.right}
-            onClick={() => page(1)}
-          >
-            <ArrowRightIcon className="h-4 w-4" />
-          </PageButton>
+      {/* Heading and arrows as flex siblings in one row — same idiom as
+          `RecentlyViewed` — rather than the arrows stacked in their own block
+          beneath the heading, which is what left a tall gap above the track. */}
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h2 className="text-xl leading-snug sm:text-2xl">Featured products</h2>
+          <p className="mt-2 text-sm text-muted">
+            A handful pulled out from the catalogue.
+          </p>
         </div>
-      )}
+
+        {showArrows && (
+          <div className="flex items-center gap-3">
+            <PageButton
+              label="Previous featured product"
+              disabled={!canScroll.left}
+              onClick={() => page(-1)}
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+            </PageButton>
+            <PageButton
+              label="More featured products"
+              disabled={!canScroll.right}
+              onClick={() => page(1)}
+            >
+              <ArrowRightIcon className="h-4 w-4" />
+            </PageButton>
+          </div>
+        )}
+      </div>
 
       <ul
         ref={trackRef}
         onScroll={sync}
         onWheel={onWheel}
         aria-label="Featured products"
-        className="hscroll flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto px-1 py-4"
+        className="hscroll mt-8 flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto px-1 py-4"
       >
         {products.map((product, index) => (
           <li

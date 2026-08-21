@@ -81,22 +81,12 @@ export default async function HomePage() {
 
       </Section>
 
-      {/* Renders nothing when there are no featured products — the section
-          heading has nothing to sit above otherwise. */}
+      {/* Renders nothing when there are no featured products. The heading
+          and paging arrows are `FeaturedProducts`' own, not this page's —
+          same as `RecentlyViewed` below it, so the two are a matched pair. */}
       {featured.length > 0 && (
         <Section size="wide">
-          {/* Left-aligned, same as `RecentlyViewed`'s heading below it —
-              not the centred `SectionHeading` used elsewhere on this page. */}
-          <div>
-            <h2 className="text-xl leading-snug sm:text-2xl">Featured products</h2>
-            <p className="mt-2 text-sm text-muted">
-              A handful pulled out from the catalogue.
-            </p>
-          </div>
-
-          <div className="mt-12">
-            <FeaturedProducts products={featured} />
-          </div>
+          <FeaturedProducts products={featured} />
         </Section>
       )}
 
