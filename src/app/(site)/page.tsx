@@ -12,12 +12,7 @@ import { resolvePageMetadata } from "@/lib/db/pageSeo";
 
 export async function generateMetadata() {
   return resolvePageMetadata({
-    /* 47 characters. Google truncates around 60 and X/LinkedIn around the
-       same, and this string is used for `<title>`, `og:title` and
-       `twitter:title` alike — the previous one ran to 69 and was cut in all
-       three. `absoluteTitle` keeps the root layout's `| Vkon` suffix off, so
-       what is written here is exactly what ships. */
-    title: "Motor Starters & Control Panels for Agriculture",
+    title: `${site.legalName} — Motor Starters, Industrial Panels & Home Automation`,
     description: site.description,
     path: "/",
     absoluteTitle: true,
