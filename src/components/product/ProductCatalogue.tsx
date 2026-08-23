@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ChevronDownIcon } from "@/components/icons/ui";
 import { ProductRow } from "@/components/product/ProductRow";
 import { categories, sectorOf, sectors } from "@/content/taxonomy";
 import type { Product } from "@/lib/types";
@@ -118,6 +119,19 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
     router.replace(q ? `/products?${q}` : "/products", { scroll: false });
   }
 
+  /* Collapsed on a phone, always open from `lg`.
+     
+     Every option of all three groups used to render at once above the
+     results — three wrapped rows of chips before a visitor reached a single
+     product. A disclosure is React state rather than `<details>`: the panel
+     has to be forced open at `lg` regardless of the toggle, and a `<details>`
+     hides its own content in a way CSS cannot reliably override. */
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const activeFilters = [sector, category, hp].filter((v) => v !== "all").length;
+
+  const clearAll = () => router.replace("/products", { scroll: false });
+
   return (
     <div /* `minmax(0,1fr)` for the results, not `1fr`. A bare `1fr` is
          `minmax(auto,1fr)`, and `auto` refuses to shrink below the column's
@@ -128,6 +142,34 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
       {/* The rail. `self-start` stops it stretching to the grid row height,
           which would break `sticky`. */}
       <aside className="lg:sticky lg:top-24 lg:self-start">
+        {/* The toggle exists only below `lg`; from there the rail is simply
+            there and a control that cannot collapse anything would be noise. */}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((open) => !open)}
+          aria-expanded={filtersOpen}
+          aria-controls="catalogue-filters"
+          className="flex w-full items-center justify-between gap-3 border border-line bg-surface-raised px-4 py-3 text-left text-sm font-medium text-ink transition-colors hover:border-line-strong lg:hidden"
+        >
+          <span className="flex items-center gap-2">
+            Filters
+            {activeFilters > 0 && (
+              <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-accent px-1.5 font-mono text-[0.625rem] tabular-nums text-surface">
+                {activeFilters}
+              </span>
+            )}
+          </span>
+          <ChevronDownIcon
+            className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 ${
+              filtersOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        <div
+          id="catalogue-filters"
+          className={`${filtersOpen ? "mt-5 block" : "hidden"} lg:mt-0 lg:block`}
+        >
         {/* Only offered when there is more than one to choose between. A
             single-option filter is a label pretending to be a control. */}
         {availableSectors.length > 1 && (
@@ -166,11 +208,25 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
           />
         )}
 
-        <p aria-live="polite" className="label-tech mt-8 border-t border-line pt-5 text-muted">
-          {filtered.length === products.length
-            ? `${products.length} product${products.length === 1 ? "" : "s"}`
-            : `${filtered.length} of ${products.length} products`}
-        </p>
+        <div className="mt-8 flex items-center justify-between gap-3 border-t border-line pt-5">
+          <p aria-live="polite" className="label-tech text-muted">
+            {filtered.length === products.length
+              ? `${products.length} product${products.length === 1 ? "" : "s"}`
+              : `${filtered.length} of ${products.length} products`}
+          </p>
+          {/* Only when there is something to clear — a permanently visible
+              "Clear all" beside an unfiltered list is a dead control. */}
+          {activeFilters > 0 && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-sm text-muted underline underline-offset-4 transition-colors hover:text-ink"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+        </div>
       </aside>
 
       <div className="mt-10 lg:mt-0">
@@ -215,10 +271,48 @@ function FilterGroup({
   onSelect: (value: string) => void;
   className?: string;
 }) {
+  const id = `filter-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+
   return (
     <div className={className}>
-      <p className="label-tech text-muted">{label}</p>
-      <ul role="group" aria-label={label} className="mt-3 flex flex-wrap gap-x-4 gap-y-1 lg:block">
+      <label htmlFor={id} className="label-tech block text-muted lg:hidden">
+        {label}
+      </label>
+      <p aria-hidden className="label-tech hidden text-muted lg:block">
+        {label}
+      </p>
+
+      {/* Two controls, one shown at a time by `display`, never both.
+      
+          Below `lg` a native `<select>`: the rail's option lists run to a
+          dozen entries across three groups, and as wrapped chips that was a
+          screenful of controls before a visitor reached a single product. A
+          select collapses each group to one row and hands off to the platform
+          picker, which is both more compact and more familiar on a phone.
+      
+          `hidden` — `display: none` — and not `aria-hidden`, so whichever is
+          out of play leaves the tab order and the accessibility tree together.
+          Hiding one with `aria-hidden` alone would leave its controls
+          keyboard-reachable and invisible to a screen reader, which is the
+          pairing ARIA forbids. */}
+      <select
+        id={id}
+        value={active}
+        onChange={(event) => onSelect(event.target.value)}
+        className="mt-2 w-full appearance-none border border-line-strong bg-surface-raised bg-[length:1rem] px-3 py-2.5 text-sm text-ink focus:border-ink focus:outline-none lg:hidden"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+
+      <ul
+        role="group"
+        aria-label={label}
+        className="mt-3 hidden lg:block"
+      >
         {options.map((option) => {
           const isActive = active === option.value;
           return (
@@ -228,10 +322,7 @@ function FilterGroup({
                 aria-pressed={isActive}
                 onClick={() => onSelect(option.value)}
                 /* Left rule rather than a pill: the accent bar marks the active
-                   row without turning the rail into a set of buttons. `pl-3`
-                   applies on every breakpoint (was `lg:pl-3`), because on
-                   mobile the buttons sit in a wrapping flex row and the label
-                   was landing flush against the border. */
+                   row without turning the rail into a set of buttons. */
                 className={`w-full border-l-2 py-1.5 pl-3 text-left text-sm transition-colors ${
                   isActive
                     ? "border-accent font-medium text-ink"

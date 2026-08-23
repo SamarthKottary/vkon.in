@@ -23,11 +23,19 @@ export default async function ProductsPage() {
 
   return (
     <>
+      {/* No breadcrumb here (client, 2026-08-23). "Home /" above a page
+          reachable from the header's own Products link told a visitor nothing
+          they did not have, and cost a line of vertical space at the top of
+          the one page that should open on products.
+
+          "Every panel we build" was the title until the same date and it
+          undersold the range: cables, accessories, auto-start units and the
+          home-automation lighting are not panels. */}
       <PageHero
+        compact
         eyebrow="Catalogue"
-        title="Every panel we build"
-        description="Filter by category, by sub-category, or by the motor rating you need. Every panel ships with the full protection set — the differences are in supply type, rating and starting method."
-        breadcrumb={[{ label: "Home", href: "/" }]}
+        title="Everything we build"
+        description="Motor starters, industrial panels, solar, cables and home automation — filter by category, sub-category or motor rating."
       />
 
       <div className="py-10 sm:py-12">

@@ -658,6 +658,46 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-23 (later) — Catalogue page
+
+**"Every panel we build" became "Everything we build."** The old title covered
+panels only, while the catalogue also holds cables, accessories, auto-start
+units and home-automation lighting — the same under-selling the OG banner had.
+The standfirst now names the ranges rather than describing panels.
+
+**The masthead is `compact` and has no breadcrumb.** `PageHero` gained a
+`compact` size for pages whose masthead is a label on the way to something
+else; the full one pushed the first product most of a screen down, so the page
+opened on prose about products instead of on products. "Home /" above a page
+reached from the header's own Products link told a visitor nothing they did
+not already have. `/protection`, where the masthead *is* the introduction,
+keeps the roomy variant.
+
+**Filters collapse behind a disclosure below `lg`, and become native
+`<select>`s there.** Every option of all three groups used to render at once
+as wrapped chips — a screenful of controls before the first product. Collapsed
+by default now, and opening it gives one row per group instead of a wall. The
+desktop rail is untouched: still on the left, still sticky, still the chip
+list.
+
+Two details worth keeping:
+
+- *React state, not `<details>`.* The panel must be forced open at `lg`
+  whatever the toggle says, and a `<details>` hides its own content in a way
+  CSS cannot reliably override.
+- *The two controls swap with `hidden`, never `aria-hidden`.* `display: none`
+  takes the inactive one out of the tab order and the accessibility tree
+  together. `aria-hidden` alone would leave a dozen keyboard-reachable options
+  invisible to a screen reader — the pairing ARIA forbids, and the same trap
+  the featured belt hit.
+
+**A "Clear all" sits beside the result count**, and only when a filter is
+active — a permanently visible one beside an unfiltered list is a dead
+control. The mobile toggle carries a badge with the number of active filters,
+since collapsed filters are otherwise invisible state.
+
+Product cards were deliberately not touched.
+
 ### 2026-08-23 — Cart
 
 **A cart, with no checkout behind it yet.** Add-to-cart on the product page, a
