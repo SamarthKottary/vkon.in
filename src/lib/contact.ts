@@ -27,7 +27,21 @@ export function productEnquiryMessage(product: Product): string {
   return `Hello ${site.name}, I would like to know the price and availability of the ${product.name}${hp}.`;
 }
 
-export const generalEnquiryMessage = `Hello ${site.name}, I would like to know more about your motor starters.`;
+/**
+ * The prefilled message behind every general WhatsApp button — the floating
+ * one, the mobile action bar, the footer and `ContactStrip`.
+ *
+ * Deliberately names no range. It said "your motor starters" until 2026-08-24,
+ * which was written when that was the whole catalogue; it now also holds
+ * industrial panels, solar, cables, accessories and home automation, and the
+ * button sits on every page including the ones about those. A visitor reading
+ * the About page and tapping WhatsApp should not find themselves asking about
+ * starters.
+ *
+ * `productEnquiryMessage` is where specificity belongs: it is sent from one
+ * product's page and names that product.
+ */
+export const generalEnquiryMessage = `Hello ${site.name}, I would like to know more about your products.`;
 
 /** Google Maps search link for the address in `site.ts`. */
 export function mapsLink(): string {
