@@ -319,8 +319,17 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
             data-product-id={uid}
             /* The second copy is scenery, not content: a screen reader that
                met every product twice would report a list of twelve where the
-               catalogue holds six. */
-            aria-hidden={canLoop && index >= products.length}
+               catalogue holds six.
+               
+               `inert`, not `aria-hidden` alone. Each card holds focusable
+               things — its title link, and now an add-to-cart button — and
+               `aria-hidden` hides them from assistive technology while leaving
+               them in the tab order, which is the one combination ARIA
+               forbids: a keyboard lands on a control a screen reader has just
+               been told does not exist. `inert` takes the subtree out of both,
+               and implies the hidden semantics, so it replaces rather than
+               joins the old attribute. */
+            inert={canLoop && index >= products.length}
             className={`relative w-[82%] flex-none snap-center sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
               poppedId === uid ? "z-10" : "z-0"
             }`}

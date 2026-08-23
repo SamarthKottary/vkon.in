@@ -26,12 +26,21 @@ export function pageMetadata({
    * page did: "Vkon — Motor Starters ... | Vkon".
    */
   absoluteTitle = false,
+  /**
+   * Keep the page out of search results. For pages whose content belongs to
+   * one visitor and differs for every other — the cart is the first — where
+   * there is nothing to rank and indexing one person's would be meaningless.
+   * The route stays out of `sitemap.ts` for the same reason; this is the half
+   * that also covers a crawler arriving by link.
+   */
+  noIndex = false,
 }: {
   title: string;
   description: string;
   path?: string;
   images?: string[];
   absoluteTitle?: boolean;
+  noIndex?: boolean;
 }): Metadata {
   const url = `${site.url}${path}`;
   const resolvedImages = images?.length ? images : [site.ogImage];
@@ -40,6 +49,7 @@ export function pageMetadata({
     title: absoluteTitle ? { absolute: title } : title,
     description,
     alternates: { canonical: url },
+    ...(noIndex ? { robots: { index: false, follow: true } } : {}),
     openGraph: {
       title,
       description,

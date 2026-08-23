@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRightIcon, PlayIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "./PanelPlaceholder";
@@ -114,10 +115,18 @@ export function ProductCard({
           </dl>
         )}
 
-        <span className="mt-auto flex items-center gap-2 pt-6 text-sm font-medium text-ink transition-colors group-hover:text-accent">
-          View details
-          <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-1" />
-        </span>
+        {/* "View details" stays a `<span>`, not a second link: the card is
+            already one stretched link and adding another would give it two tab
+            stops for the same destination. The cart button beside it is the
+            only real control here, which is why it — and it alone — carries
+            `relative z-10` to sit above the stretched link's overlay. */}
+        <div className="mt-auto flex items-center justify-between gap-3 pt-6">
+          <span className="flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-accent">
+            View details
+            <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-1" />
+          </span>
+          <AddToCartButton slug={product.slug} name={product.name} size="compact" />
+        </div>
       </div>
     </article>
   );
@@ -300,7 +309,7 @@ function HorizontalCard({
 
 
   return (
-    <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-9 shadow-card transition-[box-shadow,border-color,transform,translate] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
+    <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-12 shadow-card transition-[box-shadow,border-color,transform,translate] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
       {/* Floated, not a flex column. The text runs alongside the image and
           then continues *underneath* it, wrapping round in an L — which is
           what keeps a long product name readable in a ~320px card on a
@@ -460,9 +469,21 @@ function HorizontalCard({
         </p>
       )}
 
-      {/* `pb-9` on the card reserves the strip this sits in, so a tagline
-          running to three lines cannot collide with it. */}
-      <ArrowRightIcon className="absolute bottom-3.5 right-4 h-4 w-4 text-muted transition-transform duration-150 group-hover:translate-x-1 group-hover:text-accent" />
+      {/* The corner arrow was a decoration for a card that was entirely a
+          link. With a real control here it would read as a second button and
+          compete with it, so the button takes the strip the card's bottom
+          padding reserves, and the card still navigates from anywhere the
+          button is not.
+          
+          `pb-12`, not `pb-9`: the button is 36px tall at `bottom-3`, so it
+          occupies 12–48px from the card's foot. At `pb-9` the content box
+          ended at 36px and the button's top 12px sat over it — invisible
+          while the label was an icon and the description happened to stop
+          short, but a longer one ran underneath. 48px of padding puts the
+          button entirely in the reserved strip. */}
+      <div className="absolute bottom-3 right-4">
+        <AddToCartButton slug={product.slug} name={product.name} size="compact" />
+      </div>
     </article>
   );
 }

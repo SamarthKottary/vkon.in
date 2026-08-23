@@ -181,6 +181,10 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `about/TiltCard` | Pointer-tracked 3D tilt, fine-pointer devices only |
 | `product/ProductCatalogue` | `useSearchParams` filter state |
 | `product/ProductRow` | Measured paging arrows over a scroll track |
+| `cart/CartLink` | Cart count from localStorage via `useSyncExternalStore` |
+| `cart/QuantityStepper` | − / count / + for one product, card and cart page |
+| `cart/CartList` | Cart contents, quantity and removal |
+| `cart/AddToCartButton` | Writes to the cart, shows its own confirmation |
 | `product/RelatedProducts` | Measured paging arrows over a scroll track |
 | `product/ProductCard` | Places the spec truncation mark from measured layout |
 | `product/ProductMedia` | Selected media, deferred video embed |
@@ -653,6 +657,75 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-23 — Cart
+
+**A cart, with no checkout behind it yet.** Add-to-cart on the product page, a
+count in the header, and `/cart` listing what was picked with quantities. The
+eventual goal is full e-commerce; this is the state layer for it, built so
+adding payment later touches pages and not storage.
+
+**`lib/cart.ts` mirrors `lib/recent.ts` — with one difference that matters.**
+`recent.ts` subscribes to the `storage` event alone, which fires in *other*
+tabs only; that is enough there because the write happens on a product page
+and the read on the home page, two separate documents. A cart is read and
+written in the same document, so a write must also tell its own tab. Writes
+dispatch a `vkon-cart-change` event on `window` and subscribers listen for
+both. Drop that and the header count silently stops moving when you press Add.
+
+**Slugs and quantities are stored, never product data — and no prices.**
+A cart holding names or prices would keep showing them after a product is
+renamed, repriced or deleted. The page resolves slugs against the live
+catalogue and drops what no longer exists; verified against a stored slug for
+a deleted product, which vanishes rather than 404s. It also means adding real
+prices later is a server concern, not a migration of everyone's stored cart.
+
+**No totals are shown, because products carry no price field.** A total that
+silently omitted tax or delivery would be worse than none. Until checkout
+exists the cart's job is to carry a list to a human: the primary action sends
+it to WhatsApp, which is how the business already takes orders.
+
+**The add button becomes the quantity stepper once a product is in the
+cart**, on the cards and the product page alike (client, 2026-08-23). The
+stepper replacing the button *is* the confirmation — an earlier build flashed
+"Added" for two seconds and reverted, which said the press landed but not what
+the cart holds, and said nothing at all by the time the visitor looked back.
+At a quantity of one the minus becomes a bin, because that press removes the
+line either way and the icon should say so.
+
+**The add button is green, against rule 3 in `globals.css`** (client request).
+That rule reserves the accent for links, active state and small marks with
+primary actions in near-black, so this is the one place that departs from it.
+It uses `bg-accent text-surface`, the pairing `ui/Button`'s `accent` variant
+already carries — white on the accent green measures 1.9:1 and would fail.
+
+**`whitespace-nowrap` and `shrink-0` on that button are load-bearing.** On the
+product page it sits in a flex row with two other buttons; without them it
+shrank and the label wrapped to three lines — "Add / to / cart" — overflowing
+onto the image behind it. Desktop only, because that is the breakpoint where
+the row becomes a row, which is why it read as a desktop-only bug. `ui/Button`
+has carried `whitespace-nowrap` all along for the same reason.
+
+**Add-to-cart sits on the product cards too** — catalogue, featured and
+recently viewed, all three being `ProductCard`. Two things had to be right for
+a button to work there at all:
+
+- *Both card orientations are stretched-link.* The title's
+  `after:absolute after:inset-0` lays an invisible sheet over the whole card so
+  any part of it navigates. A button under that sheet cannot be clicked — the
+  overlay takes every press. The button carries `relative z-10` to sit above
+  it, and `stopPropagation`, since a press that bubbles to the card navigates
+  away and the visitor lands on the product page instead of staying put.
+- *The featured belt's duplicate cards use `inert`, not `aria-hidden`.* Each
+  card holds focusable things — a title link, now a button — and `aria-hidden`
+  hides them from assistive technology while leaving them in the tab order,
+  the one combination ARIA forbids. Verified by focusing each control inside a
+  duplicate: 8 were reachable before, 0 after.
+
+**`pageMetadata` gained `noIndex`**, and `/cart` is the first user. Its
+content belongs to one visitor and differs for every other, so there is
+nothing to rank. `sitemap.ts` is an explicit allow-list so the route stays out
+of it automatically; the meta tag covers a crawler arriving by link.
 
 ### 2026-08-21 — Per-product SEO overrides
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CartLink } from "@/components/cart/CartLink";
 import { Logo } from "@/components/icons/Logo";
 import { CloseIcon, MenuIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
@@ -182,6 +183,7 @@ export function Header({ menu = [] }: { menu?: MenuSector[] }) {
                 header retracts on the way down the page and took the only way
                 to call with it. */}
             <div className="ml-auto flex items-center gap-2 md:ml-0 md:flex-1 md:justify-end md:gap-5">
+              <CartLink />
               <ThemeToggle />
               <button
                 ref={triggerRef}

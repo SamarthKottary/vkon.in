@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { CheckIcon, PhoneIcon, WhatsAppIcon } from "@/components/icons/ui";
 import { ProductMedia } from "@/components/product/ProductMedia";
@@ -141,7 +142,13 @@ export default async function ProductPage({
               )}
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button href={whatsAppLink(productEnquiryMessage(product))} size="lg">
+                {/* First of the three: adding to the cart is the only one that
+                    keeps the visitor on the page, so it leads. The two contact
+                    routes stay exactly as they were — a dealer pricing a list
+                    and a farmer whose pump is down today want different
+                    things, and neither should have to use the other's. */}
+                <AddToCartButton slug={product.slug} name={product.name} />
+                <Button href={whatsAppLink(productEnquiryMessage(product))} size="lg" variant="outline">
                   <WhatsAppIcon className="h-4 w-4" />
                   Enquire on WhatsApp
                 </Button>

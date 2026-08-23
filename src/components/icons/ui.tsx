@@ -113,6 +113,16 @@ export function MailIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+/** Cart. A bag rather than a trolley: it reads at 16px, a trolley does not. */
+export function CartIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6 8h12l-1 12H7L6 8Z" />
+      <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+    </svg>
+  );
+}
+
 export function CheckIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg {...base} className={className}>
@@ -133,6 +143,14 @@ export function PauseIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
       <path d="M8 5h3v14H8V5Zm5 0h3v14h-3V5Z" />
+    </svg>
+  );
+}
+
+export function MinusIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M5 12h14" />
     </svg>
   );
 }
