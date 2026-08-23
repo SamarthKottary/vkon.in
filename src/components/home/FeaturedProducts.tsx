@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeftIcon, ArrowRightIcon } from "@/components/icons/ui";
+import { ArrowLeftIcon, ArrowRightIcon, PauseIcon, PlayIcon } from "@/components/icons/ui";
 import { ProductCard } from "@/components/product/ProductCard";
 import type { Product } from "@/lib/types";
 
@@ -40,6 +40,30 @@ import type { Product } from "@/lib/types";
  *    second stayed popped forever once set, rather than un-popping on leaving
  *    the section, which is what this component is for.)
  *
+ *  - **The row advances on its own, endlessly.** One card every 2s, and the
+ *    first card follows the last with no rewind — the list is rendered twice
+ *    and the scroll position is silently pulled back by one set-width each
+ *    time it crosses the seam. Both copies hold identical content at that
+ *    offset, so the jump is invisible; what a visitor sees is a belt.
+ *
+ *    Duplication is why every card carries a `uid` (`<product id>#<slot>`)
+ *    rather than its bare product id: two elements now answer to the same
+ *    product, and the centred-card pop below keys on the element. Without it
+ *    both copies popped at once.
+ *
+ *    The belt only forms when one set genuinely overflows the track. Doubling
+ *    a row that already fits would invent scrolling that is not wanted, so
+ *    `canLoop` measures one set against the visible width — and measures it
+ *    as `scrollWidth / 2` once doubled, which keeps the answer stable instead
+ *    of flip-flopping as the DOM changes under it.
+ *    It is gated the same way the hero's rotation is (see `HeroRotator`):
+ *    off until an effect confirms `prefers-reduced-motion` is not set, frozen
+ *    while the tab is hidden, and stopped whenever the section is out of view
+ *    so a phone is not animating a row nobody is looking at. Hover and
+ *    keyboard focus pause it too, or a card would slide out from under the
+ *    pointer mid-read, and there is an explicit pause control for the visitors
+ *    hovering cannot serve.
+ *
  * The track carries generous vertical padding rather than `overflow-visible`
  * — horizontal scrolling needs `overflow-x: auto`, and the CSS overflow
  * rules compute the other axis to `auto` too the moment one axis isn't
@@ -60,6 +84,17 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
      swipe later centres. Trusting hover only where a fine pointer genuinely
      exists keeps every touch device on the centred card. */
   const [hoverCapable, setHoverCapable] = useState(false);
+  /* Autoplay stays off until an effect confirms motion is welcome, so a
+     reduced-motion visitor never sees one unrequested step — matching how
+     `HeroRotator` gates its rotation. */
+  const [autoplay, setAutoplay] = useState(false);
+  const [paused, setPaused] = useState(false);
+  /* Pointer or keyboard is on the row right now. Separate from `paused`: this
+     one resumes by itself when they leave, the button does not. */
+  const [engaged, setEngaged] = useState(false);
+  /* Whether one set of cards overflows the track, and so whether the belt is
+     rendered at all. See the note on the component. */
+  const [canLoop, setCanLoop] = useState(false);
 
   useEffect(() => {
     setHoverCapable(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
@@ -76,6 +111,22 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setAutoplay(!motion.matches);
+    sync();
+    motion.addEventListener("change", sync);
+    return () => motion.removeEventListener("change", sync);
+  }, []);
+
+  /* A background tab still fires timers, so without this the row scrolls on
+     unseen and the visitor returns to it part-way through a card. */
+  useEffect(() => {
+    const onVisibility = () => setPaused(document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
   const poppedId = inView ? (hoverCapable ? hoveredId ?? centeredId : centeredId) : null;
 
   const sync = useCallback(() => {
@@ -83,6 +134,11 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     if (!el) return;
     const max = el.scrollWidth - el.clientWidth;
     setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
+
+    /* One set's width, whether or not it is currently doubled — so enabling
+       the belt cannot change the measurement that decided to enable it. */
+    const oneSet = canLoop ? el.scrollWidth / 2 : el.scrollWidth;
+    setCanLoop(oneSet > el.clientWidth + 8);
 
     const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
     let bestId: string | null = null;
@@ -96,7 +152,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
       }
     }
     setCenteredId(bestId);
-  }, []);
+  }, [canLoop]);
 
   useEffect(() => {
     sync();
@@ -107,14 +163,52 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     return () => observer.disconnect();
   }, [sync, products.length]);
 
-  /** Pages by one card, measured from the DOM so it follows the breakpoint. */
+  /** Pages by one card, measured from the DOM so it follows the breakpoint.
+   *
+   *  On a belt it first pulls the scroll position back across the seam if it
+   *  has drifted past one set-width — instantly, and *before* the smooth step
+   *  rather than during it. The two copies are identical at that offset so the
+   *  jump cannot be seen, and doing it between animations rather than inside
+   *  one avoids cancelling a scroll already in flight. Paging backwards from
+   *  the start does the mirror, which is what lets the arrows run the belt in
+   *  reverse instead of stopping dead at zero. */
   const page = (direction: 1 | -1) => {
     const el = trackRef.current;
     if (!el) return;
     const first = el.firstElementChild as HTMLElement | null;
     const step = first ? first.getBoundingClientRect().width + 24 : el.clientWidth;
+
+    if (canLoop) {
+      const oneSet = el.scrollWidth / 2;
+      if (direction === 1 && el.scrollLeft >= oneSet) el.scrollLeft -= oneSet;
+      else if (direction === -1 && el.scrollLeft < step) el.scrollLeft += oneSet;
+    }
+
     el.scrollBy({ left: step * direction, behavior: "smooth" });
   };
+
+  /* One card every 4s, wrapping to the start at the end.
+     
+     `page(1)` is reused rather than duplicated so the auto step and the arrow
+     step are the same distance by construction. The wrap is a plain scroll to
+     0: the alternative — rendering the list twice and silently resetting
+     `scrollLeft` by one set-width for a seamless belt — collides with the
+     centred-card logic above, which keys the pop on `data-product-id`, and a
+     duplicated list means two elements answer to the same id.
+     
+     `running` folds in every reason to hold still: reduced motion, an
+     explicit pause, a hidden tab, a pointer or keyboard on the row, the
+     section being off-screen, and nothing to scroll in the first place. */
+  const running =
+    autoplay && !paused && !engaged && inView && (canLoop || canScroll.right);
+
+  useEffect(() => {
+    if (!running) return;
+    /* No end to test for: `page` carries the seam, so every tick is the same
+       single step whether or not it happens to cross it. */
+    const id = window.setInterval(() => page(1), 2000);
+    return () => window.clearInterval(id);
+  }, [running, canLoop]);
 
   /** A plain mouse wheel's vertical delta pages the row; a trackpad's own
    *  horizontal delta is left alone so its native momentum keeps working. */
@@ -126,7 +220,18 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
 
   if (products.length === 0) return null;
 
-  const showArrows = canScroll.left || canScroll.right;
+  /* On a belt neither end is ever reached, so nothing is ever disabled. */
+  const showArrows = canLoop || canScroll.left || canScroll.right;
+  const arrowsEnabled = canLoop
+    ? { left: true, right: true }
+    : canScroll;
+
+  /* The belt: one set for the eye, a second so there is always a card
+     following the last. `uid` keeps the two copies distinguishable — the pop
+     below keys on it, and React needs it for `key`. */
+  const slots = (canLoop ? [...products, ...products] : products).map(
+    (product, index) => ({ product, index, uid: `${product.id}#${index}` }),
+  );
 
   return (
     <div ref={rootRef}>
@@ -143,16 +248,33 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
 
         {showArrows && (
           <div className="flex items-center gap-3">
+            {/* WCAG 2.2.2: content that moves on its own for more than five
+                seconds needs a way to stop it, and hovering is not one — it
+                does nothing for a touch or keyboard visitor. Same control the
+                hero carries, for the same reason. */}
+            {autoplay && (
+              <PageButton
+                label={`${paused ? "Resume" : "Pause"} the featured products row`}
+                disabled={false}
+                onClick={() => setPaused((p) => !p)}
+              >
+                {paused ? (
+                  <PlayIcon className="h-3.5 w-3.5" />
+                ) : (
+                  <PauseIcon className="h-3.5 w-3.5" />
+                )}
+              </PageButton>
+            )}
             <PageButton
               label="Previous featured product"
-              disabled={!canScroll.left}
+              disabled={!arrowsEnabled.left}
               onClick={() => page(-1)}
             >
               <ArrowLeftIcon className="h-4 w-4" />
             </PageButton>
             <PageButton
               label="More featured products"
-              disabled={!canScroll.right}
+              disabled={!arrowsEnabled.right}
               onClick={() => page(1)}
             >
               <ArrowRightIcon className="h-4 w-4" />
@@ -178,16 +300,29 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
           );
           if (card) setHoveredId(card.dataset.productId ?? null);
         }}
-        onMouseLeave={() => setHoveredId(null)}
+        onMouseEnter={() => setEngaged(true)}
+        onMouseLeave={() => {
+          setHoveredId(null);
+          setEngaged(false);
+        }}
+        /* Capture-phase, so focus landing on a card's link counts — focus
+           events do not bubble. A keyboard visitor reading the row should not
+           have it move under them either. */
+        onFocusCapture={() => setEngaged(true)}
+        onBlurCapture={() => setEngaged(false)}
         aria-label="Featured products"
         className="hscroll mt-8 flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto px-1 py-4"
       >
-        {products.map((product, index) => (
+        {slots.map(({ product, index, uid }) => (
           <li
-            key={product.id}
-            data-product-id={product.id}
+            key={uid}
+            data-product-id={uid}
+            /* The second copy is scenery, not content: a screen reader that
+               met every product twice would report a list of twelve where the
+               catalogue holds six. */
+            aria-hidden={canLoop && index >= products.length}
             className={`relative w-[82%] flex-none snap-center sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
-              poppedId === product.id ? "z-10" : "z-0"
+              poppedId === uid ? "z-10" : "z-0"
             }`}
           >
             {/* The pop transform sits on this inner layer, never on the `<li>`
@@ -200,7 +335,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
                 list) because v4's `scale`/`translate` are their own properties. */}
             <div
               className={`h-full rounded-[2px] transition duration-300 ease-out ${
-                poppedId === product.id
+                poppedId === uid
                   ? "-translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
                   : "outline outline-2 -outline-offset-2 outline-transparent"
               }`}
