@@ -78,7 +78,22 @@ export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
         </h3>
       </div>
 
-      <div className="mt-2 flex h-full flex-col overflow-hidden border border-line bg-surface-raised transition-shadow duration-200 hover:shadow-card">
+      {/* Pop on hover (client, 2026-08-24) — lift and a stronger shadow, not a
+          scale: the vertical (`lg`) layout packs five of these in one row
+          with a 12px gap, and this card is already only ~170px wide there,
+          so scaling up risked the lifted card visibly overlapping its
+          neighbours. A lift reads as "picked up" without that risk. Hovering
+          anywhere on the card triggers it, including over the button inside
+          — there is no separate hover zone to miss, since this is one plain
+          `:hover` on the card itself, not something pointer-tracked.
+
+          `hover:[transform:translateY(-0.25rem)]`, not `hover:-translate-y-1`
+          — confirmed by testing that the named translate utilities are
+          silent no-ops in this Tailwind version (see the note on `ui/Button`'s
+          `sweepClasses`, found while building the button-sweep animation
+          right after this card). Arbitrary-property syntax sidesteps
+          whichever utility names this version does or doesn't ship. */}
+      <div className="mt-2 flex h-full flex-col overflow-hidden border border-line bg-surface-raised transition-[transform,box-shadow,border-color] duration-200 hover:[transform:translateY(-0.25rem)] hover:border-line-strong hover:shadow-card-hover">
         {/* Chrome bar. Showing the real URL is what makes the card read as a
             window onto a profile rather than as another styled link — and it
             tells the visitor where the button goes before they press it.

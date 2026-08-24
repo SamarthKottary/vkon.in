@@ -660,6 +660,129 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-24 (tuning) — Sweep slowed, glow darkened; §03's standfirst confirmed already matching §01's, not touched
+
+**Client asked to slow the button sweep, darken the light-mode glow, and
+match §03's new standfirst font size to §01's opening paragraph.** The third
+turned out to already be true — both paragraphs carry the identical
+className (`text-xl leading-snug tracking-tight text-ink sm:text-2xl`), and
+`getComputedStyle` on the live page confirms pixel-identical rendering at
+both breakpoints (24px/33px line-height at desktop, 20px/27.5px at 375px
+mobile width, same 672px/335px content width). Checked rendered output
+rather than trusting the className match alone — this session's own
+scale-x/translate-y gap (two entries below) is a standing reminder that
+matching classNames do not guarantee matching CSS in this Tailwind version.
+No change made; nothing was wrong.
+
+**`.tilt-glare`'s light-mode intensity raised from 30% to 48%**
+(`color-mix(in srgb, var(--color-accent) 48%, transparent)`, both instances
+above corrected to match). **`ui/Button`'s `sweep` fill slowed from 500ms to
+700ms** (`before:duration-700`). Both are pure value tuning on features this
+same day's entry below already documents and verified structurally — no new
+surface area, so this entry only records the new numbers, not a re-verification
+of the mechanism.
+
+**Verified**: resolved `background-image` on a live `.tilt-glare` shows
+`color(srgb 0.137255 0.439216 0.239216 / 0.48)` in light mode — the same
+accent triple as before, alpha raised from `0.3` to `0.48`; resolved
+`transition-duration` on the sweep's `::before` reads `0.7s`. Confirmed
+visually with a cursor held at a card's centre past the 2.6s `IntroSplash`
+self-clear (an early check in this pass hit the splash's still-live
+full-viewport hit target and read a false "listener never fires" — the splash
+was still capturing `elementFromPoint` at the coordinates used, not a real
+regression; resolved by waiting past `intro-clear`'s delay before probing).
+
+### 2026-08-24 (interactions) — About §02/§03 get the tilt-glow and a button sweep; a real gap in this Tailwind version found and worked around twice
+
+**§03 gains a standfirst** ("A closer look at Vkon Automation…") — it went
+straight into the brochure card with nothing saying what the section covers;
+§01 and §04 both already open with one.
+
+**The "Explore our products" and "Download our brochure" boxes are now
+`TiltCard`s**, the same component and the same `.tilt-glare` cursor-tracked
+sheen §01's three market cards already use — client asked for "that same
+animation," so this reuses the component rather than rebuilding the effect.
+`max-w-2xl` moved from the card onto `TiltCard` itself in both cases: the
+tilt reads its own `getBoundingClientRect`, so the width constraint has to
+live on the element the ref is attached to.
+
+**`.tilt-glare` is now theme-aware — green in light mode, white in dark**
+(client, 2026-08-24). It was a flat white radial sheen regardless of theme,
+which is fine as a highlight against a dark card but nearly invisible
+against light mode's near-white `surface-raised`. Light mode now reads
+`color-mix(in srgb, var(--color-accent) 48%, transparent)`; `[data-theme="dark"]`
+overrides back to the original white. Verified the resolved colour
+literally, not just that the rule exists: light mode composites to
+`rgb(35, 112, 61)`, which is exactly `--color-accent`'s light value
+(`#23703d`) converted to decimal — confirming the token is what is actually
+painting, not a coincidentally similar hardcoded value.
+
+**`ui/Button` gains an opt-in `sweep` prop** — a `::before` layer that
+scales in from the left on hover, applied to both boxes' CTAs
+("See all products", "Download brochure (PDF)"), client: "animate like
+loading from left to right." Off by default; nothing else on the site
+opted in. Colour is `bg-accent`, already correctly themed by the same token
+the glow uses.
+
+**Found while building the sweep, and it is bigger than this one button:
+several named Tailwind utility classes this project already relies on do not
+exist in the installed Tailwind version and fail completely silently — no
+error, no warning, just no CSS rule generated.** `scale-x-0`/`scale-x-100`
+(needed for the sweep) turned out to be one of them — confirmed by grepping
+the installed `tailwindcss` package's own compiled source for `scale-x`,
+which returns zero matches anywhere in the module. Switched to the arbitrary-
+property form, `[transform:scaleX(0)]`, which bypasses Tailwind's utility-name
+lookup entirely and does not depend on which named utilities a given version
+ships.
+
+**The same investigation found `-translate-y-*` (the negative, named
+form) is *also* silently absent** — and this one is not new code, it is
+already shipped and live: `product/ProductCard`'s `hover:-translate-y-0.5`
+(three separate call sites) and the pop effect's `-translate-y-2.5` in both
+`home/FeaturedProducts` and `home/RecentlyViewed` have, as far as this
+investigation can tell, never actually applied a lift on hover — confirmed
+directly on the *live catalogue page*, untouched by anything in this
+session: `getComputedStyle(cardEl).transform` reads `"none"` before **and**
+after hovering a card that carries `hover:-translate-y-0.5`. The scale and
+shadow components of those combined hover effects still work and are
+visually the more prominent part, which is almost certainly why this has
+gone unnoticed rather than being reported as "the cards don't lift."
+
+**Fixed here only where this session's own new code needed it** — the
+`sweep` prop above, and the new "pop" hover on `about/SocialProfileCard`
+below use `[transform:...]` arbitrary properties throughout, deliberately,
+not the named translate/scale utilities. **The three pre-existing instances
+in `ProductCard`/`FeaturedProducts`/`RecentlyViewed` were left as they are.**
+Fixing those is a distinct, separate piece of work — outside what was asked
+this session, and worth a deliberate decision (do all three want the same
+arbitrary-property fix, and should the *amount* of lift be reconsidered while
+touching them) rather than a drive-by change bundled into an unrelated
+request. Flagged to the client directly rather than silently fixed or
+silently left; if this is not picked up as its own follow-up, a future
+reader hitting a "hover lift doesn't work" report should start here, not
+re-diagnose from zero.
+
+**`about/SocialProfileCard` gains a "pop" on hover** (client: "when cursor is
+… on the social media profile boxes I want it to pop") — lift plus a
+stronger shadow, not a scale: the `lg` (desktop) layout packs five cards
+into one row with a 12px gap at ~170px each, and a scale-based pop risked
+the lifted card visibly overlapping its neighbours, which the FeaturedProducts/
+RecentlyViewed pop-card treatment does not have to worry about (those sit one
+at a time, centred, with room around them). Uses the same
+`hover:[transform:translateY(-0.25rem)]` arbitrary-property form as the
+button sweep, for the reason above.
+
+**Verified, not assumed, throughout** — every piece above has a specific
+check behind it: glare opacity read via `getComputedStyle` before/after a
+simulated pointer move (`0` → `1`); the sweep's resolved transform matrix
+before/after a 700ms hover (`matrix(0,0,0,1,0,0)` → `matrix(1,0,0,1,0,0)`,
+i.e. exactly `scaleX(0)` → `scaleX(1)`); the pop card's transform likewise
+(`none` → `matrix(1,0,0,1,0,-4)`, i.e. `translateY(-4px)`); `elementFromPoint`
+at both CTA buttons' centres resolving to the `<a>` itself with
+`pointer-events: auto`, confirming the glare spans' `pointer-events-none`
+does not block the click it sits on top of; both buttons re-confirmed to
+still navigate/download correctly with the new `TiltCard` wrapper in place.
+
 ### 2026-08-24 (design, held+smoothed) — The previous entry's fix reintroduced the Mach-band seam it was meant to avoid; both fixed together this time
 
 **Client report: the boundary between the top/bottom scrim and the image

@@ -489,15 +489,32 @@
 
   /* Cursor-tracked sheen for a tilt card. `--mx`/`--my` are written by
      `TiltCard`; the highlight sits where the pointer is and fades in only
-     while the card is active, so a card at rest carries none of it. */
+     while the card is active, so a card at rest carries none of it.
+
+     **Green in light mode, white in dark** (client, 2026-08-24). A white
+     sheen reads as a highlight against a dark card, which is the only case
+     this had to handle until now; against light mode's near-white
+     `surface-raised` the same white glow all but disappears; `--color-accent`
+     is already the correct value for "the brand green, tuned for whichever
+     theme is active" — every card this sits on already reads its border and
+     icon colour from the same token family, so the glow now matches them
+     rather than introducing a colour nothing else on the card uses. */
   .tilt-glare {
+    background: radial-gradient(
+      18rem circle at var(--mx, 50%) var(--my, 50%),
+      color-mix(in srgb, var(--color-accent) 48%, transparent),
+      transparent 45%
+    );
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  [data-theme="dark"] .tilt-glare {
     background: radial-gradient(
       18rem circle at var(--mx, 50%) var(--my, 50%),
       rgb(255 255 255 / 0.14),
       transparent 45%
     );
-    opacity: 0;
-    transition: opacity 0.3s ease;
   }
 
   .tilt[data-active="true"] .tilt-glare {

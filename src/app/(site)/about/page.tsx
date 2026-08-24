@@ -298,24 +298,37 @@ export default function AboutPage() {
           <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
             <RailHeading index="02">Products</RailHeading>
 
-            <div className="reveal max-w-2xl border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
-                <FactoryIcon className="h-6 w-6" />
-              </span>
-              <p className="mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
-                Explore our products
-              </p>
-              <p className="mt-4 text-[1.0625rem] leading-relaxed text-body">
-                Motor starters, industrial panels, solar, cables and home
-                automation. Filter the range by category, sub-category or motor
-                rating.
-              </p>
+            {/* Same `TiltCard` the three market cards in §01 use — client
+                asked for "that same animation" on this box and the brochure
+                box in §03. `max-w-2xl` moved onto `TiltCard` itself (it was on
+                the card below): the tilt's `perspective` and rotation are
+                computed from this element's own `getBoundingClientRect`, so
+                the width has to live on whichever element the ref is on, not
+                a descendant. */}
+            <TiltCard className="reveal max-w-2xl">
+              <div className="relative overflow-hidden border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
+                <span
+                  aria-hidden
+                  className="tilt-glare pointer-events-none absolute inset-0"
+                />
+                <span className="tilt-layer flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
+                  <FactoryIcon className="h-6 w-6" />
+                </span>
+                <p className="tilt-layer mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
+                  Explore our products
+                </p>
+                <p className="tilt-layer mt-4 text-[1.0625rem] leading-relaxed text-body">
+                  Motor starters, industrial panels, solar, cables and home
+                  automation. Filter the range by category, sub-category or
+                  motor rating.
+                </p>
 
-              <Button href="/products" size="lg" className="mt-7">
-                See all products
-                <ArrowRightIcon className="h-4 w-4" />
-              </Button>
-            </div>
+                <Button href="/products" size="lg" sweep className="tilt-layer mt-7">
+                  See all products
+                  <ArrowRightIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </TiltCard>
           </div>
         </Container>
       </section>
@@ -332,33 +345,54 @@ export default function AboutPage() {
                 its min-content width from the whole strip and pushes the grid
                 wider than the page. */}
             <div className="min-w-0 max-w-2xl">
-              <div className="reveal border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
-                  <DownloadIcon className="h-6 w-6" />
-                </span>
-                <p className="mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
-                  Download our brochure
-                </p>
-                <p className="mt-4 text-[1.0625rem] leading-relaxed text-body">
-                  The full range in one PDF &mdash; ratings, enclosures and
-                  protection features, ready to print or forward.
-                </p>
+              {/* Standfirst (client, 2026-08-24) — §01 and §04 both open with
+                  one before their content; §03 went straight into the
+                  brochure card with nothing to say what the section covers.
+                  Names the three things below it: the download, the figures,
+                  the photographs. */}
+              <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
+                A closer look at Vkon Automation &mdash; the full range to
+                download, a few figures on where we stand, and photographs
+                from our own work.
+              </p>
 
-                {/* `download` asks the browser to save rather than navigate,
-                    and names the saved file: without the attribute a PDF opens
-                    in the built-in viewer on most desktops, which is not what
-                    a button reading "Download" promises. Same-origin, so the
-                    attribute is honoured. */}
-                <Button
-                  href={BROCHURE}
-                  download="Vkon-Automation-Brochure.pdf"
-                  size="lg"
-                  className="mt-7"
-                >
-                  <DownloadIcon className="h-4 w-4" />
-                  Download brochure (PDF)
-                </Button>
-              </div>
+              {/* Same `TiltCard` §01's market cards and §02's box use — see
+                  the note on §02 for why `max-w-2xl` sits here rather than on
+                  the card inside it. */}
+              <TiltCard className="reveal mt-8">
+                <div className="relative overflow-hidden border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
+                  <span
+                    aria-hidden
+                    className="tilt-glare pointer-events-none absolute inset-0"
+                  />
+                  <span className="tilt-layer flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
+                    <DownloadIcon className="h-6 w-6" />
+                  </span>
+                  <p className="tilt-layer mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
+                    Download our brochure
+                  </p>
+                  <p className="tilt-layer mt-4 text-[1.0625rem] leading-relaxed text-body">
+                    The full range in one PDF &mdash; ratings, enclosures and
+                    protection features, ready to print or forward.
+                  </p>
+
+                  {/* `download` asks the browser to save rather than navigate,
+                      and names the saved file: without the attribute a PDF opens
+                      in the built-in viewer on most desktops, which is not what
+                      a button reading "Download" promises. Same-origin, so the
+                      attribute is honoured. */}
+                  <Button
+                    href={BROCHURE}
+                    download="Vkon-Automation-Brochure.pdf"
+                    size="lg"
+                    sweep
+                    className="tilt-layer mt-7"
+                  >
+                    <DownloadIcon className="h-4 w-4" />
+                    Download brochure (PDF)
+                  </Button>
+                </div>
+              </TiltCard>
 
               {/* The figures. A plain grid rather than cards: three bordered
                   boxes here would compete with the brochure card directly
