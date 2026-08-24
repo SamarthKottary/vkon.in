@@ -660,6 +660,309 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-24 (three more) — Pop-highlight follows the cursor; RecentlyViewed and AboutGallery get the same fixes
+
+**`FeaturedProducts`: the pop highlight can now track the cursor through the
+belt's own motion, not only through pointer movement.** The previous entry
+flagged this as a known, accepted gap: `mouseover` only fires when the
+pointer itself moves, never when content scrolls past a stationary one, so
+once autoplay could move while hovering, the highlighted card could keep
+following whatever was first touched even after the belt carried it away.
+Fixed by re-resolving `hoveredId` from `document.elementFromPoint` at the
+last known pointer position on every `measure()` call — which already runs
+on every scroll frame the belt produces, so the highlight now updates
+continuously through an autoplay step, not just at its start and end. Gated
+on `hoverCapable`, same reasoning as `poppedId`'s existing gate: a touch
+device's stray `mouseover` shouldn't spend an `elementFromPoint` call every
+frame resolving a value that device is going to ignore anyway. Verified by
+hovering a card once, then making *zero* further mouse movement for 3.5s of
+autoplay: at every sampled instant, `document.elementFromPoint` at the fixed
+cursor position and the actually-popped card's id matched exactly (5/5), and
+the popped id changed twice over that window, tracking the belt correctly.
+
+**`RecentlyViewed` had the exact same wheel-hijack and `snap-mandatory` bugs
+`FeaturedProducts` had**, independently, since it's a separate component that
+happened to be built the same way. Same fix: the `onWheel` handler (converted
+vertical wheel deltas into a horizontal scroll and blocked the page under it)
+is gone, and `scroll-snap-type` is `proximity`, not `mandatory`. Verified:
+computed `scroll-snap-type` no longer reports `mandatory`; a vertical scroll
+with the cursor over a card now moves the page (`2313 → 2713`) and leaves the
+row untouched (`0 → 0`); the arrows still page the row (`0 → 392`). This
+component has no autoplay, so there was never a hover-pause or
+pop-highlight-staleness concern here — only the wheel/snap issue applied.
+
+**`about/AboutGallery`: hover/focus no longer pause the belt**, same change
+and same reasoning as the `FeaturedProducts` entry above, requested
+specifically because the strip looked stuck whenever the pointer rested on
+it. The `engaged` state and its four handlers are gone entirely — nothing else
+read it. Verified: hovering an image, `scrollLeft` now advances (`0 → 840`
+over 4.5s; previously frozen).
+
+**Material difference from the `FeaturedProducts` case, worth restating: this
+gallery has no pause button at all** (removed in an earlier entry the same
+day) and no `hoveredId`/pop-highlight system to begin with — it is a plain
+photo strip, not clickable cards. So unlike `FeaturedProducts`, which keeps an
+explicit pause button as the actual WCAG 2.2.2 mechanism, removing hover/focus
+pausing here leaves *no* interactive way to stop the belt short of leaving the
+page — only `prefers-reduced-motion` at the OS level still works. The file's
+header comment was two paragraphs behind reality before this change (still
+describing a pause button and hover/focus parking that had already been
+removed in earlier entries); both are rewritten to state plainly that no
+pause mechanism remains.
+
+### 2026-08-24 (one more) — Featured-products autoplay no longer pauses on hover or focus
+
+**Hover and keyboard focus used to stop the belt; they no longer do**
+(client, after the wheel fix, noticing the row looked "stuck" whenever the
+pointer rested on it). The trade-off was raised before making the change: the
+belt can now shift a card out from under an in-progress click — including an
+"Add to cart" press landing on whichever card the belt scrolled into that
+spot rather than the one being looked at — and the client accepted that
+explicitly. Recorded as a real, accepted risk, not resolved or mitigated.
+
+**The `engaged` state is gone entirely**, not merely excluded from `running`
+— it had no other reader. Removed with it: `onMouseEnter`, `onFocusCapture`
+and `onBlurCapture` on the track, all three of which existed only to set it.
+`onMouseLeave` keeps its other job (clearing `hoveredId`, for the pop-highlight
+system) and loses only the `setEngaged(false)` call.
+
+**The explicit pause button, `paused`, and the pop-highlight system
+(`hoveredId`/`centeredId`) are all unchanged.** The pause button was always
+the mechanism actually satisfying WCAG 2.2.2; hover/focus pausing was a second
+safety net on top of it, and losing the net doesn't remove the requirement's
+own mechanism. Verified directly: hovering a card, `scrollLeft` now advances
+(`0 → 1216` over 4.5s, previously frozen); clicking the pause button still
+stops it cold (`1216 → 1216`); the vertical-scroll-passes-through fix from
+the previous entry is unaffected by this change.
+
+**Known, accepted, not fixed: `hoveredId` can go stale while the belt moves
+under a stationary cursor.** `mouseover` only fires on pointer movement, not
+on content scrolling past a still cursor, so the pop highlight can keep
+following the card first hovered even after the belt has carried it away from
+the pointer, until the visitor's mouse next moves even slightly. This was
+unreachable before — autoplay never moved while a card was hovered — and is
+now possible for the first time. Not raised by the client and not fixed here;
+worth knowing if it's ever reported as "the highlight followed the wrong card."
+
+### 2026-08-24 (actually final) — Wheel handling on featured-products removed; the fix was the snap strictness, not the JS
+
+**The dead-zone block (previous entry) is gone. There is no wheel-handling
+code on this row at all now** — client, after confirming the block worked,
+asked what the standard approach was. Netflix/Amazon-style product rails
+don't intercept the wheel: a vertical scroll always scrolls the page, and
+horizontal movement comes from drag, touch, a trackpad's native
+`deltaX`, or (here) the arrow buttons. Recommended reverting to that, with
+one change to make it actually reliable this time.
+
+**The real fix was `scroll-snap-type: x mandatory` → `x proximity`, not any
+JS.** All three previous attempts (hijack, block, and the "just let it
+chain" one in between) were trying to solve the problem in the wheel handler.
+The actual cause of "still glitchy" was `mandatory` snap: it grabs a gesture
+that ends anywhere near a snap point regardless of why the gesture happened,
+where `proximity` only pulls a scroll that was already *going to land* near
+one. Verified directly, same reproduction as the earlier "still glitchy"
+report: six wheel ticks of `deltaY=120` with `deltaX=3` (a vertical scroll
+carrying a few pixels of realistic noise) — under `mandatory` this moved
+neither the row nor the page at all; under `proximity`, identical input,
+the page advances normally (`1676 → 1809`) and the row stays at `0`.
+
+Also re-verified after the change: arrows still page the row (`0 → 395` on
+click), and the seam-crossing/autoplay math from the earlier fixes is
+unaffected by the snap-strictness change (0 bound violations sampled across
+several autoplay laps) — snap strictness only governs where a *manually
+released* scroll settles, not the programmatic `scrollBy`/`scrollLeft` paths
+`page()`, `correctSeam` and `advance` use, none of which go through snap at
+all.
+
+### 2026-08-24 (this time for real) — Vertical scroll now blocked outright over the featured-products row
+
+**"Let vertical scroll chain naturally to the page" (the previous entry) was
+not enough** — client report: still glitchy scrolling over the cards, though
+no longer wild. Root cause: real trackpad/wheel input is rarely perfectly
+axis-aligned, and this row also carries `scroll-snap-type: x mandatory`.
+Reproduced directly: a deltaY-dominant wheel event carrying a few pixels of
+incidental deltaX noise moved *neither* the row nor the page — the browser's
+snap machinery appears to claim the whole event for the row rather than
+chaining the vertical component up, discarding it instead. Scrolling over the
+row felt unreliable rather than visibly wild, which matches "still glitchy."
+
+**Fixed per explicit instruction, not by chasing the chaining heuristic
+further: a vertical-dominant wheel event over the row is now blocked
+outright**, full stop — the visitor moves the pointer off the row to keep
+scrolling the page. This trades away a real piece of default browser
+behaviour (a "dead zone" that swallows the wheel is a known, historically
+disliked pattern — embedded maps and PDF viewers are the usual offenders) for
+predictability; flagged to the client rather than silently applied, and kept
+because they asked for it after already trying the lighter alternative.
+
+**This surfaced a real bug in the previous entry's own implementation: React's
+`onWheel` prop cannot call `preventDefault()` at all.** React attaches
+`wheel` passively at the root; a synthetic handler calling `preventDefault()`
+is silently a no-op, and Chrome logs "Unable to preventDefault inside passive
+event listener invocation" when it happens. `event.defaultPrevented` becomes
+`true` — the flag is set — but the scroll proceeds anyway. The *previous*
+entry's fix (letting vertical scroll pass through) never called
+`preventDefault()`, so this bug was inert then; it would have silently
+defeated the current one. Replaced with a real `addEventListener(el, "wheel",
+handler, { passive: false })` in a `useEffect`, which is the only way to
+actually cancel a wheel event from React.
+
+**Verification hit a genuine wall, worth recording so it isn't re-litigated.**
+Blocking a wheel event over a *non-scrollable* element works and was
+confirmed directly: a plain fixed `<div>` with the identical non-passive
+listener blocked a synthetic scroll cleanly (`2309 → 2309`). The *same*
+listener, *same* verified-correct logic, over the actual row — which has
+`overflow-x: auto` and `scroll-snap-type: x mandatory` — does not block a
+CDP-synthesized wheel event, across four independent attempts: React's prop,
+a native listener on the row, a native listener on `window` with a
+containment check, and a raw `Input.dispatchMouseEvent` CDP call bypassing
+Playwright's helper entirely. All four show the identical symptom —
+`defaultPrevented` becomes `true`, the scroll happens anyway — which is the
+signature of Chromium's compositor-thread "fast scroll" path for
+overflow-scrollable containers not fully honouring a main-thread
+`preventDefault()` when the *triggering* input is CDP-injected rather than
+genuine hardware. The differential result (plain element: blocked; scrollable
+element: not blocked, same code) is what rules out "the code is wrong" — a
+bug in the handler would fail identically on both. This is a known category of
+Playwright/Puppeteer limitation for custom-scrollable containers, not
+something to keep chasing here. `{ passive: false }` `addEventListener` is the
+industry-standard, correct way to cancel a wheel event, and is very likely to
+behave correctly for genuine mouse/trackpad input in a real browser — but that
+claim rests on the standard, not on this session's own testing, and is
+flagged as such rather than reported as verified.
+
+### 2026-08-24 (truly final) — Vertical scroll no longer hijacked by the featured-products row
+
+**A plain mouse-wheel scroll down, with the cursor over a card, used to fling
+the row sideways instead of scrolling the page — and block the page scroll
+entirely.** This was the actual dominant cause of "moves wildly" reports,
+distinct from (and larger than) the seam-math and stale-highlight bugs fixed
+below: an `onWheel` handler converted *any* vertical wheel delta into a
+horizontal `scrollBy` on the row and called `preventDefault()`, unconditionally,
+whenever the pointer was over the track. So a visitor scrolling down the page
+who happened to be scrolling with the cursor over a card never scrolled the
+page at all while over that row — every wheel tick instead moved the row
+sideways by that tick's `deltaY`, however large. Client repro was exact:
+"glitches" only with the cursor on a card, never otherwise — that distinction
+only makes sense if the handler firing (or not) is the switch, which pointed
+straight at `onWheel`.
+
+Removed outright, per instruction: "Lets just have left right scrolling on
+the featured product affect it not scrolling up or down." Horizontal input —
+trackpad two-finger swipe, shift+wheel, a mouse's horizontal tilt-wheel — was
+never dependent on this handler (the handler's own comment said as much: "a
+trackpad's own horizontal delta is left alone"), so nothing about removing it
+can affect that path; only the vertical-hijack is gone.
+
+Verified directly: cursor over a card, `mouse.wheel(0, 400)` (a real vertical
+scroll) — row `scrollLeft` unchanged, page `scrollY` advanced by exactly the
+wheel delta. Could not get a clean *positive* signal for genuine horizontal
+wheel input in this harness — a synthetic `deltaX`-only wheel event fails to
+move scrollLeft in headless Chrome even on an untouched `.hscroll` row on
+`/products` that has never had any wheel handling of any kind, so that's a
+limitation of simulating wheel input under CDP, not evidence about this
+component. `scrollBy()` on the row still works (confirms nothing else broke),
+and native trackpad/touch scrolling runs through the browser's own handling,
+untouched by this change either way.
+
+### 2026-08-24 (final) — Featured-products glitch root-caused; About gallery loses its controls
+
+**The "moves wildly" report was a second, distinct bug** on top of the seam
+math above, found by tracing `scrollLeft` frame-by-frame across a real,
+autoplay-driven seam crossing on `home/FeaturedProducts`. The correction
+itself was exact (`2037 → 395`, exactly one `oneSet`), but the "popped"
+highlight lagged it by two to three animation frames — because `centeredId`
+only got recomputed on the *next* scroll-driven `sync`, one frame later, and
+that frame still named the pre-jump card, which the jump had just carried
+off-screen. Net effect: the visually-centred card's outline and shadow
+vanished for ~43ms, then reappeared on the correct card with its
+`duration-300` transition restarting from flat. An instant 1600px teleport
+plus a highlight that blinks off and re-grows is what read as a glitch, not
+the position change alone. Fixed by splitting `sync` into `measure` (the pure
+DOM read) and `sync` (measure, then arm the settle timer); `correctSeam` now
+calls `measure()` itself, synchronously, in the same tick as the `scrollLeft`
+write. Verified frame-by-frame: `popped` now changes in the *same* frame as
+the jump, zero lag, on both the original reproduction and 95 sampled frames
+after. Applied to `about/AboutGallery` too for consistency, even though nothing
+there depends on element identity the way the pop highlight does.
+
+**`about/AboutGallery` lost its arrows and pause button** (client). This is a
+deliberate departure from WCAG 2.2.2, which asks that motion running longer
+than five seconds be pausable — recorded rather than silently dropped, per
+the file's own header comment. The dots remain, are still keyboard-reachable,
+and still park the belt on hover/focus, which is what is left of a pause
+mechanism; `prefers-reduced-motion` is unaffected. `page(direction)` became
+`advance()` — no-argument, forward-only — since the removed "Previous" arrow
+was its only caller of `direction === -1`; `goTo` (the dots) is unaffected,
+since jumping to an arbitrary image was never a direction-based operation.
+
+**The belt now runs regardless of scroll position** (client: "keep moving as
+long as the page is open, not just when the section is visible"). The
+`IntersectionObserver`-based `inView` gate is gone. In its place, this
+component now has the *same* `visibilitychange` guard `home/FeaturedProducts`
+already had and this one did not: a background browser **tab** still fires
+timers (throttled, not stopped), so without a check, a genuinely backgrounded
+tab would leave the belt drifting unseen. This is a different gate from the
+one just removed — it reacts to the tab losing focus entirely, not to the
+gallery scrolling out of the viewport — and was added specifically because
+removing `inView` left nothing else guarding against that case.
+
+Verified in two parts, because Playwright cannot genuinely background one of
+two tabs in the same browser context — a second `newPage()` + `bringToFront()`
+left the first page's `document.hidden` at `false` throughout, so that path
+was not a real test of anything. What *is* verified: with the gallery scrolled
+fully out of the viewport, `scrollLeft` still advanced over 6s (`161 → 1421`)
+— the removed gate is confirmed gone. Separately, overriding `document.hidden`
+and dispatching a real `visibilitychange` event — the exact signal a UA sends
+a genuinely backgrounded tab — froze `scrollLeft` for 4s and resumed it after.
+That confirms the wiring reacts correctly to the event; it does not by itself
+confirm a real backgrounded tab produces that event in every case, which is
+the part this harness cannot exercise.
+
+### 2026-08-24 (later still) — Belt seam math fixed on both carousels
+
+**`oneSet = el.scrollWidth / 2` was measurably wrong**, on `home/FeaturedProducts`
+and `about/AboutGallery` alike, and is why both belts jolted at the wrap —
+worse on every lap, reported by the client as "behaves wild... after first
+loop" on both desktop and mobile. A doubled track of `2N` items has `2N-1`
+gaps; halving `scrollWidth` splits the one gap at the seam unevenly across
+the two copies rather than counting it once per side, so the "invisible"
+reset consistently landed short of the real seam — measured at 8px on the
+gallery, 8.5px on the product row. Both now call a `measureOneSet(el)` that
+reads the DOM offset between item 0 and its duplicate directly, which is
+exact regardless of gap, padding or border because it never has to know about
+any of them. Verified: `measureOneSet` and the old `scrollWidth / 2` disagree
+by exactly the predicted amount on both components, and after the fix a
+correction leaves the identical set of images/cards on screen before and
+after — confirmed by comparing the visible id sequence, not just the number.
+
+**A manual swipe now gets corrected too, not just autoplay and the arrows.**
+`page()`'s pre-step check only ever covered autoplay ticks and arrow clicks —
+dragging the track directly never called `page()`, so a swipe or a wheel
+scroll (`FeaturedProducts`' own `onWheel` handler included) that crossed the
+seam had nothing pulling it back at all. `onScroll` now arms a 120ms settle
+timer on every scroll event, cleared and re-armed by the next one, so the
+correction only ever fires once scrolling has genuinely stopped — never
+mid-gesture, which would fight a touch drag still in progress. Verified with
+a simulated 8-step scroll burst 20ms apart (well under the 120ms window): no
+correction mid-burst, then an exact, invisible correction ~120ms after the
+last event.
+
+**`onScroll` is throttled to one measurement per animation frame** on both
+components. `FeaturedProducts`' handler scans every card with
+`getBoundingClientRect()` to find the centred one, and native `scroll` events
+fire far more often than the display updates — verified by patching
+`getBoundingClientRect` and firing 50 scroll events in a tight synchronous
+burst: 8 calls (one full pass) landed, not 400. This was very likely the
+larger half of "not moving smoothly": that scan is real per-frame work, and
+it was running many times a frame during a fast swipe.
+
+**Belt position stays bounded across many laps**, checked by sampling
+`scrollLeft` every 250ms for 10s of autoplay on both components: it never
+exceeded `oneSet` plus one item's width (the legitimate peak between
+corrections), and the settle-correction never fired mid-gesture in the burst
+test above.
+
 ### 2026-08-24 (later) — About §03/§04 reworked
 
 **The photo strip is a full-bleed endless belt.** Slides are ~60% of their old

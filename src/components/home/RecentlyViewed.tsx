@@ -45,9 +45,20 @@ const SHOWN = 6;
  * while an `IntersectionObserver` on the section finds it in the viewport,
  * checked on scroll and resize, and pointing at a different card overrides it
  * rather than adding to it. See that component's comment for why the track
- * takes vertical padding rather than `overflow-visible`, why a plain wheel
- * needs its own handler, and why this measures rects directly instead of
- * using `IntersectionObserver` for the centred-card check itself.
+ * takes vertical padding rather than `overflow-visible`, and why this
+ * measures rects directly instead of using `IntersectionObserver` for the
+ * centred-card check itself.
+ *
+ * **Snap is `proximity`, not `mandatory`, and there is no `onWheel` handler**
+ * (client, 2026-08-24 — this row had both, converting any vertical wheel
+ * delta into a horizontal scroll of the row and blocking the page underneath
+ * it, the same bug `home/FeaturedProducts` had and was fixed the same way).
+ * `mandatory` snap on its own was *also* enough to make scrolling the page
+ * over this row unreliable — real wheel/trackpad input is rarely perfectly
+ * vertical, and mandatory snap grabs a gesture that carries even a few
+ * pixels of incidental horizontal noise rather than letting it chain to the
+ * page. `proximity` only pulls in a scroll that was already going to land
+ * near a snap point on its own.
  */
 export function RecentlyViewed({ products }: { products: Product[] }) {
   const raw = useSyncExternalStore<string | null>(
@@ -139,14 +150,6 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
     el.scrollBy({ left: step * direction, behavior: "smooth" });
   };
 
-  /** A plain mouse wheel's vertical delta pages the row; a trackpad's own
-   *  horizontal delta is left alone so its native momentum keeps working. */
-  const onWheel = (event: React.WheelEvent<HTMLUListElement>) => {
-    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-    event.currentTarget.scrollBy({ left: event.deltaY });
-    event.preventDefault();
-  };
-
   // `null` is the pre-hydration state, not an empty list — see the note on
   // `getRecentServerSnapshot`. Rendering the empty message here would show it
   // for a frame to someone who does have a history.
@@ -194,7 +197,6 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
           <ul
             ref={trackRef}
             onScroll={sync}
-            onWheel={onWheel}
             onMouseOver={(event) => {
               const card = (event.target as HTMLElement).closest<HTMLElement>(
                 "[data-product-id]",
@@ -202,7 +204,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
               if (card) setHoveredId(card.dataset.productId ?? null);
             }}
             onMouseLeave={() => setHoveredId(null)}
-            className="hscroll mt-8 flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto px-1 py-4"
+            className="hscroll mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto px-1 py-4"
           >
             {recent.map((product) => (
               <li

@@ -8,12 +8,6 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  PauseIcon,
-  PlayIcon,
-} from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
@@ -49,8 +43,29 @@ export type GalleryImage = {
 };
 
 /**
- * The About page's photo belt — endless, with arrows, a pause control and a
- * dot per image.
+ * The About page's photo belt — endless, with a dot per image and no other
+ * controls.
+ *
+ * **There is no pause button or arrows, and hover/focus no longer park it
+ * either** (client, 2026-08-24 — both were present until then, the second
+ * removed in a later change than the first once it turned out to make the
+ * belt look "stuck" whenever the pointer rested on it). WCAG 2.2.2 asks that
+ * motion which starts automatically and runs more than five seconds have a
+ * way for the visitor to pause it; both of these are deliberate departures
+ * from that, made on explicit instruction and accepted with the trade-off
+ * named at the time, not silently dropped. What is left: `dots` can still be
+ * tabbed to, though pressing one jumps to that image rather than pausing, and
+ * `prefers-reduced-motion` still suppresses the motion entirely for a visitor
+ * who has asked for that at the OS level. Past that, there is no way to stop
+ * it short of leaving the page.
+ *
+ * **It runs for as long as the page is open, not only while on screen**
+ * (client, 2026-08-24 — an `IntersectionObserver` used to park it once
+ * scrolled out of view; that gate is gone). A background *tab* still stops it
+ * via the page-visibility check below — that one is not the same gate and
+ * was not asked to go: a hidden tab still fires timers, so without it the
+ * belt would run on unseen and a visitor returning to the tab would land
+ * mid-image rather than where they left it.
  *
  * **It is an endless belt, not a carousel that rewinds** (client, 2026-08-24).
  * The list is rendered *twice* and the scroll position is pulled back by one
@@ -60,21 +75,42 @@ export type GalleryImage = {
  * earlier build scrolled back to zero instead, which read as the strip
  * snapping backwards — the thing this replaces.
  *
+ * **The set-width is measured from the DOM, not `scrollWidth / 2`.** That
+ * looks equivalent and is not: with a doubled list of `2N` items there are
+ * `2N-1` gaps in total, so halving `scrollWidth` splits one gap's width
+ * unevenly between the two copies rather than counting it once on each side.
+ * Measured on this page it was off by 8px — small, but a "silent, invisible"
+ * reset landing 8px short of the real seam is not invisible, and every wrap
+ * jolted by that amount. `measureOneSet` instead reads the DOM offset between
+ * slide 0 and its duplicate directly, which is exact regardless of gaps,
+ * padding or borders because it never has to know about any of them.
+ *
  * **The reset happens between animations, never inside one.** It is an
  * instant `scrollLeft` assignment issued *before* the smooth step, not during
  * it. Doing it mid-flight cancels the scroll already running and the belt
  * stutters at the seam. Same reasoning as `home/FeaturedProducts`, which uses
  * this idiom for the card belt.
  *
+ * **A manual swipe gets the same correction, just later.** `page()` corrects
+ * before it steps, which covers autoplay and the arrows, but a touch drag or
+ * trackpad swipe never calls `page()` — it scrolls the element directly, and
+ * nothing was correcting *that*. Past the seam with no correction, the belt
+ * either ran out of track at the end of the second copy or waited for the
+ * next autoplay tick to yank it back by a now-wrong amount — the "wild"
+ * behaviour after the first loop. `onScroll` now arms a short settle timer on
+ * every scroll event and corrects once it fires, i.e. once scrolling has
+ * actually stopped — never mid-gesture, which is what would fight a touch
+ * drag still in progress. Both paths call the same `measureOneSet`, so a
+ * correction is pixel-exact and invisible regardless of who triggered it.
+ *
+ * **`onScroll` is throttled to one measurement per animation frame.** Native
+ * scroll events can fire far more often than the display updates; measuring
+ * on every one of them was wasted work between frames the visitor never sees.
+ *
  * **It is a scroll container, not a transform track.** Paging calls
  * `scrollBy`, and the active dot is read back from `scrollLeft`. Touch swipe,
  * trackpad and shift-wheel therefore all work and all keep the dots in step,
  * because there is one source of truth for the position.
- *
- * **Pausing is required, not a nicety.** WCAG 2.2.2 asks that motion which
- * starts automatically and runs more than five seconds can be paused. The
- * button is that mechanism; `prefers-reduced-motion` suppresses the motion
- * before it starts, and hover, focus and leaving the viewport park it too.
  */
 export function AboutGallery({
   images,
@@ -86,11 +122,12 @@ export function AboutGallery({
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(true);
-  const [engaged, setEngaged] = useState(false);
-  const [inView, setInView] = useState(true);
   const [canLoop, setCanLoop] = useState(false);
   const reduced = usePrefersReducedMotion();
+  /* Scroll-settle timer for `correctSeam`, and the animation-frame handle for
+     throttling `sync` — both cleared on unmount below. */
+  const settleTimer = useRef<number | null>(null);
+  const syncFrame = useRef<number | null>(null);
 
   /* How far one step moves: a slide plus the gap after it, measured from the
      DOM so it follows the breakpoint without being told about it. */
@@ -103,15 +140,40 @@ export function AboutGallery({
       : first.offsetWidth || 1;
   }, []);
 
-  /* Looping only earns its duplicate set when one set is actually wider than
-     the frame. With three images on a wide desktop the strip does not scroll
-     at all, and a belt of six that never moves is just six images. */
-  const sync = useCallback(() => {
+  /** The exact pixel offset between a slide and its duplicate — see the note
+   *  at the top of the file for why this is not `scrollWidth / 2`. Reads
+   *  `el.children` directly rather than iterating `slots`: the DOM is already
+   *  doubled by the time this can meaningfully be called (both call sites are
+   *  `canLoop`-gated), so the child at `images.length` *is* slide 0 of the
+   *  second copy. */
+  const measureOneSet = useCallback(
+    (el: HTMLElement) => {
+      const first = el.children[0] as HTMLElement | undefined;
+      const second = el.children[images.length] as HTMLElement | undefined;
+      return first && second
+        ? second.offsetLeft - first.offsetLeft
+        : el.scrollWidth / 2;
+    },
+    [images.length],
+  );
+
+  /** The actual DOM read: `canLoop` and which dot is lit. Split out from
+   *  `sync` so `correctSeam` can call it directly, synchronously, in the same
+   *  tick as the `scrollLeft` write that crosses the seam — otherwise the dot
+   *  stays on the pre-jump image for the one frame between the write and the
+   *  next scroll-driven `sync`. Same split as `home/FeaturedProducts`, where
+   *  that one frame is far more visible: the "popped" card's highlight went
+   *  dark for two to three frames and re-grew on the correct card, which read
+   *  as a glitch layered on top of the position jump itself. */
+  const measure = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
 
     /* One set's width whether or not it is currently doubled, so turning the
-       belt on cannot invalidate the measurement that turned it on. */
+       belt on cannot invalidate the measurement that turned it on. A coarse
+       `scrollWidth / 2` is fine here — this only decides whether to double
+       the list, not where the seam sits, so the 8px it can be off by never
+       matters. */
     const oneSet = canLoop ? el.scrollWidth / 2 : el.scrollWidth;
     setCanLoop(oneSet > el.clientWidth + 8);
 
@@ -119,6 +181,40 @@ export function AboutGallery({
        set and there is no seventh dot to light. */
     setIndex(Math.round(el.scrollLeft / stride()) % images.length);
   }, [canLoop, images.length, stride]);
+
+  /** Pulls the scroll position back across the seam if it has drifted past
+   *  one set-width. Idempotent — safe to call from both the pre-step check in
+   *  `advance`/`goTo` and the settle timer below without the two ever
+   *  disagreeing, because both read the same measure. */
+  const correctSeam = useCallback(() => {
+    const el = trackRef.current;
+    if (!el || !canLoop) return;
+    const oneSet = measureOneSet(el);
+    if (el.scrollLeft < oneSet) return;
+    el.scrollLeft -= oneSet;
+    measure();
+  }, [canLoop, measureOneSet, measure]);
+
+  /* Throttled to one run per animation frame: native `scroll` fires far more
+     often than the display updates. */
+  const sync = useCallback(() => {
+    measure();
+
+    /* Armed on every scroll, cleared and re-armed by the next one — so it
+       only ever fires once scrolling has actually stopped, whatever caused
+       it: touch drag, momentum, wheel or a dot jump. Correcting mid-gesture
+       would mean fighting a touch drag still in progress. */
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(correctSeam, 120);
+  }, [measure, correctSeam]);
+
+  const onScroll = useCallback(() => {
+    if (syncFrame.current !== null) return;
+    syncFrame.current = window.requestAnimationFrame(() => {
+      syncFrame.current = null;
+      sync();
+    });
+  }, [sync]);
 
   useEffect(() => {
     sync();
@@ -129,28 +225,33 @@ export function AboutGallery({
     return () => observer.disconnect();
   }, [sync]);
 
-  /** Pulls the scroll position back across the seam if it has drifted past one
-   *  set-width. Instant, and only ever called before a smooth step. */
-  const normaliseSeam = useCallback(
-    (el: HTMLElement, direction: 1 | -1, step: number) => {
-      if (!canLoop) return;
-      const oneSet = el.scrollWidth / 2;
-      if (direction === 1 && el.scrollLeft >= oneSet) el.scrollLeft -= oneSet;
-      else if (direction === -1 && el.scrollLeft < step) el.scrollLeft += oneSet;
+  useEffect(
+    () => () => {
+      if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+      if (syncFrame.current !== null) window.cancelAnimationFrame(syncFrame.current);
     },
-    [canLoop],
+    [],
   );
 
-  const page = useCallback(
-    (direction: 1 | -1) => {
-      const el = trackRef.current;
-      if (!el) return;
-      const step = stride();
-      normaliseSeam(el, direction, step);
-      el.scrollBy({ left: step * direction, behavior: "smooth" });
-    },
-    [normaliseSeam, stride],
-  );
+  /** One image forward. Only ever called with the autoplay tick now that the
+   *  arrows are gone — there is no `-1` case left to carry, so unlike
+   *  `home/FeaturedProducts` (which still has arrows either direction) this
+   *  one does not take a direction. */
+  const advance = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const step = stride();
+
+    /* Pre-corrects rather than waiting for the settle timer, so autoplay
+       never has to sit through the 120ms delay — only a freeform scroll needs
+       to wait for scrolling to actually stop. */
+    if (canLoop) {
+      const oneSet = measureOneSet(el);
+      if (el.scrollLeft >= oneSet) el.scrollLeft -= oneSet;
+    }
+
+    el.scrollBy({ left: step, behavior: "smooth" });
+  }, [canLoop, measureOneSet, stride]);
 
   /* A dot jumps within the *first* set, so the belt is left somewhere the
      seam logic can carry on from. */
@@ -160,35 +261,34 @@ export function AboutGallery({
       if (!el) return;
       const step = stride();
       if (canLoop) {
-        const oneSet = el.scrollWidth / 2;
+        const oneSet = measureOneSet(el);
         if (el.scrollLeft >= oneSet) el.scrollLeft -= oneSet;
       }
       el.scrollTo({ left: target * step, behavior: "smooth" });
     },
-    [canLoop, stride],
+    [canLoop, measureOneSet, stride],
   );
 
-  /* Parked while off screen. Without this the interval keeps firing and the
-     strip is several images along by the time it is scrolled back to. */
+  /* A background *tab* still fires timers (throttled, not stopped), so
+     without this the belt keeps stepping unseen and a visitor returning to
+     the tab lands mid-image rather than where they left it. Not the same
+     thing as the scroll-visibility gate this replaced — see the note on the
+     component for why that one is gone and this one is not. Same pattern as
+     `home/FeaturedProducts`. */
+  const [tabHidden, setTabHidden] = useState(false);
   useEffect(() => {
-    const el = trackRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => setInView(entries.some((entry) => entry.isIntersecting)),
-      { threshold: 0.3 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    const onVisibility = () => setTabHidden(document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
-  const running =
-    playing && !engaged && !reduced && inView && images.length > 1;
+  const running = !reduced && !tabHidden && images.length > 1;
 
   useEffect(() => {
     if (!running) return;
-    const id = window.setInterval(() => page(1), interval);
+    const id = window.setInterval(advance, interval);
     return () => window.clearInterval(id);
-  }, [running, interval, page]);
+  }, [running, interval, advance]);
 
   /* The doubled list. `uid` keeps the copies distinguishable as React keys —
      `src` alone appears twice and would collide. */
@@ -198,44 +298,12 @@ export function AboutGallery({
 
   return (
     <div className="relative">
-      {/* Controls above the strip, at its top right (client, 2026-08-24) —
-          they were overlaid on the photographs until then. Above rather than
-          over means they never cover a picture, and on a phone, where one
-          image now fills the frame, an overlay would have sat on the subject.
-          Aligned to the `Container` edge, not the window's, so they line up
-          with the text above even though the belt runs wider. */}
-      <Container size="wide" className="mb-4 flex justify-end gap-2">
-        <GalleryButton onClick={() => page(-1)} label="Previous photograph">
-          <ArrowLeftIcon className="h-4 w-4" />
-        </GalleryButton>
-        <GalleryButton onClick={() => page(1)} label="Next photograph">
-          <ArrowRightIcon className="h-4 w-4" />
-        </GalleryButton>
-        <GalleryButton
-          onClick={() => setPlaying((on) => !on)}
-          label={playing ? "Pause the slideshow" : "Play the slideshow"}
-          pressed={!playing}
-        >
-          {playing ? (
-            <PauseIcon className="h-4 w-4" />
-          ) : (
-            <PlayIcon className="h-4 w-4" />
-          )}
-        </GalleryButton>
-      </Container>
 
-      <div
-        /* `relative` positions the edge fades. */
-        className="relative"
-        /* Hover and focus park the belt. */
-        onMouseEnter={() => setEngaged(true)}
-        onMouseLeave={() => setEngaged(false)}
-        onFocus={() => setEngaged(true)}
-        onBlur={() => setEngaged(false)}
-      >
+      {/* `relative` positions the edge fades. */}
+      <div className="relative">
         <div
           ref={trackRef}
-          onScroll={sync}
+          onScroll={onScroll}
           /* `aria-roledescription` rather than a bare region: it tells a
              screen reader this is a carousel, so the arrows and dots read as
              its controls rather than as unexplained buttons. */
@@ -322,29 +390,5 @@ export function AboutGallery({
         </ul>
       </Container>
     </div>
-  );
-}
-
-function GalleryButton({
-  onClick,
-  label,
-  pressed,
-  children,
-}: {
-  onClick: () => void;
-  label: string;
-  pressed?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={pressed}
-      className="flex h-10 w-10 items-center justify-center border border-line bg-surface-raised text-ink shadow-card transition-colors hover:border-line-strong hover:bg-surface-subtle active:scale-95"
-    >
-      {children}
-    </button>
   );
 }

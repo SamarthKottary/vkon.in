@@ -8,17 +8,55 @@ import type { Product } from "@/lib/types";
 /**
  * "Featured products" — a horizontal, centre-snapping row.
  *
- * Same `hscroll` track idiom as `SectorBrowser`/`ProductRow`, with three
- * things those don't need, all asked for together because they serve one
- * effect — the centred card reading as the one currently "picked up":
+ * **A vertical scroll gesture over this row simply scrolls the page —
+ * nothing here intercepts the wheel at all.** This is the standard pattern
+ * (Netflix, Amazon and most product-rail carousels use it): a wheel/trackpad
+ * scroll always does what it does everywhere else on the page; horizontal
+ * movement comes from drag, touch swipe, a trackpad's native two-finger
+ * horizontal swipe, or the arrow buttons below — all of which need no JS at
+ * all beyond plain `overflow-x: auto`.
+ *
+ * It took three earlier attempts to arrive back at "do nothing," each
+ * recorded because the failure of one is why the next existed:
+ *
+ * 1. An `onWheel` handler converted any vertical wheel delta into a
+ *    horizontal `scrollBy` and called `preventDefault()` unconditionally.
+ *    Scrolling down with the cursor on a card didn't scroll the page at all
+ *    — it flung the row sideways by whatever the wheel's delta happened to
+ *    be. This is the "moving wildly" behaviour.
+ * 2. Removing that handler and leaving the wheel alone, but with the row
+ *    still carrying `scroll-snap-type: x mandatory`. A perfectly vertical
+ *    synthetic scroll chained to the page fine, but real trackpad input is
+ *    rarely perfectly axis-aligned, and *mandatory* snap grabbed any gesture
+ *    that carried even a few incidental pixels of horizontal noise —
+ *    confirmed by reproducing it directly: a deltaY-dominant scroll with 3px
+ *    of deltaX moved neither the row nor the page. Not wild, just unreliable.
+ * 3. A native (non-passive — React's `onWheel` prop cannot call
+ *    `preventDefault()` at all, confirmed separately) listener that blocked
+ *    any vertical-dominant wheel event outright, trading page-scroll-while-
+ *    hovering away entirely for reliability. It worked, confirmed on real
+ *    hardware, but a dead zone that swallows the wheel is a pattern people
+ *    notice (embedded maps are the usual offender), and it was only needed
+ *    because of attempt 2's `mandatory` snap.
+ *
+ * The fix underneath attempts 2 and 3 was never the JS — it was
+ * `mandatory`. `proximity` only snaps when a scroll ends *already* near a
+ * snap point; it does not grab a gesture just because it has a horizontal
+ * component, so a vertical scroll chains to the page the way attempt 2
+ * needed it to, without attempt 3's dead zone. The trade-off going back to
+ * "do nothing": a plain vertical mouse wheel can no longer page through the
+ * row by itself. The arrows, drag, native trackpad-horizontal and the
+ * autoplay belt all still can.
+ *
+ * Same `hscroll` track idiom as `SectorBrowser`/`ProductRow`, with two things
+ * those don't need, both asked for together because they serve one effect —
+ * the centred card reading as the one currently "picked up":
  *
  *  - **Snap is `center`, not `start`.** The other tracks line a card up
  *    against the left edge; this one settles it in the middle, which is
  *    also the frame the "which card is active" check below reads from.
- *  - **A vertical mouse wheel pages the row.** Trackpads already send a
- *    horizontal delta on a two-finger swipe and need no help; a plain mouse
- *    wheel only ever sends a vertical one, which a horizontal-only track
- *    otherwise ignores completely.
+ *    Strength is `proximity`, not `mandatory` — see the note further down on
+ *    why a vertical scroll needs the row *not* to insist on a snap point.
  *  - **Exactly one card is ever popped, and only while this section itself is
  *    in view.** Scrolling the *page* to reach the section pops the centred
  *    card; scrolling past it and away un-pops it — arriving is what "reaches"
@@ -46,6 +84,33 @@ import type { Product } from "@/lib/types";
  *    time it crosses the seam. Both copies hold identical content at that
  *    offset, so the jump is invisible; what a visitor sees is a belt.
  *
+ *    That set-width is measured from the DOM (`measureOneSet`), not taken as
+ *    `scrollWidth / 2`. The two look equivalent and are not: a doubled row of
+ *    `2N` cards has `2N-1` gaps between them, so halving `scrollWidth` splits
+ *    one gap's width unevenly across the two copies instead of counting it
+ *    once on each side — on this row it was off by 8.5px. An "invisible"
+ *    reset landing 8.5px short of the real seam is not invisible, and every
+ *    wrap jolted the row by that amount — worse the longer autoplay ran,
+ *    because each cycle re-measured the same wrong split independently rather
+ *    than compounding, but a jolt on every single lap reads as constant
+ *    stutter, not an occasional one. Reading the DOM offset between card 0
+ *    and its duplicate is exact regardless of gaps, padding or borders,
+ *    because it never has to know about any of them.
+ *
+ *    A manual swipe gets the same correction, only later. `page()` corrects
+ *    before it steps, which covers autoplay and the arrows, but dragging the
+ *    row directly never calls `page()` — nothing was correcting *that* drift
+ *    at all, so a swipe past the seam either ran out of track at the end of
+ *    the second copy or waited for the next autoplay tick to yank it back by
+ *    a then-wrong amount. `onScroll` now arms a short settle timer on every
+ *    scroll event and corrects once it fires — once scrolling has actually
+ *    stopped, never mid-gesture, which would fight a touch drag in progress.
+ *    Both paths share `measureOneSet`, so a correction is pixel-exact and
+ *    invisible regardless of who triggered it. `onScroll` is also throttled
+ *    to one measurement per animation frame, since native `scroll` fires far
+ *    more often than the display updates and the centred-card scan below is
+ *    not free.
+ *
  *    Duplication is why every card carries a `uid` (`<product id>#<slot>`)
  *    rather than its bare product id: two elements now answer to the same
  *    product, and the centred-card pop below keys on the element. Without it
@@ -59,10 +124,17 @@ import type { Product } from "@/lib/types";
  *    It is gated the same way the hero's rotation is (see `HeroRotator`):
  *    off until an effect confirms `prefers-reduced-motion` is not set, frozen
  *    while the tab is hidden, and stopped whenever the section is out of view
- *    so a phone is not animating a row nobody is looking at. Hover and
- *    keyboard focus pause it too, or a card would slide out from under the
- *    pointer mid-read, and there is an explicit pause control for the visitors
- *    hovering cannot serve.
+ *    so a phone is not animating a row nobody is looking at.
+ *
+ *    **Hover and keyboard focus do not pause it** (client, 2026-08-24 — they
+ *    used to). The trade-off was raised before removing it: the belt can now
+ *    shift a card out from under a click mid-interaction, including an
+ *    "Add to cart" press landing on whatever card the belt happened to
+ *    scroll into that spot rather than the one the visitor was looking at.
+ *    Accepted anyway, on the reasoning that the explicit pause button below
+ *    is the real WCAG 2.2.2 mechanism and always was; hover/focus pausing was
+ *    a second safety net on top of it, not the thing satisfying the
+ *    requirement. Losing the net is a real, accepted risk, not a non-issue.
  *
  * The track carries generous vertical padding rather than `overflow-visible`
  * — horizontal scrolling needs `overflow-x: auto`, and the CSS overflow
@@ -76,6 +148,11 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
   const [centeredId, setCenteredId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  /* Last known pointer position while it is over the row, in viewport
+     coordinates — `null` when it is not. Not React state: it does not need
+     to trigger a render on its own, only to be read back inside `measure`.
+     See the note there for what this is for. */
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
   /* Whether the section itself is in the viewport — see the comment on the
      component for why this, and not an interaction flag, gates the pop. */
   const [inView, setInView] = useState(false);
@@ -89,9 +166,6 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
      `HeroRotator` gates its rotation. */
   const [autoplay, setAutoplay] = useState(false);
   const [paused, setPaused] = useState(false);
-  /* Pointer or keyboard is on the row right now. Separate from `paused`: this
-     one resumes by itself when they leave, the button does not. */
-  const [engaged, setEngaged] = useState(false);
   /* Whether one set of cards overflows the track, and so whether the belt is
      rendered at all. See the note on the component. */
   const [canLoop, setCanLoop] = useState(false);
@@ -129,14 +203,54 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
 
   const poppedId = inView ? (hoverCapable ? hoveredId ?? centeredId : centeredId) : null;
 
-  const sync = useCallback(() => {
+  /* Scroll-settle timer for `correctSeam`, and the animation-frame handle for
+     throttling `sync` — both cleared on unmount below. */
+  const settleTimer = useRef<number | null>(null);
+  const syncFrame = useRef<number | null>(null);
+
+  /** The exact pixel offset between a card and its duplicate — see the note
+   *  on the component for why this is not `scrollWidth / 2`. Reads
+   *  `el.children` directly: both call sites are `canLoop`-gated, so by the
+   *  time this runs the row is already doubled and the child at
+   *  `products.length` *is* card 0 of the second copy. */
+  const measureOneSet = useCallback(
+    (el: HTMLElement) => {
+      const first = el.children[0] as HTMLElement | undefined;
+      const second = el.children[products.length] as HTMLElement | undefined;
+      return first && second
+        ? second.offsetLeft - first.offsetLeft
+        : el.scrollWidth / 2;
+    },
+    [products.length],
+  );
+
+  /** The actual DOM read: `canScroll`, `canLoop`, which card is centred, and
+   *  which one is under the pointer. Split out from `sync` so `correctSeam`
+   *  can call it directly, synchronously, in the same tick as the
+   *  `scrollLeft` write that crosses the seam — see the note there for why
+   *  that matters.
+   *
+   *  **Re-resolves `hoveredId` from the last known pointer position on every
+   *  call, not only from `onMouseOver`** (client, 2026-08-24 — the belt used
+   *  to pause on hover specifically so this gap could never be reached; once
+   *  it no longer pauses, a card can slide out from under a *stationary*
+   *  cursor and the highlight stayed on it, because `mouseover` only fires on
+   *  pointer movement, never on content moving underneath a still pointer).
+   *  Since this already re-runs on every scroll frame the belt produces
+   *  during autoplay, checking `document.elementFromPoint` here keeps the
+   *  highlight on whatever is actually under the cursor for the entire
+   *  animation, not only at its start and end. */
+  const measure = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
     const max = el.scrollWidth - el.clientWidth;
     setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
 
     /* One set's width, whether or not it is currently doubled — so enabling
-       the belt cannot change the measurement that decided to enable it. */
+       the belt cannot change the measurement that decided to enable it. A
+       coarse `scrollWidth / 2` is fine here: this only decides whether to
+       double the row, not where the seam sits, so the few pixels it can be
+       off by never matter for this check. */
     const oneSet = canLoop ? el.scrollWidth / 2 : el.scrollWidth;
     setCanLoop(oneSet > el.clientWidth + 8);
 
@@ -152,7 +266,68 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
       }
     }
     setCenteredId(bestId);
-  }, [canLoop]);
+
+    /* Gated on `hoverCapable` for the same reason `poppedId` already reads
+       it: a touch tap fires a stray `mouseover` too, and there is no reason
+       to spend an `elementFromPoint` call every scroll frame resolving a
+       value a touch device's `poppedId` computation is going to ignore. */
+    if (hoverCapable && pointerRef.current) {
+      const under = document
+        .elementFromPoint(pointerRef.current.x, pointerRef.current.y)
+        ?.closest<HTMLElement>("[data-product-id]");
+      setHoveredId(under?.dataset.productId ?? null);
+    }
+  }, [canLoop, hoverCapable]);
+
+  /** Pulls the scroll position back across the seam if it has drifted past
+   *  one set-width. Forward only — a native `scrollLeft` cannot go negative,
+   *  so there is no backward case to correct here even though `page(-1)`
+   *  exists; that direction corrects itself inline, before it steps. Shares
+   *  its measurement with that pre-step check, so the two never disagree
+   *  about where the seam actually is.
+   *
+   *  **Calls `measure()` itself, right after the write, instead of leaving it
+   *  to the next scroll-driven `sync`.** That next call would land on the
+   *  *following* animation frame — one frame where `centeredId` still names
+   *  the old, second-copy card, which the jump has just carried off-screen.
+   *  Confirmed on this row: the popped card's outline and shadow vanished for
+   *  two to three frames after the jump, then reappeared on the correct card
+   *  with its `duration-300` transition restarting from flat — a highlight
+   *  that blinks off and grows back, layered on top of an instant 1600px
+   *  reposition. That combination is almost certainly what read as the
+   *  section "glitching" rather than simply jumping. */
+  const correctSeam = useCallback(() => {
+    const el = trackRef.current;
+    if (!el || !canLoop) return;
+    const oneSet = measureOneSet(el);
+    if (el.scrollLeft < oneSet) return;
+    el.scrollLeft -= oneSet;
+    measure();
+  }, [canLoop, measureOneSet, measure]);
+
+  /* Throttled to one run per animation frame — see the note on the
+     component. Native `scroll` fires far more often than the display
+     updates, and this does a full per-card scan on every one of them. */
+  const sync = useCallback(() => {
+    measure();
+
+    /* Armed on every scroll, cleared and re-armed by the next one, so it only
+       ever fires once scrolling has actually stopped — whatever caused it:
+       touch drag, momentum, native trackpad-horizontal wheel input, or a
+       `page()` call that already corrected itself before this even ran.
+       Correcting mid-gesture would mean fighting a touch drag still in
+       progress. */
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(correctSeam, 120);
+  }, [measure, correctSeam]);
+
+  const onScroll = useCallback(() => {
+    if (syncFrame.current !== null) return;
+    syncFrame.current = window.requestAnimationFrame(() => {
+      syncFrame.current = null;
+      sync();
+    });
+  }, [sync]);
 
   useEffect(() => {
     sync();
@@ -162,6 +337,14 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, [sync, products.length]);
+
+  useEffect(
+    () => () => {
+      if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+      if (syncFrame.current !== null) window.cancelAnimationFrame(syncFrame.current);
+    },
+    [],
+  );
 
   /** Pages by one card, measured from the DOM so it follows the breakpoint.
    *
@@ -179,7 +362,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     const step = first ? first.getBoundingClientRect().width + 24 : el.clientWidth;
 
     if (canLoop) {
-      const oneSet = el.scrollWidth / 2;
+      const oneSet = measureOneSet(el);
       if (direction === 1 && el.scrollLeft >= oneSet) el.scrollLeft -= oneSet;
       else if (direction === -1 && el.scrollLeft < step) el.scrollLeft += oneSet;
     }
@@ -197,10 +380,11 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
      duplicated list means two elements answer to the same id.
      
      `running` folds in every reason to hold still: reduced motion, an
-     explicit pause, a hidden tab, a pointer or keyboard on the row, the
-     section being off-screen, and nothing to scroll in the first place. */
+     explicit pause, a hidden tab, the section being off-screen, and nothing
+     to scroll in the first place. Hover and focus are deliberately not in
+     this list — see the note on the component. */
   const running =
-    autoplay && !paused && !engaged && inView && (canLoop || canScroll.right);
+    autoplay && !paused && inView && (canLoop || canScroll.right);
 
   useEffect(() => {
     if (!running) return;
@@ -209,14 +393,6 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     const id = window.setInterval(() => page(1), 2000);
     return () => window.clearInterval(id);
   }, [running, canLoop]);
-
-  /** A plain mouse wheel's vertical delta pages the row; a trackpad's own
-   *  horizontal delta is left alone so its native momentum keeps working. */
-  const onWheel = (event: React.WheelEvent<HTMLUListElement>) => {
-    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-    event.currentTarget.scrollBy({ left: event.deltaY });
-    event.preventDefault();
-  };
 
   if (products.length === 0) return null;
 
@@ -292,26 +468,20 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
           track clears. */}
       <ul
         ref={trackRef}
-        onScroll={sync}
-        onWheel={onWheel}
+        onScroll={onScroll}
         onMouseOver={(event) => {
+          pointerRef.current = { x: event.clientX, y: event.clientY };
           const card = (event.target as HTMLElement).closest<HTMLElement>(
             "[data-product-id]",
           );
           if (card) setHoveredId(card.dataset.productId ?? null);
         }}
-        onMouseEnter={() => setEngaged(true)}
         onMouseLeave={() => {
+          pointerRef.current = null;
           setHoveredId(null);
-          setEngaged(false);
         }}
-        /* Capture-phase, so focus landing on a card's link counts — focus
-           events do not bubble. A keyboard visitor reading the row should not
-           have it move under them either. */
-        onFocusCapture={() => setEngaged(true)}
-        onBlurCapture={() => setEngaged(false)}
         aria-label="Featured products"
-        className="hscroll mt-8 flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto px-1 py-4"
+        className="hscroll mt-8 flex snap-x snap-proximity items-stretch gap-6 overflow-x-auto px-1 py-4"
       >
         {slots.map(({ product, index, uid }) => (
           <li

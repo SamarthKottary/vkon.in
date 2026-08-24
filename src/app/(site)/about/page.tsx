@@ -388,8 +388,9 @@ export default function AboutPage() {
             rather than the usual `w-screen left-1/2 -mx-[50vw]` trick, which
             measures `100vw` *including* the scrollbar and so overflows the
             page by its width on every desktop browser that reserves one.
-            `AboutGallery` puts its own controls back inside a Container so
-            they still line up with the text above. */}
+            `AboutGallery` puts its dots back inside a Container so they still
+            line up with the text above; it carries no other controls — see
+            the note at the top of that file. */}
         <div className="mt-12">
           <AboutGallery images={GALLERY} />
         </div>
