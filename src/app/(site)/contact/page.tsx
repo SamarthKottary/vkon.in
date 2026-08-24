@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { EnquiryForm } from "@/components/contact/EnquiryForm";
 import { ArrowRightIcon } from "@/components/icons/ui";
 import { SubscribePanel } from "@/components/layout/SubscribePanel";
@@ -113,17 +112,6 @@ export default function ContactPage() {
 
       <section className="py-12 sm:py-14 lg:py-16">
         <Container size="wide">
-          <nav aria-label="Breadcrumb">
-            <ol className="label-tech flex flex-wrap items-center gap-2 text-muted">
-              <li>
-                <Link href="/" className="hover:text-ink">
-                  Home
-                </Link>
-              </li>
-              <li aria-hidden>/</li>
-              <li aria-current="page">Contact</li>
-            </ol>
-          </nav>
 
           <div className="mt-10 grid gap-12 lg:grid-cols-2 lg:gap-16">
             {/* White card on the meadow canvas (2026-08-19 client request). The

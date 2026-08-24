@@ -189,6 +189,16 @@ export function UploadIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+/** Download — `UploadIcon`'s arrow reversed, sharing its tray. */
+export function DownloadIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 4v12m0 0-4-4m4 4 4-4" />
+      <path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16" />
+    </svg>
+  );
+}
+
 export function LogoutIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg {...base} className={className}>

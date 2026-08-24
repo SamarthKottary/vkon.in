@@ -1,17 +1,23 @@
 import Image from "next/image";
-import Link from "next/link";
+import { AboutGallery, type GalleryImage } from "@/components/about/AboutGallery";
+import {
+  SocialProfileCard,
+  type SocialProfile,
+} from "@/components/about/SocialProfileCard";
+import { StatCounter } from "@/components/about/StatCounter";
+import { TiltCard } from "@/components/about/TiltCard";
 import {
   ArrowRightIcon,
-  CheckIcon,
+  DownloadIcon,
+  FacebookIcon,
   FactoryIcon,
-  FlagIcon,
-  HeartIcon,
   HomeIcon,
   InstagramIcon,
+  LinkedInIcon,
   SproutIcon,
-  TargetIcon,
+  XIcon,
+  YouTubeIcon,
 } from "@/components/icons/ui";
-import { TiltCard } from "@/components/about/TiltCard";
 import { SubscribePanel } from "@/components/layout/SubscribePanel";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
@@ -68,22 +74,94 @@ const TRANSITION = [
   },
 ];
 
-const CULTURE = [
-  "Help our employees grow and succeed in their jobs and in their personal lives.",
-  "Make our customers happy by understanding their problems and actively giving them real solutions.",
-  "Do the right thing to deliver results for our shareholders.",
-  "Support our communities by using our time and skills to help where we live and work.",
+/** Placed in `public/` rather than served from the database: it is one file
+ *  the whole site shares, and a static path can be linked from anywhere
+ *  without a query. Replace the file, keep the name, and nothing here or in
+ *  the admin needs to change. */
+const BROCHURE = "/vkon-automation-brochure.pdf";
+
+/** Client-supplied figures (2026-08-24). `value` is the number the counter
+ *  animates to; `suffix` is printed as-is beside it, so "k" and "+" stay out
+ *  of the arithmetic. */
+const STATS = [
+  { value: 35, suffix: "+", label: "Years of experience" },
+  { value: 50, suffix: "k", label: "Customers" },
+  { value: 25, suffix: "", label: "Products" },
 ];
 
-const GOALS = [
-  "Be the top choice and preferred supplier for our customers and partners.",
-  "Make sure our employees find their work exciting, engaging, and meaningful.",
-  "Build stronger communities.",
-  "Keep our employees healthy, well, and safe.",
-  "Be a great example of inclusion and diversity in the tech industry.",
+/**
+ * Photographs for the strip in §03.
+ *
+ * **These are placeholders, and they are the site's own segment photography
+ * rather than stock pulled off the web.** Anything downloaded from an image
+ * search arrives with an unknown licence, and a commercial site is exactly
+ * where that bill comes due; these are already licensed for this project,
+ * already sized, and already on brand. Swap them for real factory and
+ * installation photographs when there are some — only this array changes.
+ */
+const GALLERY: GalleryImage[] = [
+  { src: "/segments/industrial.jpg", alt: "Industrial plant floor" },
+  { src: "/segments/agriculture.jpg", alt: "Irrigated farmland" },
+  { src: "/segments/solar.jpg", alt: "Solar array in open ground" },
+  { src: "/segments/home-automation.jpg", alt: "A smart-home interior" },
+  { src: "/segments/commercial.jpg", alt: "A commercial building" },
+  { src: "/aboutus-background.jpg", alt: "Open country at dawn" },
 ];
 
-const instagram = site.socials.find((s) => s.key === "instagram");
+/**
+ * Display order for §04, and the per-platform detail `site.socials` does not
+ * carry.
+ *
+ * The order is the client's (2026-08-24) and is load-bearing, not incidental:
+ * a two-column row-flow grid fills left-then-right, so this sequence is what
+ * puts Instagram above X on the left and Facebook above YouTube on the right,
+ * with LinkedIn last and centred. Reordering the array rearranges the page.
+ *
+ * `color` is the brand colour on a *light* surface, which is why X is black
+ * here and off-white in `Footer` — see the note there.
+ */
+const PROFILE_ORDER = ["instagram", "facebook", "x", "youtube", "linkedin"];
+
+const PROFILE_DETAIL: Record<
+  string,
+  {
+    handle: string | null;
+    color: string;
+    Icon: (p: { className?: string }) => React.ReactElement;
+  }
+> = {
+  instagram: { handle: "@vkonautomation", color: "#E1306C", Icon: InstagramIcon },
+  facebook: {
+    /* The stored link is a `/share/` URL with no handle in it. Rather than
+       print the share id as if it were one, the card falls back to the
+       location — see `SocialProfileCard`. */
+    handle: null,
+    color: "#1877F2",
+    Icon: FacebookIcon,
+  },
+  x: { handle: "@vkonautomation", color: "#000000", Icon: XIcon },
+  youtube: { handle: "@Vkonautomation", color: "#FF0000", Icon: YouTubeIcon },
+  linkedin: { handle: "vkon-automation", color: "#0A66C2", Icon: LinkedInIcon },
+};
+
+/* `flatMap` over an empty array rather than `filter(Boolean)`: it drops a
+   platform that is in the order but not in `site.socials` (or vice versa)
+   without leaving TypeScript to be convinced the result has no holes. */
+const PROFILES: SocialProfile[] = PROFILE_ORDER.flatMap((key) => {
+  const social = site.socials.find((s) => s.key === key);
+  const detail = PROFILE_DETAIL[key];
+  if (!social || !detail) return [];
+  return [
+    {
+      key,
+      label: social.label,
+      href: social.href,
+      handle: detail.handle,
+      color: detail.color,
+      Icon: detail.Icon,
+    },
+  ];
+});
 
 export default function AboutPage() {
   return (
@@ -149,17 +227,6 @@ export default function AboutPage() {
 
       <section className="py-12 sm:py-14 lg:py-16">
         <Container size="wide">
-          <nav aria-label="Breadcrumb">
-            <ol className="label-tech flex flex-wrap items-center gap-2 text-muted">
-              <li>
-                <Link href="/" className="hover:text-ink">
-                  Home
-                </Link>
-              </li>
-              <li aria-hidden>/</li>
-              <li aria-current="page">About Us</li>
-            </ol>
-          </nav>
 
           <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
             <RailHeading index="01">About us</RailHeading>
@@ -174,16 +241,14 @@ export default function AboutPage() {
                 works.
               </p>
 
-              <div className="mt-8 space-y-5 text-[1.0625rem] leading-relaxed text-body">
-                <p>
-                  Automation is moving beyond industry into daily life. From
-                  homes to farms, smart technology turns isolated tasks into
-                  connected systems you monitor and control from your phone.
-                </p>
-                <p className="font-medium text-ink">
-                  We power this shift across every walk of life:
-                </p>
-              </div>
+              {/* Reworded from "We power this shift across every walk of
+                  life:" when the paragraph above it was cut on 2026-08-24.
+                  "This shift" pointed at that paragraph; with it gone the
+                  phrase referred to nothing. The lead-in itself has to stay in
+                  some form — it is the sentence the three cards complete. */}
+              <p className="mt-8 text-[1.0625rem] font-medium leading-relaxed text-ink">
+                We power automation across every walk of life:
+              </p>
 
               {/* The three markets as 3D tilt cards. `[perspective]` lives on
                   the grid, not each card, so neighbours share one vanishing
@@ -222,130 +287,16 @@ export default function AboutPage() {
                 })}
               </ul>
 
-              <p className="mt-8 text-[1.0625rem] leading-relaxed text-body">
-                Our vision is to guide society through this shift&mdash;building
-                the bridge between complex hardware and intuitive experiences,
-                so automation feels like second nature and smart control fits
-                in the palm of your hand.
-              </p>
             </div>
           </div>
         </Container>
       </section>
 
-      <section className="border-t border-line py-14 sm:py-16">
-        <Container size="wide">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-            <RailHeading index="02">Vision &amp; Goals</RailHeading>
-
-            <div className="max-w-2xl">
-              <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
-                We&rsquo;re a smart automation and IoT company&mdash;but what
-                matters more is that our work lifts quality of life and
-                protects the environment.
-              </p>
-
-              <h3 className="mt-12 flex items-center gap-3 text-2xl tracking-tight sm:text-3xl">
-                <IconBadge>
-                  <TargetIcon className="h-5 w-5" />
-                </IconBadge>
-                Our Vision
-              </h3>
-              <p className="mt-4 text-[1.0625rem] leading-relaxed text-body">
-                Our vision is to improve people&rsquo;s lives and the
-                environment by using smart automation and IoT technologies.
-              </p>
-
-              <h3 className="mt-12 flex items-center gap-3 text-2xl tracking-tight sm:text-3xl">
-                <IconBadge>
-                  <HeartIcon className="h-5 w-5" />
-                </IconBadge>
-                Our Culture
-              </h3>
-              <p className="mt-4 text-[1.0625rem] leading-relaxed text-body">
-                Our culture is built on our purpose, beliefs and attitudes. To
-                make our vision real as demand grows, we hold to the following:
-              </p>
-              <BulletList items={CULTURE} />
-
-              <p className="mt-8 text-[1.0625rem] leading-relaxed text-body">
-                Our brand promise is simple: we make what matters work&mdash;safer,
-                more reliable, efficient and sustainable, for our people,
-                customers and communities. It guides everything we do, from who
-                we hire to what we build.
-              </p>
-
-              <h3 className="mt-12 flex items-center gap-3 text-2xl tracking-tight sm:text-3xl">
-                <IconBadge>
-                  <FlagIcon className="h-5 w-5" />
-                </IconBadge>
-                Our Aspirational Goals
-              </h3>
-              <p className="mt-4 text-[1.0625rem] leading-relaxed text-body">
-                Our big goals matter as much to us as our financial targets.
-                They rally the whole team around who we are. We aim to:
-              </p>
-              <BulletList items={GOALS} />
-            </div>
-          </div>
-        </Container>
-      </section>
-
-      {instagram && (
-        <section className="border-t border-line py-14 sm:py-16">
-          <Container size="wide">
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-              <RailHeading index="03">Instagram</RailHeading>
-
-              {/* A profile card, not an embedded feed. A live Instagram feed
-                  needs either Meta's embed script or a third-party widget,
-                  both of which are third-party requests that set cookies on
-                  arrival — §9 forbids those before a visitor asks — and the
-                  Graph API route needs an app, a refreshing token and a
-                  dependency the runtime policy does not have room for. This
-                  costs nothing and always works. */}
-              <div className="reveal max-w-2xl border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
-                <div className="flex flex-wrap items-center gap-4">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
-                    <InstagramIcon className="h-6 w-6" />
-                  </span>
-                  <div>
-                    <p className="text-lg text-ink">Follow us on Instagram</p>
-                    <p className="font-mono text-sm text-muted">
-                      @{instagram.href.replace(/^.*instagram\.com\//, "")}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Forward-looking on purpose: the account had no posts yet
-                    when this went up, so copy describing a feed of work would
-                    send people to an empty profile. Worth revisiting once
-                    there is something to look at. */}
-                <p className="mt-5 leading-relaxed text-body">
-                  Follow along for installations, new panels and product
-                  updates as we publish them.
-                </p>
-
-                <Button
-                  href={instagram.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="lg"
-                  className="mt-6"
-                >
-                  <InstagramIcon className="h-4 w-4" />
-                  Open our profile
-                </Button>
-              </div>
-            </div>
-          </Container>
-        </section>
-      )}
 
       <section className="border-t border-line py-14 sm:py-16">
         <Container size="wide">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-            <RailHeading index="04">Products</RailHeading>
+            <RailHeading index="02">Products</RailHeading>
 
             <div className="reveal max-w-2xl border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
@@ -355,14 +306,138 @@ export default function AboutPage() {
                 Explore our products
               </p>
               <p className="mt-4 text-[1.0625rem] leading-relaxed text-body">
-                Motor starters, solar controllers, cables and home automation.
-                Filter the range by category, sub-category or motor rating.
+                Motor starters, industrial panels, solar, cables and home
+                automation. Filter the range by category, sub-category or motor
+                rating.
               </p>
 
               <Button href="/products" size="lg" className="mt-7">
                 See all products
                 <ArrowRightIcon className="h-4 w-4" />
               </Button>
+            </div>
+          </div>
+        </Container>
+      </section>
+
+      <section className="border-t border-line py-14 sm:py-16">
+        <Container size="wide">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+            <RailHeading index="03">Info</RailHeading>
+
+            {/* `max-w-2xl` on the column rather than on the card, so the
+                brochure card, the figures and the photo strip share one right
+                edge — and the same one as §02 and §04. `min-w-0` because the
+                gallery is a horizontal scroller: without it the column takes
+                its min-content width from the whole strip and pushes the grid
+                wider than the page. */}
+            <div className="min-w-0 max-w-2xl">
+              <div className="reveal border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
+                  <DownloadIcon className="h-6 w-6" />
+                </span>
+                <p className="mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
+                  Download our brochure
+                </p>
+                <p className="mt-4 text-[1.0625rem] leading-relaxed text-body">
+                  The full range in one PDF &mdash; ratings, enclosures and
+                  protection features, ready to print or forward.
+                </p>
+
+                {/* `download` asks the browser to save rather than navigate,
+                    and names the saved file: without the attribute a PDF opens
+                    in the built-in viewer on most desktops, which is not what
+                    a button reading "Download" promises. Same-origin, so the
+                    attribute is honoured. */}
+                <Button
+                  href={BROCHURE}
+                  download="Vkon-Automation-Brochure.pdf"
+                  size="lg"
+                  className="mt-7"
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                  Download brochure (PDF)
+                </Button>
+              </div>
+
+              {/* The figures. A plain grid rather than cards: three bordered
+                  boxes here would compete with the brochure card directly
+                  above and the photographs directly below. */}
+              {/* `divide-x` only from `sm`: stacked on a phone the rules would
+                  run horizontally between the figures and read as three
+                  separate rows rather than one band. The `border-y` closes the
+                  band top and bottom at every width. */}
+              <div className="mt-12 grid grid-cols-1 gap-8 border-y border-line py-10 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-line">
+                {STATS.map((stat) => (
+                  <div key={stat.label}>
+                    <StatCounter
+                      value={stat.value}
+                      suffix={stat.suffix}
+                      label={stat.label}
+                    />
+                  </div>
+                ))}
+              </div>
+
+            </div>
+          </div>
+        </Container>
+
+        {/* Outside the `Container`, so the strip runs from the left edge of
+            the window to the right (client, 2026-08-24). Done by placement
+            rather than the usual `w-screen left-1/2 -mx-[50vw]` trick, which
+            measures `100vw` *including* the scrollbar and so overflows the
+            page by its width on every desktop browser that reserves one.
+            `AboutGallery` puts its own controls back inside a Container so
+            they still line up with the text above. */}
+        <div className="mt-12">
+          <AboutGallery images={GALLERY} />
+        </div>
+      </section>
+
+      <section className="border-t border-line py-14 sm:py-16">
+        <Container size="wide">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+            <RailHeading index="04">Social media</RailHeading>
+
+            {/* No `max-w-2xl` here, unlike §01–§03. Five cards in one row
+                need the whole column: capped at 2xl each would be ~130px and
+                the platform names would not fit. The standfirst keeps its own
+                measure so the prose still reads at a comfortable line length
+                — it is the card row, not the text, that wants the width. */}
+            <div className="min-w-0">
+              <p className="max-w-2xl text-xl leading-snug tracking-tight text-ink sm:text-2xl">
+                Follow along for installations, new panels and product updates
+                as we publish them.
+              </p>
+
+              {/* Rows down the page below `lg`, one row of five from it
+                  (client, 2026-08-24). `SocialProfileCard` changes shape at
+                  the same breakpoint — horizontal in the stacked form,
+                  vertical in the row — so the two have to move together.
+
+                  `items-stretch` is implicit in a grid, and the card is
+                  `h-full`, which is what makes the five equal height with
+                  their buttons aligned rather than each ending where its own
+                  text does.
+
+                  Order is still the client's — Instagram, Facebook, X,
+                  YouTube, LinkedIn — and lives in `PROFILE_ORDER`. */}
+              <ul className="mt-8 grid grid-cols-1 gap-x-3 gap-y-8 lg:grid-cols-5">
+                {PROFILES.map((profile) => (
+                  /* `min-w-0` for the same reason `ProductCatalogue` needs
+                     `minmax(0,1fr)`: the card's chrome bar holds a
+                     `white-space: nowrap` URL whose min-content width is the
+                     whole string, and a track sized `auto` takes its minimum
+                     from exactly that. Without it the column widened to fit
+                     LinkedIn's URL and put five pixels of horizontal scroll on
+                     a 390px phone. `min-w-0` on the truncating span alone does
+                     not do it — that frees the flex item, not its container. */
+                  <li key={profile.key} className="min-w-0">
+                    <SocialProfileCard profile={profile} />
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </Container>
@@ -394,34 +469,5 @@ function RailHeading({
       <span className="label-tech text-accent">{index}</span>
       <h2 className="label-tech text-muted">{children}</h2>
     </div>
-  );
-}
-
-/** Small square accent badge for a heading's theme icon. Square, not a pill —
- *  2px corners are the house rule; the round badge is reserved for the market
- *  cards' floating marks. */
-function IconBadge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[2px] bg-accent-soft text-accent">
-      {children}
-    </span>
-  );
-}
-
-/** Bulleted list with an accent check per item, matching the protection list's
- *  rhythm. */
-function BulletList({ items }: { items: string[] }) {
-  return (
-    <ul className="mt-5 space-y-3">
-      {items.map((item) => (
-        <li
-          key={item}
-          className="flex gap-3 text-[1.0625rem] leading-relaxed text-body"
-        >
-          <CheckIcon className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
-          {item}
-        </li>
-      ))}
-    </ul>
   );
 }

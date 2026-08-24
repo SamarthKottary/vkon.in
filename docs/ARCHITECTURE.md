@@ -179,6 +179,8 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `home/FeaturedProducts` | Measured paging arrows, wheel-to-scroll, measured centred-card detection |
 | `home/RecentlyViewed` | Reads localStorage via `useSyncExternalStore`; measured paging arrows, wheel-to-scroll, measured centred-card detection |
 | `about/TiltCard` | Pointer-tracked 3D tilt, fine-pointer devices only |
+| `about/StatCounter` | Counts a figure up from zero on first entering the viewport |
+| `about/AboutGallery` | Endless photo belt (doubled list, seam reset); arrows, pause, dots |
 | `product/ProductCatalogue` | `useSearchParams` filter state |
 | `product/ProductRow` | Measured paging arrows over a scroll track |
 | `cart/CartLink` | Cart count from localStorage via `useSyncExternalStore` |
@@ -657,6 +659,140 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-24 (later) — About §03/§04 reworked
+
+**The photo strip is a full-bleed endless belt.** Slides are ~60% of their old
+width (client asked for 40% off) and the interval is 2s. The track sits
+*outside* `Container` rather than using the usual `w-screen left-1/2
+-mx-[50vw]` full-bleed trick — `100vw` measures the viewport *including* the
+scrollbar, so that idiom overflows by the scrollbar's width on every desktop
+browser that reserves one. `AboutGallery` puts its own controls back inside a
+`Container` so they stay aligned with the text column.
+
+**The belt renders the list twice and resets across the seam.** The client
+asked for a true loop — first image following the last, never a rewind. The
+scroll position is pulled back by one set-width whenever it drifts past the
+seam; because the two copies are identical at that offset the reset cannot be
+seen. Verified: `2522 → 430` (a drop of exactly `oneSet`) while the visible
+images advanced by exactly one. Duplicates carry `inert`, not `aria-hidden`,
+so they leave the tab order and the accessibility tree together.
+
+**The reset is issued before the smooth step, never during one.** Doing it
+mid-flight cancels the scroll already running and the belt stutters at the
+seam. Same idiom as `home/FeaturedProducts`.
+
+**`snap-*` came off the track.** Scroll snapping fights the seam reset — the
+browser re-snaps to the nearest slide after the instant `scrollLeft`
+assignment and the belt jerks at the wrap. Paging is by a measured stride
+(`stride()` reads the gap between two slides' left edges), so snap was only
+ever belt-and-braces. Do not put it back without re-testing the seam.
+
+**Dots are `index % images.length`.** Past the seam the raw index counts into
+the duplicate set, and there is no seventh dot to light.
+
+**Arrows and pause sit above the strip, at its top right** (client), aligned
+to the `Container` edge rather than the window's so they line up with the text
+above even though the belt runs wider. They were overlaid on the photographs
+first; above rather than over means they never cover a picture, and on a phone
+— where one image now fills the frame — an overlay sat on the subject.
+
+**One image per view below `sm`, several from it.** The mobile slide is
+`w-full` of the flex track, not `100vw`: `vw` counts the scrollbar and
+overflows wherever one is reserved. The edge fades are `sm`-and-up only —
+over a single full-frame photograph they just wash its own edges rather than
+suggesting more to come.
+
+**`SocialProfileCard` renders a profile *preview*, not an embed.** The client
+asked for "a screenshot of the actual profile". The file's header comment
+records why it is not one — Instagram and LinkedIn have no profile embed at
+all, Facebook's and X's widgets are §9-forbidden third-party cookie-setters,
+and the accounts had no posts to show. Nothing on the card is invented, and
+there are no follower or post counts anywhere, because those would have to be.
+A grid of tiles stood in for posts for part of the day and the client had it
+removed for exactly that reason: photographs arranged as a post grid read as
+posts, and they were not.
+
+**The card is not itself a link.** One "View page" button carries the
+destination, under a heading naming the platform. An all-card anchor cannot
+hold a button inside it — nested interactive elements are invalid and give one
+destination two tab stops.
+
+**§04 stacks in rows below `lg` and is one row of five from it.**
+`SocialProfileCard` changes shape at the same breakpoint — horizontal in the
+stacked form, vertical in the row — so the grid and the card have to move
+together. The section drops the `max-w-2xl` that §01–§03 carry, because five
+capped cards would be ~130px and the platform names would not fit; the
+standfirst keeps its own measure so the prose still reads at a comfortable
+length. The bio came off the card in the same change: one sentence about the
+range runs to eight lines in a 170px column. `PROFILE_ORDER` still sets the
+sequence.
+
+**Two `min-width` traps, both fixed, both worth knowing.** The chrome bar's
+URL is `truncate`d inside a flex row, which does nothing without `min-w-0` —
+a flex item defaults to `min-width: auto` and refuses to shrink below its
+content. Fixing that alone was *not* enough: the track containing it is sized
+`auto` too, so it took its minimum from the same nowrap string. Both were
+needed; either one missing put five pixels of horizontal scroll on a 390px
+phone. Same family as the `minmax(0,1fr)` note on `ProductCatalogue`.
+
+**`public/brand/vkon-avatar.png` is a copy of `src/app/icon.png`** — the
+current round badge — because `app/icon.png` is a metadata route, not a static
+asset to point `next/image` at.
+
+### 2026-08-24 — About page restructured
+
+**Four sections, renumbered: 01 About us, 02 Products, 03 Info, 04 Social
+media.** Client request. Products moved up from 04, Instagram widened into
+Social media, and Info is new.
+
+**Vision & Goals is gone**, and with it the `CULTURE` and `GOALS` arrays and
+the `IconBadge` and `BulletList` helpers that only it used. `TargetIcon`,
+`HeartIcon`, `FlagIcon` and `CheckIcon` are no longer imported here — they
+remain in `icons/ui` and are used elsewhere.
+
+**Two paragraphs came out of §01**, both client-marked. Removing the first
+orphaned two references to "this shift" further down; one of those sentences
+(the lead-in to the three market cards) is the sentence those cards complete,
+so it stayed in reworded, self-contained form. Recorded because it is a copy
+edit that was *not* asked for and exists only to keep the removal grammatical
+— see the note in the file.
+
+**The breadcrumb came off `/about` and `/contact`** (client request). The
+`breadcrumbJsonLd` block stays on both: it feeds the search result, not the
+page, and dropping it would lose the trail Google already shows.
+
+**Two new client components**, both in the table above. `StatCounter` animates
+a figure from zero once, on first intersection, with the final value already
+in the server-rendered HTML so it is correct without JavaScript and for a
+crawler. `AboutGallery` is a scroll-snap strip — position is read back from
+`scrollLeft` rather than driven by a transform, so swipe, wheel and keyboard
+all keep the dots in step for free. Its wrap from last to first is an instant
+jump; a smooth scroll the length of the strip reads as a glitch.
+
+**Reduced motion in `AboutGallery` uses `useSyncExternalStore`**, not an
+effect that calls `setState`. The effect form is what
+`react-hooks/set-state-in-effect` rejects — the rule already has five
+pre-existing violations in this repo (§10) and this deliberately does not add
+a sixth.
+
+**No new dependency.** The counter is `requestAnimationFrame`, the gallery is
+`scrollTo` plus `IntersectionObserver`.
+
+**`public/vkon-automation-brochure.pdf` is a placeholder** generated at
+1.2KB by a throwaway script, so the §03 download button resolves instead of
+404ing. It says so on its one page. Replace the file, keep the name, and
+nothing in the code changes.
+
+**The §03 gallery photographs are the site's own segment images**, not stock
+pulled off the web: an image from a search carries an unknown licence, and a
+commercial site is where that bill arrives. Swapping them touches only the
+`GALLERY` array.
+
+**`SOCIAL_COLOR` in `about/page.tsx` deliberately duplicates `Footer`'s
+near-identical map.** One entry differs and has to: X is black here, on a
+light surface, and off-white in the footer, on a dark band. Merged, one of the
+two rows gets an invisible icon.
 
 ### 2026-08-23 (later) — Catalogue page
 
