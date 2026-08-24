@@ -519,7 +519,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
                   : "outline outline-2 -outline-offset-2 outline-transparent"
               }`}
             >
-              <ProductCard product={product} priority={index === 0} />
+              <ProductCard product={product} priority={index === 0} orientation="featured" />
             </div>
           </li>
         ))}

@@ -188,7 +188,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `cart/CartList` | Cart contents, quantity and removal |
 | `cart/AddToCartButton` | Writes to the cart, shows its own confirmation |
 | `product/RelatedProducts` | Measured paging arrows over a scroll track |
-| `product/ProductCard` | Places the spec truncation mark from measured layout |
+| `product/ProductCard` | Places the spec truncation mark from measured layout (`"horizontal"` orientation only — `"vertical"` and `"featured"` need no measurement) |
 | `product/ProductMedia` | Selected media, deferred video embed |
 | `product/RecordView` | Writes the viewed slug to localStorage |
 | `home/CopyEmail` | Clipboard, with a mailto fallback |
@@ -659,6 +659,222 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-08-24 (design, held+smoothed) — The previous entry's fix reintroduced the Mach-band seam it was meant to avoid; both fixed together this time
+
+**Client report: the boundary between the top/bottom scrim and the image
+"looks like a line," should "merge with the image at the centre."** This is
+the same Mach-band effect from three entries up — a linear gradient's rate of
+change stopping abruptly rather than easing to zero — but reintroduced by the
+*previous* entry's own fix. Holding peak opacity through the measured content
+zone and then linearly tapering the rest, as that entry did, creates a rate
+discontinuity exactly where the hold ends and the taper begins: the slope
+jumps from ~0 (flat hold) to a constant steep value in one step. Compressing
+the taper into a shorter span (needed to still cover the text) made this
+*worse*, not better — the same total opacity drop now happens over less
+distance, so the rate at the jump is proportionally steeper. Confirmed with
+the two-derivative check used the first time this was diagnosed: a rate
+change of 197 luminance-levels at one point, against ~2-3 (anti-aliasing
+noise) everywhere else once fixed.
+
+**Fixed by keeping the hold genuinely flat and replacing the linear taper
+with its own small smoothstep curve** — `peak × (1 − smoothstep(x))` over
+just the ease-down span, which by construction has zero slope at both the
+point it leaves the hold and the point it reaches full transparency,
+matching the flat regions on both sides exactly. This is not a taller or
+weaker gradient, only a differently-shaped ease-down within the same hold
+boundaries (65%/77%) the previous entry established.
+
+**Verified two ways, deliberately separated so neither could hide the
+other's problem:**
+1. *Smoothness, isolated from content.* Rendered each gradient alone against
+   a flat backdrop — no text, no photo — and swept a rate-of-change check
+   down the centre: max jump 2 (top), 3 (bottom), both essentially
+   measurement noise. The *composited* card screenshot alone was not
+   trustworthy for this — sampling straight through the card picks up text
+   glyph edges and the placeholder artwork's own hard lines, which produce
+   large "jumps" that have nothing to do with the scrim and would have been
+   misread as a smoothness failure if not separated out.
+2. *Contrast, unchanged or improved.* Re-measured all four text positions
+   with the same method as the previous two entries: sub-category 3.67:1,
+   product name 5.6:1, description 4.08:1 (up from 3.74 — the smoother curve
+   actually holds slightly *more* area near-peak than the previous entry's
+   sharper corner did), View details 6.22:1. The fix for "looks like a line"
+   did not cost back any of the fix for "no dark tint."
+
+**Also: caught a stale dev build again mid-verification**, the same failure
+mode as the previous entry — confirmed the live `style.backgroundImage`
+string on the page before trusting a measurement, per the practice that
+entry established, and this is now the second time it has mattered enough
+to record. `rm -rf .next/dev` before restarting is the reliable fix, not
+just restarting the process.
+
+### 2026-08-24 (design, held) — Featured-card scrim: darkness held through the actual text, not just at the outer edge
+
+**Client report: sub-category, product name and description "have no dark
+tint."** Measured each independently (screenshot pixel behind the text,
+composited against the resolved gradient, not the CSS colour value alone).
+Confirmed and explained: the previous entry's five stops eased *evenly*
+across the full band height, but "evenly across the band" and "evenly across
+the actual text" are different things once the two are different sizes —
+content occupies 172px of the bottom band's 224px and 83px of the top
+band's 128px, and every text element sits nearer the image than the band's
+own midpoint, i.e. in the half of the curve already most faded. Sub-category
+measured 2.6:1, product name 2.59:1, description 1.25:1 — all failing, and
+in the description's case barely better than the pre-scrim baseline several
+entries back.
+
+**Fixed by holding near-peak opacity through the measured content zone and
+compressing the entire fade-to-transparent into only the remaining gap
+before the image** — 0–65% of the top band, 0–77% of the bottom band, both
+read from the actual measured content heights, not guessed. The stops
+themselves are still an eased curve (this did not reintroduce the Mach-band
+seam from two entries back), just eased over a shorter final stretch instead
+of the whole band. Re-measured after: sub-category 3.61:1, product name
+5.35:1, description 3.74:1, "View details" 6.13:1 — two of four now clear
+full WCAG AA outright, the other two clear the 3:1 large-text threshold and
+are a visibly solid dark backing rather than the near-invisible tint
+reported. Confirmed by screenshot, not just the numbers: every element reads
+as clearly legible now, and the gradient still looks like a fade rather than
+a hard edge.
+
+**Caught and worth recording separately: the dev server served a stale
+build for one full edit-measure cycle.** The very first re-measurement after
+this fix showed numbers *identical* to the un-fixed version, which briefly
+looked like the fix had done nothing — turned out `.next/dev` had not
+picked up the change. Confirmed via the browser's own resolved
+`style.backgroundImage` string before trusting any further measurement, and
+now doing so as standard practice after any inline-style edit on this
+component: measuring a stale render and concluding a genuine content or
+CSS-value fix "didn't work" is a more likely mistake than the fix actually
+being wrong.
+
+Peak opacities (`62%`/`65%`) and the resulting known trade-off on today's
+placeholder photography are otherwise unchanged from two entries back —
+this was purely about *where along the band* the peak is held, not how dark
+the peak itself is.
+
+### 2026-08-24 (design, smoothed) — Featured-card scrim gradients replaced with an eased five-stop curve
+
+**The two-stop `from`/`to` gradients read as having a seam where they met the
+sharp image**, client-reported ("should be smooth... gradually reduces going
+to the centre"). Measured before changing anything: a pixel-by-pixel
+luminance sample straight down the card found *no* actual brightness jump at
+that boundary — the perceived seam is a Mach band, the well-documented effect
+where the eye picks up a linear gradient's abrupt *rate* change at the exact
+point it ends, even when the colour values either side genuinely match. Fixed
+by replacing both gradients with five hand-placed stops approximating a
+smoothstep curve (steep in the middle, shallow at both the peak and the
+point it vanishes), which is the standard fix for this — not a stronger or
+taller gradient, a differently-*shaped* one. Implemented as inline
+`style={{ backgroundImage: ... }}` rather than Tailwind utilities: a five-stop
+curve has no clean expression as chained `via-*` classes, and `color-mix(in
+srgb, var(--color-scrim) N%, transparent)` per stop keeps it reading the
+`scrim` token rather than a value copied out of it.
+
+Re-verified with the same pixel-sampling method: zero jumps >15 luminance
+levels anywhere in either scrim band post-change (previously several, right
+at the image boundary); the bottom band's profile from image edge to card
+foot is now a smooth, monotonic decline (247 → 102 in even ~6-8-level steps).
+Peak opacities (`62%`/`65%`) are unchanged from the previous entry — this
+was purely a curve-shape fix, not a strength change, and the same accepted
+low-contrast-on-placeholder-images trade-off from that entry still applies
+unchanged.
+
+**Also confirms the "View details"/Add-to-cart row now has clear margin,
+not just adequate coverage**, per the client's specific callout — measured
+the actual content geometry (button row sits 81px above the card's bottom
+edge; the scrim band is 224px tall) rather than assuming the existing height
+was already enough.
+
+### 2026-08-24 (design, corrected) — Featured-card scrim brought back down; the contrast trade-off is deliberate, not overlooked
+
+**The `scrim/92` version from the entry below was reversed the same day.**
+Client feedback on sight: it reads as a black bar, not a lit photograph —
+"I dont want it black... the actual image to be mirrored or another copy to
+be extended and then blurred," pointing at `home/HeroRotator` and
+`layout/SubscribePanel` as the reference for how light the tint should read.
+Both scrims dropped to `scrim/62`–`/65` peak, matching those two components'
+actual weight rather than a number invented for this card.
+
+**Measured before proposing it, not after:** at that opacity, the
+description text's contrast against the current placeholder photography is
+**1.1:1** (WCAG AA wants 4.5:1) — sampled a real rendered pixel behind the
+text (`246, 247, 249`, a near-white placeholder canvas), composited the
+scrim's actual alpha at that exact Y-position on top of it, then ran the
+standard relative-luminance formula. Also computed the floor: even a *flat,
+non-fading* 70% scrim is the minimum that clears AA against the palest pixels
+present across the current cards — confirming the fade-shaped light scrim
+cannot pass on this photography at any peak weight that still reads as
+"light," full stop, not only at the specific value tried.
+
+**Presented three options with those numbers attached — flat-but-darker,
+light-and-temporarily-illegible, or light-plus-text-shadow — and the client
+chose light-and-temporarily-illegible explicitly**, on the reasoning that the
+component should not be shaped around today's placeholder graphics: real
+product photography has actual tonal range, the same opacity that fails on a
+flat white canvas is exactly what already works on the hero and subscribe
+panel's real photographs, and the fix on the day real photography lands is
+new images, not new code. Recorded here and in the component's own doc
+comment specifically so this is legible as an accepted, load-bearing decision
+if it is ever rediscovered — the failure mode ("description text is
+unreadable") is real and was not missed, only knowingly deferred to the
+correct fix rather than patched around with a heavier scrim.
+
+### 2026-08-24 (design) — Featured-products card redesigned; a real click-through bug found and fixed along the way
+
+**A third `ProductCard` orientation, `"featured"`, not a change to `"vertical"`.**
+The client asked to redesign "the featured product card" specifically — image
+in the middle, the same photo extended and blurred above and below it, text
+over the blur. `ProductRow` (the catalogue grid — "do not touch, they are
+perfect", an explicit earlier instruction) and `RelatedProducts` (the product
+page's "Similar products") both call `ProductCard` with no `orientation`
+override, i.e. the default `"vertical"` — checked by grep before writing a
+line of this, since editing that branch in place would have redesigned the
+catalogue along with the request. Only `home/FeaturedProducts` now passes
+`orientation="featured"`; `HorizontalCard` (`RecentlyViewed`) and the default
+vertical branch are untouched, confirmed unchanged by screenshot for the
+catalogue and by re-reading `RelatedProducts`' call site for the other.
+
+**One photograph, shown twice**, same idiom as `layout/SubscribePanel`'s
+bleed background: a `fill` copy blurred and `scale-110`'d to fill the whole
+card (the overscale hides the transparent halo blur leaves at a hard edge,
+clipped by `overflow-hidden`), with a second, sharp, un-blurred copy in an
+`aspect-square` band over it partway down — same aspect the plain vertical
+card already uses, so the "photography is 1:1, never cropped" rule from the
+top of this file still holds for the copy anyone is actually meant to look
+at. The blurred copy is exempt from that rule on purpose: it is a color wash
+standing in for a background, not a presentation of the product.
+
+**The scrim first went much stronger than initially drawn** — `scrim/80`–`85`
+read as close to illegible against these placeholder images, so it went to
+`scrim/92` with the solid portion held well past where the text actually
+sits. **This did not stand: reversed the same day, on sight, for reading as a
+black bar rather than a lit photograph — see the entry above this one, which
+is the version that actually shipped.** Left here rather than deleted because
+the diagnosis in this entry is still the accurate explanation of *why*
+legibility is hard on the current placeholder photography in the first place
+(flat line-art on white canvas, not real images with tonal range) — only the
+"so we went to `scrim/92`" conclusion was undone.
+
+**A real bug, not a design nitpick: the sharp image band was unclickable.**
+The stretched-link pattern (`after:absolute after:inset-0` on the title
+link) depends on nothing between the link and its positioned ancestor also
+being positioned — documented already, on this exact component, for a
+different reason (`AddToCartButton`'s note on why it needs `relative z-10`).
+The image band needs `position: relative` for `next/image`'s `fill` to work
+at all, and being a *later* sibling than the title's wrapper, it painted
+*above* the link's `::after` overlay and swallowed every click on the photo
+— roughly the middle third of the card. Confirmed directly:
+`elementFromPoint` at the image's centre returned the `<img>`, not the link,
+and a real click there left the URL unchanged. Fixed with `after:z-[1]` on
+the link — enough to clear the image band's implicit `z-index: auto`,
+still well below the Add-to-cart button's established `z-10`. Re-verified
+after the fix: `elementFromPoint` at all three bands (top, image, bottom)
+now resolves to the product link, and a click on the image navigates.
+Worth remembering for any future stacked-band card: a stretched link is not
+safe merely because nothing *encloses* it is positioned — a later sibling
+that has to be positioned for an unrelated reason can still cover it.
 
 ### 2026-08-24 (three more) — Pop-highlight follows the cursor; RecentlyViewed and AboutGallery get the same fixes
 
