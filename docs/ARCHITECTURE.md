@@ -660,6 +660,372 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-26 (part ten, same day) — Footer hover-pause reinstated, third attempt, this time by skipping the tick rather than rebuilding the timer
+
+**Client, after asking for an explanation first and then choosing between the options offered: "Lets implement option B. Also only the view details and add button row should be able to pause when the cursor hovers."** Third attempt at footer hover-pause; the first two are two and three entries below.
+
+**What was actually wrong with attempts one and two was the timing mechanism, not the scope.** Both folded a hover flag into `running` as React state, which meant the autoplay effect tore the interval down on hover and built a fresh one on un-hover. `setInterval` does not fire on creation, so every exit cost a **full fresh 3s regardless of how much of the cycle had already elapsed** — hover 2.9s into a cycle and you got 3s more, not 0.1s — and crossing a boundary repeatedly reset the countdown indefinitely. That is precisely the "previously when i removed the cursor it would take a while for it to start moving again" the client described, and it is also what made attempt one's footer-wide scope measure as an 8-second freeze under ordinary cursor movement: not one long pause, but the timer being reborn over and over. `home/HeroRotator` already solves this class of problem in this codebase, with `remainingRef`/`startedAtRef` bookkeeping; the belt never had it.
+
+**Option B, implemented: never stop the timer, skip the tick.** The interval now runs permanently whenever `running`, and its callback returns early while `hoverPausedRef` is true. That flag is a **ref, not state** — the essential detail. Nothing re-renders, the effect never re-runs, and the interval keeps its own phase, so a tick spent hovering is *lost* rather than *deferred*, and leaving a footer resumes on the original cadence. Measured: **1475ms to resume** after leaving a footer, against a guaranteed 3000ms before — almost exactly the ~1.5s average the phase-preserving approach predicts. Also confirmed the starvation case that sank attempt one is gone: brief repeated grazes across a footer with ~90% of time spent off it advanced the belt repeatedly over 12.8s, where the old mechanism would have reset the clock on every crossing and never advanced. (That count over-reports somewhat — smooth scrolling means one tick registers across several samples — so it is the qualitative "repeatedly, not never" that is the signal there; the 1475ms figure is the precise one.)
+
+**Scope is the footer row**, per the client's wording, via `data-featured-footer` on `product/ProductCard`'s footer `<div>` and a geometric point-in-rect scan (`isOverFooter`) matching the existing `findCardAt` pattern. Confirmed the scope behaves: hovering a footer for 4s held the belt completely still; hovering a card's *image* for 3.6s let it advance twice, so the pause genuinely does not extend beyond the row. Worth being explicit that Option B fixes resume latency and starvation but **not breadth** — parking the cursor on a footer still holds the belt for as long as it sits there, which is what pausing means; the row is simply a wider target than the two controls alone (attempt two's scope) and that remains a one-line change if it ever feels sticky.
+
+Gated on `hoverCapable`, matching the pop logic, for a specific reason: a touch tap can fire one stray `mousemove` and never a `mouseleave`, which would latch the flag true and stop the belt permanently on that device.
+
+No regressions: the consecutive-footer sweep still runs 24 cards with 0 hover misses, and clicking a duplicate card's add-to-cart still works — both properties from the `inert` fix in the entry below.
+
+### 2026-08-26 (part nine, same day) — `inert` on the belt's duplicate cards was silently killing clicks, not just hover; replaced with `aria-hidden` + `tabIndex={-1}`
+
+**Client: "When i hover the cursor over consecutive 3 cards the button animation works, after 3 i have to go out of the card then bring it. Also the third right most card button dosent animate properly. Could you fix such that in any condition when the cursor is on the 2 buttons it animates and i am able to click it."** The mention of *clicking* is what made this worth re-testing from scratch rather than treating it as another hover-timing complaint — and it turned out to be a genuine, long-shipped functional bug, considerably worse than the animation symptom that surfaced it.
+
+**Root cause: `inert` on the doubled row's second copy disables pointer interaction entirely, not just keyboard and assistive-tech access.** The belt renders every product twice so the loop never visibly rewinds; the second copy carried `inert={canLoop && index >= products.length}`, chosen deliberately (and correctly, for its stated purpose) so screen readers don't announce twelve products where the catalogue holds six, and so keyboard focus can't land in a duplicate. But `inert` also makes the browser treat the whole subtree as `pointer-events: none`. Confirmed both halves directly, not inferred: hovering a duplicate's "View details" never matched `:hover` (6 consecutive autoplay ticks, `inert=true` → `hoverWorked=false` every single time, `inert=false` → worked every time), **and a real click on a visible duplicate's "Add to cart" left `localStorage` completely unchanged** — the button was simply dead. Since the belt spends roughly half its time with a duplicate under the cursor, this is why the client saw it as "works for 3 cards, then stops until I leave and come back": the fourth card onward was the second copy.
+
+This also retroactively explains the earlier "third card doesn't pop" report (part five), which was diagnosed and worked around at the highlight level via `findCardAt`'s geometric scan without recognising that the same `inert` was disabling real user interaction underneath.
+
+**Fix: `aria-hidden` for the accessibility tree, plus `tabIndex={-1}` on the duplicates' focusable descendants for the tab order** — the standard carousel-clone pattern, which delivers both guarantees `inert` was chosen to provide in one attribute, without the third, unwanted one. The `tabIndex` pass runs from an effect rather than declaratively because the focusable elements (title link, "View details", add-to-cart) live several layers inside `product/ProductCard`, which is shared with the catalogue and every other card on the site; threading belt-specific "don't be focusable" plumbing through it would put carousel concerns in a component unrelated to the carousel.
+
+Verified after the change, all directly rather than by reasoning: hover on a duplicate now fires (`:hover` matches, colour resolves to the accent green, underline transform reaches `scaleX(1)`); **clicking a duplicate's "Add to cart" now actually adds to the cart**; a deliberate sweep across **24 consecutive card footers without ever leaving the belt produced zero misses**, which is the client's exact reported scenario; and the accessibility properties `inert` was protecting are intact — all 15 duplicate controls carry `tabindex="-1"`, all 15 real ones carry none, and 60 consecutive Tab presses never once landed inside a duplicate card.
+
+### 2026-08-26 (part eight, same day) — Hover-pause removed entirely; back to plain CSS
+
+**Client, after the previous entry's narrowing: "Nope lets remove the pause when hovering entirely, i just want the view details and add button animation to work properly thats it."** Removed `hoveringControl`, `isOverControl`, and the `data-featured-control` markers entirely — `home/FeaturedProducts`' autoplay no longer reads pointer position at all for pausing purposes, and `product/ProductCard`'s footer controls are plain CSS `:hover`/`group-hover`, exactly as any other hover state on the page, with nothing telling the belt about them.
+
+This closes out a same-day sequence worth having on record as a unit, so it isn't retried piecemeal later: whole-footer pause (too broad — froze the belt 8 seconds under normal browsing) → two-controls-only pause (fixed the breadth, but the client decided the mechanism itself wasn't worth keeping) → removed. What remains is exactly the 2026-08-24 position: the animations are correct CSS, they fire reliably the large majority of the time, and the belt being mid-transition at the exact instant a cursor arrives is a real, accepted, low-frequency cost of not pausing on hover — the same trade-off already made for clicks two entries prior, now confirmed to extend to hover animations too, by explicit client choice rather than by default. Re-verified after removal: autoplay advances normally while "View details" is being hovered (no residual pausing), and all three hover effects — the underline sweep, the colour change, the add-to-cart scale — still fire correctly as pure CSS.
+
+### 2026-08-26 (part seven, same day) — The footer-wide pause was too broad; narrowed to the two controls themselves
+
+**Client, after the previous entry's fix: "Lets not pause when i touch the autoplay, i see same errors such as it not moving when cursor is moved and view details and add button animation pop up not working. Why is this happening tell me before changing anything."** Diagnosed before touching code, per the request:
+
+- **The belt appearing stuck was not a malfunction — it was the previous fix working exactly as built, on a target far bigger than intended.** `data-featured-footer` marked the *entire* footer row, a full-width strip with real empty space in it (`justify-between` puts a gap between "View details" and the add-to-cart button). Confirmed directly: moving the cursor footer-to-footer across three cards, the way someone comparing products actually moves their mouse, froze the belt for a full 8 seconds with zero advances, against an expected two or three — because any cursor movement anywhere along that strip paused autoplay, not just an approach to one of the two controls in it. A second test with the cursor wandering the general row area at random showed the same effect at a smaller scale (1 advance in 10s where ~3 were expected).
+- **The animation-miss report was explained already** (previous entry) — pausing only prevents the *next* autoplay tick from being scheduled, it does not interrupt one already mid-flight, so a rare miss right at that boundary was always possible even with the fix in place. Nothing new found here beyond what was already on record.
+
+Client chose to narrow rather than revert entirely: **`data-featured-control` now marks the `Link` and the add-to-cart wrapper individually, in `product/ProductCard`, not the row that holds them.** `home/FeaturedProducts`'s `isOverControl` (renamed from `isOverFooter`) and `hoveringControl` (renamed from `hoveringFooter`) are otherwise the same geometric point-in-rect mechanism as before, just scanning a narrower marker. Re-verified all three claims directly: hovering the gap between the two controls no longer pauses anything (belt advanced normally); hovering either control still pauses (confirmed for both independently); the footer-to-footer wandering reproduction that froze the belt for 8 seconds now advances within one tick (~2.8s); and the original animation-reliability check still holds at the narrower scope (20/20 successful hovers, same as the wider version).
+
+### 2026-08-26 (part six, same day) — Footer hover pauses autoplay, narrowly; "View details" back to neutral-until-hovered
+
+**Client: "The view details and add button animation should work when i bring cursor to it sometimes when i bring cursor from one card to another it dosnet."** Investigated rather than assumed a cause: 15 attempts to hover a footer's "View details" while the belt was free to autoplay produced 1 miss; the identical 15 attempts with the belt paused (via the pause button) produced 0. The animations were never broken — the belt was occasionally moving a footer out from under an approaching cursor between the coordinates being read and the pointer arriving, the same class of friction the 2026-08-24 entry already named and accepted when whole-card hover-pause was removed, just showing up now on a smaller, easier-to-miss target.
+
+Offered three options (pause over the footer only, pause over the whole card, or leave it); client chose the first: **`hoveringFooter`, a new piece of state scoped to exactly the footer, not the whole card.** `home/FeaturedProducts` already scans pointer position geometrically against `[data-product-id]` for the pop highlight (`findCardAt`, itself a fix for the `inert` gap earlier this same day) — `isOverFooter` is the identical pattern against a new marker, `data-featured-footer`, added to `product/ProductCard`'s featured footer specifically. `running` now also requires `!hoveringFooter`. Kept deliberately separate from the existing `paused` state, which the pause button's own icon and label read from — folding footer-hover into `paused` would have shown "Resume" while someone was simply hovering, not pressing anything. Re-verified: scroll position frozen for a full 3s+ tick while hovering the footer, resumes on the very next tick after leaving it, and the pause button's label stays "Pause the featured products row" throughout, confirming the two states don't cross-contaminate. Re-ran the original 15-attempt reproduction afterward at 20 attempts: 0 misses.
+
+This is a narrower carve-out than the whole-card hover-pause removed 2026-08-24, not a reversal of it — hovering a card's image, or the gaps between cards, still does not pause anything. The two situations were judged differently: 2026-08-24 accepted the risk of a click landing on the wrong card because the pause button was reasoned to be the real WCAG mechanism regardless; this pass fixes an animation not firing at all on a control the visitor is looking directly at, a smaller but more certain cost than the click-drift risk was.
+
+**"View details" reverted from green-by-default back to neutral-until-hovered, one day after being made green outright.** Client: "the view details button should be black in light mode and white in dark mode only when i bring cursor over it. It should turn green." `text-accent` (resting) / `hover:text-accent-strong` → `text-ink` (resting) / `hover:text-accent` — `ink` is exactly "black in light mode, white in dark mode" as a single theme-aware token, and this is now the same resting-neutral/hover-green convention every other card's "View details" already used; the underline's own colour matched down to `bg-accent` for consistency, since it only shows once hover is already green. Re-measured resolved colours directly rather than trusting the class names alone (this file's own recurring lesson): light rest `rgb(20,23,26)`/hover `rgb(35,112,61)`, dark rest `rgb(242,244,245)`/hover `rgb(76,174,129)` — matching `--color-ink`/`--color-accent` exactly in both themes.
+
+### 2026-08-26 (part five, same day) — The real causes, finally: the pop's "scale" never worked, and one shared class's `scroll-padding-left` broke this track's snap alignment
+
+**Client, after the previous fix: "Still the right most cards edges are not visible when it pops up."** Investigated properly this time rather than reapplying the same kind of fix again. Directly measured `getComputedStyle(poppedCardInner).transform` on a genuinely popped card: `"none"`. **`scale-[1.05]` and `-translate-y-2.5` are both silent no-ops on this row** — the second one was already on record (2026-08-24) as a known, deliberately-unfixed gap; the first is a new instance of the identical Tailwind bracket-value problem, never previously checked here specifically. Neither has ever done anything visually; only the `outline` and `shadow-card-hover` ever actually changed on pop, which is why the effect still reads as "popping" at all.
+
+Given that, the two prior entries' diagnosis (a transform bleeding past its box) was wrong. **The actual bleed is `shadow-card-hover`'s second layer, `0 10px 28px`** — a 28px blur radius, present on every pop regardless of the transform, and far bigger than the 12px margin sized for the wrong cause could ever cover. Fixed by widening the track's clip-safe margin to match each breakpoint's own `Container` padding exactly (`px-5`/`px-6`/`px-8`, size `wide`) rather than one flat number — 20px/24px/32px of margin via `-mx-5 sm:-mx-6 lg:-mx-8`, using all the room actually free at each width without ever pushing the track past the viewport edge (confirmed: no page-level horizontal overflow at 375px). Only `lg` (32px) fully covers the 28px blur; `sm` and below fall a little short — an accepted trade-off against overflowing a narrow viewport, recorded rather than hidden. Re-verified visually: the previous hard, flat cutoff on the right edge is now a normal soft shadow fade.
+
+**Second, unrelated bug, from an earlier report that day: "the 3 cards are visible at a time. But on the leftmost side the previous card's edge is visible. I dont want that edge visible."** First diagnosed as scroll-snap-align:center fundamentally conflicting with "show exactly three whole cards" — true in principle (centering one card of an odd visible set can't also align to card boundaries), and `snap-center` was changed to `snap-start` on that reasoning. It did not fix the symptom by itself. Chased further: a JS "round `scrollLeft` to the nearest step" correction was written next, and it also did nothing, for a instructive reason — logged directly, the smooth-scroll animation was already settling at the wrong value (395px, not the intended 410.66px) *before* the correction function even ran, and writing the corrected value afterward was silently overwritten back to 395 by the browser's own snap machinery on the same tick, confirmed by reading `scrollLeft` back immediately after the write. That JS fix was removed — fighting a browser's own synchronous snap resolution from JS does not work, and the attempt is left recorded on `correctSeam`'s doc comment as a dead end worth not repeating.
+
+The actual cause was `.hscroll`'s `scroll-padding-left` (1.25rem/1.5rem/2rem across its breakpoints) — a rule shared with `SectorBrowser`/`ProductRow`, tuned for their geometry, silently inherited onto this track where it did not match this track's own padding. Confirmed by testing a spread of `scroll-padding-left` values directly against this exact layout: `0` still produced an offset settle, one step short of clean; the value that produced clean, evenly-spaced rest positions (0px, 411px, 821px at `lg`) turned out to be **this track's own `padding-left`, exactly** (24px/28px/36px, matching the new margin fix's own breakpoints) — not zero, and not derived from reading the CSS Snap spec, from testing. Set via `[scroll-padding-left:24px] sm:[...:28px] lg:[...:36px]`, overriding `.hscroll`'s inherited value. Re-verified across five consecutive autoplay laps, including the wrap back to the start: zero partial cards at any point, where every one previously showed a sliver of a fourth card on one edge.
+
+
+
+**Vignette lengthened again** (client: "Increase the fade length by 20% more") — top 61px→73px, bottom 72px→86px, on top of the previous entry's increase. Same standing caveat: still a fixed-fraction hold on a longer band, so this keeps helping by degrees without closing the gap a hold sized to the actual text would.
+
+**A real, confirmed bug, not a styling nitpick: the popped rightmost card's corner was genuinely being clipped, not just crowded.** Client: "when i bring the cursor over the rightmost card it pops up but the rightmost corner gets cut." Measured at the time as the popped card's inner layer overrunning the track's `overflow-x: auto` box by ~5.6px, and diagnosed then as `scale-[1.05]` painting outside its own box. **That diagnosis was wrong, corrected two entries below**: `scale-[1.05]` never applies at all on this row (same silent Tailwind gap already on record for `-translate-y-2.5` here), so there was no transform bleed to explain — the 5.6px figure was real but its cause was misattributed, and the fix built for it (a 12px margin) consequently didn't reach the actual cause either, which the next report confirmed.
+
+Fixed the same way the component's existing `py-4` already handles the matching vertical case: `-mx-3 px-4` on the track, a negative margin widening the track's own box (and so its clip boundary) by 12px on each side, paired with 4px more padding than that to net back to the original `px-1`'s 4px inset exactly — confirmed directly, the first card's `getBoundingClientRect().x` is identical before and after this change. This margin sizing was itself superseded two entries below, once the real cause (the hover shadow's 28px blur, not a transform) was found.
+
+### 2026-08-26 (part three, same day) — Vignette lengthened 20%, pause control resized and given weight, footer controls get their own hover animation
+
+**Direct response to the previous entry's flagged issue**: "increase the fade
+length by 20%." Both scrims lengthened again — top 51px→61px, bottom
+60px→72px — the 10% hold staying a percentage so it grows in step rather
+than needing a separate number. Re-checked against the same crop that
+showed the problem: modestly better, not fixed. The previous entry's
+diagnosis holds — a fixed fraction of a fixed-length band, not a hold sized
+to the actual text — and a length increase alone doesn't change that shape,
+only how far it reaches. Documented as a partial improvement in the
+component doc rather than claimed as a fix.
+
+**Pause control resized and restyled** (client: "make the pause button bit
+more better looking and bigger by 20%") — `PageButton` (now the pause
+button's only remaining use, the direction arrows having been removed
+earlier the same day) went from `h-9 w-9` (36px) to `h-[43px] w-[43px]`, its
+icon 14px→16px. Gained `shadow-card`, a `hover:bg-surface-subtle` tint on
+top of the existing border darken, and a `hover:[transform:scale(1.08)]` —
+arbitrary-property form, not `scale-108`/`scale-[1.08]`, per this file's
+running list of bracket-value scale utilities silently failing to compile
+under various variants.
+
+**Footer hover animations improved on both controls** (client: "make the
+animation of the view details and add button better"), each scoped to this
+footer alone:
+
+- "View details" gains a 1px underline that sweeps in from the left on
+  hover, the same idiom as `ui/Button`'s `sweep` prop scaled down to a rule
+  instead of a fill — `[transform:scaleX(0)]`→`[transform:scaleX(1)]`,
+  arbitrary-property form again, for the same reason.
+- `AddToCartButton` is shared across every card on the site, so its own
+  hover was left untouched; this instance is wrapped in a plain `<div>`
+  that scales to 1.08 on hover instead, which cannot leak to any other
+  card. The wrapper carries no `position`/`z-index` of its own, so the
+  button's existing `relative z-10` is unaffected.
+
+### 2026-08-26 (part two, same day) — Footer row goes light and frosted, scrim reshaped into a thin vignette, text recoloured — and the vignette makes the heading hard to read against this placeholder
+
+**The footer row** (client: "I dont want black in the row in light mode...
+blur the background and change colour to something that matches the web
+page"; also: "row the length of the space" — read as shorten, matching this
+session's running direction of trading chrome for photograph, and easy to
+correct if that guess is wrong). Padding cut `p-4`→`p-3`. Background changed
+from inheriting the card's dark `bg-band` to its own
+`bg-surface-raised/90 backdrop-blur-sm` — confirmed compiling
+(`backdrop-filter: blur(8px)`, not silently dropped like some of this
+Tailwind version's other utilities). `bg-surface-raised` is already
+theme-aware (white in light mode, near-black in dark), so it satisfies "not
+black in light mode" without a separate dark-mode override — dark mode looks
+the same as it did.
+
+**"View details" recoloured to match** (client: "change the view details
+button to matching green as well") — `text-band-ink`/`hover:text-band-accent`
+→ `text-accent`/`hover:text-accent-strong`, the ordinary light-surface accent
+pair, green by default rather than only on hover, a deliberate difference
+from every other card's neutral-until-hovered "View details".
+
+**On-image text recoloured** (client: "the tagline and range should be
+bright white. Also make sub category name in matching green"). Tagline
+`band-body`→`band-ink`; range `dt` `band-muted`→`band-ink` (`dd` was already
+`band-ink`); category label `band-body`→`band-accent-strong` — the brighter
+of the two greens, same reasoning as `home/HeroRotator`'s eyebrow: 11px over
+a photograph needs the stronger one.
+
+**The scrim reshaped into a vignette** (client: "reduce the dark tint length
+from top and bottom corner towards the center by 40%... the top and bottom
+most corner like 10% length should be darker by 30% and gradually fade
+towards the centre"). Length cut 40% (top 85px→51px, bottom 100px→60px);
+peak raised 30% off the previous 47% (→61%, rounded to 60%) but now held
+only through the outer 10% of that shorter band before easing straight to
+transparent — a real change of shape, not just size, from every earlier
+pass on this card, which held flat through the *measured text*. This one
+holds through a fixed fraction of the band regardless of what text is in
+it, trading guaranteed coverage for more visible photograph.
+
+**That trade did not land evenly, and it is worth being specific about
+where it broke rather than reporting a single blended number.** Measured
+against the current placeholder photography (the same flat line-art
+material every prior contrast note in this file has used): the bottom band
+— tagline and range — is genuinely readable, if not high-contrast; a
+close crop confirms it by eye, not just by the numbers. **The top band's
+second line is not.** The product name sits far enough past the 10% hold
+that the scrim has already faded close to nothing by the time it reaches
+it, and this placeholder's background there is plain white — a close crop
+shows "DEMO Industrial DOL Panel" nearly disappearing into it, not merely
+measuring low. The category label above it, closer to the hold, stays
+legible. This is applied exactly as specified — both bands got the same
+10%/30%/40% treatment — and the difference in outcome comes from where each
+piece of text happens to sit relative to the fade and what is directly
+behind it in this particular photograph, not from the two bands being
+built differently. Flagged rather than quietly re-widened: the numbers
+were specific enough that they read as deliberate, and the fix, if wanted,
+is a client decision — hold the top a little longer for the name
+specifically, accept it against today's placeholders and expect it to
+read better against real photography (the standing reasoning elsewhere in
+this file), or something else.
+
+### 2026-08-26 — CTA row moved off the image, scrim cut 35%, a real intermittent hover bug found and fixed, belt controls simplified
+
+**Four changes, two in `product/ProductCard`'s `FeaturedCard`, two in
+`home/FeaturedProducts`.**
+
+**"View details" and Add-to-cart moved off the image into their own flat
+footer row** (client: "lets have the view details and add button down
+below the image, in a separate row"). The card is no longer `aspect-square`
+end to end — the *image* still is, the card is that square plus a footer
+row's height. This broke the single-`inset-0`-wrapper trick the previous
+entry's stretched link relied on: that wrapper spanned the whole card only
+because the whole card *was* the image. Scoping it to the image sub-box
+instead means the stretched link now only covers the image, not the footer
+— confirmed directly, by building the "footer inside the same wrapper"
+version first and finding the click area exactly matched what the wrapper
+spanned. Fixed by giving "View details" its own real `Link` in the footer,
+rather than trying to extend one stretched link across a footer that lives
+outside the box its positioning climbs to.
+
+**Both scrims cut by roughly a third** (client: "reduce the dark tint...
+by 35%") — top peak 73%→47%, bottom 72%→47%. The bottom band also shrank
+independently (150px→100px, hold 77%→65%) because the CTA row leaving it
+means it only has to cover the tagline and the range now. **Re-measured
+after, and it matters this time**: category label 2.24:1, name 3.42:1,
+tagline 2.24:1, range 3.00:1 — all below AA's 4.5:1 against the current
+placeholder photography, which is flat line-art on a near-white canvas, the
+same material every prior contrast note in this file has been measured
+against. This is the same category of trade-off already on record for this
+card's original scrim weight (3.7:1, accepted) — the client asked for a
+specific number this time rather than "a bit," so it was applied as asked
+and reported here rather than quietly overridden to protect AA. Visually
+still legible against the current placeholders; expected to read better,
+not worse, once real product photography replaces them, same reasoning as
+before. "View details" in the new flat footer measures 16.97:1 — unaffected
+by any of this, since it no longer sits on the image.
+
+**A real, 100%-reproducible bug found and fixed: `inert` blocks pointer
+hover on the doubled row's second copy, not just keyboard/screen-reader
+access.** Client report: "the third card (rightmost) pops up sometimes,
+only when i bring the cursor from left most card to right most, otherwise
+it doesn't pop up." First looked like a timing flake — it survived several
+rounds of testing different approach paths and speeds with no clear pattern
+— until isolating *which* `uid` failed and comparing it against which
+`index` values carry `inert={canLoop && index >= products.length}`: the
+failure was 100% reproducible on every second-copy (duplicate) card and
+100% reliable on every first-copy card, regardless of approach path or
+speed. Root cause: `inert` makes the browser treat an element as
+`pointer-events: none` for hit-testing purposes, which is exactly what both
+`event.target` (via the old `onMouseOver`) and `document.elementFromPoint`
+(in `measure`'s stationary-cursor re-resolution) depend on — so a duplicate
+card, despite being visually identical to a "real" one and periodically
+becoming the rightmost card visible as the belt scrolls, could never be
+found as a hover target by either mechanism. Confirmed with an isolated
+Playwright reproduction before touching any code: 20 trials cycling through
+which uid was rightmost, 100% failure on duplicate uids, 100% success on
+originals, `scrollDelta` logged at zero throughout to rule out a scroll-
+timing race.
+
+Fixed by adding `findCardAt(x, y)` — a plain point-in-rect scan over every
+`[data-product-id]` element's `getBoundingClientRect()`, which is unaffected
+by `inert` the same way `measure`'s existing centred-card scan already is
+(that one was never broken, because it was never hit-testing-based to begin
+with). `onMouseOver` replaced with `onMouseMove` calling `findCardAt`
+directly off `event.clientX/clientY` rather than `event.target`; `measure`'s
+`document.elementFromPoint(pointerRef.current)` replaced with the same
+`findCardAt` call. Re-ran the 20-trial reproduction after: 20/20 pass,
+including the uids that failed 100% of the time before.
+
+**Middle card no longer pops just from sitting centred — only an actual
+cursor does that now** (client: "lets not make the middle card pop up
+automatically. When the cursor is on a card i want that card to pop up").
+`poppedId`'s `hoverCapable` branch dropped its `?? centeredId` fallback;
+touch devices keep the fallback, since they have no cursor to hover with and
+`centeredId` is the only signal they can offer at all. Confirmed with the
+cursor genuinely off the belt (well above and well below the row, not just
+off to the side where a taller card could still be under it): nothing
+popped, where the old code always had the centred card popped by default.
+
+**Autoplay slowed from 2s to 3s per card** (client, literal number given).
+
+**Direction arrows removed** (client: "lets remove the left right toggle
+button"); `page(direction)` simplified to a parameterless `advance()` since
+autoplay was its only remaining caller. **Pause control moved from beside
+the heading to its own row, centred, below the belt** (client: "move the
+pause button below the featured product cards and place it at the centre")
+— it used to sit next to the arrows, which are now gone. Still gated the
+same way, `autoplay && canAdvance` rather than just `autoplay`: a row with
+nothing to scroll has nothing for the button to pause.
+
+### 2026-08-25 (tuning) — Featured card's scrim bands shrunk and lightened, same day as the redesign below
+
+**Client, same day as the redesign this immediately follows: "push the sub
+category and product name... up. Also the tagline and range also the view
+details and add to cart button down. I want more of the picture. Also reduce
+the dark tint shading a bit."** Four related changes, all in `FeaturedCard`:
+
+- Content wrapper padding `p-4` → `p-3`, and the internal `mt-*` spacing
+  throughout tightened one step (heading `mt-1.5`→`mt-1`, range `mt-2`→
+  `mt-1.5`, CTA row `mt-3`→`mt-2`) — this is the literal "push up"/"push
+  down": both blocks sit closer to their edge, and everything between them is
+  now visible photograph rather than padding.
+- Top scrim `108px`→`85px`, bottom `190px`→`150px`, remeasured against the
+  new (now tighter) content zones: top content measures ~55px into the 85px
+  band (hold to 70%), bottom ~107px into 150px (hold to 77%) — bottom
+  measured against the binding case, a card with a range row, same as the
+  entry below.
+- Peak opacity lowered — top `color-mix(… 85%, transparent)` → `73%`, bottom
+  `88%` → `72%` — the literal "reduce the dark tint."
+- Re-measured contrast after both changes landed together (smaller *and*
+  lighter compounds, so this needed checking, not assuming): category label
+  5.36:1, name 8.24:1, tagline 5.33:1, range 5.53:1, "View details" 7.87:1 —
+  every one still clears AA's 4.5:1, with the smallest text (the 11px
+  category label, the one that actually needs the full 4.5:1 rather than the
+  large-text 3:1) landing at 5.36 after one correction: the first pass at
+  68% peak measured that label at 4.47:1, a hair under the line, so the top
+  scrim's peak was nudged to 73% and re-verified before treating this as
+  done.
+
+### 2026-08-25 (redesign) — Featured card's blurred-bleed idiom replaced with one full-bleed image and every field overlaid on it, hero/subscribe-style
+
+**Client: "there should only be the product image and no other space top and
+bottom for text… like in hero slideshow on top or subscriber section where
+behind text there is dark tint."** The previous build of this card (entry
+below, 2026-08-24) gave the photograph its own blurred, extended copy to
+stand in as a background above and below a smaller sharp square — that whole
+idiom is gone, not retuned. `product/ProductCard`'s `FeaturedCard` is now one
+`aspect-square` image, `fill` + `object-cover`, filling the entire card, with
+category, name, tagline, range and the CTA row all overlaid directly on top
+of it. The component doc above is emphatic again, without exception, that
+this site's photography is shot 1:1 so a square plate never crops it — there
+is no longer a second, decorative copy that was allowed to.
+
+**The scrim is `home/HeroRotator` and `layout/SubscribePanel`'s plain
+gradient idiom, not the previous build's eight-stop smoothstep curve — and
+deliberately simpler, not a regression.** That curve existed to solve one
+specific problem: a translucent scrim fading out *right where a
+differently-rendered second copy of the same photo began* was a real visual
+seam even where the numbers were smooth (a Mach band). There is no second
+copy here — one photograph runs underneath the scrim edge to edge, so a
+plain two-stop `linear-gradient(…, transparent 100%)` has nothing to seam
+against, the same reasoning that already lets the hero and subscribe panel
+use plain gradients successfully.
+
+**The "hold flat through the content zone" lesson from the previous build
+still applies, even without the Mach-band concern, because it was never
+about that** — the underlying problem is that content sits nearer the image
+than the band's midpoint, so a gradient that fades evenly across the whole
+band leaves the content under-covered regardless of how many stops draw the
+fade. First pass used Tailwind's plain `from-scrim/80 via-scrim/40` (implicit
+50% via-stop) and measured badly — category label 2.67:1, product name
+2.08:1, tagline 2.64:1, all well under the 4.5:1 AA needs, because the via
+stop's 50% fell inside the content zone and the second line of each block sat
+past it. Fixed by measuring the actual rendered content — top block (label +
+name) runs ~57px into the card, bottom block (tagline + range + CTA row) runs
+~110px — and building each scrim as an explicit hold-then-fade
+`color-mix(in srgb, var(--color-scrim) N%, transparent)` gradient: peak held
+flat through 60%/108px at the top and 68%/190px at the bottom, only fading to
+transparent after. Re-measured: category 8.32:1, name 12.54:1, tagline
+9.09:1, "View details" 14.02:1 — comfortable AA across the board, and
+against the same placeholder line-art photography the previous build's
+3.7:1 was measured against and accepted as a known limitation. This is
+better than that accepted number, not merely adequate.
+
+**One `absolute inset-0` content wrapper holds both text blocks, not two
+separately-positioned top/bottom ones — load-bearing for the stretched link,
+confirmed by building the two-wrapper version first and watching it fail.**
+`flex flex-col justify-between` inside the single wrapper pushes the top
+block up and the bottom block down without either needing its own `absolute
+top-0`/`bottom-0`. `after:absolute after:inset-0` on the product name's
+`Link` climbs to the nearest *positioned* ancestor to size itself — with two
+separately-positioned blocks, that ancestor is whichever block holds the
+link, and the clickable area shrinks to that block alone; confirmed exactly
+that with `elementFromPoint` before switching to one wrapper. With the single
+wrapper, that ancestor is the one `inset-0` box spanning the whole card, so
+the stretched link works with no z-index patch — verified with
+`elementFromPoint` at the image centre, over the name, and over the tagline,
+all three resolving to the link; the Add-to-cart button verified separately
+still resolving to itself, on its own pre-existing `relative z-10`, same
+mechanism the plain vertical card already uses.
+
+**Found and fixed in this card only: `scale-[1.06]` is a fourth instance of
+this Tailwind version's silent-arbitrary-value gap.** `md:group-hover:scale-[1.06]`
+on the sharp image — present in this card since before, carried forward
+unchanged in the rewrite — turned out to never have worked: `getComputedStyle(img).transform`
+reads `"none"` after a real hover, confirmed identically on the untouched
+plain vertical card elsewhere in the catalogue, which still carries the same
+class. Same category of gap as the `scale-x-*`/`-translate-y-*` ones found
+2026-08-24, same fix: `md:group-hover:[transform:scale(1.06)]`, arbitrary
+property syntax, confirmed by the same computed-style check now reading
+`matrix(1.06,0,0,1.06,0,0)`. Fixed here because the line was being rewritten
+regardless; the identical, still-broken class on the plain vertical card
+(`product/ProductCard`) and the horizontal strip was left as-is, same scoping
+decision as the three instances already on record — now four, all in one
+place in this file's doc comments rather than scattered.
+
+**Video badge moved from top-left to top-right.** It sat at `left-3 top-3`
+against the old sharp-image band, which had no text in it. The category
+label and name now start at that same corner, so the badge moved to the
+opposite one rather than overlapping.
+
 ### 2026-08-24 (tuning) — Sweep slowed, glow darkened; §03's standfirst confirmed already matching §01's, not touched
 
 **Client asked to slow the button sweep, darken the light-mode glow, and

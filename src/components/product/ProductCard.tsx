@@ -26,14 +26,13 @@ import type { Product } from "@/lib/types";
  * All three orientations therefore carry a **square** plate for the sharp
  * image: the vertical card as a full-width `aspect-square` band above its
  * text, the horizontal strip as a floated fixed square with the text
- * wrapping round it, the featured card the same full-width band as the
- * vertical one, just lower down. The strip's plate was a `w-24` portrait
- * sliver until 2026-08-19, which cropped ~35% off each side of a 1:1
- * photograph.
+ * wrapping round it, the featured card the same square, full-bleed, with
+ * category, name, tagline and range overlaid directly on top of it — see the
+ * note on `FeaturedCard`. The strip's plate was a `w-24` portrait sliver
+ * until 2026-08-19, which cropped ~35% off each side of a 1:1 photograph.
  *
  * `bg-surface-subtle` backs the plate, for the placeholder case and while an
- * image is loading. The featured card's blurred backdrop is the one
- * deliberate exception to "never crops" — see the note on `FeaturedCard`.
+ * image is loading.
  */
 export function ProductCard({
   product,
@@ -498,112 +497,60 @@ function HorizontalCard({
 }
 
 /**
- * Featured card: the photograph in the middle, its own blurred bleed
- * standing in for a background above and below it (client, 2026-08-24).
+ * Featured card: the product photograph, full-bleed and edge to edge, with
+ * category, name, tagline and range overlaid directly on it (client,
+ * 2026-08-25 — "there should only be the product image and no other space
+ * top and bottom for text… like in hero slideshow on top or subscriber
+ * section where behind text there is dark tint"). Only those four fields
+ * live on the photograph; "View details" and Add-to-cart sit in their own
+ * flat row below the image (client, next day — "lets have the view details
+ * and add button down below the image, in a separate row"), which is why
+ * the card is no longer `aspect-square` end to end: the image is, the card
+ * itself is that square plus a footer row's worth of extra height.
  *
- * **One photograph, shown twice.** A backdrop copy fills the whole card —
- * `fill`, `object-cover`, blurred — and the sharp copy sits over it in a
- * square band partway down. Same idiom as `layout/SubscribePanel`'s bleed
- * background: `scale-110` on the blurred copy overshoots the frame enough
- * that blur's soft, half-transparent edge is pushed outside the card and
- * clipped by `overflow-hidden`, rather than showing as a faint halo. The
- * blur is lighter here than that panel's (`blur-md` against its `blur-lg`)
- * — this card is a few hundred pixels wide rather than the full viewport, and
- * the same blur *radius* reads as proportionally much softer on something
- * this much smaller.
+ * **One `aspect-square` image, `fill` + `object-cover`, sized to just the
+ * image sub-box, not the whole card.** The component doc above holds
+ * without exception: this site's photography is shot 1:1 so a square plate
+ * never crops it.
  *
- * **The blurred copy is decorative and is allowed to crop; the sharp one is
- * not.** The component doc above is emphatic that this site's photography is
- * shot 1:1 so the plate never crops it, and that still holds for the sharp
- * copy — its band is `aspect-square`, matching the source exactly, same as
- * the plain vertical card's. The backdrop is a color wash standing in for a
- * background, not a presentation of the product, so `object-cover` cropping
- * it to fill a non-square card is fine — nobody is meant to read it as the
- * photograph.
+ * **Text on the image sits on `band-*` tokens** — the white-on-dark pairing
+ * `home/Hero` and `layout/SubscribePanel` already use for text over a
+ * photograph. **The footer row below does not** (client, 2026-08-26) — it
+ * has its own light, frosted `bg-surface-raised` surface now, independent of
+ * the card's own `bg-band`, so it takes the site's ordinary `ink`/`accent`
+ * pair instead. The image and the footer are now two different surfaces
+ * wearing two different token families, on purpose.
  *
- * **Text sits on `band-*` tokens, not the usual `ink`/`muted`/`body`.** Those
- * are tuned for dark text on this site's pale surface; here the surface is a
- * photograph. `band-ink`/`band-body` are the same white-on-dark pairing the
- * hero and every masthead already use for exactly this reason.
+ * **The scrim follows `home/HeroRotator` and `layout/SubscribePanel`'s plain
+ * two-stop idiom, but shaped as a vignette, not a content-covering band**
+ * (client, 2026-08-26 — see that day's changelog entry for the exact
+ * numbers). Every earlier pass on this card held flat at peak through the
+ * measured text; this one holds only through the outer 10% of a
+ * deliberately shortened band and fades the rest of the way to transparent,
+ * trading guaranteed text coverage for more visible photograph. Re-measure
+ * contrast if the content, the spacing or these numbers change enough to
+ * matter — it was already below AA against the current placeholder
+ * photography before this pass, and this pass does not improve that.
  *
- * **Two scrim gradients, not one wash over the whole card** — the top band
- * darkens toward the top edge, the bottom band darkens toward the bottom
- * edge, and both fade to nothing by the time they reach the sharp image, so
- * the photograph itself is never dimmed.
+ * **A single `inset-0` content wrapper, scoped to the image sub-box, holds
+ * both on-image text blocks — not two separately-positioned ones**, for the
+ * stretched-link reason on record in the 2026-08-25 changelog entry: `flex
+ * flex-col justify-between` pushes the top block up and the bottom block
+ * down without either needing its own `absolute top-0`/`bottom-0`, which
+ * would otherwise become the nearest positioned ancestor for the name
+ * `Link`'s `after:absolute after:inset-0` and shrink the stretched link
+ * down to whichever block holds it.
  *
- * **Each is six or seven colour stops on an eased curve, not Tailwind's plain
- * `from`/`to` two-stop linear fade** (client, 2026-08-24 — the two-stop
- * version looked like it had a visible seam where it met the sharp image,
- * even though a pixel-by-pixel luminance sample down the card found no
- * actual jump there). The seam was real, just not a brightness discontinuity:
- * a linear gradient's rate of darkening is constant right up until the exact
- * pixel it ends, where the rate drops to zero all at once, and the human eye
- * reliably picks that up as an edge — a Mach band — independent of whether
- * the colour values either side of it actually differ. The fix is the
- * standard one: stops chosen so the curve's own rate of change *also* eases
- * toward zero near both ends, which is what the hand-placed stops below
- * approximate. Read the numbers as one curve, not several arbitrary values.
+ * **The stretched link now only spans the image**, not the footer row below
+ * it — a direct consequence of the row living outside the image sub-box
+ * that link climbs to. "View details" is a real, second `Link` to the same
+ * destination rather than the decorative span it was before, because the
+ * footer is no longer inside the stretched link's reach and needs its own
+ * way to navigate; `AddToCartButton`'s own `relative z-10` continues to be
+ * what keeps it clickable, unrelated to any of this.
  *
- * **The curve is not symmetric — it holds flat at peak opacity through the
- * measured content zone, then eases down to transparent over the shorter gap
- * that remains before the image** (client, 2026-08-24 — an earlier, evenly-
- * eased version faded across the *whole* band, and every text element
- * measured close to invisible because all of them sit nearer the image than
- * the band's own midpoint). Top band content measures 83px inside a 128px
- * band, so the hold runs flat to 65%; bottom band content measures 172px
- * inside 224px, so the hold runs flat to 77%. If the content changes enough
- * to need re-tuning, measure the actual rendered heights again rather than
- * guessing new percentages — that is what caught this the first time.
- *
- * **The hold is genuinely flat, and the ease-down after it is its own small
- * smoothstep curve, not a linear taper** (client, 2026-08-24 again, same day
- * — holding peak *and* linearly tapering afterward reintroduced the Mach-band
- * seam from two entries up, just relocated: the rate of change jumped from
- * ~0 during the hold to a constant steep slope the instant the taper began,
- * which is the same kind of rate discontinuity as before, only compressed
- * into less space and so proportionally worse. Confirmed directly — the
- * two-derivative check flagged a rate change of 197 luminance-levels at one
- * point, against essentially anti-aliasing noise everywhere else.) The stops
- * below are computed from `peak × (1 − smoothstep(x))`, `x` running 0→1
- * across only the ease-down span, which has zero slope at both ends by
- * construction: matching the flat hold going in, and matching the fully
- * transparent, unchanging image going out. Verified in isolation — the
- * gradient alone, screenshotted against a flat backdrop with no text or
- * photo to confound the reading — at under 3 luminance-levels of rate
- * change anywhere along either curve.
- *
- * **The opacities (`scrim/62`, `scrim/65` peak) match `home/HeroRotator` and
- * `layout/SubscribePanel`'s weight, deliberately, not by coincidence** — a
- * first pass went to `scrim/92`, held solid across most of the band, which
- * read as a black bar rather than a lit photograph and was rejected on sight
- * (client, 2026-08-24). This is the correction, and it carries a known,
- * measured, accepted cost: against the current placeholder photography —
- * flat line-art on a near-white canvas, not real photographs — description
- * text still measures under full WCAG AA (3.7:1 against 4.5:1, after the
- * hold-longer fix above; it was 1.1:1 before that fix existed at all) even
- * though it now reads as clearly, visibly legible. Confirmed the opposite is
- * true of a real photograph: this is the same *opacity* the hero and
- * subscribe panel already use successfully, on images
- * with actual tonal range for a translucent dark layer to darken. Client
- * decision, holding this: the code should not be shaped around today's
- * placeholders, and this will read correctly once real product photography
- * replaces them — nothing here should change on that day, only the images
- * powering it. If a future pass is chasing weak contrast on this card, check
- * what `image.url` actually points at before touching the scrim again.
- *
- * Both scrim layers are `-z-10`, stacked under the
- * text in document order rather than the text carrying `relative z-10` —
- * doing it that way keeps the top and bottom content wrappers themselves
- * unpositioned, which matters because the stretched-link title sits inside
- * the top one: `after:absolute after:inset-0` climbs to the nearest
- * *positioned* ancestor, and if that wrapper were `relative` the link would
- * stretch to cover only itself instead of the whole card, the same trap
- * documented on `AddToCartButton`.
- *
- * **No image, no bleed.** A product with no photograph has nothing to
- * extend, so this falls back to the plain card's flat treatment rather than
- * blurring a placeholder — a blurred `PanelPlaceholder` icon would neither
- * look like a photograph nor read as obviously absent, worse than either.
+ * **No image, no overlay.** A product with no photograph has nothing to lay
+ * text over, so this falls back to the plain card's flat treatment.
  */
 function FeaturedCard({
   product,
@@ -645,94 +592,124 @@ function FeaturedCard({
   }
 
   return (
-    <article className="group relative isolate flex h-full flex-col overflow-hidden border border-line bg-band shadow-card transition-[box-shadow,border-color,transform,translate] duration-200 hover:-translate-y-0.5 hover:border-band-line hover:shadow-card-hover">
-      <Image
-        src={image.url}
-        alt=""
-        aria-hidden
-        fill
-        sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 92vw"
-        className="-z-10 scale-110 object-cover blur-md"
-      />
-      {/* Eased, five-stop gradients rather than Tailwind's plain `from`/`to` —
-          see the note above on why a genuinely smooth fade needs more than two
-          stops. `color-mix` against the `scrim` token rather than a literal
-          hex: the token is what changes if the palette ever does, and this
-          keeps reading it rather than a value copied out of it. Inline
-          `style`, not utility classes, because a hand-tuned five-stop curve
-          has no clean expression as Tailwind classes — the alternative was
-          five chained `via-*` utilities with arbitrary percentage
-          *and* opacity modifiers on each, which is harder to read than the
-          curve it draws. */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 top-0 -z-10 h-32"
-        style={{
-          backgroundImage: `linear-gradient(to bottom,
-            color-mix(in srgb, var(--color-scrim) 62%, transparent) 0%,
-            color-mix(in srgb, var(--color-scrim) 62%, transparent) 65%,
-            color-mix(in srgb, var(--color-scrim) 59%, transparent) 70%,
-            color-mix(in srgb, var(--color-scrim) 50%, transparent) 75%,
-            color-mix(in srgb, var(--color-scrim) 38%, transparent) 80%,
-            color-mix(in srgb, var(--color-scrim) 24%, transparent) 85%,
-            color-mix(in srgb, var(--color-scrim) 12%, transparent) 90%,
-            color-mix(in srgb, var(--color-scrim) 4%, transparent) 95%,
-            transparent 100%)`,
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 -z-10 h-56"
-        style={{
-          backgroundImage: `linear-gradient(to top,
-            color-mix(in srgb, var(--color-scrim) 65%, transparent) 0%,
-            color-mix(in srgb, var(--color-scrim) 65%, transparent) 77%,
-            color-mix(in srgb, var(--color-scrim) 60%, transparent) 81%,
-            color-mix(in srgb, var(--color-scrim) 47%, transparent) 85%,
-            color-mix(in srgb, var(--color-scrim) 30%, transparent) 89%,
-            color-mix(in srgb, var(--color-scrim) 14%, transparent) 93%,
-            color-mix(in srgb, var(--color-scrim) 3%, transparent) 97%,
-            transparent 100%)`,
-        }}
-      />
-
-      <div className="p-5 pb-4">
-        <p className="label-tech text-band-body">{categoryLabel(product.category)}</p>
-        <Heading className="mt-2 text-lg leading-snug text-band-ink">
-          {/* Stretched link — whole card is the target, one tab stop. Not
-              inside a `relative` wrapper; see the note on the component for
-              why that matters here specifically.
-
-              **`after:z-[1]` is load-bearing, confirmed by testing, not a
-              guess.** The image band below is `position: relative` — required
-              for `next/image`'s `fill` — and being a later sibling than this
-              one, it otherwise paints *above* this `::after` overlay and
-              swallows clicks on the image even though the overlay's `inset-0`
-              correctly spans the whole card. `z-[1]` only has to clear that
-              band's implicit `z-index: auto` (0); the Add-to-cart button's
-              own `z-10` still wins over this regardless. */}
-          <Link
-            href={`/products/${product.slug}`}
-            className="after:absolute after:inset-0 after:z-[1]"
-          >
-            {product.name}
-          </Link>
-        </Heading>
-      </div>
-
-      <div className="relative aspect-square w-full">
+    <article className="group relative flex h-full flex-col overflow-hidden border border-line bg-band shadow-card transition-[box-shadow,border-color,transform,translate] duration-200 hover:-translate-y-0.5 hover:border-band-line hover:shadow-card-hover">
+      <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden">
         <Image
           src={image.url}
           alt={image.alt || product.name}
           fill
           sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 92vw"
           priority={priority}
-          className="object-cover transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
+          /* `[transform:scale(1.06)]`, not `scale-[1.06]` — see the
+             2026-08-25 changelog entry: the bracket-value form of `scale-*`
+             silently fails to compile under this stacked `md:group-hover:`
+             variant in this Tailwind version, same category of gap as
+             `-translate-y-*` and `scale-x-*` elsewhere in this file and in
+             `ui/Button`. */
+          className="object-cover transition-transform duration-300 ease-out md:group-hover:[transform:scale(1.06)]"
         />
+
+        {/* Top and bottom scrims — reshaped into a vignette, not a
+            content-covering band (client, 2026-08-26: "reduce the dark tint
+            length from top and bottom corner towards the center by 40%...
+            the top and bottom most corner like 10% length should be darker
+            by 30% and gradually fade towards the centre"). This is a
+            deliberate departure from every earlier pass on this card, which
+            held flat at peak through the measured text — the client is
+            trading that guaranteed coverage for more visible photograph,
+            compensating on the text side instead (bright white and accent
+            -green below, not a bigger dark patch behind it).
+
+            Length cut 40%: 85px→51px top, 100px→60px bottom. Peak raised
+            30% off the previous pass's 47% (→61%, rounded to 60%) and held
+            only through the outer 10% of that shorter band, easing straight
+            to transparent for the remaining 90% — so most of both bands is
+            actually a fade, not a hold, and text sitting past the first 10%
+            (nearly all of it) reads against a partial tint at best.
+
+            **Lengthened again by 20%** (client, 2026-08-26, next request —
+            the second line of the heading was reading close to invisible
+            against this placeholder's white background, flagged in the
+            previous entry) — 51px→61px top, 60px→72px bottom. The 10% hold
+            stays a percentage of the band, so it grows in step (≈6.1px top,
+            ≈7.2px bottom); this extends how far the fade reaches toward the
+            centre rather than changing its shape. Helps, does not fully fix
+            — the underlying problem named in the previous entry (a fixed
+            fraction of the band, not a hold sized to the actual text, so
+            content further into the fade still reads against less cover the
+            further in it sits) is structural, not a sizing error, and a 20%
+            length increase alone does not resolve it.
+
+            **Lengthened another 20% on top of that** (client, same request
+            repeated) — 61px→73px top, 72px→86px bottom. Same caveat carries
+            forward unchanged: still a fixed-fraction hold on a longer band,
+            not a hold sized to the text, so this keeps helping by degrees
+            without closing the gap the structural fix would. */}
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-0 h-[73px]"
+          style={{
+            backgroundImage: `linear-gradient(to bottom,
+              color-mix(in srgb, var(--color-scrim) 60%, transparent) 0%,
+              color-mix(in srgb, var(--color-scrim) 60%, transparent) 10%,
+              transparent 100%)`,
+          }}
+        />
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 h-[86px]"
+          style={{
+            backgroundImage: `linear-gradient(to top,
+              color-mix(in srgb, var(--color-scrim) 60%, transparent) 0%,
+              color-mix(in srgb, var(--color-scrim) 60%, transparent) 10%,
+              transparent 100%)`,
+          }}
+        />
+
+        {/* One wrapper, the whole image — see the component note on why the
+            stretched link needs this rather than two separately-positioned
+            top/bottom blocks. */}
+        <div className="absolute inset-0 flex flex-col justify-between p-3">
+          <div>
+            {/* `band-accent-strong`, not `band-accent` — same reasoning as
+               `home/HeroRotator`'s eyebrow: 11px over a photograph needs the
+               brighter of the two greens (client, 2026-08-26: "make sub
+               category name in matching green"). */}
+            <p className="label-tech text-band-accent-strong">{categoryLabel(product.category)}</p>
+            <Heading className="mt-1 text-base leading-snug text-band-ink">
+              {/* Stretched link — the image is the target, one tab stop.
+                  Scoped to the image sub-box now, not the whole card; see
+                  the component note. */}
+              <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
+                {product.name}
+              </Link>
+            </Heading>
+          </div>
+
+          <div>
+            {/* `band-ink`, not `band-body` — bright white, not the dimmer
+               grey (client, 2026-08-26: "the tagline and range should be
+               bright white"). */}
+            {product.tagline && (
+              <p className="line-clamp-2 text-[0.8125rem] leading-relaxed text-band-ink">
+                {product.tagline}
+              </p>
+            )}
+
+            {product.hpRanges.length > 0 && (
+              <dl className="mt-1.5 flex gap-2 text-[0.8125rem]">
+                <dt className="label-tech pt-0.5 text-band-ink">Range</dt>
+                <dd className="font-mono text-[0.75rem] text-band-ink">
+                  {product.hpRanges.join(" · ")}
+                </dd>
+              </dl>
+            )}
+          </div>
+        </div>
 
         {product.videoUrl && (
           <span
-            className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center bg-action text-action-ink"
+            className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center bg-action text-action-ink"
             title="Includes a video"
           >
             <PlayIcon className="h-3.5 w-3.5" />
@@ -741,25 +718,90 @@ function FeaturedCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col p-5 pt-4">
-        {product.tagline && (
-          <p className="text-sm leading-relaxed text-band-body">{product.tagline}</p>
-        )}
+      {/* Footer row, below the image, flat — not overlaid on the photograph.
+          Shortened (`p-3`, not `p-4`) and given its own light, frosted
+          surface rather than inheriting the card's dark `bg-band` (client,
+          2026-08-26: "I dont want black in the row in light mode... blur the
+          background and change colour to something that matches the web
+          page"). `bg-surface-raised` is already theme-aware — white in light
+          mode, the same near-black the row already was in dark mode — so
+          this needed no separate dark-mode override to satisfy "not black in
+          light mode" specifically: dark mode keeps looking the way it did.
+          `/90` plus `backdrop-blur-sm` is what makes it a frosted panel
+          rather than a flat opaque one, matching the "blur the background"
+          ask, even though nothing but the image sits behind it — the panel
+          reads as glass regardless of what (if anything) shows through.
 
-        {product.hpRanges.length > 0 && (
-          <dl className="mt-3 flex gap-2 text-sm">
-            <dt className="label-tech pt-1 text-band-muted">Range</dt>
-            <dd className="font-mono text-[0.8125rem] text-band-ink">
-              {product.hpRanges.join(" · ")}
-            </dd>
-          </dl>
-        )}
+          `ink`/`accent`, not `band-ink`/`band-accent`: this row is a light
+          surface now, not a photograph, so it takes the site's normal
+          light-surface pair. Briefly green by default (client, 2026-08-25:
+          "change the view details button to matching green as well"), then
+          corrected back to neutral-until-hovered the next day (client,
+          2026-08-26: "the view details button should be black in light mode
+          and white in dark mode only when i bring cursor over it" — `ink` is
+          exactly that pairing) — the same convention every other card's
+          "View details" already follows, `text-ink` resting,
+          `hover:text-accent` on interaction.
 
-        <div className="mt-auto flex items-center justify-between gap-3 pt-6">
-          <span className="flex items-center gap-2 text-sm font-medium text-band-ink transition-colors group-hover:text-band-accent">
+          **Both controls got a livelier hover (client, 2026-08-26: "make the
+          animation of the view details and add button better")**, each
+          scoped to just this footer rather than touching the shared
+          components underneath:
+
+          "View details" gains an underline that sweeps in from the left —
+          the same idiom as `ui/Button`'s `sweep` prop, scaled down to a
+          1px rule instead of a fill. `[transform:scaleX(0)]`, not
+          `scale-x-0`: that named utility is one of the ones already on
+          record as silently absent from this Tailwind version (see
+          `ui/Button`'s `sweepClasses`), so this uses the same
+          arbitrary-property workaround rather than risking the same silent
+          no-op in new code.
+
+          `AddToCartButton` itself is shared across every card on the site,
+          so its own hover stays exactly as it was — this wraps *only this
+          instance* in a plain `<div>` that scales up on hover instead,
+          which cannot affect the button anywhere else it's used. The wrapper
+          adds no `position`/`z-index` of its own, so the button's existing
+          `relative z-10` (needed generically, though this particular footer
+          has nothing left for it to escape now that the stretched link is
+          scoped to the image above) keeps working exactly as it did.
+
+          The hover effects themselves are plain CSS `:hover`/`group-hover`
+          and depend on nothing outside this file.
+
+          **`data-featured-footer` is a cross-component contract, not
+          decoration.** `home/FeaturedProducts` geometrically scans for this
+          exact attribute on every pointer move and skips its autoplay tick
+          while the cursor is inside it (client, 2026-08-26: "only the view
+          details and add button row should be able to pause when the cursor
+          hovers"). Renaming or removing it here silently disables that, with
+          no type error to catch it — the belt simply stops pausing.
+
+          It marks this row and nothing else: not the image above, not the
+          card as a whole. An earlier attempt at the same idea marked the two
+          controls individually instead; this is the wider of the two scopes
+          the client has asked for, chosen deliberately — see the note on
+          `home/FeaturedProducts` for the trade-off that comes with the extra
+          width, and for why the *timing* problem that sank the first attempt
+          is solved differently now. */}
+      <div
+        data-featured-footer
+        className="mt-auto flex items-center justify-between gap-3 bg-surface-raised/90 p-3 backdrop-blur-sm"
+      >
+        <Link
+          href={`/products/${product.slug}`}
+          className="group/details relative flex items-center gap-1.5 text-sm font-medium text-ink transition-colors hover:text-accent"
+        >
+          <span className="relative">
             View details
-            <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-1" />
+            <span
+              aria-hidden
+              className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover/details:[transform:scaleX(1)]"
+            />
           </span>
+          <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover/details:translate-x-1" />
+        </Link>
+        <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
           <AddToCartButton slug={product.slug} name={product.name} size="compact" />
         </div>
       </div>
