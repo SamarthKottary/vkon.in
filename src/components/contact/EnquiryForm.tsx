@@ -3,6 +3,7 @@
 import { useActionState, useId } from "react";
 import { useFormStatus } from "react-dom";
 import { AlertIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
+import { Button } from "@/components/ui/Button";
 import { sendEnquiryAction, type EnquiryState } from "@/app/(site)/actions";
 
 /**
@@ -144,18 +145,22 @@ export function EnquiryForm() {
 function SubmitButton() {
   const { pending } = useFormStatus();
 
+  /* `ui/Button`, not a bespoke `<button>` (client, 2026-08-27: "the send
+     enquiry button should have the same loading animation as in explore
+     products and download our brochure in about us page") — those are
+     `ui/Button`'s `sweep` prop, so this switches to the shared component
+     rather than re-implementing the sweep a second time. `variant="primary"`
+     (the default) is `bg-action text-action-ink hover:bg-action-hover`,
+     which is exactly what the bespoke button already had, so the resting and
+     hover colours are unchanged; only the sweep and the size preset
+     (`lg`: `px-6`/`text-[0.9375rem]`, a close but not pixel-identical match
+     to the old `px-8`/`text-sm`) are new, the latter accepted for
+     consistency with the two other sweep buttons rather than kept bespoke. */
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      /* `text-action-ink`, never `text-white`: the action colour inverts
-         between themes and a hard-coded white disappears on the light-on-dark
-         button the dark theme uses. ARCHITECTURE §9. */
-      className="inline-flex h-12 items-center justify-center gap-2 bg-action px-8 text-sm font-medium text-action-ink transition-colors hover:bg-action-hover disabled:opacity-60"
-    >
+    <Button type="submit" disabled={pending} size="lg" sweep>
       {pending && <SpinnerIcon className="h-4 w-4" />}
       {pending ? "Sending…" : "Send enquiry"}
-    </button>
+    </Button>
   );
 }
 
@@ -164,8 +169,18 @@ function input(error?: string): string {
      on the meadow canvas (contact page, 2026-08-19), so a surface-coloured
      field would match the ground outside the card and read as a hole punched
      through it. `surface-subtle` is one meadow step down, visible against the
-     white card without leaving the palette. */
-  return `w-full border bg-surface-subtle px-3.5 py-3 text-ink placeholder:text-muted focus:outline-none focus:ring-1 ${
+     white card without leaving the palette.
+
+     `relative z-10` (client, 2026-08-27: "no glow on the input boxes... but
+     the text where it describes what to enter... that should glow") — the
+     enquiry card's `tilt-glare` is `absolute inset-0` with no `z-index`,
+     which CSS stacking rules put *above* ordinary in-flow content regardless
+     of DOM order, so without this the glow washes over every field despite
+     `bg-surface-subtle` already being opaque. `z-10` lifts just the field
+     itself above that layer; the label and hint text in `Field` above each
+     one are untouched and still show the glow, which is the point — this is
+     scoped to the input/textarea element only, not its wrapping `Field`. */
+  return `relative z-10 w-full border bg-surface-subtle px-3.5 py-3 text-ink placeholder:text-muted focus:outline-none focus:ring-1 ${
     error
       ? "border-red-600 focus:border-red-600 focus:ring-red-600"
       : "border-line-strong focus:border-ink focus:ring-ink"

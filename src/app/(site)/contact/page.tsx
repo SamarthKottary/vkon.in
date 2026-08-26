@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { TiltCard } from "@/components/about/TiltCard";
 import { EnquiryForm } from "@/components/contact/EnquiryForm";
 import { ArrowRightIcon } from "@/components/icons/ui";
 import { SubscribePanel } from "@/components/layout/SubscribePanel";
@@ -117,20 +118,50 @@ export default function ContactPage() {
             {/* White card on the meadow canvas (2026-08-19 client request). The
                 map column stays open on the canvas by design — a single card
                 emphasises the form as the primary action, and the map iframe
-                already carries its own bordered plate. */}
-            <div className="border border-line bg-surface-raised p-6 shadow-card sm:p-8 lg:p-10">
-              <h2 className="text-2xl sm:text-3xl">Send us an enquiry</h2>
-              <p className="mt-4 max-w-xl leading-relaxed text-body">
-                Tell us what you need and where you are &mdash; pumps, panels,
-                solar or home automation. We&rsquo;ll point you at the right
-                product and your nearest dealer, and reply by phone or email.
-                Urgent? Call &mdash; it&rsquo;s faster than a form.
-              </p>
+                already carries its own bordered plate.
 
-              <div className="mt-10">
-                <EnquiryForm />
+                **`TiltCard max={0}` (client, 2026-08-27: "add the same glowing
+                white in dark mode and green in light mode animation to the
+                send us an enquiry box", then same day: "I just want the
+                glowing animation, not distorting the enquiry box")** — glow
+                only, rotation switched off. `max` scales `--rx`/`--ry` in
+                `TiltCard` (`(0.5 - py) * max * 2`, `(px - 0.5) * max * 2`), so
+                `max={0}` holds both at a permanent `0deg` while `--mx`/`--my`
+                and `data-active` — the glow's only inputs — are untouched;
+                no change to `TiltCard.tsx` or `globals.css`, and no effect on
+                the about page's own `TiltCard`s, which don't pass `max`. No
+                `tilt-layer` on the children either, unlike the about page's
+                boxes: that class puts a `translateZ(2.2rem)` on each child,
+                which under the wrapper's `perspective(900px)` reads as a
+                permanent ~4% enlargement even at `0deg` rotation (perspective
+                scales a z-translated element regardless of tilt) — a static
+                residual the client's "not distorting" wouldn't want kept, and
+                with rotation off there is no tilted face left for it to stand
+                off of anyway. No `max-w-*` on `TiltCard` itself, unlike the
+                about page's usage — there it was needed because those boxes
+                sit in a `grid-cols-[...]` layout with room to spare; here the
+                grid column (`lg:grid-cols-2` above) already constrains the
+                width, and `TiltCard` renders a plain block `<div>` that fills
+                it without help. */}
+            <TiltCard max={0}>
+              <div className="relative overflow-hidden border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8 lg:p-10">
+                <span
+                  aria-hidden
+                  className="tilt-glare pointer-events-none absolute inset-0"
+                />
+                <h2 className="text-2xl sm:text-3xl">Send us an enquiry</h2>
+                <p className="mt-4 max-w-xl leading-relaxed text-body">
+                  Tell us what you need and where you are &mdash; pumps, panels,
+                  solar or home automation. We&rsquo;ll point you at the right
+                  product and your nearest dealer, and reply by phone or email.
+                  Urgent? Call &mdash; it&rsquo;s faster than a form.
+                </p>
+
+                <div className="mt-10">
+                  <EnquiryForm />
+                </div>
               </div>
-            </div>
+            </TiltCard>
 
             <div>
               <h2 className="text-2xl sm:text-3xl">Where we are</h2>
@@ -154,14 +185,49 @@ export default function ContactPage() {
                 {formattedAddress}
               </address>
 
+              {/* `product/ProductCard`'s "View details" pattern, not
+                  `.link-cta` (client, 2026-08-27: "the open in google maps
+                  button should have the same animation as in view details
+                  button in featured product cards") — replaced rather than
+                  layered on top, since the two disagree on what the
+                  underline should do at rest: `.link-cta` keeps one visible
+                  always, turning green on hover; this keeps none visible
+                  until hover, then sweeps one in from the left. Running both
+                  on the same element would show two competing underline
+                  behaviours. `inline-flex`, not `flex` — "View details" uses
+                  `flex` because it is one of two items in a `justify-between`
+                  row there; here the link sits alone in normal page flow, and
+                  `inline-flex` is what sizes it to its own content instead of
+                  stretching. A named group (`group/maps`) keeps this scoped
+                  to itself regardless of what other `group`s exist elsewhere
+                  on the page.
+
+                  **The arrow uses `[transform:translateX(0.25rem)]`, not the
+                  named `translate-x-1` "View details" itself uses** — found
+                  while copying that pattern here: `translate-x-1` is silently
+                  a no-op in this Tailwind version, confirmed directly on both
+                  the original ("View details") and a fresh copy of this
+                  exact class, `getComputedStyle(svg).transform` reading
+                  `"none"` on hover either way. A fourth instance of the same
+                  bracket-value gap already on record in `ui/Button` and
+                  `product/ProductCard` for `scale-x-*` and `-translate-y-*`.
+                  Fixed here because this line was being written anyway; the
+                  original "View details" arrow was left as it is, same
+                  scoping decision as the other three instances. */}
               <a
                 href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="link-cta mt-5"
+                className="group/maps relative mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-ink transition-colors hover:text-accent"
               >
-                Open in Google Maps
-                <ArrowRightIcon className="h-4 w-4" />
+                <span className="relative">
+                  Open in Google Maps
+                  <span
+                    aria-hidden
+                    className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover/maps:[transform:scaleX(1)]"
+                  />
+                </span>
+                <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover/maps:[transform:translateX(0.25rem)]" />
               </a>
 
               <p className="label-tech mt-8 border-t border-line pt-6 text-muted">
