@@ -1,6 +1,5 @@
 import Image from "next/image";
 import { ArrowRightIcon } from "@/components/icons/ui";
-import { Button } from "@/components/ui/Button";
 
 export type SocialProfile = {
   key: string;
@@ -61,17 +60,89 @@ export type SocialProfile = {
  * hold a button inside it — nested interactive elements are invalid and give
  * the same destination two tab stops.
  */
+
+/**
+ * WCAG relative-luminance contrast, `black` (`--color-band`) or `white`
+ * against a given brand hex — whichever clears more of the 4.5:1 bar.
+ *
+ * Exists because the "View page" button's hover fill is `profile.color`
+ * itself (client, 2026-08-27: "view page button should have its respective
+ * colour... when cursor is hovered over it, it should have the loading
+ * animation... in their respective colours"), and no single fixed hover-text
+ * colour clears AA against all five brand colours at once: by this same
+ * formula, white passes against X's black (`#000000`, obviously) and
+ * LinkedIn's blue (`#0A66C2`, 5.7:1) but fails against Instagram's pink
+ * (4.3:1), Facebook's blue (4.2:1) and YouTube's red (4.0:1) — while black
+ * passes those three (4.8–5.3:1) but is invisible on X's black and fails
+ * LinkedIn's blue (3.7:1). Computed once per card from `profile.color`
+ * rather than hand-picked per platform, so a sixth platform added later gets
+ * a correct answer automatically instead of silently inheriting whichever
+ * fixed colour happened to be already in use.
+ */
+function contrastTextColor(hex: string): "black" | "white" {
+  const channels = hex.match(/[0-9a-f]{2}/gi) ?? ["00", "00", "00"];
+  const linear = (channel: string) => {
+    const c = parseInt(channel, 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance =
+    0.2126 * linear(channels[0]) + 0.7152 * linear(channels[1]) + 0.0722 * linear(channels[2]);
+  const contrastWithWhite = 1.05 / (luminance + 0.05);
+  const contrastWithBlack = (luminance + 0.05) / 0.05;
+  return contrastWithWhite >= contrastWithBlack ? "white" : "black";
+}
+
 export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
   const { Icon } = profile;
+  /* `dark:hover:`/`dark:focus-visible:`, not just `hover:`/`focus-visible:`
+     — found by testing dark mode specifically, not assumed: a plain
+     `hover:text-band` loses to `dark:text-band-ink` (the resting dark-mode
+     colour, below) when both match at once, i.e. hovering while the site is
+     in dark mode. Confirmed directly — Facebook's button, dark mode, hover:
+     text stayed the resting near-white instead of switching to black, which
+     is the one combination that actually needs to change (`dark:text-band-ink`
+     is white text for the black *resting* fill; the fill this is layered
+     over during hover is `profile.color`, not black, so the right hover
+     colour is independent of what dark mode's resting colour happens to be).
+     The compound variant is unambiguous rather than relying on cascade order
+     between two simple ones. */
+  const hoverTextClass =
+    contrastTextColor(profile.color) === "white"
+      ? "hover:text-white focus-visible:text-white dark:hover:text-white dark:focus-visible:text-white"
+      : "hover:text-band focus-visible:text-band dark:hover:text-band dark:focus-visible:text-band";
 
   return (
     <div
       style={{ "--brand": profile.color } as React.CSSProperties}
-      className="flex h-full flex-col"
+      /* `group`, not a second `:hover` zone — the platform name sits *above*
+         the card in DOM order, so a card-only `:hover` can never reach it
+         (sibling combinators only select forward). Making this wrapper the
+         hover boundary instead means either the name or the card triggers
+         both (client, 2026-08-27: "the box pop up to include name of the
+         social media above it as well"). */
+      className="group flex h-full flex-col"
     >
       {/* The platform, named above the card (client) rather than left to the
-          glyph in the chrome bar. */}
-      <div className="flex items-center gap-2">
+          glyph in the chrome bar.
+
+          Its own pop, distinct from the card's (client, same message: "the
+          name should pop up separately, the animation design is left to
+          you") — a scale rather than the card's lift, so the two read as two
+          things reacting together rather than one element dragging the
+          other. `transform-origin` defaults to centre, which is fine here:
+          the row has no siblings crowding it and scale does not consume
+          layout space the way a translate would, so there is nothing for an
+          8% grow to collide with. Arbitrary-property transform for the same
+          reason as the card below — named scale utilities are unverified in
+          this Tailwind version and arbitrary values need brackets regardless
+          for a non-standard multiplier like 1.08.
+
+          `justify-center` (client, 2026-08-27: "bring the social media names
+          to the centre") — the row is full width (it spans the same column
+          as the card below it), so centring is `justify-content`, not a
+          text-align: the icon travels with the name as one centred unit
+          rather than each being centred independently. */}
+      <div className="flex items-center justify-center gap-2 transition-transform duration-200 ease-out group-hover:[transform:scale(1.08)]">
         <Icon className="h-4 w-4 shrink-0 text-[var(--brand)]" />
         <h3 className="truncate text-[0.9375rem] font-medium tracking-tight text-ink">
           {profile.label}
@@ -82,18 +153,31 @@ export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
           scale: the vertical (`lg`) layout packs five of these in one row
           with a 12px gap, and this card is already only ~170px wide there,
           so scaling up risked the lifted card visibly overlapping its
-          neighbours. A lift reads as "picked up" without that risk. Hovering
-          anywhere on the card triggers it, including over the button inside
-          — there is no separate hover zone to miss, since this is one plain
-          `:hover` on the card itself, not something pointer-tracked.
+          neighbours. A lift reads as "picked up" without that risk. Triggered
+          by `group-hover` rather than the card's own `:hover` (client,
+          2026-08-27, see above) — hovering the name above now pops the card
+          too, not only hovering the card itself, which still works the same
+          way since hovering it is hovering inside the group.
 
-          `hover:[transform:translateY(-0.25rem)]`, not `hover:-translate-y-1`
-          — confirmed by testing that the named translate utilities are
-          silent no-ops in this Tailwind version (see the note on `ui/Button`'s
-          `sweepClasses`, found while building the button-sweep animation
-          right after this card). Arbitrary-property syntax sidesteps
-          whichever utility names this version does or doesn't ship. */}
-      <div className="mt-2 flex h-full flex-col overflow-hidden border border-line bg-surface-raised transition-[transform,box-shadow,border-color] duration-200 hover:[transform:translateY(-0.25rem)] hover:border-line-strong hover:shadow-card-hover">
+          `[transform:translateY(-0.25rem)]`, not `-translate-y-1` — confirmed
+          by testing that the named translate utilities are silent no-ops in
+          this Tailwind version (see the note on `ui/Button`'s `sweepClasses`,
+          found while building the button-sweep animation right after this
+          card). Arbitrary-property syntax sidesteps whichever utility names
+          this version does or doesn't ship.
+
+          Brand-coloured border, replacing the neutral `border-line`/
+          `border-line-strong` pair (client, same message: "the box... should
+          have its respective colour as boundary, also when pop up that
+          colour should increase") — `/35` at rest, full strength on hover,
+          so "increase" is literal: the same colour, more of it, not a
+          second colour swapped in. Width stays a constant `border-2` in both
+          states rather than also thickening on hover — changing
+          `border-width` reflows the box a pixel each way, and the opacity
+          jump alone already reads clearly as "more". `border-color` was
+          already in this element's transitioned property list, so the new
+          colour animates smoothly for free. */}
+      <div className="mt-2 flex h-full flex-col overflow-hidden border-2 border-[var(--brand)]/35 bg-surface-raised transition-[transform,box-shadow,border-color] duration-200 group-hover:[transform:translateY(-0.25rem)] group-hover:border-[var(--brand)] group-hover:shadow-card-hover">
         {/* Chrome bar. Showing the real URL is what makes the card read as a
             window onto a profile rather than as another styled link — and it
             tells the visitor where the button goes before they press it.
@@ -138,22 +222,50 @@ export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
             </p>
           </div>
 
-          <Button
+          {/* Bespoke `<a>`, not `ui/Button` (client, 2026-08-27: "view page
+              button should have its respective colour and when cursor is
+              hovered over it, it should have the loading animation like in
+              the explore our products and download our brochure button in
+              thier respective colours" — a per-platform sweep colour, which
+              `ui/Button`'s `sweep` prop cannot express since its fill is
+              hard-coded to `bg-accent`, one colour for every button that
+              uses it). Same reasoning as `SubscribePanel`'s button: reproduce
+              the sweep locally rather than fight a shared component's fixed
+              opinions. `href` is always a bare `https://` URL here, never an
+              internal path, so there is no routing logic to replicate from
+              `ui/Button` — a plain anchor is the whole of what it was doing
+              for this case.
+
+              Resting colour, `border-band`/`text-band` (black) in light
+              mode, `dark:border-band-ink`/`dark:text-band-ink` (white) in
+              dark mode (client, same message: "make the view our page
+              button white in dark mode and black in light mode") — same
+              literal black/white pairing as `SubscribePanel`'s button,
+              reusing those tokens for consistency rather than Tailwind's
+              plain `black`/`white`. Sweep fill is `before:bg-[var(--brand)]`
+              — the platform's own colour, matching the card's border. Hover
+              text colour is `hoverTextClass`, computed once above by
+              `contrastTextColor` rather than fixed, because no single
+              black-or-white choice is legible against all five brand
+              colours (see that function's comment for the numbers) — border
+              colour is left unchanged on hover since the fill sweep is
+              already the dominant signal, matching the resting choice
+              rather than also chasing the brand colour the way the card's
+              own border does. */}
+          <a
             href={profile.href}
             target="_blank"
             /* `noreferrer` alongside `noopener`, as in `Footer` — the platform
                is not told which page the visitor came from. */
             rel="noopener noreferrer"
-            variant="outline"
-            size="sm"
             /* The visible label is the same on all five cards, so the
                accessible name says which page it opens. */
             aria-label={`View our ${profile.label} page`}
-            className="ml-auto lg:ml-0 lg:mt-auto lg:w-full"
+            className={`relative isolate ml-auto inline-flex h-8 shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-sm border border-band px-3 text-[0.8125rem] font-medium whitespace-nowrap text-band transition-colors before:absolute before:inset-0 before:-z-10 before:origin-left before:[transform:scaleX(0)] before:bg-[var(--brand)] before:transition-transform before:duration-700 before:ease-out before:content-[''] hover:before:[transform:scaleX(1)] focus-visible:before:[transform:scaleX(1)] dark:border-band-ink dark:text-band-ink lg:ml-0 lg:mt-auto lg:w-full ${hoverTextClass}`}
           >
             View page
             <ArrowRightIcon className="h-3.5 w-3.5" />
-          </Button>
+          </a>
         </div>
       </div>
     </div>
