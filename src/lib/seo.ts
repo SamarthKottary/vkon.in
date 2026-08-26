@@ -71,11 +71,23 @@ export function pageMetadata({
 /**
  * Organisation + local business data. Rendered once in the root layout so the
  * phone number and address are eligible to appear directly in search results.
- */
+ *
+ * `@type` is `["Organization", "LocalBusiness"]`, not `"LocalBusiness"` alone
+ * (flagged 2026-08-27: a plain `LocalBusiness` type is what Google's Logo
+ * structured-data guidelines warn against — their own examples use
+ * `Organization`, and a business-only type reportedly does not reliably feed
+ * their logo/Knowledge Panel indexing pipeline, even though `LocalBusiness`
+ * technically extends `Organization`). An array of types is valid JSON-LD,
+ * and every field already set below (`address`, `telephone`, `foundingDate`,
+ * `areaServed`) is a plain `Organization`-or-inherited property, not
+ * something `Place`-specific like `openingHoursSpecification` or `geo` that
+ * only `LocalBusiness` would carry — so nothing already working (the phone
+ * number and address search results this function's own comment mentions)
+ * is put at risk by adding `Organization` alongside it, only gained. */
 export function organizationJsonLd() {
   return {
     "@context": "https://schema.org",
-    "@type": "LocalBusiness",
+    "@type": ["Organization", "LocalBusiness"],
     "@id": `${site.url}#organization`,
     name: site.legalName,
     alternateName: site.name,
