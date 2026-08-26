@@ -163,7 +163,18 @@ export default function ContactPage() {
               </div>
             </TiltCard>
 
-            <div>
+            {/* Boxed briefly (2026-08-27), then reverted the same day — client:
+                "No remove the box and animation on where we are. Just align
+                where we are text with send us an enquiry text". Only the
+                alignment survives: `pt-6 sm:pt-8 lg:pt-10` matches the
+                enquiry card's own top padding exactly, so this heading sits
+                at the same distance from the row's top as that one without
+                carrying any of the border/background/shadow/glow that
+                produced the same effect a moment ago. Horizontal padding is
+                deliberately not included — there is no box edge here to
+                inset from, so padding left/right would only shift the
+                content for no visible reason. */}
+            <div className="pt-6 sm:pt-8 lg:pt-10">
               <h2 className="text-2xl sm:text-3xl">Where we are</h2>
 
               {/* Google Maps embed via the keyless `output=embed` URL — see
