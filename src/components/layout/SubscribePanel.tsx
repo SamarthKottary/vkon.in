@@ -136,8 +136,25 @@ export function SubscribePanel() {
                   {/* The pill is opaque, not translucent. Over a photograph a
                       see-through field puts leaves behind the text a visitor is
                       typing, and the placeholder contrast then depends on which
-                      part of the picture it lands on. */}
-                  <div className="mt-3 flex items-center gap-2 rounded-full border border-band-line bg-band p-1.5 pl-5 transition-colors focus-within:border-band-accent">
+                      part of the picture it lands on.
+
+                      `dark:bg-white` (client, 2026-08-27: "make the button and
+                      input box white in dark mode and black in light mode")
+                      — deliberately breaks from `band-*`'s usual theme
+                      invariance (documented beside the tokens themselves:
+                      calibrated for the photograph, not the page toggle).
+                      Light mode keeps the existing `bg-band` unchanged — it
+                      was already near-black, which is what "black in light
+                      mode" asks for. `dark:text-band` and a hard-coded
+                      `dark:placeholder:text-[#5a636c]` follow the background
+                      swap for legibility: `text-band-ink` (white) would be
+                      invisible on the new white surface, and there is no
+                      existing "muted-on-a-light-surface, regardless of page
+                      theme" token to reach for, since every semantic token
+                      here auto-inverts with the page — so this reuses
+                      `--color-muted`'s own light-theme value verbatim rather
+                      than inventing an unrelated grey. */}
+                  <div className="mt-3 flex items-center gap-2 rounded-full border border-band-line bg-band p-1.5 pl-5 transition-colors focus-within:border-band-accent dark:bg-white">
                     <input
                       id="subscribe-email"
                       name="email"
@@ -148,7 +165,7 @@ export function SubscribePanel() {
                       placeholder="you@example.com"
                       aria-invalid={state.status === "error"}
                       aria-describedby="subscribe-note"
-                      className="min-w-0 flex-1 bg-transparent py-2 text-band-ink placeholder:text-band-muted focus:outline-none"
+                      className="min-w-0 flex-1 bg-transparent py-2 text-band-ink placeholder:text-band-muted focus:outline-none dark:text-band dark:placeholder:text-[#5a636c]"
                     />
                     <SubmitButton />
                   </div>
@@ -191,13 +208,50 @@ export function SubscribePanel() {
 function SubmitButton() {
   const { pending } = useFormStatus();
 
-  /* `text-band` on `bg-band-accent`, not white: white on the accent green is
-     1.9:1. Both tokens are theme-invariant, so this pair holds in both. */
+  /* Resting colour (client, 2026-08-27: "make the button and input box white
+     in dark mode and black in light mode... the subscribe button glows from
+     white to green or black to green") — `bg-band`/`text-band-ink` (black,
+     white text) in light mode, `dark:bg-white`/`dark:text-band` (white,
+     black text) in dark mode. `band-accent`, the resting green this replaced,
+     is gone from this button entirely now; the ordinary `accent` token
+     — already theme-aware by design, unlike the `band-*` family — is used
+     for the sweep fill only, chosen over `band-accent` for the sweep
+     specifically because of the light-mode pairing with white text: `accent`
+     is `#23703d` in light mode against `band-accent`'s `#4cae81`, and by the
+     WCAG relative-luminance formula white on the darker `#23703d` is 6.1:1
+     where white on `#4cae81` is only 2.7:1 — `accent` was the choice that
+     needed no compromise anywhere. All four resting/hover × light/dark
+     combinations clear 4.5:1: ~17:1 for both resting pairs (near-black on
+     white or the reverse), 6.1:1 for light mode's hover (white text on
+     `#23703d`), 6.2:1 for dark mode's (`dark:text-band` on `accent`'s dark
+     value, `#4cae81` — which happens to equal `band-accent` exactly).
+
+     Sweep mechanics (client, 2026-08-27, earlier the same day: "add the
+     loading animation to the subscribe button") — the same `::before`
+     left-to-right fill as `ui/Button`'s `sweep` prop, reproduced locally
+     rather than switched to that shared component: `ui/Button` is hard-set
+     to `rounded-sm` ("No pills, no shadows" is stated as a rule there) and
+     its colour variants don't include the `band-*` tokens this button still
+     needs for the border and the input pill beside it. Replaces
+     `hover:opacity-90` — with the sweep as the hover signal, a second
+     competing one (dimming the button, including the sweep layer itself)
+     would only muddy it. `isolate` scopes the `-z-10` pseudo-element's
+     stacking to this button, matching `ui/Button`'s own reasoning;
+     `overflow-hidden` clips the fill to the pill's `rounded-full`, not a
+     square corner poking out of a round one.
+
+     `border-2 border-accent` (client, 2026-08-27: "Lets have green outline
+     on the subscribe button") — same theme-aware `accent` token as the
+     sweep fill, so the outline is the exact colour the button flоods to on
+     hover rather than a second green needing its own justification. Drawn
+     on the button itself, not the pill wrapper around it, so it frames the
+     button specifically; the pill's own `border-band-line` is unrelated and
+     untouched. */
   return (
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex shrink-0 items-center gap-2 rounded-full bg-band-accent px-4 py-2.5 text-sm font-medium text-band transition-opacity hover:opacity-90 disabled:opacity-60 sm:px-5"
+      className="relative isolate inline-flex shrink-0 items-center gap-2 overflow-hidden rounded-full border-2 border-accent bg-band px-4 py-2.5 text-sm font-medium text-band-ink transition-colors before:absolute before:inset-0 before:-z-10 before:origin-left before:[transform:scaleX(0)] before:bg-accent before:transition-transform before:duration-700 before:ease-out before:content-[''] hover:before:[transform:scaleX(1)] focus-visible:before:[transform:scaleX(1)] disabled:opacity-60 sm:px-5 dark:bg-white dark:text-band"
     >
       {/* The arrow goes at 390px, where the button was eating enough of the
           pill to clip the placeholder mid-word. The spinner is not decoration —
