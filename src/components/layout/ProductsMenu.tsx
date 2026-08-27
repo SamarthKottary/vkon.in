@@ -211,12 +211,33 @@ export function ProductsMenu({
                     {sector.categories.map((category) => (
                       <li key={category.key}>
                         {category.count > 0 ? (
+                          /* `product/ProductCard`'s "View details" sweep,
+                             carried over here too (client, 2026-08-27,
+                             after asking for the same on `SectorBrowser`'s
+                             identical sub-category list the day before:
+                             "Lets make all the sub categories and all
+                             products button have the same animation as in
+                             view details of featured product cards" — this
+                             dropdown was the one place that request hadn't
+                             reached yet). `text-ink`/`hover:text-accent`
+                             already matched; new here is the underline that
+                             sweeps in from the left. An arrow was tried
+                             alongside it and then dropped (client, same day:
+                             "lets not have the -> arrow symbol just the name
+                             and animation is enough") — unlike
+                             `SectorBrowser`'s "All N in sector" link, which
+                             kept the arrow it gained from the same request,
+                             this row stays name-plus-underline only. */
                           <Link
                             href={`/products?category=${category.key}`}
                             onClick={onClose}
-                            className="block text-[0.9375rem] text-ink hover:text-accent"
+                            className="group/cat relative inline-block text-[0.9375rem] text-ink transition-colors hover:text-accent"
                           >
                             {category.label}
+                            <span
+                              aria-hidden
+                              className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover/cat:[transform:scaleX(1)]"
+                            />
                           </Link>
                         ) : (
                           <p className="flex items-baseline gap-2 text-[0.9375rem] text-muted">
@@ -236,9 +257,23 @@ export function ProductsMenu({
             </div>
 
             <div className="border-t border-line py-5">
-              <Link href="/products" onClick={onClose} className="link-cta">
-                All products
-                <ArrowRightIcon className="h-4 w-4" />
+              {/* Was `.link-cta`, a bordered always-underlined pill — same
+                  swap already made for `home/Hero`'s "Explore" link the day
+                  before, for the same reason (client, this request): the
+                  "View details" sweep in place of the pill. */}
+              <Link
+                href="/products"
+                onClick={onClose}
+                className="group/all relative inline-flex items-center gap-1.5 font-medium text-ink transition-colors hover:text-accent"
+              >
+                <span className="relative">
+                  All products
+                  <span
+                    aria-hidden
+                    className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover/all:[transform:scaleX(1)]"
+                  />
+                </span>
+                <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover/all:[transform:translateX(0.25rem)]" />
               </Link>
             </div>
           </Container>

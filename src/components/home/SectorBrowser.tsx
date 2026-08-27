@@ -321,7 +321,23 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
                           list. */}
                       <Link
                         href={`/products?sector=${sector.key}`}
-                        className="group/all relative inline-flex items-center gap-1.5 text-[0.9375rem] font-medium text-ink transition-colors hover:text-accent"
+                        /* `whitespace-nowrap` (client, 2026-08-27: "the All N
+                           in sub category button is in 2 lines... I want it
+                           to always be in 1 line") — `AddToCartButton` notes
+                           the same fix for the same underlying cause: a text
+                           node inside a flex row has no width of its own, so
+                           without `nowrap` the browser is free to shrink it
+                           down toward its narrowest unbreakable word — here
+                           "Agriculture" or whichever sector is longest — and
+                           wrap the rest onto a second line, on a wide enough
+                           font scale or narrow enough card that it becomes
+                           the shortest way to fit. `nowrap` removes that
+                           option entirely, so this row is always exactly one
+                           line; if a sector name ever gets long enough to
+                           still not fit, this makes the row spill past its
+                           card rather than wrap it, which is not this fix's
+                           problem to solve until a name that long exists. */
+                        className="group/all relative inline-flex items-center gap-1.5 whitespace-nowrap text-[0.9375rem] font-medium text-ink transition-colors hover:text-accent"
                       >
                         <span className="relative">
                           {`All ${total} in ${sector.label}`}

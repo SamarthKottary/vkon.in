@@ -798,7 +798,19 @@ function FeaturedCard({
       >
         <Link
           href={`/products/${product.slug}`}
-          className="group/details relative flex items-center gap-1.5 text-sm font-medium text-ink transition-colors hover:text-accent"
+          /* `shrink-0 whitespace-nowrap` (client, 2026-08-27: "the view
+             details button is in 2 lines... I want it to be in one line" —
+             happening "sometimes", not always, is the tell). This row's
+             other child, `AddToCartButton`, already carries both classes
+             itself and explains why in its own doc comment: once a product
+             is already in the cart it swaps for the wider `QuantityStepper`,
+             and a flex child with no `shrink-0` of its own absorbs 100% of
+             the resulting squeeze — which is exactly this Link, exactly
+             when the row runs out of room, exactly the "sometimes" the
+             client saw. `shrink-0` stops it giving up width at all;
+             `whitespace-nowrap` stops the text wrapping even if it
+             somehow still did. */
+          className="group/details relative flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-ink transition-colors hover:text-accent"
         >
           <span className="relative">
             View details
