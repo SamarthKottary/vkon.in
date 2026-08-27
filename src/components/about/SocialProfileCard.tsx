@@ -94,6 +94,19 @@ function contrastTextColor(hex: string): "black" | "white" {
 
 export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
   const { Icon } = profile;
+  /* X's brand colour is pure black — the one card where "brand colour" and
+     "invisible on a dark page" are the same thing (client, 2026-08-27: "in
+     dark mode lets make X social media profile when poped up white grey
+     colour. Also the view page button loading animation colour to white
+     grey as well"). Every other platform's colour stays identical in both
+     themes, same as the border/sweep it drives — only X gets a dark-mode
+     override, on the card border below and the button's sweep fill and
+     (see `hoverTextClass`) its swept-state text colour. `text-body`'s dark
+     value (`#c3c9cf`) was picked over literal white for "white grey" as
+     asked, rather than reusing `band-ink`, which this file already uses
+     for actual white and would have made the two indistinguishable in
+     intent. */
+  const isX = profile.key === "x";
   /* `dark:hover:`/`dark:focus-visible:`, not just `hover:`/`focus-visible:`
      — found by testing dark mode specifically, not assumed: a plain
      `hover:text-band` loses to `dark:text-band-ink` (the resting dark-mode
@@ -105,9 +118,25 @@ export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
      over during hover is `profile.color`, not black, so the right hover
      colour is independent of what dark mode's resting colour happens to be).
      The compound variant is unambiguous rather than relying on cascade order
-     between two simple ones. */
-  const hoverTextClass =
-    contrastTextColor(profile.color) === "white"
+     between two simple ones.
+
+     Branched into full, literal class strings rather than building one from
+     an interpolated colour name (`` `text-${choice}` ``) — Tailwind's
+     scanner matches complete utility names as they appear in the source
+     text, not values assembled at runtime, so a class name split across an
+     interpolation boundary is invisible to it and silently generates no
+     CSS. Every branch below is one complete string for exactly that reason.
+
+     X gets its own branch: its light-mode sweep is still pure black, so
+     white text is still right there, but its *dark-mode* sweep is now the
+     light-grey override below — white-on-light-grey measures ~1.7:1 by the
+     same formula `contrastTextColor` uses, worse than the black-on-black
+     this file already fixed once. Every other platform keeps one colour in
+     both themes, so its branch is unchanged from before this file knew X
+     existed. */
+  const hoverTextClass = isX
+    ? "hover:text-white focus-visible:text-white dark:hover:text-band dark:focus-visible:text-band"
+    : contrastTextColor(profile.color) === "white"
       ? "hover:text-white focus-visible:text-white dark:hover:text-white dark:focus-visible:text-white"
       : "hover:text-band focus-visible:text-band dark:hover:text-band dark:focus-visible:text-band";
 
@@ -176,8 +205,23 @@ export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
           `border-width` reflows the box a pixel each way, and the opacity
           jump alone already reads clearly as "more". `border-color` was
           already in this element's transitioned property list, so the new
-          colour animates smoothly for free. */}
-      <div className="mt-2 flex h-full flex-col overflow-hidden border-2 border-[var(--brand)]/35 bg-surface-raised transition-[transform,box-shadow,border-color] duration-200 group-hover:[transform:translateY(-0.25rem)] group-hover:border-[var(--brand)] group-hover:shadow-card-hover">
+          colour animates smoothly for free.
+
+          `dark:group-hover:border-body` appended for X only (client,
+          2026-08-27: "in dark mode lets make X social media profile when
+          poped up white grey colour") — `#000000` popped against this
+          page's dark-mode ground is a black border on a near-black page,
+          effectively invisible; every other platform's brand colour reads
+          fine in both themes and gets no override. `border-body`, not a raw
+          hex: `--color-body`'s dark value (`#c3c9cf`) is already this
+          project's "light grey/off-white" text tone, so "white grey" reuses
+          an existing token rather than introducing a new one. Appended as a
+          complete literal string via `isX`, not built by interpolating a
+          colour into the class name — see the note on `hoverTextClass`
+          above for why that matters to Tailwind's scanner. */}
+      <div
+        className={`mt-2 flex h-full flex-col overflow-hidden border-2 border-[var(--brand)]/35 bg-surface-raised transition-[transform,box-shadow,border-color] duration-200 group-hover:[transform:translateY(-0.25rem)] group-hover:border-[var(--brand)] group-hover:shadow-card-hover${isX ? " dark:group-hover:border-body" : ""}`}
+      >
         {/* Chrome bar. Showing the real URL is what makes the card read as a
             window onto a profile rather than as another styled link — and it
             tells the visitor where the button goes before they press it.
@@ -251,7 +295,19 @@ export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
               colour is left unchanged on hover since the fill sweep is
               already the dominant signal, matching the resting choice
               rather than also chasing the brand colour the way the card's
-              own border does. */}
+              own border does.
+
+              `dark:before:bg-body` appended for X only (client, same
+              message: "the view page button loading animation colour to
+              white grey as well") — same reasoning and same token as the
+              card border's own dark-mode override two comments up: X's
+              black sweep fill is invisible against this page's dark-mode
+              ground, and `--color-body`'s dark value is this project's
+              existing "white grey" tone rather than a new one invented for
+              this. This is also *why* `hoverTextClass` needed its own X
+              branch above — white hover text was correct against the black
+              light-mode fill, but would have gone illegible against this
+              lighter dark-mode one. */}
           <a
             href={profile.href}
             target="_blank"
@@ -261,7 +317,7 @@ export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
             /* The visible label is the same on all five cards, so the
                accessible name says which page it opens. */
             aria-label={`View our ${profile.label} page`}
-            className={`relative isolate ml-auto inline-flex h-8 shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-sm border border-band px-3 text-[0.8125rem] font-medium whitespace-nowrap text-band transition-colors before:absolute before:inset-0 before:-z-10 before:origin-left before:[transform:scaleX(0)] before:bg-[var(--brand)] before:transition-transform before:duration-700 before:ease-out before:content-[''] hover:before:[transform:scaleX(1)] focus-visible:before:[transform:scaleX(1)] dark:border-band-ink dark:text-band-ink lg:ml-0 lg:mt-auto lg:w-full ${hoverTextClass}`}
+            className={`relative isolate ml-auto inline-flex h-8 shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-sm border border-band px-3 text-[0.8125rem] font-medium whitespace-nowrap text-band transition-colors before:absolute before:inset-0 before:-z-10 before:origin-left before:[transform:scaleX(0)] before:bg-[var(--brand)] before:transition-transform before:duration-700 before:ease-out before:content-[''] hover:before:[transform:scaleX(1)] focus-visible:before:[transform:scaleX(1)] dark:border-band-ink dark:text-band-ink lg:ml-0 lg:mt-auto lg:w-full ${hoverTextClass}${isX ? " dark:before:bg-body" : ""}`}
           >
             View page
             <ArrowRightIcon className="h-3.5 w-3.5" />
