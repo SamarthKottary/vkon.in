@@ -1,32 +1,63 @@
-"use client";
-
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeftIcon, ArrowRightIcon } from "@/components/icons/ui";
 import { ProductCard } from "@/components/product/ProductCard";
 import type { CategoryMeta, Product } from "@/lib/types";
 
 /**
  * One category on the catalogue: a heading, then the category's products in
- * **two independently scrolling rows**.
+ * a responsive grid.
  *
- * Cards fill **column-first** — card 2 sits under card 1, card 3 to the right
- * of card 1, card 4 under card 3, and so on. Three cards are visible per row
- * at `lg`, two at `sm`, one on a phone, so a category of six fills the desktop
- * view exactly and the seventh is the first thing you scroll to.
+ * **Row-first, three per row from `xl`, two from `sm`, one below it**
+ * (client, 2026-08-27: "product cards in a category to be arranged 3 in
+ * row. Then the 4th card will come to the next row and then 7th card to
+ * the next row and so on… in mobile view the products should be one in
+ * each row… when i reduce web page size it should adjust by bringing
+ * product cards down… from 3 to 2 to 1"). Ordinary breakpoint-switched
+ * `grid-cols-N`, which gives ordinary row-major flow (1 2 3 / 4 5 6 / 7 8
+ * 9) with no script watching anything — but every tier's columns are
+ * `minmax(17.5rem,1fr)`, not a bare `1fr` (client, same day, next message:
+ * "when i reduce page size, do not reduce the product card size"): a bare
+ * `1fr` column is still exactly as wide as the results area divided by the
+ * column count, so a card's actual rendered width would keep shrinking
+ * continuously with the browser window at any width *between* two
+ * breakpoints — only the *column count* was ever discrete, not the card
+ * itself, and that continuous part is what the client was seeing. The
+ * floor stops a card ever rendering narrower than 17.5rem; a short row
+ * (fewer products than columns) or a wide one still lets cards grow past
+ * that floor to fill the space evenly, since it is a `minmax` floor, not a
+ * fixed size.
  *
- * **Each row scrolls on its own and carries its own arrows.** Paging the top
- * row leaves the bottom one where it was. That is why the rows are two
- * separate scroll containers rather than one two-row grid, and why the arrow
- * pair moved off the heading and onto each row: a single control driving both
- * rows would contradict the independence the split exists to provide.
+ * **Three columns start at `xl` (1280px), not `lg` (1024px), and the floor
+ * is 17.5rem, not a rounder 18rem or 20rem — both numbers were solved for,
+ * not guessed.** This grid sits beside a fixed `14rem` filter rail from
+ * `lg` up (`ProductCatalogue`'s `lg:grid-cols-[minmax(0,14rem)_...]`), so
+ * the results column is narrower than the viewport by the rail, its
+ * `3rem` gap, and the page's own side padding — at `lg`'s own lower edge
+ * (1024px) that leaves only ~688px for the grid, enough for two
+ * comfortable columns but not three without shrinking below the floor.
+ * `Container size="wide"` caps at `max-w-7xl` (1280px) — which is exactly
+ * Tailwind's `xl` — so past that point the page stops growing and the
+ * results column settles at a known ceiling, ~944px; three 17.5rem columns
+ * plus two `1.5rem` gaps is 888px, comfortably under it. Below `lg`, the
+ * rail collapses to a toggle button and stops competing for width at all,
+ * so the *same* floor clears two columns far earlier there (from `sm`,
+ * 640px) without ever needing three; picking `xl` for three specifically —
+ * rather than, say, `auto-fit` sizing every tier off the grid's own actual
+ * width — is what keeps the column count strictly 3 → 2 → 1 as the window
+ * narrows. `auto-fit` was tried first and produces a real, measured
+ * regression here: the rail's own disappearance at `lg`'s boundary hands
+ * the grid back more width than it had just above that boundary, so a
+ * width-driven column count jumps 3 → 2 → **3** → 2 → 1 while narrowing
+ * through 1024–960px — not what "reduce from 3 to 2 to 1" asked for.
  *
- * Because the two rows never merge into one at any breakpoint, this needs no
- * `display: contents` trick and no duplicated markup — an earlier build did
- * merge them at `lg` and had to work around both.
- *
- * The second row is only rendered when there is something in it; a category
- * holding one product would otherwise get an empty track and its margin,
- * which read as a gap before the next category.
+ * **Replaced two independently-scrolling, column-first tracks with paging
+ * arrows** (client, same message: "lets remove the left and right toggle
+ * button"). That build filled column-first — card 2 under card 1, not
+ * beside it — specifically so each row's *own* scroll made sense as a
+ * self-contained unit; once nothing scrolls, column-first ordering is not
+ * "3 in a row, 4th starts the next row" at all, it is two ordinary reading
+ * orders decided by an implementation detail the visitor never sees framed as
+ * such. This file was `"use client"` for that build's `ResizeObserver` and
+ * scroll-position state; none of that remains, so this is a plain server
+ * component now, needing neither the directive nor a ref of its own.
  */
 export function ProductRow({
   category,
@@ -39,13 +70,6 @@ export function ProductRow({
 }) {
   const headingId = `catalogue-${category.key}`;
 
-  /* Column-first, so the pair a visitor sees stacked at rest is 1/2, then
-     3/4 beside it. Alternate indices are exactly that ordering: evens on top,
-     odds beneath. Note the pairing only holds at rest — the rows scroll
-     independently, so the first swipe offsets them, which is intended. */
-  const top = products.filter((_, index) => index % 2 === 0);
-  const bottom = products.filter((_, index) => index % 2 === 1);
-
   return (
     <section aria-labelledby={headingId}>
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-line pb-4">
@@ -57,139 +81,13 @@ export function ProductRow({
         </p>
       </div>
 
-      <div className="mt-5 flex flex-col gap-8">
-        <Track
-          products={top}
-          category={category.label}
-          rowLabel="top row"
-          priority={priority}
-        />
-        {bottom.length > 0 && (
-          <Track
-            products={bottom}
-            category={category.label}
-            rowLabel="second row"
-          />
-        )}
-      </div>
-    </section>
-  );
-}
-
-/**
- * A single scrolling row and the arrows that drive it.
- *
- * Self-contained on purpose: each instance owns its ref, its scrollability
- * state and its own controls, which is what makes two of them independent
- * without any coordination between them.
- */
-function Track({
-  products,
-  category,
-  rowLabel,
-  priority = false,
-}: {
-  products: Product[];
-  category: string;
-  /** Distinguishes the two rows for screen readers. */
-  rowLabel: string;
-  priority?: boolean;
-}) {
-  const trackRef = useRef<HTMLUListElement>(null);
-  const [canScroll, setCanScroll] = useState({ left: false, right: false });
-
-  const sync = useCallback(() => {
-    const el = trackRef.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
-  }, []);
-
-  /* No priming `sync()` call: `observe()` fires the callback once as soon as
-     it starts observing, so the first measurement arrives on its own. Calling
-     it here would also be setting state synchronously in an effect body,
-     which `react-hooks/set-state-in-effect` rejects. */
-  useEffect(() => {
-    const el = trackRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(sync);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [sync, products.length]);
-
-  /** Pages by one card, measured from the DOM so it follows the breakpoint. */
-  const page = (direction: 1 | -1) => {
-    const el = trackRef.current;
-    if (!el) return;
-    const first = el.firstElementChild as HTMLElement | null;
-    const step = first ? first.getBoundingClientRect().width + 24 : el.clientWidth;
-    el.scrollBy({ left: step * direction, behavior: "smooth" });
-  };
-
-  return (
-    <div className="relative">
-      <ul
-        ref={trackRef}
-        onScroll={sync}
-        aria-label={`${category}, ${rowLabel}`}
-        className="hscroll flex snap-x snap-mandatory items-stretch gap-6 overflow-x-auto"
-      >
+      <ul className="mt-5 grid grid-cols-[minmax(17.5rem,1fr)] gap-6 sm:grid-cols-[repeat(2,minmax(17.5rem,1fr))] xl:grid-cols-[repeat(3,minmax(17.5rem,1fr))]">
         {products.map((product, index) => (
-          <li
-            key={product.id}
-            className="w-[82%] flex-none snap-start sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)]"
-          >
+          <li key={product.id}>
             <ProductCard product={product} priority={priority && index === 0} />
           </li>
         ))}
       </ul>
-
-      {/* Paging arrows overlaid on the track's left and right edges, vertically
-          centred over the cards, rather than above the row. Each shows only
-          when that direction can still scroll, so a control never sits dead
-          over a card and the row that already fits shows none. */}
-      {canScroll.left && (
-        <PageButton
-          label={`Previous ${category}, ${rowLabel}`}
-          onClick={() => page(-1)}
-          className="left-2"
-        >
-          <ArrowLeftIcon className="h-4 w-4" />
-        </PageButton>
-      )}
-      {canScroll.right && (
-        <PageButton
-          label={`More ${category}, ${rowLabel}`}
-          onClick={() => page(1)}
-          className="right-2"
-        >
-          <ArrowRightIcon className="h-4 w-4" />
-        </PageButton>
-      )}
-    </div>
-  );
-}
-
-function PageButton({
-  label,
-  onClick,
-  className = "",
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  /** Positioning against the track — `left-2` or `right-2`. */
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface-raised text-ink shadow-card-hover transition-colors hover:border-ink ${className}`}
-    >
-      {children}
-      <span className="sr-only">{label}</span>
-    </button>
+    </section>
   );
 }

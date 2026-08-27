@@ -135,9 +135,11 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
   return (
     <div /* `minmax(0,1fr)` for the results, not `1fr`. A bare `1fr` is
          `minmax(auto,1fr)`, and `auto` refuses to shrink below the column's
-         min-content width — which for a horizontal scroller is the width of
-         all its cards. The results column then expands and crushes the rail
-         into a two-character ribbon. */
+         min-content width — for `ProductRow`'s grid of cards that is the
+         widest unbreakable run of text in any card (a long product name, an
+         HP figure), not the whole track the way it was before that became a
+         wrapping grid instead of a horizontal scroller. The results column
+         then expands and crushes the rail into a two-character ribbon. */
       className="lg:grid lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] lg:gap-12">
       {/* The rail. `self-start` stops it stretching to the grid row height,
           which would break `sticky`. */}

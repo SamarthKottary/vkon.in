@@ -127,13 +127,37 @@ export function ProductCard({
             already one stretched link and adding another would give it two tab
             stops for the same destination. The cart button beside it is the
             only real control here, which is why it — and it alone — carries
-            `relative z-10` to sit above the stretched link's overlay. */}
+            `relative z-10` to sit above the stretched link's overlay.
+
+            Both controls now get `FeaturedCard`'s footer treatment (client,
+            2026-08-27: "same animation in view details and add button in
+            all products page, same as ... featured product cards"). The
+            underline keys off the plain, unnamed `group-hover:` already
+            colouring "View details" — no named group like `FeaturedCard`'s
+            `group/details` is needed, because this card's whole surface is
+            already the one hover target `AddToCartButton` alone breaks out
+            of, unlike `FeaturedCard`, whose stretched link stops at the
+            image and leaves this row as a second, independent hover
+            target. `[transform:translateX(0.25rem)]`, not `translate-x-1`
+            — this line was already being rewritten for the sweep, so this
+            is where that Tailwind gap (on record elsewhere, including
+            `FeaturedCard`'s own copy of this same arrow before its 2026-08-26
+            fix) gets fixed here too, rather than left as a second
+            unfixed instance next to an already-fixed one. */}
         <div className="mt-auto flex items-center justify-between gap-3 pt-6">
-          <span className="flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-accent">
-            View details
-            <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-1" />
+          <span className="relative flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-accent">
+            <span className="relative">
+              View details
+              <span
+                aria-hidden
+                className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover:[transform:scaleX(1)]"
+              />
+            </span>
+            <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover:[transform:translateX(0.25rem)]" />
           </span>
-          <AddToCartButton slug={product.slug} name={product.name} size="compact" />
+          <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
+            <AddToCartButton slug={product.slug} name={product.name} size="compact" />
+          </div>
         </div>
       </div>
     </article>
