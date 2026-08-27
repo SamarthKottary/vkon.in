@@ -219,7 +219,38 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
               if (card) setHoveredId(card.dataset.productId ?? null);
             }}
             onMouseLeave={() => setHoveredId(null)}
-            className="hscroll mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto px-1 py-4"
+            /* `mx-[calc(50%-50vw)]`, not the implicit inset it used to sit
+               at inside this section's own `max-w-7xl` container (client,
+               2026-08-27: "for recent viewed, the products should start
+               and end at the literal page ending not at fixed position" —
+               same report and same fix as `home/FeaturedProducts`, see
+               that component's own note on this exact class for why the
+               formula works at any viewport width including one widened
+               past the container's cap by zooming out). `px-6 sm:px-7
+               lg:px-9`, not the previous bare `px-1`: with the container's
+               own padding no longer providing any inset now that this
+               breaks out of it, this reproduces that lost inset directly
+               — and matches `FeaturedProducts`' own track padding exactly,
+               which was tuned specifically to clear a popped card's
+               `shadow-card-hover` bleed, a concern this track shares
+               (same pop treatment, same shadow) but had never carried
+               padding generous enough to actually cover.
+
+               **`justify-center` while `!showArrows`, `justify-start`
+               otherwise** — same reasoning as `FeaturedProducts`' own
+               identical conditional, see its note (client, follow-up:
+               "for recent viewed... do not stretch instead just fit and
+               centre"). `!showArrows` is this component's equivalent of
+               that one's `!canLoop`: both mean "nothing here actually
+               overflows," the one case a fixed-width flex row's leftover
+               space should be split evenly around it rather than left as
+               a trailing gap — and, same caveat, the only case it is safe
+               to centre at all, since a centred *overflowing* scroll
+               container makes `scrollLeft: 0` ambiguous across browsers
+               in a way this track's own snap alignment cannot afford. */
+            className={`hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto px-6 py-4 sm:px-7 lg:px-9 ${
+              showArrows ? "justify-start" : "justify-center"
+            }`}
           >
             {recent.map((product) => (
               <li
@@ -229,8 +260,18 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                    a 112px image and a spec column side by side, and at 82% the
                    column was too narrow for a spec to fit on one line at all.
                    The peek of the next card is smaller as a result, which is
-                   the trade. */
-                className={`relative w-[92%] flex-none snap-center sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] ${
+                   the trade.
+
+                   `lg:w-[392px]`, not `lg:w-[calc((100%-2rem)/3)]` (client,
+                   follow-up: "do not stretch instead just fit and centre")
+                   — same fix as `FeaturedProducts`' own card width, and for
+                   the same reason: a percentage of the track's own width
+                   keeps growing as the track does, which is what "stretch"
+                   meant once the track above went full-bleed. 392px is not
+                   a guess — it is what the old formula already rendered at
+                   exactly 1280px, this page's own width ceiling before
+                   today, so nothing changes at or under that width. */
+                className={`relative w-[92%] flex-none snap-center sm:w-[calc((100%-1rem)/2)] lg:w-[392px] ${
                   poppedId === product.id ? "z-10" : "z-0"
                 }`}
               >

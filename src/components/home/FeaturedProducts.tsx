@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -421,27 +421,56 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     setStepIndex(Math.round(el.scrollLeft / measureStep(el)) % products.length);
   }, [canLoop, hoverCapable, findCardAt, measureStep, products.length]);
 
-  /** Pulls the scroll position back across the seam if it has drifted past
-   *  one set-width. Forward only, and still correctly so now that `retreat`
-   *  can drive the belt backward too — the doubled content only ever exists
-   *  *ahead* of the first set, so `scrollLeft` can drift past one set-width
-   *  going forward but can never go negative going back (a native scroll
-   *  container simply clamps at 0). `retreat` handles its own forward jump
-   *  into the duplicate set *before* it steps, precisely so this settle-timer
-   *  correction never has to know a backward case exists. Shares its
-   *  measurement with `advance`'s own pre-step check, so the two never
-   *  disagree about where the seam actually is.
+  /** Pulls the scroll position back into a safe middle zone whenever it has
+   *  settled within 4px of either true edge of the doubled row — **both
+   *  directions now**, not forward only (client, 2026-08-27: "when the
+   *  first featured product card is there i cant scroll left. When i
+   *  scroll left it should show the last product, this is also in desktop
+   *  view as well").
    *
-   *  **Calls `measure()` itself, right after the write, instead of leaving it
-   *  to the next scroll-driven `sync`.** That next call would land on the
-   *  *following* animation frame — one frame where `centeredId` still names
-   *  the old, second-copy card, which the jump has just carried off-screen.
-   *  Confirmed on this row: the popped card's outline and shadow vanished for
-   *  two to three frames after the jump, then reappeared on the correct card
-   *  with its `duration-300` transition restarting from flat — a highlight
-   *  that blinks off and grows back, layered on top of an instant
-   *  reposition. That combination is almost certainly what read as the
-   *  section "glitching" rather than simply jumping.
+   *  **Forward-only used to be correct, because home was `scrollLeft: 0`
+   *  and the doubled content only ever existed ahead of it.** That is no
+   *  longer true: the row now opens at `oneSet` (see the mount effect
+   *  below), with a full duplicate copy sitting *behind* that position too
+   *  — copy 1 in `[0, oneSet)`, copy 2 in `[oneSet, 2×oneSet)`, pixel-
+   *  identical to each other at a `oneSet` offset either way. A manual
+   *  swipe/drag backward from the opening view now has somewhere to go —
+   *  straight into copy 1's own tail, which *is* the last product — where
+   *  none existed when home was the literal start of the only copy handed
+   *  to a visitor.
+   *
+   *  Correcting near *both* edges rather than at a fixed `oneSet` threshold
+   *  is deliberate: with two symmetric copies there is no single "correct"
+   *  side to treat as home, only two true edges (`0` and `scrollWidth -
+   *  clientWidth`) that must never be where a visitor gets stuck. Whichever
+   *  edge is reached, the jump lands on that edge's twin at the opposite
+   *  end of the other copy — same content, invisible either way, exactly
+   *  as proven already for the forward case alone.
+   *
+   *  **Still settle-only, never mid-gesture — the reason a fixed-delay
+   *  timer was chosen over correcting on every `scroll` event in the first
+   *  place** ("Correcting mid-gesture would mean fighting a touch drag in
+   *  progress"). Firing only once scrolling has actually stopped is what
+   *  keeps this safe to make bidirectional at all: there is no risk of
+   *  fighting live momentum in *either* direction, only ever adjusting a
+   *  position that has already come to rest.
+   *
+   *  **Calls `measure()` itself, right after any write, instead of leaving
+   *  it to the next scroll-driven `sync`.** That next call would land on
+   *  the *following* animation frame — one frame where `centeredId` still
+   *  names the old card, which the jump has just carried off-screen.
+   *  Confirmed on this row: the popped card's outline and shadow vanished
+   *  for two to three frames after the jump, then reappeared on the
+   *  correct card with its `duration-300` transition restarting from flat
+   *  — a highlight that blinks off and grows back, layered on top of an
+   *  instant reposition. That combination is almost certainly what read as
+   *  the section "glitching" — and, since `advance`/`retreat`/`goTo` below
+   *  now call this same function for their own pre-step correction instead
+   *  of each repeating a shorter, `measure()`-less version of it, all four
+   *  paths get that fix at once rather than needing it re-applied
+   *  individually (client, same message: "sometimes it behaves that way
+   *  when using buttons as well" — the button paths had exactly this gap,
+   *  independently of the swipe-direction one above).
    *
    *  **What this function does not do, and why not — it looked like the
    *  right fix at first.** A client report ("the 3 cards are visible at a
@@ -463,14 +492,27 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
    *  off by a fixed amount rather than randomly drifting. Fixed at the
    *  source — see the `scroll-padding-left` override on the track below —
    *  and confirmed the anomaly is gone there, so no JS correction belongs
-   *  here for it. */
+   *  here for it.
+   *
+   *  Returns whether it actually corrected anything, so a caller (`advance`
+   *  et al.) that only cares about *acting* on a fresh position can skip a
+   *  redundant re-read when nothing moved. */
   const correctSeam = useCallback(() => {
     const el = trackRef.current;
-    if (!el || !canLoop) return;
+    if (!el || !canLoop) return false;
     const oneSet = measureOneSet(el);
-    if (el.scrollLeft < oneSet) return;
-    el.scrollLeft -= oneSet;
-    measure();
+    const max = el.scrollWidth - el.clientWidth;
+    if (el.scrollLeft <= 4) {
+      el.scrollLeft += oneSet;
+      measure();
+      return true;
+    }
+    if (el.scrollLeft >= max - 4) {
+      el.scrollLeft -= oneSet;
+      measure();
+      return true;
+    }
+    return false;
   }, [canLoop, measureOneSet, measure]);
 
   /* Throttled to one run per animation frame — see the note on the
@@ -505,6 +547,54 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, [sync, products.length]);
+
+  /* Opens the belt at `oneSet`, not `0`, once looping is possible — the
+     other half of the bidirectional fix on `correctSeam` above: home has
+     to start with a full duplicate copy already sitting *behind* it, or a
+     backward swipe from the very first view still has nowhere to go, the
+     exact bug being fixed (client: "when the first featured product card
+     is there i cant scroll left. When i scroll left it should show the
+     last product"). `useLayoutEffect`, not `useEffect`, so the jump lands
+     before the browser paints the first frame at `0` — a visitor never
+     sees the belt open anywhere but on the first card; only the
+     underlying `scrollLeft` differs from what it used to be. Re-runs
+     whenever `canLoop` flips on — including after a resize crosses back
+     into loopable — each time reopening on the first card, which reads as
+     reasonable rather than picking up wherever a previous width happened
+     to leave it. */
+  useLayoutEffect(() => {
+    if (!canLoop) return;
+    const el = trackRef.current;
+    if (!el) return;
+    el.scrollLeft = measureOneSet(el);
+  }, [canLoop, measureOneSet]);
+
+  /* `scrollend` fires exactly when scrolling — including native momentum —
+     has genuinely finished, which the 120ms settle timer in `sync` above
+     only approximates. Momentum on some mobile browsers can keep
+     `scrollLeft` moving for longer than 120ms between individual `scroll`
+     events, and firing the timer's correction mid-momentum means fighting
+     a scroll animation still actually in flight — read by the client as
+     the belt "moving by itself" (client, mobile specifically: "When i
+     keep scrolling right the featured product cards moves by itself when
+     i reach the last card"). Feature-detected and purely additive: where
+     `scrollend` is supported this corrects immediately and reliably, and
+     the existing timer still also fires afterward and finds nothing left
+     to do (`correctSeam` is a no-op once already safely mid-row); where it
+     is not supported, only the timer runs, exactly as before. */
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el || !("onscrollend" in el)) return;
+    const onScrollEnd = () => {
+      if (settleTimer.current !== null) {
+        window.clearTimeout(settleTimer.current);
+        settleTimer.current = null;
+      }
+      correctSeam();
+    };
+    el.addEventListener("scrollend", onScrollEnd);
+    return () => el.removeEventListener("scrollend", onScrollEnd);
+  }, [correctSeam]);
 
   useEffect(
     () => () => {
@@ -551,61 +641,53 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
    *  2026-08-27 as part of the belt's new paging row — this is autoplay's
    *  own tick and the `>` arrow's handler both, now.
    *
-   *  On a belt it first pulls the scroll position back across the seam if it
-   *  has drifted past one set-width — instantly, and *before* the smooth step
-   *  rather than during it. The two copies are identical at that offset so
-   *  the jump cannot be seen, and doing it between animations rather than
-   *  inside one avoids cancelling a scroll already in flight. */
+   *  Calls the shared `correctSeam` first — instantly, and *before* the
+   *  smooth step rather than during it — rather than repeating its own
+   *  one-directional version of the same check (that used to be the case,
+   *  and independently lacked the `measure()` call `correctSeam` itself
+   *  always made, which is the "sometimes it behaves that way when using
+   *  buttons as well" gap fixed by consolidating onto one implementation;
+   *  see the note on `correctSeam`). The two copies are identical at a
+   *  `oneSet` offset either way, so the jump — in whichever direction it
+   *  turns out to fire — cannot be seen, and doing it between animations
+   *  rather than inside one avoids cancelling a scroll already in flight. */
   const advance = () => {
     const el = trackRef.current;
     if (!el) return;
+    correctSeam();
     const step = measureStep(el);
-
-    if (canLoop) {
-      const oneSet = measureOneSet(el);
-      if (el.scrollLeft >= oneSet) el.scrollLeft -= oneSet;
-    }
-
     el.scrollBy({ left: step, behavior: "smooth" });
   };
 
   /** The `<` arrow's handler — steps back by one card. Mirrors `advance`
-   *  exactly, in the opposite direction: a native `scrollLeft` cannot go
-   *  negative, so stepping back from anywhere within one step of the start
-   *  would otherwise just clamp at 0 instead of actually moving. Jumping
-   *  *forward* by one set-width first lands on the duplicate copy's
-   *  equivalent position — identical content, so the jump is invisible —
-   *  from where a normal backward step has room to run. Not needed once
-   *  `canLoop` is false: there is no duplicate set to jump into, and a plain
-   *  `scrollBy` already clamps at 0 the way a "first card" should. */
+   *  exactly, in the opposite direction, sharing the same `correctSeam`
+   *  call: a native `scrollLeft` cannot go negative, so stepping back from
+   *  right at the true start would otherwise just clamp at 0 instead of
+   *  actually moving — `correctSeam` catches exactly that case (settled
+   *  within 4px of the true start) and jumps to its twin position with
+   *  room to keep going, same as it would for a manual swipe landing
+   *  there. */
   const retreat = () => {
     const el = trackRef.current;
     if (!el) return;
+    correctSeam();
     const step = measureStep(el);
-
-    if (canLoop && el.scrollLeft < step) {
-      const oneSet = measureOneSet(el);
-      el.scrollLeft += oneSet;
-    }
-
     el.scrollBy({ left: -step, behavior: "smooth" });
   };
 
   /** A dot's handler — jumps straight to the product at `target`. Same
-   *  pre-correction as `advance`/`retreat`: always resolved against the
-   *  *first* set's coordinates before scrolling, so a dot clicked while deep
-   *  in the duplicate set still lands exactly on that product rather than
-   *  overshooting by one set-width. */
+   *  `correctSeam` call as `advance`/`retreat`, though for a different
+   *  reason here: `target * step` always addresses card `target` within
+   *  copy 1's own coordinates regardless of where the row currently rests,
+   *  so correctness never depended on this: it is here so a dot clicked
+   *  while the row happens to be resting near a true edge does not first
+   *  animate all the way across the doubled row before landing, the same
+   *  visible-fly-past this call already prevents for `advance`/`retreat`. */
   const goTo = (target: number) => {
     const el = trackRef.current;
     if (!el) return;
+    correctSeam();
     const step = measureStep(el);
-
-    if (canLoop) {
-      const oneSet = measureOneSet(el);
-      if (el.scrollLeft >= oneSet) el.scrollLeft -= oneSet;
-    }
-
     el.scrollTo({ left: target * step, behavior: "smooth" });
   };
 
@@ -761,8 +843,50 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
            nearest step" fix was tried first and failed, because the
            browser's own snap machinery silently overwrote it; this
            CSS-level fix, once tuned to the right number, is what actually
-           worked. */
-        className="hscroll -mx-5 mt-8 flex snap-x snap-proximity items-stretch gap-6 overflow-x-auto px-6 py-4 [scroll-padding-left:24px] sm:-mx-6 sm:px-7 sm:[scroll-padding-left:28px] lg:-mx-8 lg:px-9 lg:[scroll-padding-left:36px]"
+           worked.
+
+           **`mx-[calc(50%-50vw)]`, not `-mx-5 sm:-mx-6 lg:-mx-8`** (client,
+           2026-08-27: "When i zoom out the page... i see that the featured
+           product starts and ends not at the literal page ending but at a
+           fixed position... whatever zoom is there it starts and ends at
+           the literal page corners"). The old negative margin only
+           cancelled `ui/Container`'s own side padding, which cancels the
+           *container's* inset but does nothing once the container's
+           `max-w-7xl` itself is narrower than the viewport — exactly the
+           case a visitor create by zooming out, since that widens the
+           viewport in CSS px without moving the cap. `calc(50% - 50vw)`
+           does not have that ceiling: for any element inside a horizontally
+           *centred* ancestor (`Container` is always `mx-auto`), that
+           formula is algebraically identical to "cancel however far my own
+           parent sits from the true viewport edge," whether that distance
+           is a fixed padding, a max-width's leftover margin, or both at
+           once — confirmed directly at three viewports (1280/1400/1920px,
+           the last two both past the cap) that the track's own left edge
+           now sits at the true viewport edge (`x: 0`) at all three, where
+           it drifted to 60px then 320px before this. The matching `px-*`
+           padding is untouched — it still reserves the same room for the
+           popped-card shadow bleed described above, now measured from the
+           true edge instead of the container's.
+
+           **`justify-center` while `!canLoop`, `justify-start` while
+           looping** (client, follow-up: "could you centre the featured
+           product cards if they all fit when we zoom out... do not
+           stretch instead just fit and centre"). The cards themselves
+           already do not stretch — `w-[387px]` above is a fixed width,
+           not a fraction of the track — but a fixed-width flex row
+           narrower than its own container defaults to hugging the start
+           edge, leaving the leftover space as a gap after the last card
+           rather than split evenly around the whole row. Conditional, not
+           always-on: `justify-center` on an *overflowing* flex row is
+           unreliable across browsers for exactly what `scrollLeft: 0`
+           then means (some centre the overflow symmetrically, which would
+           break every "first card starts at the true edge" assumption
+           `measureStep`/`correctSeam`/the CSS `scroll-padding-left` above
+           all depend on) — `canLoop` already being false is precisely the
+           signal that this row has no overflow to protect. */
+        className={`hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-6 overflow-x-auto px-6 py-4 [scroll-padding-left:24px] sm:px-7 sm:[scroll-padding-left:28px] lg:px-9 lg:[scroll-padding-left:36px] ${
+          canLoop ? "justify-start" : "justify-center"
+        }`}
       >
         {slots.map(({ product, index, uid }) => (
           <li
@@ -800,7 +924,34 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
                correct and desirable — it is the same product, and its link
                and button carry the same real `href`/handler as the original. */
             aria-hidden={canLoop && index >= products.length}
-            className={`relative w-[82%] flex-none snap-start sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)] ${
+            /* `lg:w-[387px]`, a fixed pixel width, not
+               `lg:w-[calc((100%-3rem)/3)]` — the other half of the zoom
+               fix above, and the part that actually satisfies its second
+               half (client: "If all products fit in the zoomed out page,
+               then there is no need for movement or pause or anything").
+               A percentage-of-track width is always exactly three cards
+               *by construction*, at any track width, so a wider track
+               (now genuinely reachable by zooming out, since the track is
+               full-bleed above) would just render three *wider* cards
+               forever rather than ever letting a fourth or fifth one join
+               them — with 6 featured products, `canLoop` would then never
+               go false no matter how far out anyone zoomed. A fixed width
+               lets `clientWidth / cardWidth` grow instead: `measure`'s
+               existing `canLoop = oneSet > el.clientWidth + 8` and
+               `canScroll` already stop offering the belt, the arrows, the
+               dots and the pause button the moment nothing actually
+               overflows — that gating is untouched and already did
+               everything the second half of the request asked for, once
+               there was a way for more cards to actually fit at once.
+               387px, not a rounder number: it is what the old
+               `calc((100%-3rem)/3)` already rendered at exactly 1280px
+               (measured directly, 386.7px), the one width where the old
+               and new rules must agree — the page's own `Container
+               size="wide"` caps at `max-w-7xl`, so 1280px is also the
+               widest this ever rendered before today regardless of
+               screen size, and nothing about how the row looks at or
+               under that width should change now. */
+            className={`relative w-[82%] flex-none snap-start sm:w-[calc((100%-1.5rem)/2)] lg:w-[387px] ${
               poppedId === uid ? "z-10" : "z-0"
             }`}
           >
