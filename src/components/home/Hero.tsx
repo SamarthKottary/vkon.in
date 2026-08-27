@@ -3,8 +3,6 @@ import { ArrowRightIcon } from "@/components/icons/ui";
 import { HeroRotator } from "@/components/home/HeroRotator";
 import { Container } from "@/components/ui/Container";
 import { heroSegments } from "@/content/segments";
-import { site } from "@/content/site";
-import { telLink } from "@/lib/contact";
 
 /**
  * Hero.
@@ -67,19 +65,36 @@ export function Hero() {
           </Container>
         }
       >
+        {/* `.link-cta` (a bordered, always-underlined pill) replaced with
+            `product/ProductCard`'s "View details" pattern (client,
+            2026-08-27: "Make it have the same animation as in view details
+            in featured product cards") — no visible boundary at rest, an
+            underline that sweeps in from the left on hover, `band-accent`
+            in place of `accent` since this sits on the hero's photograph
+            rather than an ordinary page surface, same substitution this
+            pattern already gets everywhere else it's been copied onto band
+            content. No `text-sm`, unlike the source: that class carries the
+            product card's own small type scale, and shrinking the hero's
+            one primary CTA to match a card's secondary link was never part
+            of the ask — only the hover behaviour was. Arrow uses
+            `[transform:translateX(0.25rem)]`, the established arbitrary-
+            property fix for this Tailwind version's `translate-x-1` gap,
+            since this is new code rather than the original instance in
+            `ProductCard` that stays unfixed by this project's own scoping
+            convention. */}
         <Link
           href="/protection"
-          className="link-cta border-band-line text-band-ink hover:border-band-accent hover:text-band-accent"
+          className="group/explore relative inline-flex items-center gap-1.5 font-medium text-band-ink transition-colors hover:text-band-accent"
         >
-          Explore
-          <ArrowRightIcon className="h-4 w-4" />
+          <span className="relative">
+            Explore
+            <span
+              aria-hidden
+              className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-band-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover/explore:[transform:scaleX(1)]"
+            />
+          </span>
+          <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover/explore:[transform:translateX(0.25rem)]" />
         </Link>
-        <a
-          href={telLink()}
-          className="text-sm text-band-muted transition-colors hover:text-band-ink"
-        >
-          Or call {site.phone.display}
-        </a>
       </HeroRotator>
     </section>
   );

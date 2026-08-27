@@ -489,7 +489,15 @@ function HorizontalCard({
           while the label was an icon and the description happened to stop
           short, but a longer one ran underneath. 48px of padding puts the
           button entirely in the reserved strip. */}
-      <div className="absolute bottom-3 right-4">
+      {/* `transition-transform duration-200 ease-out [transform:scale(1)]
+          hover:[transform:scale(1.08)]` matches `home/FeaturedProducts`'
+          own add-to-cart wrapper exactly (client, 2026-08-27: "add to cart
+          button have the same animation as in add button in featured
+          product cards") — same reasoning as that one: `AddToCartButton`
+          itself is shared across every card on the site, so wrapping it in
+          a plain `<div>` that scales on its own hover, rather than editing
+          the button, keeps every other card's instance exactly as it was. */}
+      <div className="absolute bottom-3 right-4 transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
         <AddToCartButton slug={product.slug} name={product.name} size="compact" />
       </div>
     </article>

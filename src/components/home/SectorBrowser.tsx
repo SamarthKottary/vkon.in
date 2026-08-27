@@ -133,8 +133,15 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
                 onClick={() => setOpenKey(isOpen ? null : sector.key)}
                 /* No dimmed state for a sector with nothing under it. They are
                    part of the range and read as available; greying them made
-                   the empty ones look broken next to the one with stock. */
-                className={`flex min-h-[19rem] w-full flex-col border bg-surface-raised p-6 text-left shadow-card transition-[box-shadow,border-color] duration-200 ${
+                   the empty ones look broken next to the one with stock.
+
+                   `group`, added for the chevron below (client, 2026-08-27:
+                   "when we hover over the downward > in category cards, let
+                   it become green") — the chevron itself isn't its own hover
+                   target, it's a decorative icon inside this whole card's
+                   button, so its hover state has to come from the card via
+                   `group-hover`, not a `:hover` of its own. */
+                className={`group flex min-h-[19rem] w-full flex-col border bg-surface-raised p-6 text-left shadow-card transition-[box-shadow,border-color] duration-200 ${
                   isOpen
                     ? "border-accent shadow-card-hover"
                     : "border-line hover:border-line-strong hover:shadow-card-hover"
@@ -176,7 +183,25 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
                 </p>
 
                 <span className="mt-auto flex items-center justify-between gap-4 pt-6">
-                  <span className="label-tech text-muted">
+                  {/* `group-hover:text-accent` and the pop scale both scoped
+                      to `expandable` (client, 2026-08-27: "when i hover the
+                      cursor on a category card... i also want the N sub
+                      categories to also glow green same as the downward >...
+                      make the downward > and N sub categories to pop up when
+                      hovered as well") — "Coming soon" sits on a `disabled`
+                      button with nothing to expand, so it stays plain rather
+                      than inviting interaction that leads nowhere. `1.08`,
+                      the same pop magnitude already used elsewhere on this
+                      site (`about/SocialProfileCard`'s name pop,
+                      `home/FeaturedProducts`' pause button) rather than a
+                      new figure invented for this. */}
+                  <span
+                    className={`label-tech transition-transform duration-200 ${
+                      expandable
+                        ? "text-muted group-hover:[transform:scale(1.08)] group-hover:text-accent"
+                        : "text-muted"
+                    }`}
+                  >
                     {!expandable
                       ? "Coming soon"
                       : `${categories.length} ${
@@ -186,11 +211,27 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
                         }`}
                   </span>
                   {expandable && (
-                    <ChevronDownIcon
-                      className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
-                        isOpen ? "rotate-180 text-accent" : "text-muted"
-                      }`}
-                    />
+                    /* The pop lives on this wrapper, not the icon itself,
+                       because the icon's own `transform` is already doing a
+                       different job — rotating open/closed — and CSS
+                       `transform` is one property: a single element can't
+                       independently rotate on `isOpen` *and* scale on
+                       `:hover` without one branch overwriting the other.
+                       Nesting them keeps the two transforms on separate
+                       elements, where they compose visually for free instead
+                       of needing four hand-written open×hover combinations. */
+                    <span className="inline-flex items-center transition-transform duration-200 group-hover:[transform:scale(1.08)]">
+                      <ChevronDownIcon
+                        /* `group-hover:text-accent` only on the closed branch —
+                           open already reads `text-accent` unconditionally, so
+                           adding it there too would be redundant, not wrong,
+                           but the closed branch is the one this request is
+                           actually about. */
+                        className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+                          isOpen ? "rotate-180 text-accent" : "text-muted group-hover:text-accent"
+                        }`}
+                      />
+                    </span>
                   )}
                 </span>
               </button>
@@ -221,14 +262,38 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
                         >
                           {/* Count first. It is a fixed-width slot so the
                               names start on one vertical line — leading with a
-                              number that varies in width would ragged them. */}
+                              number that varies in width would ragged them.
+
+                              The label gets `product/ProductCard`'s "View
+                              details" sweep-underline treatment (client,
+                              2026-08-27: "the sub categories and all products
+                              button let it have the same animation as in
+                              view details of featured product card
+                              section") — the count stays plain: it is a
+                              secondary, fixed-width figure, not the thing
+                              being "viewed", so only the label — the part
+                              that reads as the actual link text — sweeps. */}
                           <span className="flex items-baseline gap-3">
                             <span className="w-4 shrink-0 text-right font-mono text-sm text-muted">
                               {count}
                             </span>
-                            {category.label}
+                            <span className="relative">
+                              {category.label}
+                              <span
+                                aria-hidden
+                                className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover:[transform:scaleX(1)]"
+                              />
+                            </span>
                           </span>
-                          <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-1 group-hover:text-accent" />
+                          {/* `[transform:translateX(0.25rem)]`, not
+                              `translate-x-1` — this Tailwind version's known
+                              gap for that named utility, fixed here since
+                              this line is already being rewritten for the
+                              sweep above; see `ProductCard`'s own "View
+                              details" for the original, deliberately
+                              unfixed instance and the scoping rule behind
+                              leaving it that way. */}
+                          <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:[transform:translateX(0.25rem)] group-hover:text-accent" />
                         </Link>
                       ) : (
                         <p className="flex items-center justify-between gap-4 py-3 text-[0.9375rem] text-muted">
@@ -246,11 +311,26 @@ export function SectorBrowser({ groups }: { groups: SectorGroup[] }) {
 
                   {total > 0 && (
                     <li className="mt-auto border-t border-line py-3">
+                      {/* Was a plain, always-underlined green link — now the
+                          full "View details" pattern (client, same message
+                          as the sub-category links above), not just an
+                          underline bolted onto the old colours: `text-ink`
+                          resting, `hover:text-accent`, matches the
+                          sub-category links directly above it rather than
+                          reading as a visually different rule in the same
+                          list. */}
                       <Link
                         href={`/products?sector=${sector.key}`}
-                        className="text-[0.9375rem] text-accent underline underline-offset-4"
+                        className="group/all relative inline-flex items-center gap-1.5 text-[0.9375rem] font-medium text-ink transition-colors hover:text-accent"
                       >
-                        {`All ${total} in ${sector.label}`}
+                        <span className="relative">
+                          {`All ${total} in ${sector.label}`}
+                          <span
+                            aria-hidden
+                            className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover/all:[transform:scaleX(1)]"
+                          />
+                        </span>
+                        <ArrowRightIcon className="h-4 w-4 shrink-0 transition-transform duration-150 group-hover/all:[transform:translateX(0.25rem)]" />
                       </Link>
                     </li>
                   )}

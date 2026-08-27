@@ -168,8 +168,23 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
             </p>
           </div>
 
+          {/* `lg:hidden` (client, 2026-08-27: "lets bring the left and right
+              toggle in desktop mode to the centre below the recent viewed
+              product cards") — this copy of the controls now covers only
+              below `lg`; a second copy, centred beneath the card list, takes
+              over at `lg` and up. Deliberately breaks the "matched pair"
+              this row and `SectorBrowser` were built to keep (see the note
+              on `home/page.tsx` where they're rendered) — that symmetry was
+              never itself the ask, and this one's explicit instruction
+              points the two layouts in different directions on desktop now.
+              Two copies of the same controls rather than one repositioned
+              with CSS: `display: none` removes a copy from the tab order
+              and the accessibility tree together, so whichever breakpoint
+              is active is the only one a keyboard or screen-reader visitor
+              ever reaches — there is no risk of landing on an invisible,
+              off-screen button either way. */}
           {recent.length > 0 && showArrows && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 lg:hidden">
               <PageButton
                 label="Previous recently viewed"
                 disabled={!canScroll.left}
@@ -234,6 +249,28 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
               </li>
             ))}
           </ul>
+        )}
+
+        {/* The `lg`-and-up half of the pair above — centred below the card
+            list instead of beside the heading. Same `showArrows` gate, so
+            it only ever appears alongside the row it controls. */}
+        {showArrows && (
+          <div className="mt-6 hidden items-center justify-center gap-3 lg:flex">
+            <PageButton
+              label="Previous recently viewed"
+              disabled={!canScroll.left}
+              onClick={() => page(-1)}
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+            </PageButton>
+            <PageButton
+              label="More recently viewed"
+              disabled={!canScroll.right}
+              onClick={() => page(1)}
+            >
+              <ArrowRightIcon className="h-4 w-4" />
+            </PageButton>
+          </div>
         )}
       </div>
     </section>
