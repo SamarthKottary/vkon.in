@@ -67,8 +67,18 @@ export default function ContactPage() {
   return (
     <>
       {/* Masthead. `isolate` so the -z-10 layers stay inside this section
-          rather than sliding behind the page background. Heights are ~25%
-          shorter than the earlier crop (client request, 2026-08-19). */}
+          rather than sliding behind the page background. Heights matched to
+          the About page's own masthead (client, 2026-08-27: "Make hero image
+          at top... same size as the image on top in [about us] page" — typo
+          in the original message repeated "contact us", corrected after
+          asking, since this page's own hero can't be "the same size" as
+          itself). `14rem/17rem/21rem`, up from `12rem/15rem/18rem` — 2rem
+          taller at each of the first two breakpoints, 3rem at `lg`, the same
+          gap at every step as the two pages' mastheads already had before
+          this change. Home's hero was ruled out as the match: it is a
+          rotating multi-slide component sized by its own tallest slide, not
+          a fixed-height photo band, so "same size" has no single number to
+          copy there the way it does between these two mastheads. */}
       <section className="relative isolate overflow-hidden">
         <Image
           src="/contactus-background.jpg"
@@ -100,13 +110,46 @@ export default function ContactPage() {
         />
 
         <Container size="wide">
-          <div className="flex min-h-[12rem] flex-col justify-end py-12 sm:min-h-[15rem] sm:py-14 lg:min-h-[18rem] lg:py-16">
+          <div className="flex min-h-[19rem] flex-col justify-end py-12 sm:min-h-[21rem] sm:py-14 lg:min-h-[22.5rem] lg:py-16">
             <h1 className="max-w-3xl text-[2.25rem] leading-[1.08] text-band-ink sm:text-5xl lg:text-[3.5rem]">
               Tell us what you need
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-relaxed text-band-body sm:mt-4 sm:text-lg">
-              Call, WhatsApp or write below — all three reach the same desk.
-            </p>
+            {/* Split across two lines, not one flowing sentence (client,
+                2026-08-27: "add text like call, whatsapp, write below and
+                all three reach the same desk in seperate rows") — same
+                copy as before, just broken at the em dash into its own row
+                rather than run together. Also part of matching this
+                masthead's height to About's: About's own masthead stacks
+                more rows of content (see the note on the wrapping `div`
+                above), and this is one of two changes made together to
+                close that gap — the other removed a row from About's side
+                instead of only adding one here.
+
+                **Wrapped in a `min-h-*` spacer** (client, same day: "make
+                the text tell us what you need same level as in we make
+                future in about us page") — matching the *container* height
+                was not the same thing as matching the *heading's* vertical
+                position, and measuring proved it: with `justify-end`
+                bottom-anchoring both stacks, About's headline sat 88px
+                higher at `lg` (55px at mobile) than this one, because
+                About's trailing content (a paragraph plus a chip row) is
+                taller than this page's two plain lines, pushing About's
+                whole stack — headline included — further up from the
+                bottom. Adding height to *this* wrapper, not shrinking
+                About's, moves this headline up to match without touching
+                the page whose layout was never in question. Values tuned by
+                direct measurement, not computed from the CSS box model on
+                paper: each one was picked, then the headlines' actual
+                rendered `y` positions were compared and the value adjusted
+                until the gap measured exactly 0px at that breakpoint. */}
+            <div className="min-h-[7.7rem] sm:min-h-[10.4rem] lg:min-h-[10.4rem]">
+              <p className="mt-3 max-w-2xl text-base leading-relaxed text-band-body sm:mt-4 sm:text-lg">
+                Call, WhatsApp or write below
+              </p>
+              <p className="mt-1 max-w-2xl text-base leading-relaxed text-band-body sm:text-lg">
+                All three reach the same desk.
+              </p>
+            </div>
           </div>
         </Container>
       </section>

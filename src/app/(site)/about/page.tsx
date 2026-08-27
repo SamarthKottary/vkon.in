@@ -203,9 +203,12 @@ export default function AboutPage() {
         <div aria-hidden className="rule-grid absolute inset-0 -z-10 opacity-30" />
 
         <Container size="wide">
-          <div className="flex min-h-[14rem] flex-col justify-end py-12 sm:min-h-[17rem] sm:py-14 lg:min-h-[21rem] lg:py-16">
-            <p className="label-tech text-band-accent">About · {site.name}</p>
-            <h1 className="mt-3 max-w-3xl text-[2.5rem] leading-[1.02] tracking-tight text-band-ink sm:text-6xl lg:text-[4rem]">
+          <div className="flex min-h-[19rem] flex-col justify-end py-12 sm:min-h-[21rem] sm:py-14 lg:min-h-[22.5rem] lg:py-16">
+            {/* The green "About · Vkon Automation" eyebrow above the headline
+                is removed (client, 2026-08-27: "remove the ABOUT VKON which
+                is written in green"), not just hidden — no replacement text
+                took its place. */}
+            <h1 className="max-w-3xl text-[2.5rem] leading-[1.02] tracking-tight text-band-ink sm:text-6xl lg:text-[4rem]">
               We make future automation work.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-band-body sm:text-lg">
