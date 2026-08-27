@@ -652,7 +652,15 @@ function FeaturedCard({
             repeated) — 61px→73px top, 72px→86px bottom. Same caveat carries
             forward unchanged: still a fixed-fraction hold on a longer band,
             not a hold sized to the text, so this keeps helping by degrees
-            without closing the gap the structural fix would. */}
+            without closing the gap the structural fix would.
+
+            **Bottom lengthened another 20% on its own, top untouched**
+            (client, 2026-08-27: "increase the dark tint length on the
+            bottom part of the image by 20% more... only increase tint
+            length of bottom part") — 86px→103px (86 × 1.2 = 103.2,
+            rounded). Top stays 73px; the two bands no longer move
+            together, which they always could in principle — nothing tied
+            them — this is just the first time only one of them changed. */}
         <div
           aria-hidden
           className="absolute inset-x-0 top-0 h-[73px]"
@@ -665,7 +673,7 @@ function FeaturedCard({
         />
         <div
           aria-hidden
-          className="absolute inset-x-0 bottom-0 h-[86px]"
+          className="absolute inset-x-0 bottom-0 h-[103px]"
           style={{
             backgroundImage: `linear-gradient(to top,
               color-mix(in srgb, var(--color-scrim) 60%, transparent) 0%,
