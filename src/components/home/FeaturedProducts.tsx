@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PauseIcon, PlayIcon } from "@/components/icons/ui";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PauseIcon,
+  PlayIcon,
+} from "@/components/icons/ui";
 import { ProductCard } from "@/components/product/ProductCard";
 import type { Product } from "@/lib/types";
 
@@ -240,6 +245,14 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   /* Whether one set of cards overflows the track, and so whether the belt is
      rendered at all. See the note on the component. */
   const [canLoop, setCanLoop] = useState(false);
+  /** Which dot is lit, below. One per product, not one per page of visible
+   *  cards — same convention as `about/AboutGallery`'s dots, which this
+   *  control row was explicitly modelled on (client, 2026-08-27). Computed
+   *  the same way that component computes its own `index`: rounded scroll
+   *  position divided by one step, modulo the product count so a position
+   *  past the seam (in the duplicate set) still lights a real dot rather than
+   *  running off the end of the array. */
+  const [stepIndex, setStepIndex] = useState(0);
 
   useEffect(() => {
     setHoverCapable(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
@@ -401,13 +414,23 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     if (hoverCapable && pointerRef.current) {
       setHoveredId(findCardAt(pointerRef.current.x, pointerRef.current.y));
     }
-  }, [canLoop, hoverCapable, findCardAt]);
+
+    /* Which dot is lit — see the note on `stepIndex`. `products.length` is
+       guaranteed non-zero here: the component returns `null` before this
+       track (and therefore this callback) ever renders otherwise. */
+    setStepIndex(Math.round(el.scrollLeft / measureStep(el)) % products.length);
+  }, [canLoop, hoverCapable, findCardAt, measureStep, products.length]);
 
   /** Pulls the scroll position back across the seam if it has drifted past
-   *  one set-width. Forward only — a native `scrollLeft` cannot go negative,
-   *  and the belt itself only ever moves forward now that the direction
-   *  arrows are gone. Shares its measurement with `advance`'s own pre-step
-   *  check, so the two never disagree about where the seam actually is.
+   *  one set-width. Forward only, and still correctly so now that `retreat`
+   *  can drive the belt backward too — the doubled content only ever exists
+   *  *ahead* of the first set, so `scrollLeft` can drift past one set-width
+   *  going forward but can never go negative going back (a native scroll
+   *  container simply clamps at 0). `retreat` handles its own forward jump
+   *  into the duplicate set *before* it steps, precisely so this settle-timer
+   *  correction never has to know a backward case exists. Shares its
+   *  measurement with `advance`'s own pre-step check, so the two never
+   *  disagree about where the seam actually is.
    *
    *  **Calls `measure()` itself, right after the write, instead of leaving it
    *  to the next scroll-driven `sync`.** That next call would land on the
@@ -523,9 +546,10 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   }, [canLoop, products.length]);
 
   /** Advances by one card, measured from the DOM so it follows the
-   *  breakpoint. Forward only — the direction arrows that once ran this in
-   *  reverse are gone (client, 2026-08-26), and autoplay is the only caller
-   *  left.
+   *  breakpoint. Direction arrows were removed 2026-08-26 ("the direction
+   *  arrows that once ran this in reverse are gone") and reinstated
+   *  2026-08-27 as part of the belt's new paging row — this is autoplay's
+   *  own tick and the `>` arrow's handler both, now.
    *
    *  On a belt it first pulls the scroll position back across the seam if it
    *  has drifted past one set-width — instantly, and *before* the smooth step
@@ -543,6 +567,46 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     }
 
     el.scrollBy({ left: step, behavior: "smooth" });
+  };
+
+  /** The `<` arrow's handler — steps back by one card. Mirrors `advance`
+   *  exactly, in the opposite direction: a native `scrollLeft` cannot go
+   *  negative, so stepping back from anywhere within one step of the start
+   *  would otherwise just clamp at 0 instead of actually moving. Jumping
+   *  *forward* by one set-width first lands on the duplicate copy's
+   *  equivalent position — identical content, so the jump is invisible —
+   *  from where a normal backward step has room to run. Not needed once
+   *  `canLoop` is false: there is no duplicate set to jump into, and a plain
+   *  `scrollBy` already clamps at 0 the way a "first card" should. */
+  const retreat = () => {
+    const el = trackRef.current;
+    if (!el) return;
+    const step = measureStep(el);
+
+    if (canLoop && el.scrollLeft < step) {
+      const oneSet = measureOneSet(el);
+      el.scrollLeft += oneSet;
+    }
+
+    el.scrollBy({ left: -step, behavior: "smooth" });
+  };
+
+  /** A dot's handler — jumps straight to the product at `target`. Same
+   *  pre-correction as `advance`/`retreat`: always resolved against the
+   *  *first* set's coordinates before scrolling, so a dot clicked while deep
+   *  in the duplicate set still lands exactly on that product rather than
+   *  overshooting by one set-width. */
+  const goTo = (target: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const step = measureStep(el);
+
+    if (canLoop) {
+      const oneSet = measureOneSet(el);
+      if (el.scrollLeft >= oneSet) el.scrollLeft -= oneSet;
+    }
+
+    el.scrollTo({ left: target * step, behavior: "smooth" });
   };
 
   /* One card every 3s (client, 2026-08-26, up from 2s), wrapping to the
@@ -772,36 +836,166 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
         ))}
       </ul>
 
-      {/* Pause control, centred below the belt (client, 2026-08-26 — it sat
-          beside the heading, next to the direction arrows, which are gone).
-          WCAG 2.2.2: content that moves on its own for more than five
-          seconds needs a way to stop it, and hovering is not one — it does
-          nothing for a touch or keyboard visitor. Same control the hero
-          carries, for the same reason. Gated on `canAdvance`, not just
-          `autoplay`: a row with nothing to scroll never runs regardless of
-          `autoplay`, so a pause button for it would have nothing to pause. */}
-      {autoplay && canAdvance && (
-        <div className="mt-4 flex justify-center">
-          <PageButton
-            label={`${paused ? "Resume" : "Pause"} the featured products row`}
-            disabled={false}
-            onClick={() => setPaused((p) => !p)}
-          >
-            {paused ? (
-              <PlayIcon className="h-4 w-4" />
-            ) : (
-              <PauseIcon className="h-4 w-4" />
-            )}
-          </PageButton>
+      {/* Paging row, centred below the belt: `< • • • || • • • >` (client,
+          2026-08-27 — "like in 03 info section of about us we have images
+          right below that we have moving dots... I want to implement same
+          thing for featured products sections below the cards... Where
+          pause button is at centre, then at the corners we have < and >
+          toggle buttons"). Direction arrows sat here until 2026-08-26, when
+          they were removed; this reinstates them alongside the dots, not a
+          straight revert — the pause control existed on its own between
+          those two dates and keeps its own distinct, bordered styling here
+          rather than being redesigned to match the now-bare arrows.
+
+          Gated on there being more than one product *and* something to
+          actually scroll (`canLoop`, or plain overflow via `canScroll`) —
+          dots and arrows for a row that already shows everything would have
+          nowhere to go. This is a broader gate than the pause button's own
+          `autoplay && canAdvance` below: manual paging is still useful to a
+          `prefers-reduced-motion` visitor who has autoplay switched off,
+          which is exactly the case that gate alone would have hidden the
+          whole row for. */}
+      {products.length > 1 && (canLoop || canScroll.left || canScroll.right) && (
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <ArrowButton
+            direction="left"
+            label="Previous featured products"
+            disabled={!canLoop && !canScroll.left}
+            onClick={retreat}
+          />
+
+          <div className="flex items-center gap-1">
+            {products.slice(0, Math.ceil(products.length / 2)).map((product, i) => (
+              <Dot
+                key={product.id}
+                active={i === stepIndex}
+                label={`Go to featured product ${i + 1}`}
+                onClick={() => goTo(i)}
+              />
+            ))}
+          </div>
+
+          {/* WCAG 2.2.2: content that moves on its own for more than five
+              seconds needs a way to stop it, and hovering is not one — it
+              does nothing for a touch or keyboard visitor. Same control the
+              hero carries, for the same reason. Gated on `canAdvance`, not
+              just `autoplay`: a row with nothing to scroll never runs
+              regardless of `autoplay`, so a pause button for it would have
+              nothing to pause — and unlike the arrows/dots either side, this
+              one genuinely has no purpose in that case. */}
+          {autoplay && canAdvance && (
+            <PageButton
+              label={`${paused ? "Resume" : "Pause"} the featured products row`}
+              disabled={false}
+              onClick={() => setPaused((p) => !p)}
+            >
+              {paused ? (
+                <PlayIcon className="h-4 w-4" />
+              ) : (
+                <PauseIcon className="h-4 w-4" />
+              )}
+            </PageButton>
+          )}
+
+          <div className="flex items-center gap-1">
+            {products.slice(Math.ceil(products.length / 2)).map((product, i) => {
+              const index = i + Math.ceil(products.length / 2);
+              return (
+                <Dot
+                  key={product.id}
+                  active={index === stepIndex}
+                  label={`Go to featured product ${index + 1}`}
+                  onClick={() => goTo(index)}
+                />
+              );
+            })}
+          </div>
+
+          <ArrowButton
+            direction="right"
+            label="Next featured products"
+            disabled={!canLoop && !canScroll.right}
+            onClick={advance}
+          />
         </div>
       )}
     </div>
   );
 }
 
+/** One dot per product — same convention and styling as `about/AboutGallery`'s
+ *  dots, which this row was explicitly modelled on. `h-9 w-4` gives each a
+ *  thumb-sized hit area around a 6px mark, wider and accent-coloured when
+ *  active. Not `<li>`-wrapped like that component's own dots: this row splits
+ *  the dots either side of the pause button, and a `<button>` between two
+ *  `<ul>`s that are not themselves inside any `<li>` is simpler than
+ *  contorting three lists to keep one nested correctly. */
+function Dot({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-current={active ? "true" : undefined}
+      className="group flex h-9 w-4 items-center justify-center"
+    >
+      <span
+        className={`block h-1.5 rounded-full transition-all duration-300 ${
+          active ? "w-5 bg-accent" : "w-1.5 bg-line-strong group-hover:bg-muted"
+        }`}
+      />
+    </button>
+  );
+}
+
+/** The `<`/`>` paging buttons — deliberately not styled like `PageButton`
+ *  below (client, 2026-08-27: "they should not be a circle in design but
+ *  just < and > no boundary"). No border, no background, no shadow: just the
+ *  chevron, coloured `text-muted` at rest and darkening on hover, the same
+ *  resting/hover pair as plain text links elsewhere on the site rather than
+ *  a button-shaped control. `h-9 w-9` keeps a full 36px tap target even
+ *  though nothing about it is visually a box. */
+function ArrowButton({
+  direction,
+  label,
+  disabled,
+  onClick,
+}: {
+  direction: "left" | "right";
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const Icon = direction === "left" ? ChevronLeftIcon : ChevronRightIcon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-9 w-9 items-center justify-center text-muted transition-colors duration-150 hover:text-ink disabled:cursor-default disabled:opacity-40 disabled:hover:text-muted"
+    >
+      <Icon className="h-5 w-5" />
+      <span className="sr-only">{label}</span>
+    </button>
+  );
+}
+
 /**
- * Now only the pause/play control (client, 2026-08-26 — this used to be
- * shared with the direction arrows, which are gone).
+ * The pause/play control — its own circular, bordered styling, unchanged by
+ * the direction arrows returning alongside it 2026-08-27. It briefly shared
+ * this component with those arrows before they were removed 2026-08-26; when
+ * they came back, they came back as `ArrowButton` below, deliberately styled
+ * as bare chevrons rather than folded back into this one's look (client:
+ * "they should not be a circle in design... no boundary") — the two controls
+ * now look different on purpose, not by accident of history.
  *
  * **Sized up 20% and given real presence** (client: "make the pause button
  * bit more better looking and bigger by 20%") — `h-9 w-9` (36px) → 43px, the

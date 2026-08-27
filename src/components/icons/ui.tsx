@@ -88,6 +88,25 @@ export function ChevronDownIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+/** Bare chevron, no shaft — unlike `ArrowLeftIcon`, which draws a full arrow
+ *  (a horizontal line plus a head). `home/FeaturedProducts`' paging controls
+ *  need the former: "just < and >", not a full arrow glyph. */
+export function ChevronLeftIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden className={className}>
+      <path d="m15 6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function ChevronRightIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden className={className}>
+      <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function PhoneIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg {...base} className={className}>
