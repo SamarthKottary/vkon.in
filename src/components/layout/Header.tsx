@@ -8,6 +8,7 @@ import { Logo } from "@/components/icons/Logo";
 import { CloseIcon, MenuIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { HeaderSearch, type SearchEntry } from "@/components/layout/HeaderSearch";
 import { ProductsMenu, type MenuSector } from "@/components/layout/ProductsMenu";
 import { primaryNav } from "@/content/nav";
 
@@ -38,9 +39,16 @@ import { primaryNav } from "@/content/nav";
 const HIDE_AFTER = 120;
 /** Movement below this is treated as noise rather than a direction change. */
 const DELTA = 6;
-export function Header({ menu = [] }: { menu?: MenuSector[] }) {
+export function Header({
+  menu = [],
+  searchProducts = [],
+}: {
+  menu?: MenuSector[];
+  searchProducts?: SearchEntry[];
+}) {
   const [open, setOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const pathname = usePathname();
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -95,6 +103,7 @@ export function Header({ menu = [] }: { menu?: MenuSector[] }) {
      it. Setting state from an effect is what `react-hooks/set-state-in-effect`
      exists to stop. */
   const closeProducts = useCallback(() => setProductsOpen(false), []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
 
   const onScroll = useCallback(() => {
     if (tickingRef.current) return;
@@ -128,7 +137,7 @@ export function Header({ menu = [] }: { menu?: MenuSector[] }) {
            retract while that panel is open, or the panel travels off screen
            with it. */
         className={`sticky top-0 z-50 border-b border-line bg-surface transition-transform duration-300 ${
-          hidden && !open && !productsOpen ? "-translate-y-full" : "translate-y-0"
+          hidden && !open && !productsOpen && !searchOpen ? "-translate-y-full" : "translate-y-0"
         }`}
       >
         <Container size="wide" className="relative">
@@ -152,7 +161,20 @@ export function Header({ menu = [] }: { menu?: MenuSector[] }) {
                   <ProductsMenu
                     menu={menu}
                     open={productsOpen}
-                    onToggle={() => setProductsOpen((v) => !v)}
+                    onToggle={() => {
+                      /* Both this panel and `HeaderSearch`'s are `absolute
+                         inset-x-0 top-full` against the same positioned
+                         `Container` — unlike the mobile drawer (which
+                         visually covers this whole row while open, making
+                         the point moot), search's trigger stays reachable
+                         while this one is open, since neither sits below
+                         `md` where the other is hidden. Two panels open at
+                         once would render on top of each other at the
+                         identical position, so opening one closes the
+                         other. */
+                      setSearchOpen(false);
+                      setProductsOpen((v) => !v);
+                    }}
                     onClose={closeProducts}
                     active={isActive("/products")}
                   />
@@ -183,6 +205,15 @@ export function Header({ menu = [] }: { menu?: MenuSector[] }) {
                 header retracts on the way down the page and took the only way
                 to call with it. */}
             <div className="ml-auto flex items-center gap-2 md:ml-0 md:flex-1 md:justify-end md:gap-5">
+              <HeaderSearch
+                products={searchProducts}
+                open={searchOpen}
+                onToggle={() => {
+                  setProductsOpen(false);
+                  setSearchOpen((v) => !v);
+                }}
+                onClose={closeSearch}
+              />
               <CartLink />
               <ThemeToggle />
               <button

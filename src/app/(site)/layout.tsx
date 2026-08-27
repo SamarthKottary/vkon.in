@@ -46,6 +46,17 @@ export default async function SiteLayout({
     })),
   }));
 
+  /* `HeaderSearch`'s own index — reuses this same query rather than a
+     second one, and ships only what that panel actually renders (name,
+     category, one image URL), the same restraint `menu` above already
+     applies to its own shape. */
+  const searchProducts = products.map((p) => ({
+    slug: p.slug,
+    name: p.name,
+    category: p.category,
+    image: p.images[0]?.url ?? null,
+  }));
+
   return (
     <>
       <IntroSplash />
@@ -57,7 +68,7 @@ export default async function SiteLayout({
         Skip to content
       </a>
 
-      <Header menu={menu} />
+      <Header menu={menu} searchProducts={searchProducts} />
       <main id="main" className="flex-1">
         {children}
       </main>
