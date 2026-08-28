@@ -685,13 +685,28 @@ function FeaturedCard({
             rounded). Top stays 73px; the two bands no longer move
             together, which they always could in principle — nothing tied
             them — this is just the first time only one of them changed. */}
+        {/* **TEST — client, 2026-08-28: "instead of black tint lets have
+            white tint and lets have the name, tagline and range written in
+            black instead... just for checking if it looks good, be ready
+            to revert if i think its not good."** Scoped to literal colours
+            (`#ffffff` here, `#14171a` — light mode's own `--color-ink` —
+            on the text below) rather than new tokens in `globals.css`,
+            specifically so this whole experiment is one file and reverts
+            with a single `git checkout` if it doesn't hold up. Not
+            `var(--color-scrim)` inverted, and not `text-ink` for the
+            text either: `--color-ink` flips to near-white in dark mode,
+            which would undo the "black text" half of this the moment
+            dark mode was on — the point of the `band-*` family this is
+            standing in for is to be theme-invariant, since the photograph
+            behind it does not change with the site's theme, and this
+            test needs the same property. */}
         <div
           aria-hidden
           className="absolute inset-x-0 top-0 h-[73px]"
           style={{
             backgroundImage: `linear-gradient(to bottom,
-              color-mix(in srgb, var(--color-scrim) 60%, transparent) 0%,
-              color-mix(in srgb, var(--color-scrim) 60%, transparent) 10%,
+              color-mix(in srgb, #ffffff 60%, transparent) 0%,
+              color-mix(in srgb, #ffffff 60%, transparent) 10%,
               transparent 100%)`,
           }}
         />
@@ -700,8 +715,8 @@ function FeaturedCard({
           className="absolute inset-x-0 bottom-0 h-[103px]"
           style={{
             backgroundImage: `linear-gradient(to top,
-              color-mix(in srgb, var(--color-scrim) 60%, transparent) 0%,
-              color-mix(in srgb, var(--color-scrim) 60%, transparent) 10%,
+              color-mix(in srgb, #ffffff 60%, transparent) 0%,
+              color-mix(in srgb, #ffffff 60%, transparent) 10%,
               transparent 100%)`,
           }}
         />
@@ -714,9 +729,18 @@ function FeaturedCard({
             {/* `band-accent-strong`, not `band-accent` — same reasoning as
                `home/HeroRotator`'s eyebrow: 11px over a photograph needs the
                brighter of the two greens (client, 2026-08-26: "make sub
-               category name in matching green"). */}
+               category name in matching green"). Left green through the
+               white-tint test below — the client's request named "the
+               name, tagline and range", not the category label, so this
+               one is untouched; worth a look in the test screenshot, since
+               a green tuned bright *for a dark background* may not read
+               as cleanly against the new white one. */}
             <p className="label-tech text-band-accent-strong">{categoryLabel(product.category)}</p>
-            <Heading className="mt-1 text-base leading-snug text-band-ink">
+            {/* `text-[#14171a]` (light mode's own `--color-ink`), not
+               `text-band-ink` — see the test note on the scrim above for
+               why literal, theme-invariant colours rather than new
+               tokens. */}
+            <Heading className="mt-1 text-base leading-snug text-[#14171a]">
               {/* Stretched link — the image is the target, one tab stop.
                   Scoped to the image sub-box now, not the whole card; see
                   the component note. */}
@@ -727,19 +751,16 @@ function FeaturedCard({
           </div>
 
           <div>
-            {/* `band-ink`, not `band-body` — bright white, not the dimmer
-               grey (client, 2026-08-26: "the tagline and range should be
-               bright white"). */}
             {product.tagline && (
-              <p className="line-clamp-2 text-[0.8125rem] leading-relaxed text-band-ink">
+              <p className="line-clamp-2 text-[0.8125rem] leading-relaxed text-[#14171a]">
                 {product.tagline}
               </p>
             )}
 
             {product.hpRanges.length > 0 && (
               <dl className="mt-1.5 flex gap-2 text-[0.8125rem]">
-                <dt className="label-tech pt-0.5 text-band-ink">Range</dt>
-                <dd className="font-mono text-[0.75rem] text-band-ink">
+                <dt className="label-tech pt-0.5 text-[#14171a]">Range</dt>
+                <dd className="font-mono text-[0.75rem] text-[#14171a]">
                   {product.hpRanges.join(" · ")}
                 </dd>
               </dl>
