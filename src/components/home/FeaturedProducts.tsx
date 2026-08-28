@@ -310,7 +310,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
       const second = el.children[products.length] as HTMLElement | undefined;
       return first && second
         ? second.offsetLeft - first.offsetLeft
-        : el.scrollWidth / 2;
+        : el.scrollWidth / 3;
     },
     [products.length],
   );
@@ -386,12 +386,12 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     const max = el.scrollWidth - el.clientWidth;
     setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
 
-    /* One set's width, whether or not it is currently doubled — so enabling
+    /* One set's width, whether or not it is currently tripled — so enabling
        the belt cannot change the measurement that decided to enable it. A
-       coarse `scrollWidth / 2` is fine here: this only decides whether to
-       double the row, not where the seam sits, so the few pixels it can be
+       coarse `scrollWidth / 3` is fine here: this only decides whether to
+       enable the loop, not where the seam sits, so the few pixels it can be
        off by never matter for this check. */
-    const oneSet = canLoop ? el.scrollWidth / 2 : el.scrollWidth;
+    const oneSet = canLoop ? el.scrollWidth / 3 : el.scrollWidth;
     setCanLoop(oneSet > el.clientWidth + 8);
 
     const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
@@ -501,13 +501,12 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     const el = trackRef.current;
     if (!el || !canLoop) return false;
     const oneSet = measureOneSet(el);
-    const max = el.scrollWidth - el.clientWidth;
-    if (el.scrollLeft <= 4) {
+    if (el.scrollLeft < oneSet - 4) {
       el.scrollLeft += oneSet;
       measure();
       return true;
     }
-    if (el.scrollLeft >= max - 4) {
+    if (el.scrollLeft >= 2 * oneSet - 4) {
       el.scrollLeft -= oneSet;
       measure();
       return true;
@@ -725,10 +724,10 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
 
   if (products.length === 0) return null;
 
-  /* The belt: one set for the eye, a second so there is always a card
-     following the last. `uid` keeps the two copies distinguishable — the pop
-     below keys on it, and React needs it for `key`. */
-  const slots = (canLoop ? [...products, ...products] : products).map(
+  /* The belt: one set for the eye, two duplicates so there is always a card
+     following the last in either direction. `uid` keeps the three copies
+     distinguishable — the pop below keys on it, and React needs it for `key`. */
+  const slots = (canLoop ? [...products, ...products, ...products] : products).map(
     (product, index) => ({ product, index, uid: `${product.id}#${index}` }),
   );
 
