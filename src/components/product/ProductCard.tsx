@@ -55,7 +55,7 @@ export function ProductCard({
 }) {
   const image = product.images[0];
   const Heading = headingLevel;
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+
 
   if (orientation === "horizontal") {
     return <HorizontalCard product={product} priority={priority} Heading={Heading} />;
@@ -66,7 +66,8 @@ export function ProductCard({
   }
 
   return (
-    <article className="group relative z-0 flex h-full flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-line-strong hover:shadow-card-hover">
+    <div className="relative h-full w-full">
+      <article className="group absolute inset-x-0 top-0 z-10 flex h-full min-h-full flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:bottom-auto hover:-translate-y-1.5 hover:scale-[1.03] hover:border-line-strong hover:shadow-card-hover">
       <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image
@@ -98,20 +99,7 @@ export function ProductCard({
           </span>
         )}
 
-        {/* Quick View Button Overlay */}
-        <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 bg-ink/5 md:bg-transparent md:hover:bg-ink/10">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsQuickViewOpen(true);
-            }}
-            className="bg-surface px-6 py-2.5 text-sm font-medium text-ink shadow-sm transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            Quick View
-          </button>
-        </div>
+
       </div>
 
       <div className="flex flex-1 flex-col p-5">
@@ -125,6 +113,12 @@ export function ProductCard({
             {product.name}
           </Link>
         </Heading>
+
+        {product.price != null && (
+          <p className="mt-1 text-lg font-semibold text-ink">
+            ₹ {product.price.toLocaleString("en-IN")}
+          </p>
+        )}
 
         {product.tagline && (
           <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2">
@@ -180,10 +174,19 @@ export function ProductCard({
           </div>
         </div>
       </div>
-      {isQuickViewOpen && (
-        <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
-      )}
+
     </article>
+
+    {/* INVISIBLE CLONE */}
+    <div className="invisible flex h-full flex-col pointer-events-none aria-hidden" aria-hidden="true">
+      <div className="aspect-square" />
+      <div className="flex flex-1 flex-col p-5">
+        <p className="label-tech">{categoryLabel(product.category)}</p>
+        <Heading className="mt-2.5 text-lg leading-snug">{product.name}</Heading>
+        <div className="mt-auto pt-6"><div className="h-9" /></div>
+      </div>
+    </div>
+  </div>
   );
 }
 
@@ -524,6 +527,12 @@ function HorizontalCard({
         </p>
       )}
 
+      {product.price != null && (
+        <p className="mt-1 text-sm font-semibold text-ink">
+          ₹ {product.price.toLocaleString("en-IN")}
+        </p>
+      )}
+
       {/* The corner arrow was a decoration for a card that was entirely a
           link. With a real control here it would read as a second button and
           compete with it, so the button takes the strip the card's bottom
@@ -617,11 +626,12 @@ function FeaturedCard({
   Heading: "h3" | "h4";
 }) {
   const image = product.images[0];
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+
 
   if (!image) {
     return (
-      <article className="group relative z-0 flex h-full flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-line-strong hover:shadow-card-hover">
+      <div className="relative h-full w-full">
+      <article className="group absolute inset-x-0 top-0 z-10 flex h-full min-h-full flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:bottom-auto hover:-translate-y-1.5 hover:scale-[1.03] hover:border-line-strong hover:shadow-card-hover">
         <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
           <PanelPlaceholder className="h-20 w-20" />
         </div>
@@ -651,11 +661,23 @@ function FeaturedCard({
           <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
         )}
       </article>
+
+      {/* INVISIBLE CLONE */}
+      <div className="invisible flex h-full flex-col pointer-events-none aria-hidden" aria-hidden="true">
+        <div className="aspect-square" />
+        <div className="flex flex-1 flex-col p-5">
+          <p className="label-tech">{categoryLabel(product.category)}</p>
+          <Heading className="mt-2.5 text-lg leading-snug">{product.name}</Heading>
+          <div className="mt-auto pt-6"><div className="h-9" /></div>
+        </div>
+      </div>
+    </div>
     );
   }
 
   return (
-    <article className="group relative z-0 flex h-full flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-band-line hover:shadow-card-hover">
+    <div className="relative h-full w-full">
+      <article className="group absolute inset-x-0 top-0 z-10 flex h-full min-h-full flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:bottom-auto hover:-translate-y-1.5 hover:scale-[1.03] hover:border-band-line hover:shadow-card-hover">
       <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden">
         <Image
           src={image.url}
@@ -779,6 +801,12 @@ function FeaturedCard({
                 {product.name}
               </Link>
             </Heading>
+
+            {product.price != null && (
+              <p className="mt-1 text-base font-semibold text-[#14171a]">
+                ₹ {product.price.toLocaleString("en-IN")}
+              </p>
+            )}
           </div>
 
           <div>
@@ -811,20 +839,7 @@ function FeaturedCard({
           </span>
         )}
 
-        {/* Quick View Button Overlay */}
-        <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 bg-ink/5 md:bg-transparent md:hover:bg-ink/10">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsQuickViewOpen(true);
-            }}
-            className="bg-surface px-6 py-2.5 text-sm font-medium text-ink shadow-sm transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            Quick View
-          </button>
-        </div>
+
       </div>
 
       {/* Footer row, below the image, flat — not overlaid on the photograph.
@@ -926,9 +941,18 @@ function FeaturedCard({
           <AddToCartButton slug={product.slug} name={product.name} size="compact" />
         </div>
       </div>
-      {isQuickViewOpen && (
-        <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
-      )}
+
     </article>
+
+    {/* INVISIBLE CLONE */}
+    <div className="invisible flex h-full flex-col pointer-events-none aria-hidden" aria-hidden="true">
+      <div className="aspect-square" />
+      <div className="flex flex-1 flex-col p-5">
+        <p className="label-tech">{categoryLabel(product.category)}</p>
+        <Heading className="mt-2.5 text-lg leading-snug">{product.name}</Heading>
+        <div className="mt-auto pt-6"><div className="h-9" /></div>
+      </div>
+    </div>
+  </div>
   );
 }

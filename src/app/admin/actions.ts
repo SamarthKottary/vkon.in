@@ -166,6 +166,9 @@ async function buildInput(formData: FormData): Promise<{
       (PROTECTION_KEYS as readonly string[]).includes(k),
     );
 
+  const priceRaw = String(formData.get("price") ?? "").trim();
+  const price = priceRaw ? parseInt(priceRaw, 10) : null;
+
   return {
     fieldErrors,
     input: {
@@ -181,6 +184,7 @@ async function buildInput(formData: FormData): Promise<{
       features: parseLines(formData.get("features")),
       protections,
       spec: parseSpec(formData.get("spec")),
+      price: Number.isNaN(price) ? null : price,
       published: formData.get("published") === "on",
       featured: formData.get("featured") === "on",
       seoTitle: String(formData.get("seoTitle") ?? "").trim().slice(0, 70),

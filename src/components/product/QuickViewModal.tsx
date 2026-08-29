@@ -88,8 +88,12 @@ export function QuickViewModal({
               </Link>
             </h2>
 
-            {/* Price Mockup: The client mockup showed a price (₹ 499.00), but types.ts doesn't have it. We'll leave space for it if it gets added in the future. For now we use the tagline instead or omit if not available */}
-            
+            {product.price != null && (
+              <p className="mt-3 text-2xl font-semibold text-ink">
+                ₹ {product.price.toLocaleString("en-IN")}
+              </p>
+            )}
+
             {product.tagline && (
               <p className="mt-4 text-body leading-relaxed">
                 {product.tagline}

@@ -70,6 +70,24 @@ export function ProductForm({ product }: { product?: Product }) {
         </Field>
 
         <Field
+          id={`${uid}-price`}
+          label="Price (₹)"
+          hint="Price in INR. Leave blank if not available."
+          error={fieldError("price")}
+        >
+          <input
+            id={`${uid}-price`}
+            name="price"
+            type="number"
+            min="0"
+            step="1"
+            defaultValue={product?.price ?? ""}
+            placeholder="499"
+            className={input(fieldError("price"))}
+          />
+        </Field>
+
+        <Field
           id={`${uid}-slug`}
           label="URL"
           hint="Leave blank to build it from the name."

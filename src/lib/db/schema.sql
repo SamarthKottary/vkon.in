@@ -66,6 +66,7 @@ CREATE INDEX IF NOT EXISTS products_category_idx
 -- stays safe to re-run alongside the CREATE above.
 ALTER TABLE products ADD COLUMN IF NOT EXISTS seo_title       TEXT NOT NULL DEFAULT '';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS seo_description TEXT NOT NULL DEFAULT '';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS price           INTEGER;
 
 -- ---------------------------------------------------------------------------
 -- Per-page SEO overrides for the static routes, editable at /admin/seo.

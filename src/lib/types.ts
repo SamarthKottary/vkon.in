@@ -82,6 +82,8 @@ export type Product = {
   published: boolean;
   featured: boolean;
   sortOrder: number;
+  /** Price in INR (whole rupees). Null if not set. */
+  price: number | null;
   /** Optional meta-title override; blank falls back to the product name. */
   seoTitle: string;
   /** Optional meta-description override; blank falls back to the tagline. */

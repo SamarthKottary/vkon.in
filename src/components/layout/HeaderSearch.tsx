@@ -90,11 +90,12 @@ export function HeaderSearch({
   }, [products, query, selectedSector]);
 
   /** Up to 3 autocomplete suggestions whose text contains the current query,
-   *  excluding exact matches (the visitor already typed it). */
+   *  excluding exact matches (the visitor already typed it), and limited to 3 words. */
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return suggestionTerms
+      .filter((t) => t.split(/\s+/).length <= 3)
       .filter((t) => t.toLowerCase().includes(q) && t.toLowerCase() !== q)
       .slice(0, 3);
   }, [suggestionTerms, query]);
@@ -295,7 +296,7 @@ export function HeaderSearch({
                            pattern has already made everywhere else on the
                            site it reads that way. */
                         <Link
-                          href={`/products?q=${encodeURIComponent(trimmed)}`}
+                          href={`/products?q=${encodeURIComponent(trimmed)}${selectedSector !== "all" ? `&sector=${selectedSector}` : ""}`}
                           onClick={close}
                           className="group/all relative mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink transition-colors hover:text-accent"
                         >
