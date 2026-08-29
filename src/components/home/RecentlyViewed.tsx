@@ -236,21 +236,12 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                (same pop treatment, same shadow) but had never carried
                padding generous enough to actually cover.
 
-               **`justify-center` while `!showArrows`, `justify-start`
-               otherwise** — same reasoning as `FeaturedProducts`' own
-               identical conditional, see its note (client, follow-up:
-               "for recent viewed... do not stretch instead just fit and
-               centre"). `!showArrows` is this component's equivalent of
-               that one's `!canLoop`: both mean "nothing here actually
-               overflows," the one case a fixed-width flex row's leftover
-               space should be split evenly around it rather than left as
-               a trailing gap — and, same caveat, the only case it is safe
-               to centre at all, since a centred *overflowing* scroll
-               container makes `scrollLeft: 0` ambiguous across browsers
-               in a way this track's own snap alignment cannot afford. */
-            className={`hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto px-6 py-4 sm:px-7 lg:px-9 ${
-              showArrows ? "justify-start" : "justify-center"
-            }`}
+                **Always `justify-start`** (client, 2026-08-29: "is should
+                add from left side, not from center"). Unlike FeaturedProducts,
+                which centres its content when everything fits, recently viewed
+                cards should always start and align from the left edge of the
+                page even if there is only a single card. */
+            className="hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto px-6 py-4 sm:px-7 lg:px-9 justify-start"
           >
             {recent.map((product) => (
               <li
