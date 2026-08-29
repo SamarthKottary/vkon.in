@@ -93,7 +93,8 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
       return recent.length > 2;
     }
     const needed = recent.length * 392 + (recent.length - 1) * 16;
-    return needed > windowWidth - 64;
+    const limit = Math.min(windowWidth - 64, 1216);
+    return needed > limit;
   }, [windowWidth, recent.length]);
 
   const sectionRef = useRef<HTMLElement>(null);
