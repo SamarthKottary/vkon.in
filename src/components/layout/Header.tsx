@@ -42,9 +42,11 @@ const DELTA = 6;
 export function Header({
   menu = [],
   searchProducts = [],
+  suggestionTerms = [],
 }: {
   menu?: MenuSector[];
   searchProducts?: SearchEntry[];
+  suggestionTerms?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
@@ -207,6 +209,7 @@ export function Header({
             <div className="ml-auto flex items-center gap-2 md:ml-0 md:flex-1 md:justify-end md:gap-5">
               <HeaderSearch
                 products={searchProducts}
+                suggestionTerms={suggestionTerms}
                 open={searchOpen}
                 onToggle={() => {
                   setProductsOpen(false);

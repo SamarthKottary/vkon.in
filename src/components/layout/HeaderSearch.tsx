@@ -55,11 +55,15 @@ const MAX_RESULTS = 6;
  */
 export function HeaderSearch({
   products,
+  suggestionTerms = [],
   open,
   onToggle,
   onClose,
 }: {
   products: SearchEntry[];
+  /** Short recognisable terms (sector labels, category names, protection
+   *  titles, product names, HP ranges) for Google-style autocomplete. */
+  suggestionTerms?: string[];
   /* Lifted to `Header`, same as `ProductsMenu`'s own `open` — controlled
      from there rather than kept local, because the header's hide-on-scroll
      behaviour has to know whether this panel is open too, for the same
@@ -79,6 +83,16 @@ export function HeaderSearch({
     if (!q) return [];
     return products.filter((p) => p.searchContent.includes(q));
   }, [products, query]);
+
+  /** Up to 3 autocomplete suggestions whose text contains the current query,
+   *  excluding exact matches (the visitor already typed it). */
+  const suggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return suggestionTerms
+      .filter((t) => t.toLowerCase().includes(q) && t.toLowerCase() !== q)
+      .slice(0, 3);
+  }, [suggestionTerms, query]);
 
   const close = useCallback(() => {
     onClose();
@@ -162,6 +176,37 @@ export function HeaderSearch({
                 aria-label="Search products"
                 className="w-full border border-line-strong bg-surface px-4 py-3 text-base text-ink placeholder:text-muted focus:border-ink focus:outline-none"
               />
+
+              {/* Autocomplete suggestions — up to 3 short terms that
+                  complete what the visitor has typed so far, rendered as
+                  clickable chips between the input and the product results.
+                  Clicking one fills the input instantly. */}
+              {suggestions.length > 0 && (
+                <ul className="mt-3 flex flex-wrap gap-2">
+                  {suggestions.map((term) => {
+                    const q = query.trim().toLowerCase();
+                    const idx = term.toLowerCase().indexOf(q);
+                    return (
+                      <li key={term}>
+                        <button
+                          type="button"
+                          onClick={() => setQuery(term)}
+                          className="flex items-center gap-1.5 border border-line bg-surface px-3 py-1.5 text-sm text-body transition-colors hover:border-accent hover:text-ink"
+                        >
+                          <SearchIcon className="h-3 w-3 shrink-0 text-muted" />
+                          <span>
+                            {term.slice(0, idx)}
+                            <span className="font-medium text-ink">
+                              {term.slice(idx, idx + q.length)}
+                            </span>
+                            {term.slice(idx + q.length)}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
 
               {trimmed !== "" && (
                 <div className="mt-5">

@@ -4,7 +4,7 @@ import { Header } from "@/components/layout/Header";
 import { IntroSplash } from "@/components/layout/IntroSplash";
 import { MobileActionBar } from "@/components/layout/MobileActionBar";
 import { JsonLd } from "@/components/ui/JsonLd";
-import { categoriesInSector, sectors, categoryLabel } from "@/content/taxonomy";
+import { categories, categoriesInSector, sectors, categoryLabel } from "@/content/taxonomy";
 import { protectionMeta } from "@/components/icons/protections";
 import { listProducts } from "@/lib/db/products";
 import { organizationJsonLd } from "@/lib/seo";
@@ -84,6 +84,25 @@ export default async function SiteLayout({
     };
   });
 
+  /* Short, recognisable terms the search bars offer as autocomplete
+     suggestions — sector names, category names, product names, protection
+     labels and HP ranges. Deduplicated and sorted once on the server so the
+     client receives a ready-to-filter list. */
+  const suggestionTerms = (() => {
+    const terms = new Set<string>();
+    for (const s of sectors) terms.add(s.label);
+    for (const c of categories) terms.add(c.label);
+    for (const p of products) {
+      terms.add(p.name);
+      for (const r of p.hpRanges) terms.add(r);
+      for (const key of p.protections) {
+        const meta = protectionMeta[key];
+        if (meta) terms.add(meta.label);
+      }
+    }
+    return Array.from(terms).sort();
+  })();
+
   return (
     <>
       <IntroSplash />
@@ -95,7 +114,7 @@ export default async function SiteLayout({
         Skip to content
       </a>
 
-      <Header menu={menu} searchProducts={searchProducts} />
+      <Header menu={menu} searchProducts={searchProducts} suggestionTerms={suggestionTerms} />
       <main id="main" className="flex-1">
         {children}
       </main>

@@ -173,6 +173,36 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
     );
   }, [products, sector, category, hp, searchDraft]);
 
+  /* Autocomplete vocabulary — short recognisable terms drawn from sectors,
+     categories, product names, protection labels and HP ranges. Built once
+     per product list and sorted alphabetically. */
+  const vocabulary = useMemo(() => {
+    const terms = new Set<string>();
+    for (const s of availableSectors) terms.add(s.label);
+    for (const cats of categoriesBySector.values()) {
+      for (const c of cats) terms.add(c.label);
+    }
+    for (const p of products) {
+      terms.add(p.name);
+      for (const r of p.hpRanges) terms.add(r);
+      for (const key of p.protections) {
+        const meta = protectionMeta[key];
+        if (meta) terms.add(meta.label);
+      }
+    }
+    return Array.from(terms).sort();
+  }, [products, availableSectors, categoriesBySector]);
+
+  /** Up to 3 autocomplete suggestions that contain the current draft,
+   *  excluding exact matches. */
+  const suggestions = useMemo(() => {
+    const q = searchDraft.trim().toLowerCase();
+    if (!q) return [];
+    return vocabulary
+      .filter((t) => t.toLowerCase().includes(q) && t.toLowerCase() !== q)
+      .slice(0, 3);
+  }, [vocabulary, searchDraft]);
+
   /* Rendered as one horizontal row per category rather than a single grid, so
      the range reads as a set of families instead of an undifferentiated wall.
      Categories with nothing in them after filtering are dropped, not shown
@@ -234,6 +264,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
   }
 
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -351,9 +382,14 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
               type="text"
               value={searchDraft}
               onChange={(event) => setSearchDraft(event.target.value)}
-              onBlur={() => commitSearch(searchDraft)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => {
+                setSearchFocused(false);
+                commitSearch(searchDraft);
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
+                  setSearchFocused(false);
                   commitSearch(searchDraft);
                   event.currentTarget.blur();
                 }
@@ -376,6 +412,42 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
               >
                 Clear
               </button>
+            )}
+
+            {/* Autocomplete suggestions dropdown — up to 3 terms that
+                contain what the visitor has typed, positioned directly below
+                the search input. `onMouseDown` with `preventDefault` stops
+                the input’s blur from firing before the click registers. */}
+            {searchFocused && suggestions.length > 0 && (
+              <ul className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden border border-line bg-surface-raised shadow-card">
+                {suggestions.map((term) => {
+                  const q = searchDraft.trim().toLowerCase();
+                  const idx = term.toLowerCase().indexOf(q);
+                  return (
+                    <li key={term}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setSearchDraft(term);
+                          commitSearch(term);
+                          setSearchFocused(false);
+                        }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-body transition-colors hover:bg-surface-subtle hover:text-ink"
+                      >
+                        <SearchIcon className="h-3.5 w-3.5 shrink-0 text-muted" />
+                        <span>
+                          {term.slice(0, idx)}
+                          <span className="font-medium text-ink">
+                            {term.slice(idx, idx + q.length)}
+                          </span>
+                          {term.slice(idx + q.length)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
 
