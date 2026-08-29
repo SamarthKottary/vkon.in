@@ -275,14 +275,8 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                 {/* See `FeaturedProducts`: the pop transform lives on this inner
                     layer, not the hover-target `<li>`, so lifting/scaling never
                     pulls the card out from under the pointer and loops. */}
-                <div
-                  className={`h-full rounded-[2px] transition duration-300 ease-out ${
-                    poppedId === product.id
-                      ? "-translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
-                      : "outline outline-2 -outline-offset-2 outline-transparent"
-                  }`}
-                >
-                  <ProductCard product={product} orientation="horizontal" />
+                <div className="h-full">
+                  <ProductCard product={product} orientation="horizontal" isPopped={poppedId === product.id} />
                 </div>
               </li>
             ))}

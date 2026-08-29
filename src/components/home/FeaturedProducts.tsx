@@ -973,14 +973,8 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
                 while chasing an unrelated clipping report, not something this
                 pass was asked to fix. The `outline` and `shadow-card-hover`
                 are what the pop actually looks like today. */}
-            <div
-              className={`h-full rounded-[2px] transition duration-300 ease-out ${
-                poppedId === uid
-                  ? "-translate-y-2.5 scale-[1.05] outline outline-2 -outline-offset-2 outline-accent shadow-card-hover"
-                  : "outline outline-2 -outline-offset-2 outline-transparent"
-              }`}
-            >
-              <ProductCard product={product} priority={index === 0} orientation="featured" />
+            <div className="h-full">
+              <ProductCard product={product} priority={true} orientation="featured" isPopped={poppedId === uid} />
             </div>
           </li>
         ))}

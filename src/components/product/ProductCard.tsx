@@ -39,6 +39,7 @@ export function ProductCard({
   priority = false,
   headingLevel = "h3",
   orientation = "vertical",
+  isPopped = false,
 }: {
   product: Product;
   priority?: boolean;
@@ -52,22 +53,23 @@ export function ProductCard({
    * background above and below it; home page only. See `FeaturedCard`.
    */
   orientation?: "vertical" | "horizontal" | "featured";
+  isPopped?: boolean;
 }) {
   const image = product.images[0];
   const Heading = headingLevel;
 
 
   if (orientation === "horizontal") {
-    return <HorizontalCard product={product} priority={priority} Heading={Heading} />;
+    return <HorizontalCard product={product} priority={priority} Heading={Heading} isPopped={isPopped} />;
   }
 
   if (orientation === "featured") {
-    return <FeaturedCard product={product} priority={priority} Heading={Heading} />;
+    return <FeaturedCard product={product} priority={priority} Heading={Heading} isPopped={isPopped} />;
   }
 
   return (
     <div className="relative h-full w-full">
-      <article className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-line-strong hover:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-1.5 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-1.5 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
       <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image
@@ -230,10 +232,12 @@ function HorizontalCard({
   product,
   priority,
   Heading,
+  isPopped,
 }: {
   product: Product;
   priority: boolean;
   Heading: "h3" | "h4";
+  isPopped?: boolean;
 }) {
   const image = product.images[0];
 
@@ -620,10 +624,12 @@ function FeaturedCard({
   product,
   priority,
   Heading,
+  isPopped,
 }: {
   product: Product;
   priority: boolean;
   Heading: "h3" | "h4";
+  isPopped: boolean;
 }) {
   const image = product.images[0];
 
@@ -631,7 +637,7 @@ function FeaturedCard({
   if (!image) {
     return (
       <div className="relative h-full w-full">
-      <article className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-line-strong hover:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-1.5 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-1.5 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
         <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
           <PanelPlaceholder className="h-20 w-20" />
         </div>
@@ -675,7 +681,7 @@ function FeaturedCard({
 
   return (
     <div className="relative h-full w-full">
-      <article className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-band-line hover:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-1.5 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-1.5 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
       <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden">
         <Image
           src={image.url}
