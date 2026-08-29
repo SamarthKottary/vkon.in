@@ -657,9 +657,7 @@ function FeaturedCard({
             <AddToCartButton slug={product.slug} name={product.name} size="compact" />
           </div>
         </div>
-        {isQuickViewOpen && (
-          <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
-        )}
+
       </article>
 
       {/* INVISIBLE CLONE */}
