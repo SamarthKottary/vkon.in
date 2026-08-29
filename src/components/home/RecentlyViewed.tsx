@@ -75,9 +75,26 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
       .slice(0, SHOWN);
   }, [raw, products]);
 
-  const showMobileOverflow = recent.length > 1;
-  const showTabletOverflow = recent.length > 2;
-  const showDesktopOverflow = recent.length > 3;
+  const [windowWidth, setWindowWidth] = useState(0);
+
+  useEffect(() => {
+    setWindowWidth(window.innerWidth);
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isOverflow = useMemo(() => {
+    if (windowWidth === 0) return false;
+    if (windowWidth < 640) {
+      return recent.length > 1;
+    }
+    if (windowWidth < 1024) {
+      return recent.length > 2;
+    }
+    const needed = recent.length * 392 + (recent.length - 1) * 16;
+    return needed > windowWidth - 64;
+  }, [windowWidth, recent.length]);
 
   const sectionRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLUListElement>(null);
@@ -246,11 +263,9 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                 cards should always start and align from the left edge of the
                 page even if there is only a single card. */
             className={`hscroll mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto py-4 justify-start ${
-              showMobileOverflow ? "max-sm:mx-[calc(50%-50vw)] max-sm:px-6" : ""
-            } ${
-              showTabletOverflow ? "sm:max-lg:mx-[calc(50%-50vw)] sm:max-lg:px-7" : ""
-            } ${
-              showDesktopOverflow ? "lg:mx-[calc(50%-50vw)] lg:px-9" : ""
+              isOverflow
+                ? "mx-[calc(50%-50vw)] px-6 sm:px-7 lg:px-9"
+                : ""
             }`}
           >
             {recent.map((product) => (
