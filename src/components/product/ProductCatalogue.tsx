@@ -366,42 +366,28 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
             `lg` the rail renders nothing, so this remains the first visible
             thing on the page exactly as before. */}
         <div className="mb-8 flex items-center gap-3">
-          <div className="relative flex-1 flex border border-line-strong bg-surface-raised focus-within:border-ink transition-colors">
-            <select
-              value={sector}
-              onChange={(event) => selectSector(event.target.value)}
-              className="bg-surface-raised px-3 py-2.5 text-sm text-ink border-r border-line-strong focus:outline-none"
-              aria-label="Filter by category"
-            >
-              <option value="all">All categories</option>
-              {availableSectors.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <div className="relative flex-1">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 [transform:translateY(-50%)] text-muted" />
-              <input
-                type="text"
-                value={searchDraft}
-                onChange={(event) => setSearchDraft(event.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => {
+          <div className="relative flex-1">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 [transform:translateY(-50%)] text-muted" />
+            <input
+              type="text"
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => {
+                setSearchFocused(false);
+                commitSearch(searchDraft);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
                   setSearchFocused(false);
                   commitSearch(searchDraft);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    setSearchFocused(false);
-                    commitSearch(searchDraft);
-                    event.currentTarget.blur();
-                  }
-                }}
-                placeholder="Search products…"
-                aria-label="Search products"
-                className="w-full bg-transparent py-2.5 pl-10 pr-14 text-sm text-ink placeholder:text-muted focus:outline-none"
-              />
+                  event.currentTarget.blur();
+                }
+              }}
+              placeholder="Search products…"
+              aria-label="Search products"
+              className="w-full border border-line-strong bg-surface-raised py-2.5 pl-10 pr-14 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none"
+            />
             {/* A text "Clear" rather than an icon (client, this pass: "I
                 want a clear button in the search bar as well, at right
                 corner, instead of x" — the previous `CloseIcon` glyph still
@@ -453,7 +439,6 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
                 })}
               </ul>
             )}
-            </div>
           </div>
 
           <button
