@@ -127,7 +127,11 @@ export function ProductCard({
         </Heading>
 
         {product.tagline && (
-          <p className="mt-2 text-sm leading-relaxed text-muted">{product.tagline}</p>
+          <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2">
+            <p className="overflow-hidden text-sm leading-relaxed text-muted">
+              {product.tagline}
+            </p>
+          </div>
         )}
 
         {product.hpRanges.length > 0 && (
@@ -267,6 +271,7 @@ function HorizontalCard({
     null,
   );
   const [shown, setShown] = useState<number | null>(null);
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
   useEffect(() => {
     const el = specRef.current;
@@ -400,6 +405,21 @@ function HorizontalCard({
             <span className="sr-only">Includes a video</span>
           </span>
         )}
+
+        {/* Quick View Button Overlay */}
+        <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 bg-ink/5 md:bg-transparent md:hover:bg-ink/10">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsQuickViewOpen(true);
+            }}
+            className="bg-surface px-4 py-1.5 text-xs font-medium text-ink shadow-sm transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent"
+          >
+            Quick View
+          </button>
+        </div>
       </div>
 
       {/* Beside the image: sub-category, then the specification line. */}
@@ -515,9 +535,11 @@ function HorizontalCard({
       </Heading>
 
       {product.tagline && (
-        <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-muted">
-          {product.tagline}
-        </p>
+        <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-1.5">
+          <p className="overflow-hidden text-[0.8125rem] leading-relaxed text-muted">
+            {product.tagline}
+          </p>
+        </div>
       )}
 
       {/* The corner arrow was a decoration for a card that was entirely a
@@ -541,8 +563,11 @@ function HorizontalCard({
           a plain `<div>` that scales on its own hover, rather than editing
           the button, keeps every other card's instance exactly as it was. */}
       <div className="absolute bottom-3 right-4 transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
-        <AddToCartButton slug={product.slug} name={product.name} size="compact" />
+          <AddToCartButton slug={product.slug} name={product.name} size="compact" />
       </div>
+      {isQuickViewOpen && (
+        <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
+      )}
     </article>
   );
 }
@@ -613,6 +638,7 @@ function FeaturedCard({
   Heading: "h3" | "h4";
 }) {
   const image = product.images[0];
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
   if (!image) {
     return (
@@ -628,7 +654,11 @@ function FeaturedCard({
             </Link>
           </Heading>
           {product.tagline && (
-            <p className="mt-2 text-sm leading-relaxed text-muted">{product.tagline}</p>
+            <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2">
+              <p className="overflow-hidden text-sm leading-relaxed text-muted">
+                {product.tagline}
+              </p>
+            </div>
           )}
           <div className="mt-auto flex items-center justify-between gap-3 pt-6">
             <span className="flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-accent">
@@ -638,6 +668,9 @@ function FeaturedCard({
             <AddToCartButton slug={product.slug} name={product.name} size="compact" />
           </div>
         </div>
+        {isQuickViewOpen && (
+          <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
+        )}
       </article>
     );
   }
@@ -771,9 +804,11 @@ function FeaturedCard({
 
           <div>
             {product.tagline && (
-              <p className="line-clamp-2 text-[0.8125rem] leading-relaxed text-[#14171a]">
-                {product.tagline}
-              </p>
+              <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-1.5">
+                <p className="overflow-hidden line-clamp-2 text-[0.8125rem] leading-relaxed text-[#14171a]">
+                  {product.tagline}
+                </p>
+              </div>
             )}
 
             {product.hpRanges.length > 0 && (
@@ -796,6 +831,21 @@ function FeaturedCard({
             <span className="sr-only">Includes a video</span>
           </span>
         )}
+
+        {/* Quick View Button Overlay */}
+        <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 bg-ink/5 md:bg-transparent md:hover:bg-ink/10">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsQuickViewOpen(true);
+            }}
+            className="bg-surface px-6 py-2.5 text-sm font-medium text-ink shadow-sm transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent"
+          >
+            Quick View
+          </button>
+        </div>
       </div>
 
       {/* Footer row, below the image, flat — not overlaid on the photograph.
@@ -897,6 +947,9 @@ function FeaturedCard({
           <AddToCartButton slug={product.slug} name={product.name} size="compact" />
         </div>
       </div>
+      {isQuickViewOpen && (
+        <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
+      )}
     </article>
   );
 }
