@@ -67,7 +67,7 @@ export function ProductCard({
 
   return (
     <div className="relative h-full w-full">
-      <article className="group absolute inset-x-0 top-0 z-10 flex h-full min-h-full flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:bottom-auto hover:-translate-y-1.5 hover:scale-[1.03] hover:border-line-strong hover:shadow-card-hover">
+      <article className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:scale-[1.03] hover:-translate-y-[calc(50%+6px)] hover:border-line-strong hover:shadow-card-hover">
       <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image
@@ -631,7 +631,7 @@ function FeaturedCard({
   if (!image) {
     return (
       <div className="relative h-full w-full">
-      <article className="group absolute inset-x-0 top-0 z-10 flex h-full min-h-full flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:bottom-auto hover:-translate-y-1.5 hover:scale-[1.03] hover:border-line-strong hover:shadow-card-hover">
+      <article className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:scale-[1.03] hover:-translate-y-[calc(50%+6px)] hover:border-line-strong hover:shadow-card-hover">
         <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
           <PanelPlaceholder className="h-20 w-20" />
         </div>
@@ -675,7 +675,7 @@ function FeaturedCard({
 
   return (
     <div className="relative h-full w-full">
-      <article className="group absolute inset-x-0 top-0 z-10 flex h-full min-h-full flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:bottom-auto hover:-translate-y-1.5 hover:scale-[1.03] hover:border-band-line hover:shadow-card-hover">
+      <article className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:scale-[1.03] hover:-translate-y-[calc(50%+6px)] hover:border-band-line hover:shadow-card-hover">
       <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden">
         <Image
           src={image.url}
