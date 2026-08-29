@@ -39,8 +39,6 @@ export function ProductCard({
   priority = false,
   headingLevel = "h3",
   orientation = "vertical",
-  isPopped = false,
-  onQuickViewOpenChange,
 }: {
   product: Product;
   priority?: boolean;
@@ -54,25 +52,22 @@ export function ProductCard({
    * background above and below it; home page only. See `FeaturedCard`.
    */
   orientation?: "vertical" | "horizontal" | "featured";
-  isPopped?: boolean;
-  onQuickViewOpenChange?: (isOpen: boolean) => void;
 }) {
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const image = product.images[0];
   const Heading = headingLevel;
 
 
   if (orientation === "horizontal") {
-    return <HorizontalCard product={product} priority={priority} Heading={Heading} isPopped={isPopped} />;
+    return <HorizontalCard product={product} priority={priority} Heading={Heading} />;
   }
 
   if (orientation === "featured") {
-    return <FeaturedCard product={product} priority={priority} Heading={Heading} isPopped={isPopped || false} onQuickViewOpenChange={onQuickViewOpenChange} />;
+    return <FeaturedCard product={product} priority={priority} Heading={Heading} />;
   }
 
   return (
     <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-2.5 data-[popped=true]:scale-[1.04] data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-line-strong hover:shadow-card-hover">
       <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image
@@ -93,22 +88,6 @@ export function ProductCard({
             <PanelPlaceholder className="h-20 w-20" />
           </div>
         )}
-
-        {/* Quick View Button */}
-        <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsQuickViewOpen(true);
-              if (onQuickViewOpenChange) onQuickViewOpenChange(true);
-            }}
-            className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
-          >
-            Quick view
-          </button>
-        </div>
 
         {product.videoUrl && (
           <span
@@ -207,13 +186,6 @@ export function ProductCard({
         <div className="mt-auto pt-6"><div className="h-9" /></div>
       </div>
     </div>
-
-    {isQuickViewOpen && (
-      <QuickViewModal product={product} onClose={() => {
-        setIsQuickViewOpen(false);
-        if (onQuickViewOpenChange) onQuickViewOpenChange(false);
-      }} />
-    )}
   </div>
   );
 }
@@ -258,12 +230,10 @@ function HorizontalCard({
   product,
   priority,
   Heading,
-  isPopped,
 }: {
   product: Product;
   priority: boolean;
   Heading: "h3" | "h4";
-  isPopped?: boolean;
 }) {
   const image = product.images[0];
 
@@ -650,40 +620,20 @@ function FeaturedCard({
   product,
   priority,
   Heading,
-  isPopped,
-  onQuickViewOpenChange,
 }: {
   product: Product;
   priority: boolean;
   Heading: "h3" | "h4";
-  isPopped: boolean;
-  onQuickViewOpenChange?: (isOpen: boolean) => void;
 }) {
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const image = product.images[0];
 
 
   if (!image) {
     return (
       <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-3 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-3 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-line-strong hover:shadow-card-hover">
         <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
           <PanelPlaceholder className="h-20 w-20" />
-          
-          <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsQuickViewOpen(true);
-                if (onQuickViewOpenChange) onQuickViewOpenChange(true);
-              }}
-              className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
-            >
-              Quick view
-            </button>
-          </div>
         </div>
         <div className="flex flex-1 flex-col p-5">
           <p className="label-tech text-muted">{categoryLabel(product.category)}</p>
@@ -719,20 +669,13 @@ function FeaturedCard({
           <div className="mt-auto pt-6"><div className="h-9" /></div>
         </div>
       </div>
-
-      {isQuickViewOpen && (
-        <QuickViewModal product={product} onClose={() => {
-          setIsQuickViewOpen(false);
-          if (onQuickViewOpenChange) onQuickViewOpenChange(false);
-        }} />
-      )}
     </div>
     );
   }
 
   return (
     <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-3 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-3 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-band-line hover:shadow-card-hover">
       <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden">
         <Image
           src={image.url}
@@ -748,22 +691,6 @@ function FeaturedCard({
              `ui/Button`. */
           className="object-cover transition-transform duration-300 ease-out md:group-hover:[transform:scale(1.06)]"
         />
-
-        <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
-          <button
-            type="button"
-            onClick={(e) => {
-              console.log("FeaturedCard quick view button clicked for", product.name);
-              e.preventDefault();
-              e.stopPropagation();
-              setIsQuickViewOpen(true);
-              if (onQuickViewOpenChange) onQuickViewOpenChange(true);
-            }}
-            className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
-          >
-            Quick view
-          </button>
-        </div>
 
         {/* Top and bottom scrims — reshaped into a vignette, not a
             content-covering band (client, 2026-08-26: "reduce the dark tint
@@ -1020,13 +947,6 @@ function FeaturedCard({
       <div className="aspect-square w-full" />
       <div className="p-3"><div className="h-9" /></div>
     </div>
-
-    {isQuickViewOpen && (
-      <QuickViewModal product={product} onClose={() => {
-        setIsQuickViewOpen(false);
-        if (onQuickViewOpenChange) onQuickViewOpenChange(false);
-      }} />
-    )}
   </div>
   );
 }

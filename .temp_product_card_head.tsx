@@ -72,7 +72,7 @@ export function ProductCard({
 
   return (
     <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-2.5 data-[popped=true]:scale-[1.04] data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group relative flex h-full min-h-full flex-col overflow-hidden border border-line bg-surface transition-all duration-300 hover:z-20 hover:h-fit hover:[transform:scale(1.03)] hover:border-accent hover:shadow-card-hover hover:bg-surface-raised data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:[transform:scale(1.03)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover data-[popped=true]:bg-surface-raised">
       <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image

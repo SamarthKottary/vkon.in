@@ -72,7 +72,7 @@ export function ProductCard({
 
   return (
     <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-2.5 data-[popped=true]:scale-[1.04] data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-3 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-3 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
       <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image
@@ -1020,13 +1020,6 @@ function FeaturedCard({
       <div className="aspect-square w-full" />
       <div className="p-3"><div className="h-9" /></div>
     </div>
-
-    {isQuickViewOpen && (
-      <QuickViewModal product={product} onClose={() => {
-        setIsQuickViewOpen(false);
-        if (onQuickViewOpenChange) onQuickViewOpenChange(false);
-      }} />
-    )}
   </div>
   );
 }
