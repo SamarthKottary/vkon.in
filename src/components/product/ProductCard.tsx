@@ -7,8 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRightIcon, PlayIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "./PanelPlaceholder";
 import { categoryLabel } from "@/content/taxonomy";
+import { QuickViewModal } from "@/components/product/QuickViewModal";
 import type { Product } from "@/lib/types";
-
 /**
  * Catalogue card.
  *
@@ -55,6 +55,7 @@ export function ProductCard({
 }) {
   const image = product.images[0];
   const Heading = headingLevel;
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
   if (orientation === "horizontal") {
     return <HorizontalCard product={product} priority={priority} Heading={Heading} />;
@@ -96,6 +97,21 @@ export function ProductCard({
             <span className="sr-only">Includes a video</span>
           </span>
         )}
+
+        {/* Quick View Button Overlay */}
+        <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 bg-ink/5 md:bg-transparent md:hover:bg-ink/10">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsQuickViewOpen(true);
+            }}
+            className="bg-surface px-6 py-2.5 text-sm font-medium text-ink shadow-sm transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent"
+          >
+            Quick View
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col p-5">
@@ -160,6 +176,9 @@ export function ProductCard({
           </div>
         </div>
       </div>
+      {isQuickViewOpen && (
+        <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
+      )}
     </article>
   );
 }
