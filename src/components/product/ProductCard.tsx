@@ -127,9 +127,11 @@ export function ProductCard({
         </Heading>
 
         {product.tagline && (
-          <p className="mt-2 text-sm leading-relaxed text-muted opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-            {product.tagline}
-          </p>
+          <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2">
+            <p className="overflow-hidden text-sm leading-relaxed text-muted">
+              {product.tagline}
+            </p>
+          </div>
         )}
 
         {product.hpRanges.length > 0 && (
@@ -631,9 +633,11 @@ function FeaturedCard({
             </Link>
           </Heading>
           {product.tagline && (
-            <p className="mt-2 text-sm leading-relaxed text-muted opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-              {product.tagline}
-            </p>
+            <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2">
+              <p className="overflow-hidden text-sm leading-relaxed text-muted">
+                {product.tagline}
+              </p>
+            </div>
           )}
           <div className="mt-auto flex items-center justify-between gap-3 pt-6">
             <span className="flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-accent">
@@ -779,9 +783,11 @@ function FeaturedCard({
 
           <div>
             {product.tagline && (
-              <p className="mt-1.5 line-clamp-2 text-[0.8125rem] leading-relaxed text-[#14171a] opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                {product.tagline}
-              </p>
+              <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-1.5">
+                <p className="overflow-hidden line-clamp-2 text-[0.8125rem] leading-relaxed text-[#14171a]">
+                  {product.tagline}
+                </p>
+              </div>
             )}
 
             {product.hpRanges.length > 0 && (
