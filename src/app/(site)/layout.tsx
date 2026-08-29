@@ -4,7 +4,7 @@ import { Header } from "@/components/layout/Header";
 import { IntroSplash } from "@/components/layout/IntroSplash";
 import { MobileActionBar } from "@/components/layout/MobileActionBar";
 import { JsonLd } from "@/components/ui/JsonLd";
-import { categories, categoriesInSector, sectors, categoryLabel } from "@/content/taxonomy";
+import { categories, categoriesInSector, sectors, categoryLabel, sectorLabel, sectorOf } from "@/content/taxonomy";
 import { protectionMeta } from "@/components/icons/protections";
 import { listProducts } from "@/lib/db/products";
 import { organizationJsonLd } from "@/lib/seo";
@@ -65,6 +65,7 @@ export default async function SiteLayout({
       p.name,
       p.tagline,
       categoryLabel(p.category),
+      sectorLabel(sectorOf(p.category) ?? ""),
       p.description,
       p.features.join(" "),
       protectionLabels,

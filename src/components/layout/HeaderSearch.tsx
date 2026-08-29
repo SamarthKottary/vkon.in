@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRightIcon, SearchIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { Container } from "@/components/ui/Container";
-import { categoryLabel } from "@/content/taxonomy";
+import { categoryLabel, sectors, sectorOf } from "@/content/taxonomy";
 
 export type SearchEntry = {
   slug: string;
@@ -73,6 +73,7 @@ export function HeaderSearch({
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const [selectedSector, setSelectedSector] = useState("all");
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -80,9 +81,13 @@ export function HeaderSearch({
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return products.filter((p) => p.searchContent.includes(q));
-  }, [products, query]);
+    return products.filter((p) => {
+      const sectorMatch = selectedSector === "all" || sectorOf(p.category) === selectedSector;
+      if (!sectorMatch) return false;
+      if (!q) return false;
+      return p.searchContent.includes(q);
+    });
+  }, [products, query, selectedSector]);
 
   /** Up to 3 autocomplete suggestions whose text contains the current query,
    *  excluding exact matches (the visitor already typed it). */
@@ -167,15 +172,30 @@ export function HeaderSearch({
         >
           <Container size="wide">
             <div className="py-6">
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search products…"
-                aria-label="Search products"
-                className="w-full border border-line-strong bg-surface px-4 py-3 text-base text-ink placeholder:text-muted focus:border-ink focus:outline-none"
-              />
+              <div className="flex w-full border border-line-strong bg-surface">
+                <select
+                  value={selectedSector}
+                  onChange={(event) => setSelectedSector(event.target.value)}
+                  className="bg-surface px-4 py-3 text-sm text-ink border-r border-line-strong focus:outline-none"
+                  aria-label="Filter by category"
+                >
+                  <option value="all">All categories</option>
+                  {sectors.map((s) => (
+                    <option key={s.key} value={s.key}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search products…"
+                  aria-label="Search products"
+                  className="w-full bg-transparent px-4 py-3 text-base text-ink placeholder:text-muted focus:outline-none"
+                />
+              </div>
 
               {/* Autocomplete suggestions — up to 3 short terms that
                   complete what the visitor has typed so far, rendered as
@@ -291,8 +311,8 @@ export function HeaderSearch({
                       )}
                     </>
                   ) : (
-                    <p className="py-6 text-sm text-muted">
-                      No products match &ldquo;{trimmed}&rdquo;.
+                    <p className="py-4 text-center text-sm text-muted">
+                      No products found for "{trimmed}"{selectedSector !== "all" ? " in this category" : ""}.
                     </p>
                   )}
                 </div>
