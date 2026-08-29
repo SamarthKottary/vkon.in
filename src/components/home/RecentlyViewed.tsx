@@ -241,7 +241,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                 which centres its content when everything fits, recently viewed
                 cards should always start and align from the left edge of the
                 page even if there is only a single card. */
-            className="hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto px-6 py-4 sm:px-7 lg:px-9 justify-start"
+            className="hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto py-4 pl-5 pr-5 [scroll-padding-left:20px] sm:pl-6 sm:pr-6 sm:[scroll-padding-left:24px] lg:pl-8 lg:pr-8 lg:[scroll-padding-left:32px] xl:pl-[calc(50vw-38rem)] xl:pr-[calc(50vw-38rem)] xl:[scroll-padding-left:calc(50vw-38rem)] justify-start"
           >
             {recent.map((product) => (
               <li
