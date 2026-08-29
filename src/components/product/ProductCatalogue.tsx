@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons/ui";
 import { ProductRow } from "@/components/product/ProductRow";
-import { categoriesInSector, sectorOf, sectors } from "@/content/taxonomy";
+import { categoriesInSector, sectorOf, sectors, categoryLabel } from "@/content/taxonomy";
+import { protectionMeta } from "@/components/icons/protections";
 import type { CategoryMeta, Product } from "@/lib/types";
 
 /**
@@ -155,7 +156,20 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
         (hp === "all" || p.hpRanges.includes(hp)) &&
         (query === "" ||
           p.name.toLowerCase().includes(query) ||
-          p.tagline.toLowerCase().includes(query)),
+          p.tagline.toLowerCase().includes(query) ||
+          categoryLabel(p.category).toLowerCase().includes(query) ||
+          p.description.toLowerCase().includes(query) ||
+          p.features.some((f) => f.toLowerCase().includes(query)) ||
+          p.protections.some((key) => {
+            const label = protectionMeta[key]?.label ?? "";
+            return label.toLowerCase().includes(query) || key.toLowerCase().includes(query);
+          }) ||
+          p.hpRanges.some((r) => r.toLowerCase().includes(query)) ||
+          p.spec.some(
+            (s) =>
+              s.label.toLowerCase().includes(query) ||
+              s.value.toLowerCase().includes(query),
+          )),
     );
   }, [products, sector, category, hp, searchDraft]);
 

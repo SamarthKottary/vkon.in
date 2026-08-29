@@ -14,6 +14,7 @@ export type SearchEntry = {
   category: string;
   /** First product image, or `null` for one with none yet. */
   image: string | null;
+  searchContent: string;
 };
 
 /** Shown inline; the rest are reachable via "View all results" onto
@@ -76,7 +77,7 @@ export function HeaderSearch({
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return products.filter((p) => p.name.toLowerCase().includes(q));
+    return products.filter((p) => p.searchContent.includes(q));
   }, [products, query]);
 
   const close = useCallback(() => {

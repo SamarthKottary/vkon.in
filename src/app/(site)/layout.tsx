@@ -4,7 +4,8 @@ import { Header } from "@/components/layout/Header";
 import { IntroSplash } from "@/components/layout/IntroSplash";
 import { MobileActionBar } from "@/components/layout/MobileActionBar";
 import { JsonLd } from "@/components/ui/JsonLd";
-import { categoriesInSector, sectors } from "@/content/taxonomy";
+import { categoriesInSector, sectors, categoryLabel } from "@/content/taxonomy";
+import { protectionMeta } from "@/components/icons/protections";
 import { listProducts } from "@/lib/db/products";
 import { organizationJsonLd } from "@/lib/seo";
 
@@ -49,13 +50,39 @@ export default async function SiteLayout({
   /* `HeaderSearch`'s own index — reuses this same query rather than a
      second one, and ships only what that panel actually renders (name,
      category, one image URL), the same restraint `menu` above already
-     applies to its own shape. */
-  const searchProducts = products.map((p) => ({
-    slug: p.slug,
-    name: p.name,
-    category: p.category,
-    image: p.images[0]?.url ?? null,
-  }));
+     applies to its own shape. Includes precomputed searchContent. */
+  const searchProducts = products.map((p) => {
+    const protectionLabels = p.protections
+      .map((key) => {
+        const meta = protectionMeta[key];
+        return meta ? `${meta.label} ${key}` : key;
+      })
+      .join(" ");
+
+    const specText = p.spec.map((s) => `${s.label} ${s.value}`).join(" ");
+
+    const searchContent = [
+      p.name,
+      p.tagline,
+      categoryLabel(p.category),
+      p.description,
+      p.features.join(" "),
+      protectionLabels,
+      p.hpRanges.join(" "),
+      specText,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return {
+      slug: p.slug,
+      name: p.name,
+      category: p.category,
+      image: p.images[0]?.url ?? null,
+      searchContent,
+    };
+  });
 
   return (
     <>
