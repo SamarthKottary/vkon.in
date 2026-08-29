@@ -753,9 +753,11 @@ function FeaturedCard({
           <button
             type="button"
             onClick={(e) => {
+              console.log("FeaturedCard quick view button clicked for", product.name);
               e.preventDefault();
               e.stopPropagation();
               setIsQuickViewOpen(true);
+              if (onQuickViewOpenChange) onQuickViewOpenChange(true);
             }}
             className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
           >

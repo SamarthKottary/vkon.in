@@ -38,7 +38,7 @@ export function QuickViewModal({
   if (!mounted) return null;
 
   // Blank lines separate paragraphs in the admin textarea. We just show the first one.
-  const firstParagraph = product.description
+  const firstParagraph = (product.description || "")
     .split(/\n\s*\n/)
     .map((p) => p.trim())
     .filter(Boolean)[0];

@@ -883,7 +883,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
            `measureStep`/`correctSeam`/the CSS `scroll-padding-left` above
            all depend on) — `canLoop` already being false is precisely the
            signal that this row has no overflow to protect. */
-        className={`hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-6 overflow-x-auto px-6 py-10 [scroll-padding-left:24px] sm:px-7 sm:[scroll-padding-left:28px] lg:px-9 lg:[scroll-padding-left:36px] ${
+        className={`hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-6 overflow-x-auto px-6 pb-10 pt-16 [scroll-padding-left:24px] sm:px-7 sm:[scroll-padding-left:28px] lg:px-9 lg:[scroll-padding-left:36px] ${
           canLoop ? "justify-start" : "justify-center"
         }`}
       >
