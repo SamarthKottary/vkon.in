@@ -370,7 +370,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
             <select
               value={sector}
               onChange={(event) => selectSector(event.target.value)}
-              className="hidden lg:block bg-surface-raised px-3 py-2.5 text-sm text-ink border-r border-line-strong focus:outline-none"
+              className="bg-surface-raised px-3 py-2.5 text-sm text-ink border-r border-line-strong focus:outline-none"
               aria-label="Filter by category"
             >
               <option value="all">All categories</option>
