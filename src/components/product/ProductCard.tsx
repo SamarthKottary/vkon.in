@@ -66,7 +66,7 @@ export function ProductCard({
   }
 
   return (
-    <article className="group relative flex h-full flex-col border border-line bg-surface-raised shadow-card transition-[box-shadow,border-color,transform,translate] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
+    <article className="group relative z-0 flex h-full flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-line-strong hover:shadow-card-hover">
       <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image
@@ -269,7 +269,6 @@ function HorizontalCard({
     null,
   );
   const [shown, setShown] = useState<number | null>(null);
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
   useEffect(() => {
     const el = specRef.current;
@@ -403,21 +402,6 @@ function HorizontalCard({
             <span className="sr-only">Includes a video</span>
           </span>
         )}
-
-        {/* Quick View Button Overlay */}
-        <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 bg-ink/5 md:bg-transparent md:hover:bg-ink/10">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsQuickViewOpen(true);
-            }}
-            className="bg-surface px-4 py-1.5 text-xs font-medium text-ink shadow-sm transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            Quick View
-          </button>
-        </div>
       </div>
 
       {/* Beside the image: sub-category, then the specification line. */}
@@ -561,9 +545,6 @@ function HorizontalCard({
       <div className="absolute bottom-3 right-4 transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
           <AddToCartButton slug={product.slug} name={product.name} size="compact" />
       </div>
-      {isQuickViewOpen && (
-        <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
-      )}
     </article>
   );
 }
@@ -638,7 +619,7 @@ function FeaturedCard({
 
   if (!image) {
     return (
-      <article className="group relative flex h-full flex-col border border-line bg-surface-raised shadow-card transition-[box-shadow,border-color,transform,translate] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
+      <article className="group relative z-0 flex h-full flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-line-strong hover:shadow-card-hover">
         <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
           <PanelPlaceholder className="h-20 w-20" />
         </div>
@@ -670,7 +651,7 @@ function FeaturedCard({
   }
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden border border-line bg-band shadow-card transition-[box-shadow,border-color,transform,translate] duration-200 hover:-translate-y-0.5 hover:border-band-line hover:shadow-card-hover">
+    <article className="group relative z-0 flex h-full flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-band-line hover:shadow-card-hover">
       <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden">
         <Image
           src={image.url}
