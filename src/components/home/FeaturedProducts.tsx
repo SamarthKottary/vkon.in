@@ -229,6 +229,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
    *  arrives on the original schedule (≤3s, ~1.5s on average) instead of a
    *  guaranteed fresh 3s. */
   const hoverPausedRef = useRef(false);
+  const modalPausedRef = useRef(false);
   /* Whether the section itself is in the viewport — see the comment on the
      component for why this, and not an interaction flag, gates the pop. */
   const [inView, setInView] = useState(false);
@@ -714,7 +715,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
          cadence rather than restarting a fresh 3s — see `hoverPausedRef`.
          A tick spent hovering is simply lost, which is what "pause" should
          mean here: the belt does not "catch up" afterwards. */
-      if (hoverPausedRef.current) return;
+      if (hoverPausedRef.current || modalPausedRef.current) return;
       /* No end to test for: `advance` carries the seam, so every tick is the
          same single step whether or not it happens to cross it. */
       advance();
@@ -980,7 +981,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
                 orientation="featured"
                 isPopped={poppedId === uid}
                 onQuickViewOpenChange={(isOpen) => {
-                  hoverPausedRef.current = isOpen;
+                  modalPausedRef.current = isOpen;
                 }}
               />
             </div>
