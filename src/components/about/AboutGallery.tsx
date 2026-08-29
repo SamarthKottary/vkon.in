@@ -314,7 +314,9 @@ export function AboutGallery({
              re-snaps to the nearest slide after the instant `scrollLeft`
              assignment and the belt jerks at the wrap. Paging is by a
              measured stride, so snap was only ever belt-and-braces. */
-          className="hscroll flex gap-4 overflow-x-auto overscroll-x-contain"
+          className={`hscroll flex gap-4 overflow-x-auto overscroll-x-contain ${
+            canLoop ? "justify-start" : "justify-center"
+          }`}
         >
           {slots.map(({ image, i, uid }) => (
             <div
