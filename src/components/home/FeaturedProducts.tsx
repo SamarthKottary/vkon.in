@@ -974,7 +974,15 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
                 pass was asked to fix. The `outline` and `shadow-card-hover`
                 are what the pop actually looks like today. */}
             <div className="h-full">
-              <ProductCard product={product} priority={true} orientation="featured" isPopped={poppedId === uid} />
+              <ProductCard
+                product={product}
+                priority={true}
+                orientation="featured"
+                isPopped={poppedId === uid}
+                onQuickViewOpenChange={(isOpen) => {
+                  hoverPausedRef.current = isOpen;
+                }}
+              />
             </div>
           </li>
         ))}

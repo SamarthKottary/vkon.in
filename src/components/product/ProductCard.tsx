@@ -40,6 +40,7 @@ export function ProductCard({
   headingLevel = "h3",
   orientation = "vertical",
   isPopped = false,
+  onQuickViewOpenChange,
 }: {
   product: Product;
   priority?: boolean;
@@ -54,6 +55,7 @@ export function ProductCard({
    */
   orientation?: "vertical" | "horizontal" | "featured";
   isPopped?: boolean;
+  onQuickViewOpenChange?: (isOpen: boolean) => void;
 }) {
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const image = product.images[0];
@@ -65,7 +67,7 @@ export function ProductCard({
   }
 
   if (orientation === "featured") {
-    return <FeaturedCard product={product} priority={priority} Heading={Heading} isPopped={isPopped} />;
+    return <FeaturedCard product={product} priority={priority} Heading={Heading} isPopped={isPopped || false} onQuickViewOpenChange={onQuickViewOpenChange} />;
   }
 
   return (
@@ -98,7 +100,9 @@ export function ProductCard({
             type="button"
             onClick={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               setIsQuickViewOpen(true);
+              if (onQuickViewOpenChange) onQuickViewOpenChange(true);
             }}
             className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
           >
@@ -205,7 +209,10 @@ export function ProductCard({
     </div>
 
     {isQuickViewOpen && (
-      <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
+      <QuickViewModal product={product} onClose={() => {
+        setIsQuickViewOpen(false);
+        if (onQuickViewOpenChange) onQuickViewOpenChange(false);
+      }} />
     )}
   </div>
   );
@@ -644,11 +651,13 @@ function FeaturedCard({
   priority,
   Heading,
   isPopped,
+  onQuickViewOpenChange,
 }: {
   product: Product;
   priority: boolean;
   Heading: "h3" | "h4";
   isPopped: boolean;
+  onQuickViewOpenChange?: (isOpen: boolean) => void;
 }) {
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const image = product.images[0];
@@ -661,12 +670,14 @@ function FeaturedCard({
         <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
           <PanelPlaceholder className="h-20 w-20" />
           
-          <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+          <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
             <button
               type="button"
               onClick={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 setIsQuickViewOpen(true);
+                if (onQuickViewOpenChange) onQuickViewOpenChange(true);
               }}
               className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
             >
@@ -710,7 +721,10 @@ function FeaturedCard({
       </div>
 
       {isQuickViewOpen && (
-        <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
+        <QuickViewModal product={product} onClose={() => {
+          setIsQuickViewOpen(false);
+          if (onQuickViewOpenChange) onQuickViewOpenChange(false);
+        }} />
       )}
     </div>
     );
@@ -735,11 +749,12 @@ function FeaturedCard({
           className="object-cover transition-transform duration-300 ease-out md:group-hover:[transform:scale(1.06)]"
         />
 
-        <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+        <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
           <button
             type="button"
             onClick={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               setIsQuickViewOpen(true);
             }}
             className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
