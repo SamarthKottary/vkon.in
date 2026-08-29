@@ -55,6 +55,7 @@ export function ProductCard({
   orientation?: "vertical" | "horizontal" | "featured";
   isPopped?: boolean;
 }) {
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const image = product.images[0];
   const Heading = headingLevel;
 
@@ -69,7 +70,7 @@ export function ProductCard({
 
   return (
     <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-1.5 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-1.5 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-3 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-3 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
       <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
           <Image
@@ -90,6 +91,20 @@ export function ProductCard({
             <PanelPlaceholder className="h-20 w-20" />
           </div>
         )}
+
+        {/* Quick View Button */}
+        <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setIsQuickViewOpen(true);
+            }}
+            className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
+          >
+            Quick view
+          </button>
+        </div>
 
         {product.videoUrl && (
           <span
@@ -188,6 +203,10 @@ export function ProductCard({
         <div className="mt-auto pt-6"><div className="h-9" /></div>
       </div>
     </div>
+
+    {isQuickViewOpen && (
+      <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
+    )}
   </div>
   );
 }
@@ -631,15 +650,29 @@ function FeaturedCard({
   Heading: "h3" | "h4";
   isPopped: boolean;
 }) {
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const image = product.images[0];
 
 
   if (!image) {
     return (
       <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-1.5 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-1.5 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-3 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-3 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
         <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
           <PanelPlaceholder className="h-20 w-20" />
+          
+          <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setIsQuickViewOpen(true);
+              }}
+              className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
+            >
+              Quick view
+            </button>
+          </div>
         </div>
         <div className="flex flex-1 flex-col p-5">
           <p className="label-tech text-muted">{categoryLabel(product.category)}</p>
@@ -675,13 +708,17 @@ function FeaturedCard({
           <div className="mt-auto pt-6"><div className="h-9" /></div>
         </div>
       </div>
+
+      {isQuickViewOpen && (
+        <QuickViewModal product={product} onClose={() => setIsQuickViewOpen(false)} />
+      )}
     </div>
     );
   }
 
   return (
     <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-1.5 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-1.5 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-3 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-3 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
       <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden">
         <Image
           src={image.url}
@@ -697,6 +734,19 @@ function FeaturedCard({
              `ui/Button`. */
           className="object-cover transition-transform duration-300 ease-out md:group-hover:[transform:scale(1.06)]"
         />
+
+        <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setIsQuickViewOpen(true);
+            }}
+            className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
+          >
+            Quick view
+          </button>
+        </div>
 
         {/* Top and bottom scrims — reshaped into a vignette, not a
             content-covering band (client, 2026-08-26: "reduce the dark tint
