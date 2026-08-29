@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons/ui";
-import { ProductRow } from "@/components/product/ProductRow";
+import { ProductCard } from "@/components/product/ProductCard";
 import { categoriesInSector, sectorOf, sectorLabel, sectors, categoryLabel } from "@/content/taxonomy";
 import { protectionMeta } from "@/components/icons/protections";
 import type { CategoryMeta, Product } from "@/lib/types";
@@ -204,18 +204,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
       .slice(0, 3);
   }, [vocabulary, searchDraft]);
 
-  /* Rendered as one horizontal row per category rather than a single grid, so
-     the range reads as a set of families instead of an undifferentiated wall.
-     Categories with nothing in them after filtering are dropped, not shown
-     empty. */
-  const groups = useMemo(
-    () =>
-      Array.from(categoriesBySector.values())
-        .flat()
-        .map((c) => ({ category: c, items: filtered.filter((p) => p.category === c.key) }))
-        .filter((g) => g.items.length > 0),
-    [categoriesBySector, filtered],
-  );
+
 
   function updateParams(mutate: (next: URLSearchParams) => void) {
     const next = new URLSearchParams(params.toString());
@@ -483,17 +472,14 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
           </button>
         </div>
 
-        {groups.length > 0 ? (
-            <div className="flex flex-col gap-14">
-              {groups.map((group, index) => (
-                <ProductRow
-                  key={group.category.key}
-                  category={group.category}
-                  products={group.items}
-                  priority={index === 0}
-                />
+        {filtered.length > 0 ? (
+            <ul className="grid grid-cols-[minmax(17.5rem,1fr)] gap-6 sm:grid-cols-[repeat(2,minmax(17.5rem,1fr))] xl:grid-cols-[repeat(3,minmax(17.5rem,1fr))]">
+              {filtered.map((product, index) => (
+                <li key={product.id}>
+                  <ProductCard product={product} priority={index === 0} headingLevel="h3" />
+                </li>
               ))}
-            </div>
+            </ul>
           ) : (
             <div className="border border-line py-20 text-center">
               <p className="text-ink">No products match those filters.</p>
