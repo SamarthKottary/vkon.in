@@ -242,7 +242,11 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                 cards should always start and align from the left edge of the
                 page even if there is only a single card. */
             className={`hscroll mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto py-4 ${
-              showArrows ? "justify-start" : "justify-center"
+              recent.length > 2
+                ? `mx-[calc(50%-50vw)] px-6 sm:px-7 lg:px-9 ${
+                    showArrows ? "justify-start" : "justify-center"
+                  }`
+                : "justify-start"
             }`}
           >
             {recent.map((product) => (
