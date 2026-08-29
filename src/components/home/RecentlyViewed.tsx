@@ -271,7 +271,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                    a guess — it is what the old formula already rendered at
                    exactly 1280px, this page's own width ceiling before
                    today, so nothing changes at or under that width. */
-                className={`relative w-[92%] flex-none snap-center sm:w-[calc((100%-1rem)/2)] lg:w-[392px] ${
+                className={`relative w-[92%] flex-none snap-start sm:w-[calc((100%-1rem)/2)] lg:w-[392px] ${
                   poppedId === product.id ? "z-10" : "z-0"
                 }`}
               >
