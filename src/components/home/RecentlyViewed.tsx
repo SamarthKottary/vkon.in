@@ -75,6 +75,10 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
       .slice(0, SHOWN);
   }, [raw, products]);
 
+  const showMobileOverflow = recent.length > 1;
+  const showTabletOverflow = recent.length > 2;
+  const showDesktopOverflow = recent.length > 3;
+
   const sectionRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
@@ -242,9 +246,11 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                 cards should always start and align from the left edge of the
                 page even if there is only a single card. */
             className={`hscroll mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto py-4 justify-start ${
-              showArrows
-                ? "mx-[calc(50%-50vw)] px-6 sm:px-7 lg:px-9"
-                : ""
+              showMobileOverflow ? "max-sm:mx-[calc(50%-50vw)] max-sm:px-6" : ""
+            } ${
+              showTabletOverflow ? "sm:max-lg:mx-[calc(50%-50vw)] sm:max-lg:px-7" : ""
+            } ${
+              showDesktopOverflow ? "lg:mx-[calc(50%-50vw)] lg:px-9" : ""
             }`}
           >
             {recent.map((product) => (
