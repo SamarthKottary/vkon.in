@@ -944,12 +944,8 @@ function FeaturedCard({
 
     {/* INVISIBLE CLONE */}
     <div className="invisible flex h-full flex-col pointer-events-none aria-hidden" aria-hidden="true">
-      <div className="aspect-square" />
-      <div className="flex flex-1 flex-col p-5">
-        <p className="label-tech">{categoryLabel(product.category)}</p>
-        <Heading className="mt-2.5 text-lg leading-snug">{product.name}</Heading>
-        <div className="mt-auto pt-6"><div className="h-9" /></div>
-      </div>
+      <div className="aspect-square w-full" />
+      <div className="p-3"><div className="h-9" /></div>
     </div>
   </div>
   );
