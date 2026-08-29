@@ -172,11 +172,11 @@ export function HeaderSearch({
         >
           <Container size="wide">
             <div className="py-6">
-              <div className="flex w-full border border-line-strong bg-surface">
+              <div className="flex w-full flex-col sm:flex-row border border-line-strong bg-surface">
                 <select
                   value={selectedSector}
                   onChange={(event) => setSelectedSector(event.target.value)}
-                  className="bg-surface px-4 py-3 text-sm text-ink border-r border-line-strong focus:outline-none"
+                  className="bg-surface px-4 py-3 text-sm text-ink border-b sm:border-b-0 sm:border-r border-line-strong focus:outline-none"
                   aria-label="Filter by category"
                 >
                   <option value="all">All categories</option>
