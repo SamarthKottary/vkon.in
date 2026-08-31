@@ -3,11 +3,12 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { SearchIcon } from "@/components/icons/ui";
+import { SearchIcon, SpinnerIcon } from "@/components/icons/ui";
 import { ProductCard } from "@/components/product/ProductCard";
 import { categoriesInSector, sectorOf, sectorLabel, sectors, categoryLabel } from "@/content/taxonomy";
 import { protectionMeta } from "@/components/icons/protections";
 import { fuzzySearchAction } from "@/app/(site)/search-action";
+import { fuzzyMatchScore } from "@/lib/fuzzy";
 import type { CategoryMeta, Product } from "@/lib/types";
 
 /**
@@ -219,23 +220,28 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
 
   /* ── Server-side fuzzy results (debounced) ───────────────────── */
   const [fuzzyScores, setFuzzyScores] = useState<Map<string, number>>(new Map());
+  const [isFuzzyLoading, setIsFuzzyLoading] = useState(false);
   const seqRef = useRef(0);
 
   useEffect(() => {
     const q = searchDraft.trim();
     if (!q) {
       setFuzzyScores(new Map());
+      setIsFuzzyLoading(false);
       return;
     }
+    setIsFuzzyLoading(true);
     const seq = ++seqRef.current;
     const timer = setTimeout(async () => {
       try {
         const results = await fuzzySearchAction(q);
         if (seqRef.current === seq) {
           setFuzzyScores(new Map(results.map((r) => [r.slug, r.score])));
+          setIsFuzzyLoading(false);
         }
       } catch {
         /* Server search failed — client results still showing. */
+        if (seqRef.current === seq) setIsFuzzyLoading(false);
       }
     }, 300);
     return () => clearTimeout(timer);
@@ -307,11 +313,13 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
     const q = searchDraft.trim().toLowerCase();
     if (!q) return [];
     return vocabulary
-      .filter((t) => t.toLowerCase().includes(q) && t.toLowerCase() !== q)
-      .slice(0, 3);
-  }, [vocabulary, searchDraft]);
-
-
+      .filter((t) => t.split(/\s+/).length <= 3)
+      .map((term) => ({ term, score: fuzzyMatchScore(q, term) }))
+      .filter((match) => match.score > 0.3 && match.term.toLowerCase() !== q)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((match) => match.term);
+  }, [searchDraft, vocabulary]);
 
   function updateParams(mutate: (next: URLSearchParams) => void) {
     const next = new URLSearchParams(params.toString());
@@ -438,15 +446,17 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
                 read as "an x" rather than as a labelled control). This
                 input is `type="text"`, not `type="search"`, so there is no
                 native cancel button underneath to also account for. */}
-            {searchDraft.length > 0 && (
+            {isFuzzyLoading ? (
+              <SpinnerIcon className="absolute right-4 top-1/2 h-4 w-4 [transform:translateY(-50%)] text-muted" />
+            ) : searchDraft.length > 0 ? (
               <button
                 type="button"
                 onClick={clearSearch}
-                className="absolute right-3 top-1/2 [transform:translateY(-50%)] text-xs font-medium text-muted transition-colors hover:text-ink"
+                className="absolute right-4 top-1/2 [transform:translateY(-50%)] text-xs font-medium text-muted transition-colors hover:text-ink"
               >
                 Clear
               </button>
-            )}
+            ) : null}
 
             {/* Autocomplete suggestions dropdown — up to 3 terms that
                 contain what the visitor has typed, positioned directly below
@@ -471,11 +481,17 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
                       >
                         <SearchIcon className="h-3.5 w-3.5 shrink-0 text-muted" />
                         <span>
-                          {term.slice(0, idx)}
-                          <span className="font-medium text-ink">
-                            {term.slice(idx, idx + q.length)}
-                          </span>
-                          {term.slice(idx + q.length)}
+                          {idx !== -1 ? (
+                            <>
+                              {term.slice(0, idx)}
+                              <span className="font-medium text-ink">
+                                {term.slice(idx, idx + q.length)}
+                              </span>
+                              {term.slice(idx + q.length)}
+                            </>
+                          ) : (
+                            term
+                          )}
                         </span>
                       </button>
                     </li>

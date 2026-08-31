@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRightIcon, SearchIcon } from "@/components/icons/ui";
+import { ArrowRightIcon, SearchIcon, SpinnerIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { Container } from "@/components/ui/Container";
 import { categoryLabel, sectors, sectorOf } from "@/content/taxonomy";
 import { fuzzySearchAction } from "@/app/(site)/search-action";
+import { fuzzyMatchScore } from "@/lib/fuzzy";
 
 export type SearchEntry = {
   slug: string;
@@ -93,23 +94,28 @@ export function HeaderSearch({
 
   /* ── Server-side fuzzy results (debounced) ────────────────────── */
   const [fuzzyScores, setFuzzyScores] = useState<Map<string, number>>(new Map());
+  const [isFuzzyLoading, setIsFuzzyLoading] = useState(false);
   const seqRef = useRef(0);
 
   useEffect(() => {
     const q = query.trim();
     if (!q) {
       setFuzzyScores(new Map());
+      setIsFuzzyLoading(false);
       return;
     }
+    setIsFuzzyLoading(true);
     const seq = ++seqRef.current;
     const timer = setTimeout(async () => {
       try {
         const results = await fuzzySearchAction(q);
         if (seqRef.current === seq) {
           setFuzzyScores(new Map(results.map((r) => [r.slug, r.score])));
+          setIsFuzzyLoading(false);
         }
       } catch {
         /* Server search failed — client results still showing. */
+        if (seqRef.current === seq) setIsFuzzyLoading(false);
       }
     }, 300);
     return () => clearTimeout(timer);
@@ -151,9 +157,12 @@ export function HeaderSearch({
     if (!q) return [];
     return suggestionTerms
       .filter((t) => t.split(/\s+/).length <= 3)
-      .filter((t) => t.toLowerCase().includes(q) && t.toLowerCase() !== q)
-      .slice(0, 3);
-  }, [suggestionTerms, query]);
+      .map((term) => ({ term, score: fuzzyMatchScore(q, term) }))
+      .filter((match) => match.score > 0.3 && match.term.toLowerCase() !== q)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((match) => match.term);
+  }, [query, suggestionTerms]);
 
   const close = useCallback(() => {
     onClose();
@@ -228,7 +237,7 @@ export function HeaderSearch({
         >
           <Container size="wide">
             <div className="py-6">
-              <div className="flex w-full flex-col sm:flex-row border border-line-strong bg-surface">
+              <div className="relative flex w-full flex-col sm:flex-row border border-line-strong bg-surface">
                 <select
                   value={selectedSector}
                   onChange={(event) => setSelectedSector(event.target.value)}
@@ -249,8 +258,11 @@ export function HeaderSearch({
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search products…"
                   aria-label="Search products"
-                  className="w-full bg-transparent px-4 py-3 text-base text-ink placeholder:text-muted focus:outline-none"
+                  className="w-full bg-transparent px-4 py-3 text-base text-ink placeholder:text-muted focus:outline-none pr-10"
                 />
+                {isFuzzyLoading && (
+                  <SpinnerIcon className="absolute right-4 top-1/2 h-5 w-5 [transform:translateY(-50%)] text-muted" />
+                )}
               </div>
 
               {/* Autocomplete suggestions — up to 3 short terms that
@@ -271,11 +283,17 @@ export function HeaderSearch({
                         >
                           <SearchIcon className="h-3 w-3 shrink-0 text-muted" />
                           <span>
-                            {term.slice(0, idx)}
-                            <span className="font-medium text-ink">
-                              {term.slice(idx, idx + q.length)}
-                            </span>
-                            {term.slice(idx + q.length)}
+                            {idx !== -1 ? (
+                              <>
+                                {term.slice(0, idx)}
+                                <span className="font-medium text-ink">
+                                  {term.slice(idx, idx + q.length)}
+                                </span>
+                                {term.slice(idx + q.length)}
+                              </>
+                            ) : (
+                              term
+                            )}
                           </span>
                         </button>
                       </li>
