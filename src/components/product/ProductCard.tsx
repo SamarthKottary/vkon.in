@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
-import { useEffect, useRef, useState } from "react";
-import { ArrowRightIcon, PlayIcon } from "@/components/icons/ui";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "./PanelPlaceholder";
 import { categoryLabel } from "@/content/taxonomy";
 import { QuickViewModal } from "@/components/product/QuickViewModal";
@@ -61,6 +61,122 @@ export function ProductCard({
   const image = product.images[0];
   const Heading = headingLevel;
 
+  /* The vertical (catalogue-grid) card's own image gallery — left/right
+     arrows, swipe, and dots below the image (client, 2026-08-28: "in all
+     products page lets have left and right buttons on the product cards
+     as well to scroll. In mobile view i also want swipe scrolling... Lets
+     have dots below the image... it should move when swipe or toggle like
+     in featured product section").
+
+     Declared here, unconditionally, rather than inside a separate
+     `VerticalCard` function the way `HorizontalCard`/`FeaturedCard` already
+     are — `isQuickViewOpen` just above is the same shape already: state
+     this component only *uses* in one branch, called every render
+     regardless of `orientation`, because the rules of hooks forbid calling
+     it only for some. Matching that rather than extracting a fourth
+     function keeps this one addition consistent with how the file already
+     reads, not a second convention living next to the first. */
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const gallerySettleTimer = useRef<number | null>(null);
+  const galleryActiveRef = useRef(0);
+  const [galleryActive, setGalleryActive] = useState(0);
+  const [galleryCanScroll, setGalleryCanScroll] = useState({ left: false, right: false });
+
+  /* Same "one slide is exactly the track's own width" idiom as
+     `product/ProductMedia`, and the same settle-timer forcing exact
+     alignment on top of `snap-mandatory` — see that component's own note
+     for why the browser's snap alone measured short of the true boundary
+     on a real swipe, and why a settle-timer fixes it without needing to
+     hijack the touch gesture itself. */
+  const gallerySync = useCallback(() => {
+    const el = galleryRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setGalleryCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
+    const active = Math.min(Math.round(el.scrollLeft / el.clientWidth), product.images.length - 1);
+    galleryActiveRef.current = active;
+    setGalleryActive(active);
+  }, [product.images.length]);
+
+  const onGalleryScroll = useCallback(() => {
+    gallerySync();
+    if (gallerySettleTimer.current !== null) window.clearTimeout(gallerySettleTimer.current);
+    gallerySettleTimer.current = window.setTimeout(() => {
+      const el = galleryRef.current;
+      if (!el || el.clientWidth === 0) return;
+      const nearest = Math.round(el.scrollLeft / el.clientWidth);
+      const target = nearest * el.clientWidth;
+      if (Math.abs(el.scrollLeft - target) > 1) {
+        el.scrollTo({ left: target, behavior: "smooth" });
+      }
+    }, 100);
+  }, [gallerySync]);
+
+  /* The hover-pop on this card's own `<article>` (`hover:-inset-x-2.5`,
+     below) is a real layout resize, not just the `scale()` sitting next to
+     it — so the track's `clientWidth` genuinely grows a few pixels while
+     hovered and shrinks back on unhover. A resize mid-gallery leaves
+     `scrollLeft` unchanged in absolute pixels, which is no longer an exact
+     multiple of the new, different slide width once there's a non-first,
+     non-last slide for it to be off from — the same partial-slide sliver
+     the settle-timer above exists to prevent, just triggered by a resize
+     instead of a scroll. Re-pinning to the known active slide on every
+     resize tick (a plain assignment, not `scrollTo`, so it doesn't animate
+     against the CSS hover transition already in motion) keeps the view
+     glued to that slide throughout the pop, no separate scroll event
+     required. */
+  const onGalleryResize = useCallback(() => {
+    gallerySync();
+    /* A resize that overlaps an in-flight scroll — an arrow click first
+       triggers `:hover`, so the pop's own resize events land throughout
+       the same smooth `scrollTo` its click just started — must not force
+       a competing instant jump here. The settle-timer above already
+       re-reads a fresh `clientWidth` once that scroll genuinely stops, so
+       deferring to it (a pending timer means a scroll is in flight or just
+       ended) keeps the two corrections from fighting over the same pixel. */
+    if (gallerySettleTimer.current !== null) return;
+    const el = galleryRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const target = galleryActiveRef.current * el.clientWidth;
+    if (Math.abs(el.scrollLeft - target) > 1) {
+      el.scrollLeft = target;
+    }
+  }, [gallerySync]);
+
+  useEffect(() => {
+    if (product.images.length <= 1) return;
+    gallerySync();
+    const el = galleryRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(onGalleryResize);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [gallerySync, onGalleryResize, product.images.length]);
+
+  useEffect(
+    () => () => {
+      if (gallerySettleTimer.current !== null) window.clearTimeout(gallerySettleTimer.current);
+    },
+    [],
+  );
+
+  /* `stopPropagation` on every caller, same as the Quick View button
+     already needs: this card is one stretched link end to end (the
+     `Heading` link's `after:absolute after:inset-0` reaches the whole
+     `<article>`, not just the image, on this orientation), so a click on
+     an arrow or a dot has to stop it reaching that link and navigating
+     away from what was only ever a "look at the next photo" click. A
+     genuine swipe never has this problem on its own — a drag that moves
+     the pointer suppresses the click a browser would otherwise fire at
+     release, the same standard behaviour every native scroll-inside-a-link
+     pattern already relies on. */
+  const goToImage = (index: number, event?: { preventDefault: () => void; stopPropagation: () => void }) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const el = galleryRef.current;
+    if (!el) return;
+    el.scrollTo({ left: index * el.clientWidth, behavior: "smooth" });
+  };
 
   if (orientation === "horizontal") {
     return <HorizontalCard product={product} priority={priority} Heading={Heading} isPopped={isPopped} />;
@@ -73,29 +189,163 @@ export function ProductCard({
   return (
     <div className="relative h-full w-full">
       <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-2.5 data-[popped=true]:scale-[1.04] data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
-      <div className="relative aspect-square overflow-hidden border-b border-line bg-surface-subtle">
+      {/* `z-20` here, not only on the arrows/Quick View button nested
+          inside it — found missing the same way as the dot row's own fix
+          below: a real swipe on the image itself, not just an arrow
+          click, was silently swallowed by the title `Link`'s
+          `after:absolute after:inset-0`. That pseudo-element has no
+          explicit z-index of its own, so it stacks by DOM order among
+          other unelevated elements — and this wrapper sits *earlier* in
+          the article than the text block the link lives in, which is
+          exactly the ordering that let the link win. Elevating the whole
+          image wrapper once here covers the track inside it along with
+          everything already elevated individually (arrows, Quick View),
+          rather than needing the same fix repeated on each. */}
+      <div className="relative z-20 aspect-square overflow-hidden border-b border-line bg-surface-subtle">
         {image ? (
-          <Image
-            src={image.url}
-            alt={image.alt || product.name}
-            fill
-            sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 92vw"
-            priority={priority}
-            /* `object-cover` with no padding, on a plate whose ratio matches
-               the 1:1 photography spec — so this fills edge to edge and crops
-               nothing. The pairing is the point: `aspect-square` above and
-               this class are a matched set, and changing either alone starts
-               cutting panels. See the note on the component. */
-            className="object-cover transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
-          />
+          product.images.length > 1 ? (
+            <div
+              ref={galleryRef}
+              onScroll={onGalleryScroll}
+              aria-label={`${product.name} photos`}
+              className="hscroll flex h-full snap-x snap-mandatory overflow-x-auto"
+            >
+              {product.images.map((img, index) => (
+                <div key={index} className="relative h-full w-full flex-none snap-start">
+                  <Image
+                    src={img.url}
+                    alt={img.alt || product.name}
+                    fill
+                    sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 92vw"
+                    /* Only the card's opening image loads eagerly — every
+                       other one is a sibling in the same scrollable row,
+                       and `priority` on all of them would preload every
+                       photo on a card most visitors never swipe past the
+                       first image of. */
+                    priority={priority && index === 0}
+                    className="object-cover transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Image
+              src={image.url}
+              alt={image.alt || product.name}
+              fill
+              sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 92vw"
+              priority={priority}
+              /* `object-cover` with no padding, on a plate whose ratio matches
+                 the 1:1 photography spec — so this fills edge to edge and crops
+                 nothing. The pairing is the point: `aspect-square` above and
+                 this class are a matched set, and changing either alone starts
+                 cutting panels. See the note on the component. */
+              className="object-cover transition-transform duration-300 ease-out md:group-hover:scale-[1.06]"
+            />
+          )
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <PanelPlaceholder className="h-20 w-20" />
           </div>
         )}
 
-        {/* Quick View Button */}
-        <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+        {/* Left/right arrows over the image — always visible, not a
+            hover-reveal like Quick View below: a touch device has no
+            hover state at all, and the client asked for these to work on
+            mobile specifically, alongside the swipe rather than instead
+            of it. Same bare-chevron, theme-invariant styling as
+            `product/ProductMedia`'s own arrows, for one consistent look
+            everywhere a product's photos are paged through. */}
+        {product.images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => goToImage(galleryActive - 1, e)}
+              disabled={!galleryCanScroll.left}
+              aria-label={`Previous photo of ${product.name}`}
+              className="absolute left-2 top-1/2 z-20 flex h-8 w-8 [transform:translateY(-50%)] items-center justify-center rounded-full border border-[#dde1e5] bg-[#ffffff] text-[#14171a] shadow-card transition-colors hover:border-[#14171a] disabled:cursor-default disabled:opacity-40"
+            >
+              <ChevronLeftIcon className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => goToImage(galleryActive + 1, e)}
+              disabled={!galleryCanScroll.right}
+              aria-label={`Next photo of ${product.name}`}
+              className="absolute right-2 top-1/2 z-20 flex h-8 w-8 [transform:translateY(-50%)] items-center justify-center rounded-full border border-[#dde1e5] bg-[#ffffff] text-[#14171a] shadow-card transition-colors hover:border-[#14171a] disabled:cursor-default disabled:opacity-40"
+            >
+              <ChevronRightIcon className="h-4 w-4" />
+            </button>
+          </>
+        )}
+
+        {/* Dots on the image itself, not a row underneath it (client: "The
+            dots should not be seperate row but on the image itself at the
+            bottom") — same per-photo indicator as before, reimplemented
+            as an overlay instead of a block-level row. `home/FeaturedProducts`'
+            own dot row was the visual reference for the dot shape only; that
+            component's dots sit below a whole carousel of cards, a
+            different piece of UI, not something to import a dependency on
+            here. Reads `galleryActive`, the same state the arrows and the
+            swipe both already drive, so a swipe moves these exactly as a
+            toggle click does.
+
+            The outer strip spans the image's full width (so it stays
+            centred regardless of dot count) but is `pointer-events-none` —
+            only the pill inside it, sized to its own content, takes clicks.
+            Without that split, the empty space either side of the pill
+            would sit on top of the swipeable track (this row already needs
+            its own `z-20` for the same stretched-link reason as the arrows
+            above) and silently block a swipe or tap started there.
+
+            No pill behind them (client: "I only want dots no boundary on
+            them, also make it smaller and let it have green") — each
+            button is its own `pointer-events-auto` island directly on the
+            strip instead of one shared content box, so there's no
+            background shape left to draw. A plain green dot alone can
+            still vanish against this shop's mostly-light studio photos, so
+            each one keeps a fine `shadow` (a soft dark edge, not a visible
+            box) for legibility instead of a background — the same
+            "must read on any photo" reasoning as the arrows and the
+            previous pill, just without a boundary this time. Colour is
+            still the hardcoded light-mode accent green, not the `bg-accent`
+            token, for the same reason as the arrows: this sits on a photo
+            unrelated to the site's own light/dark theme, and the token
+            resolves to a different, lighter green in dark mode that has no
+            connection to what's under it here. */}
+        {product.images.length > 1 && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex items-center justify-center gap-1">
+            {product.images.map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={(e) => goToImage(index, e)}
+                aria-label={`Show photo ${index + 1} of ${product.name}`}
+                aria-current={index === galleryActive}
+                className="pointer-events-auto flex h-4 w-3 items-center justify-center"
+              >
+                <span
+                  className={`block h-1 rounded-full shadow-[0_0_1px_rgba(0,0,0,0.6)] transition-all duration-300 ${
+                    index === galleryActive ? "w-3 bg-[#23703d]" : "w-1 bg-[#23703d]/45 hover:bg-[#23703d]/70"
+                  }`}
+                />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Quick View Button — raised to `bottom-10` only when the dots
+            pill above is actually rendered (multi-photo cards), to clear
+            it now that both can be on screen at once (dots always, this on
+            hover); at a shared fixed position the two would overlap
+            whenever a visitor hovered a multi-photo card. Single-photo
+            cards have no dots to clear, so this stays at its original
+            `bottom-4`. */}
+        <div
+          className={`absolute left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100 ${
+            product.images.length > 1 ? "bottom-10" : "bottom-4"
+          }`}
+        >
           <button
             type="button"
             onClick={(e) => {
@@ -119,8 +369,6 @@ export function ProductCard({
             <span className="sr-only">Includes a video</span>
           </span>
         )}
-
-
       </div>
 
       <div className="flex flex-1 flex-col p-5">

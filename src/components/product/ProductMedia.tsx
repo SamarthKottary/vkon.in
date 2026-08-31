@@ -33,9 +33,35 @@ type MediaItem =
  * there is a real first and last image, and stopping there is correct, not
  * a gap to route around. Reusing `.hscroll` for the scrollbar-hiding rule
  * it already carries; nothing here needs its `scroll-padding-left`, tuned
- * for `snap-start` tracks with a peek of the next card, since each slide
- * here is `snap-center` and exactly the track's own width — there is
- * nothing to peek at either side.
+ * for a track with a peek of the next card, since each slide here is
+ * exactly the track's own width — there is nothing to peek at either side.
+ *
+ * **`snap-start`, not `snap-center`.** Tried `center` first on the
+ * reasoning that it should not matter when a slide exactly fills the
+ * snapport — it does: a real swipe past the midpoint measured landing 24px
+ * short of the next slide's own left edge (928px against a 952px step),
+ * not the clean whole multiple `start` alignment guarantees. This project
+ * already has the same lesson on record for `FeaturedProducts`' own track
+ * ("Snapping to `start`... is what naturally keeps every rest position a
+ * whole multiple of one card's width from the last") and applies it again
+ * here rather than re-deriving it by hitting the same rounding gap twice.
+ *
+ * **`snap-mandatory`, not `snap-proximity`** (client, 2026-08-28: "when i
+ * scroll right or left i dont want the images to be attached but only one
+ * image when i scroll") — a soft mobile swipe without much momentum can
+ * end well short of a full slide-width under `proximity`, which only pulls
+ * a scroll toward a snap point that was already going to land near one; the
+ * gesture then rests exactly where the swipe stopped, showing a slice of
+ * two images at once. `FeaturedProducts` and `RecentlyViewed` both use
+ * `proximity` deliberately, because `mandatory` there was found to grab a
+ * vertical wheel scroll that carried even a little incidental horizontal
+ * noise, breaking the page scrolling past them — but that risk is about a
+ * track sitting inline in a long page, competing with the page's own
+ * scroll. This one does not: it is a small, self-contained square image
+ * swiper, not a wide belt of peeking cards in the middle of page content,
+ * so there is no ambient wheel gesture over it that `mandatory` could
+ * wrongly capture — only a deliberate swipe or drag, which is exactly what
+ * should always end on exactly one image.
  *
  * `active` is read back from `scrollLeft` on every scroll (native swipe,
  * arrow click, or thumbnail click all move the same track), the same
@@ -43,6 +69,30 @@ type MediaItem =
  * component on this site already uses — so a swipe past several images at
  * once still lands the thumbnail row and the arrows' disabled state on
  * whichever image the visitor actually stopped on.
+ *
+ * **A settle-timer forces exact alignment once scrolling stops, on top of
+ * `snap-mandatory` rather than trusting it alone** (client, 2026-08-28:
+ * "Cant we implement like in amazon, where when we scroll only one image
+ * is visible at a time... the previous image is not visible" — asked after
+ * `snap-mandatory` alone was shipped for the same complaint). Measured
+ * directly that the browser's own snap machinery does not reliably land on
+ * the exact slide boundary from every gesture shape: a real touch drag
+ * past the midpoint settled — stably, not mid-animation — 24px short of
+ * the next slide's own edge (928px against a 952px step) and stayed there.
+ * `FeaturedProducts` hit an unrelated version of the same class of problem
+ * (`scroll-snap-type` not resolving to a clean position on its own) and
+ * settled it the same way this does: not by fighting the browser mid-
+ * gesture, but by reading where a scroll actually stopped and correcting
+ * to the nearest exact multiple immediately after, via the same settle-
+ * timer shape as that component's own `sync`. Deliberately **not** a
+ * custom touch-drag/transform pager instead (dragging the image with the
+ * finger, animating a `translateX` by hand) — that would need to hijack
+ * native touch scrolling to work at all, which is exactly the failure mode
+ * `FeaturedProducts`' own history warns about at length for the analogous
+ * wheel-event case (a handler that cannot safely tell a horizontal swipe
+ * from a vertical page-scroll apart without risking breaking the one it
+ * guesses wrong on) — solving *this* problem does not require taking on
+ * that risk.
  */
 export function ProductMedia({
   images,
@@ -63,6 +113,7 @@ export function ProductMedia({
   ];
 
   const trackRef = useRef<HTMLDivElement>(null);
+  const settleTimer = useRef<number | null>(null);
   const [active, setActive] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
@@ -78,6 +129,27 @@ export function ProductMedia({
     setActive(Math.min(Math.round(el.scrollLeft / el.clientWidth), items.length - 1));
   }, [items.length]);
 
+  /* Forces `scrollLeft` to the nearest exact multiple of one slide's width
+     — see the component note on why this exists alongside `snap-mandatory`
+     rather than instead of a custom pager. Armed on every scroll and only
+     fires once scrolling has genuinely stopped, the same "never correct
+     mid-gesture" rule `FeaturedProducts`' own settle timer follows, for the
+     same reason: doing this while a touch drag is still in progress would
+     mean fighting it. */
+  const onScroll = useCallback(() => {
+    sync();
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(() => {
+      const el = trackRef.current;
+      if (!el || el.clientWidth === 0) return;
+      const nearest = Math.round(el.scrollLeft / el.clientWidth);
+      const target = nearest * el.clientWidth;
+      if (Math.abs(el.scrollLeft - target) > 1) {
+        el.scrollTo({ left: target, behavior: "smooth" });
+      }
+    }, 100);
+  }, [sync]);
+
   useEffect(() => {
     sync();
     const el = trackRef.current;
@@ -86,6 +158,13 @@ export function ProductMedia({
     observer.observe(el);
     return () => observer.disconnect();
   }, [sync]);
+
+  useEffect(
+    () => () => {
+      if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    },
+    [],
+  );
 
   const goTo = (index: number) => {
     const el = trackRef.current;
@@ -112,14 +191,14 @@ export function ProductMedia({
       <div className="relative">
         <div
           ref={trackRef}
-          onScroll={sync}
+          onScroll={onScroll}
           aria-label={`${productName} photos`}
-          className="hscroll flex snap-x snap-proximity overflow-x-auto"
+          className="hscroll flex snap-x snap-mandatory overflow-x-auto"
         >
           {items.map((item, index) => (
             <div
               key={index}
-              className="relative aspect-square w-full flex-none snap-center border border-line bg-surface"
+              className="relative aspect-square w-full flex-none snap-start border border-line bg-surface"
             >
               {item.kind === "image" ? (
                 <Image
