@@ -261,7 +261,9 @@ export function HeaderSearch({
                   className="w-full bg-transparent px-4 py-3 text-base text-ink placeholder:text-muted focus:outline-none pr-10"
                 />
                 {isFuzzyLoading && (
-                  <SpinnerIcon className="absolute right-4 top-1/2 h-5 w-5 [transform:translateY(-50%)] text-muted" />
+                  <span className="absolute right-4 top-1/2 [transform:translateY(-50%)]">
+                    <SpinnerIcon className="h-5 w-5 text-muted" />
+                  </span>
                 )}
               </div>
 

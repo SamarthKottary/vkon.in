@@ -447,7 +447,9 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
                 input is `type="text"`, not `type="search"`, so there is no
                 native cancel button underneath to also account for. */}
             {isFuzzyLoading ? (
-              <SpinnerIcon className="absolute right-4 top-1/2 h-4 w-4 [transform:translateY(-50%)] text-muted" />
+              <span className="absolute right-4 top-1/2 [transform:translateY(-50%)]">
+                <SpinnerIcon className="h-4 w-4 text-muted" />
+              </span>
             ) : searchDraft.length > 0 ? (
               <button
                 type="button"
