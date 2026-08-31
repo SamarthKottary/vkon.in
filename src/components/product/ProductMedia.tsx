@@ -93,6 +93,20 @@ type MediaItem =
  * from a vertical page-scroll apart without risking breaking the one it
  * guesses wrong on) — solving *this* problem does not require taking on
  * that risk.
+ *
+ * **A `gap-x-3` between slides, not a border on each one** (client,
+ * 2026-08-31: "The images should be separate and when i drag... do not add
+ * borders to the image"). The previous pass's per-slide `border border-line`
+ * put touching borders between two adjacent photos while dragging, which
+ * reads as one seam rather than two distinct images — a small gap showing
+ * the page's own background instead makes the separation obvious without
+ * drawing on the photo itself. This changes the step between one slide and
+ * the next from `clientWidth` alone to `clientWidth + SLIDE_GAP` everywhere
+ * that step is used (`sync`, the settle-timer, `goTo`) — native
+ * `snap-start` resolves correctly either way, since it snaps to each
+ * child's actual rendered position, but this component's own JS math has to
+ * account for the gap explicitly since it does not read the gap back from
+ * the DOM.
  */
 export function ProductMedia({
   images,
@@ -118,32 +132,41 @@ export function ProductMedia({
   const [playing, setPlaying] = useState(false);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
 
-  /* One slide is exactly the track's own width — no gap, no peek of a
-     neighbour — so `clientWidth` doubles as the step size and there is no
-     separate measurement to keep in sync with it. */
+  /* Each slide is still exactly the track's own width, but a `gap-x-3`
+     between them now (client: "the images should be separate... do not add
+     borders to the image" — a thin strip of the page's own background
+     between slides while dragging, instead of the per-slide `border` the
+     previous pass used, which touching borders make read as one seam
+     rather than two distinct photos). The step between one slide's start
+     and the next is therefore `clientWidth + SLIDE_GAP`, not `clientWidth`
+     alone — `SLIDE_GAP` is `12`, matching `gap-x-3` (`0.75rem`) exactly, so
+     it has to change here if that class ever does. */
+  const SLIDE_GAP = 12;
+
   const sync = useCallback(() => {
     const el = trackRef.current;
     if (!el || el.clientWidth === 0) return;
     const max = el.scrollWidth - el.clientWidth;
     setCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
-    setActive(Math.min(Math.round(el.scrollLeft / el.clientWidth), items.length - 1));
+    setActive(Math.min(Math.round(el.scrollLeft / (el.clientWidth + SLIDE_GAP)), items.length - 1));
   }, [items.length]);
 
-  /* Forces `scrollLeft` to the nearest exact multiple of one slide's width
-     — see the component note on why this exists alongside `snap-mandatory`
-     rather than instead of a custom pager. Armed on every scroll and only
-     fires once scrolling has genuinely stopped, the same "never correct
-     mid-gesture" rule `FeaturedProducts`' own settle timer follows, for the
-     same reason: doing this while a touch drag is still in progress would
-     mean fighting it. */
+  /* Forces `scrollLeft` to the nearest exact multiple of one slide's step
+     (width plus gap) — see the component note on why this exists alongside
+     `snap-mandatory` rather than instead of a custom pager. Armed on every
+     scroll and only fires once scrolling has genuinely stopped, the same
+     "never correct mid-gesture" rule `FeaturedProducts`' own settle timer
+     follows, for the same reason: doing this while a touch drag is still
+     in progress would mean fighting it. */
   const onScroll = useCallback(() => {
     sync();
     if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
     settleTimer.current = window.setTimeout(() => {
       const el = trackRef.current;
       if (!el || el.clientWidth === 0) return;
-      const nearest = Math.round(el.scrollLeft / el.clientWidth);
-      const target = nearest * el.clientWidth;
+      const step = el.clientWidth + SLIDE_GAP;
+      const nearest = Math.round(el.scrollLeft / step);
+      const target = nearest * step;
       if (Math.abs(el.scrollLeft - target) > 1) {
         el.scrollTo({ left: target, behavior: "smooth" });
       }
@@ -170,7 +193,7 @@ export function ProductMedia({
     const el = trackRef.current;
     if (!el) return;
     setPlaying(false);
-    el.scrollTo({ left: index * el.clientWidth, behavior: "smooth" });
+    el.scrollTo({ left: index * (el.clientWidth + SLIDE_GAP), behavior: "smooth" });
   };
 
   const step = (direction: 1 | -1) => goTo(active + direction);
@@ -193,12 +216,12 @@ export function ProductMedia({
           ref={trackRef}
           onScroll={onScroll}
           aria-label={`${productName} photos`}
-          className="hscroll flex snap-x snap-mandatory overflow-x-auto"
+          className="hscroll flex snap-x snap-mandatory gap-x-3 overflow-x-auto"
         >
           {items.map((item, index) => (
             <div
               key={index}
-              className="relative aspect-square w-full flex-none snap-start border border-line bg-surface"
+              className="relative aspect-square w-full flex-none snap-start bg-surface"
             >
               {item.kind === "image" ? (
                 <Image

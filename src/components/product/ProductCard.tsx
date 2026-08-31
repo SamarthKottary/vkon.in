@@ -87,13 +87,23 @@ export function ProductCard({
      alignment on top of `snap-mandatory` — see that component's own note
      for why the browser's snap alone measured short of the true boundary
      on a real swipe, and why a settle-timer fixes it without needing to
-     hijack the touch gesture itself. */
+     hijack the touch gesture itself.
+
+     A `gap-x-3` between slides, same as `ProductMedia`'s identical change
+     and for the same reason (client: "the images should be separate...
+     do not add borders to the image") — a thin strip of the card's own
+     background between photos while dragging, not a border on either one.
+     `GALLERY_GAP` is `12`, matching `gap-x-3`, and has to change if that
+     class ever does; every place below that used to treat `clientWidth`
+     alone as the step between slides now uses `clientWidth + GALLERY_GAP`. */
+  const GALLERY_GAP = 12;
+
   const gallerySync = useCallback(() => {
     const el = galleryRef.current;
     if (!el || el.clientWidth === 0) return;
     const max = el.scrollWidth - el.clientWidth;
     setGalleryCanScroll({ left: el.scrollLeft > 4, right: el.scrollLeft < max - 4 });
-    const active = Math.min(Math.round(el.scrollLeft / el.clientWidth), product.images.length - 1);
+    const active = Math.min(Math.round(el.scrollLeft / (el.clientWidth + GALLERY_GAP)), product.images.length - 1);
     galleryActiveRef.current = active;
     setGalleryActive(active);
   }, [product.images.length]);
@@ -104,8 +114,9 @@ export function ProductCard({
     gallerySettleTimer.current = window.setTimeout(() => {
       const el = galleryRef.current;
       if (!el || el.clientWidth === 0) return;
-      const nearest = Math.round(el.scrollLeft / el.clientWidth);
-      const target = nearest * el.clientWidth;
+      const step = el.clientWidth + GALLERY_GAP;
+      const nearest = Math.round(el.scrollLeft / step);
+      const target = nearest * step;
       if (Math.abs(el.scrollLeft - target) > 1) {
         el.scrollTo({ left: target, behavior: "smooth" });
       }
@@ -137,7 +148,7 @@ export function ProductCard({
     if (gallerySettleTimer.current !== null) return;
     const el = galleryRef.current;
     if (!el || el.clientWidth === 0) return;
-    const target = galleryActiveRef.current * el.clientWidth;
+    const target = galleryActiveRef.current * (el.clientWidth + GALLERY_GAP);
     if (Math.abs(el.scrollLeft - target) > 1) {
       el.scrollLeft = target;
     }
@@ -175,7 +186,7 @@ export function ProductCard({
     event?.stopPropagation();
     const el = galleryRef.current;
     if (!el) return;
-    el.scrollTo({ left: index * el.clientWidth, behavior: "smooth" });
+    el.scrollTo({ left: index * (el.clientWidth + GALLERY_GAP), behavior: "smooth" });
   };
 
   if (orientation === "horizontal") {
@@ -208,7 +219,7 @@ export function ProductCard({
               ref={galleryRef}
               onScroll={onGalleryScroll}
               aria-label={`${product.name} photos`}
-              className="hscroll flex h-full snap-x snap-mandatory overflow-x-auto"
+              className="hscroll flex h-full snap-x snap-mandatory gap-x-3 overflow-x-auto"
             >
               {product.images.map((img, index) => (
                 <div key={index} className="relative h-full w-full flex-none snap-start">
