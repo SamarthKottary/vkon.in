@@ -1142,13 +1142,20 @@ function ArrowButton({
 }
 
 /**
- * The pause/play control — its own circular, bordered styling, unchanged by
+ * The pause/play control — its own square, bordered styling, unchanged by
  * the direction arrows returning alongside it 2026-08-27. It briefly shared
  * this component with those arrows before they were removed 2026-08-26; when
  * they came back, they came back as `ArrowButton` below, deliberately styled
  * as bare chevrons rather than folded back into this one's look (client:
  * "they should not be a circle in design... no boundary") — the two controls
  * now look different on purpose, not by accident of history.
+ *
+ * **`rounded-sm`, not `rounded-full`** (client, 2026-08-31: "lets make the
+ * pause button in featured product have square boundary instead of round")
+ * — matches `ui/Button`'s own default corner (`rounded-sm`, 2px) rather than
+ * going fully sharp (`rounded-none`), the same "bordered rectangle, no
+ * radius beyond 2px" convention already on record for this site's other
+ * chrome (see `ProductCard`'s own note).
  *
  * **Sized up 20% and given real presence** (client: "make the pause button
  * bit more better looking and bigger by 20%") — `h-9 w-9` (36px) → 43px, the
@@ -1183,7 +1190,7 @@ function PageButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex h-[43px] w-[43px] items-center justify-center rounded-full border border-line bg-surface-raised text-ink shadow-card transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-out hover:border-ink hover:bg-surface-subtle hover:shadow-card-hover hover:[transform:scale(1.08)] disabled:cursor-default disabled:text-muted disabled:opacity-40 disabled:shadow-none disabled:hover:[transform:scale(1)]"
+      className="flex h-[43px] w-[43px] items-center justify-center rounded-sm border border-line bg-surface-raised text-ink shadow-card transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-out hover:border-ink hover:bg-surface-subtle hover:shadow-card-hover hover:[transform:scale(1.08)] disabled:cursor-default disabled:text-muted disabled:opacity-40 disabled:shadow-none disabled:hover:[transform:scale(1)]"
     >
       {children}
       <span className="sr-only">{label}</span>

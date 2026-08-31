@@ -159,6 +159,30 @@ export function Header({
 
             <nav aria-label="Primary" className="hidden md:block">
               <ul className="flex items-center">
+                {/* Home first, then the Products dropdown (client, 2026-08-31:
+                    "add HOME button before PRODUCTS") — `ProductsMenu` is its
+                    own component with its own trigger, not one of the plain
+                    links `primaryNav.map` below renders, so Home has to be
+                    placed explicitly ahead of it here rather than simply
+                    reordering the array. */}
+                {primaryNav
+                  .filter((link) => link.href === "/")
+                  .map((link) => (
+                    <li key={link.href}>
+                      <Link
+                        href={link.href}
+                        aria-current={isActive(link.href) ? "page" : undefined}
+                        className={`relative flex h-16 items-center px-4 text-sm font-medium uppercase transition-colors ${
+                          isActive(link.href)
+                            ? "text-ink after:absolute after:inset-x-4 after:bottom-0 after:h-[2px] after:bg-accent"
+                            : "text-muted hover:text-ink"
+                        }`}
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+
                 <li>
                   <ProductsMenu
                     menu={menu}
@@ -183,13 +207,13 @@ export function Header({
                 </li>
 
                 {primaryNav
-                  .filter((link) => link.href !== "/products")
+                  .filter((link) => link.href !== "/products" && link.href !== "/")
                   .map((link) => (
                     <li key={link.href}>
                       <Link
                         href={link.href}
                         aria-current={isActive(link.href) ? "page" : undefined}
-                        className={`relative flex h-16 items-center px-4 text-sm font-medium transition-colors ${
+                        className={`relative flex h-16 items-center px-4 text-sm font-medium uppercase transition-colors ${
                           isActive(link.href)
                             ? "text-ink after:absolute after:inset-x-4 after:bottom-0 after:h-[2px] after:bg-accent"
                             : "text-muted hover:text-ink"
@@ -274,7 +298,7 @@ export function Header({
                       href={link.href}
                       onClick={() => setOpen(false)}
                       aria-current={isActive(link.href) ? "page" : undefined}
-                      className={`block px-5 py-4 text-base font-medium ${
+                      className={`block px-5 py-4 text-base font-medium uppercase ${
                         isActive(link.href)
                           ? "text-accent"
                           : "text-ink hover:bg-surface-subtle"

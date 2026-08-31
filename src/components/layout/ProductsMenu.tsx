@@ -126,7 +126,7 @@ export function ProductsMenu({
       <Link
         href="/products"
         aria-current={active ? "page" : undefined}
-        className={`relative flex h-16 items-center px-4 text-sm font-medium transition-colors ${
+        className={`relative flex h-16 items-center px-4 text-sm font-medium uppercase transition-colors ${
           active
             ? "text-ink after:absolute after:inset-x-4 after:bottom-0 after:h-[2px] after:bg-accent"
             : "text-muted hover:text-ink"
@@ -145,7 +145,7 @@ export function ProductsMenu({
         aria-expanded={open}
         aria-controls="products-menu"
         onClick={onToggle}
-        className={`relative flex h-16 items-center gap-1.5 px-4 text-sm font-medium transition-colors ${
+        className={`relative flex h-16 items-center gap-1.5 px-4 text-sm font-medium uppercase transition-colors ${
           active || open
             ? "text-ink after:absolute after:inset-x-4 after:bottom-0 after:h-[2px] after:bg-accent"
             : "text-muted hover:text-ink"
