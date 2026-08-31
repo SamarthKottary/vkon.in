@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { SearchIcon } from "@/components/icons/ui";
 import { ProductCard } from "@/components/product/ProductCard";
 import { categoriesInSector, sectorOf, sectorLabel, sectors, categoryLabel } from "@/content/taxonomy";
 import { protectionMeta } from "@/components/icons/protections";
+import { fuzzySearchAction } from "@/app/(site)/search-action";
 import type { CategoryMeta, Product } from "@/lib/types";
 
 /**
@@ -188,7 +189,8 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
     });
   }, [products, sector, category]);
 
-  const filtered = useMemo(() => {
+  /* ── Client-side substring filter (instant preview) ─────────── */
+  const clientFiltered = useMemo(() => {
     const query = searchDraft.trim().toLowerCase();
     return products.filter(
       (p) =>
@@ -214,6 +216,70 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
           )),
     );
   }, [products, sector, category, hp, searchDraft]);
+
+  /* ── Server-side fuzzy results (debounced) ───────────────────── */
+  const [fuzzyScores, setFuzzyScores] = useState<Map<string, number>>(new Map());
+  const seqRef = useRef(0);
+
+  useEffect(() => {
+    const q = searchDraft.trim();
+    if (!q) {
+      setFuzzyScores(new Map());
+      return;
+    }
+    const seq = ++seqRef.current;
+    const timer = setTimeout(async () => {
+      try {
+        const results = await fuzzySearchAction(q);
+        if (seqRef.current === seq) {
+          setFuzzyScores(new Map(results.map((r) => [r.slug, r.score])));
+        }
+      } catch {
+        /* Server search failed — client results still showing. */
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchDraft]);
+
+  /* ── Merge: client matches + fuzzy-only matches, ranked by score */
+  const filtered = useMemo(() => {
+    const query = searchDraft.trim().toLowerCase();
+
+    /* When there is no text query, client-side filters are all we need.
+       No server roundtrip. */
+    if (!query) return clientFiltered;
+
+    /* Start with all client-side substring matches. */
+    const seen = new Set(clientFiltered.map((p) => p.slug));
+    const merged = [...clientFiltered];
+
+    /* Add fuzzy-only matches the client missed (typos, partial words),
+       still applying the non-text filters so sector/category/hp selection
+       is honoured. */
+    if (fuzzyScores.size > 0) {
+      for (const [slug] of fuzzyScores) {
+        if (!seen.has(slug)) {
+          const p = products.find((pp) => pp.slug === slug);
+          if (
+            p &&
+            (sector === "all" || sectorOf(p.category) === sector) &&
+            (category === "all" || p.category === category) &&
+            (hp === "all" || p.hpRanges.includes(hp))
+          ) {
+            merged.push(p);
+            seen.add(slug);
+          }
+        }
+      }
+      /* Sort by fuzzy score when available, defaulting exact substring
+         matches (which the server may not have scored yet) to 0.5. */
+      merged.sort(
+        (a, b) => (fuzzyScores.get(b.slug) ?? 0.5) - (fuzzyScores.get(a.slug) ?? 0.5),
+      );
+    }
+
+    return merged;
+  }, [clientFiltered, fuzzyScores, products, searchDraft, sector, category, hp]);
 
   /* Autocomplete vocabulary — short recognisable terms drawn from sectors,
      categories, product names, protection labels and HP ranges. Built once

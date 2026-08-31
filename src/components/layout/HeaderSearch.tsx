@@ -7,6 +7,7 @@ import { ArrowRightIcon, SearchIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { Container } from "@/components/ui/Container";
 import { categoryLabel, sectors, sectorOf } from "@/content/taxonomy";
+import { fuzzySearchAction } from "@/app/(site)/search-action";
 
 export type SearchEntry = {
   slug: string;
@@ -79,7 +80,8 @@ export function HeaderSearch({
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const matches = useMemo(() => {
+  /* ── Instant client-side filter (substring match) ─────────────── */
+  const clientMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((p) => {
       const sectorMatch = selectedSector === "all" || sectorOf(p.category) === selectedSector;
@@ -88,6 +90,59 @@ export function HeaderSearch({
       return p.searchContent.includes(q);
     });
   }, [products, query, selectedSector]);
+
+  /* ── Server-side fuzzy results (debounced) ────────────────────── */
+  const [fuzzyScores, setFuzzyScores] = useState<Map<string, number>>(new Map());
+  const seqRef = useRef(0);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setFuzzyScores(new Map());
+      return;
+    }
+    const seq = ++seqRef.current;
+    const timer = setTimeout(async () => {
+      try {
+        const results = await fuzzySearchAction(q);
+        if (seqRef.current === seq) {
+          setFuzzyScores(new Map(results.map((r) => [r.slug, r.score])));
+        }
+      } catch {
+        /* Server search failed — client results still showing. */
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  /* ── Merge: client matches + fuzzy-only matches, ranked by score ── */
+  const matches = useMemo(() => {
+    if (!query.trim()) return [];
+
+    /* Start with all client-side substring matches. */
+    const seen = new Set(clientMatches.map((p) => p.slug));
+    const merged = [...clientMatches];
+
+    /* Add fuzzy-only matches the client missed (typos, partial words). */
+    if (fuzzyScores.size > 0) {
+      for (const [slug] of fuzzyScores) {
+        if (!seen.has(slug)) {
+          const p = products.find((pp) => pp.slug === slug);
+          if (p && (selectedSector === "all" || sectorOf(p.category) === selectedSector)) {
+            merged.push(p);
+            seen.add(slug);
+          }
+        }
+      }
+      /* Sort by fuzzy score when available, defaulting exact substring
+         matches (which the server may not have scored yet) to 0.5. */
+      merged.sort(
+        (a, b) => (fuzzyScores.get(b.slug) ?? 0.5) - (fuzzyScores.get(a.slug) ?? 0.5),
+      );
+    }
+
+    return merged;
+  }, [clientMatches, fuzzyScores, products, query, selectedSector]);
 
   /** Up to 3 autocomplete suggestions whose text contains the current query,
    *  excluding exact matches (the visitor already typed it), and limited to 3 words. */
@@ -272,6 +327,11 @@ export function HeaderSearch({
                                 <p className="text-sm font-medium text-ink">{p.name}</p>
                                 <p className="label-tech text-muted">
                                   {categoryLabel(p.category)}
+                                  {fuzzyScores.has(p.slug) && (
+                                    <span className="ml-2 text-accent">
+                                      {Math.round((fuzzyScores.get(p.slug) ?? 0) * 100)}% match
+                                    </span>
+                                  )}
                                 </p>
                               </div>
                             </Link>

@@ -12,6 +12,11 @@
 -- against the database when the container stack starts. Since every statement 
 -- is safe and idempotent, it effortlessly ensures the live DB is up to date.
 
+-- Trigram similarity for fuzzy product search. Ships with every standard
+-- PostgreSQL installation; adds no external dependency beyond the bundled
+-- extension.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE TABLE IF NOT EXISTS products (
   id            TEXT PRIMARY KEY,
   slug          TEXT NOT NULL UNIQUE,
@@ -60,6 +65,14 @@ CREATE INDEX IF NOT EXISTS products_listing_idx
 
 CREATE INDEX IF NOT EXISTS products_category_idx
   ON products (category);
+
+-- GIN trigram indexes for fuzzy text search. Overkill for a 50-row
+-- catalogue today but cost nothing to maintain and keep the door open for
+-- hundreds of products without a migration.
+CREATE INDEX IF NOT EXISTS products_name_trgm_idx
+  ON products USING GIN (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS products_tagline_trgm_idx
+  ON products USING GIN (tagline gin_trgm_ops);
 
 -- Added 2026-08-21: per-product SEO overrides. `ADD COLUMN IF NOT EXISTS`
 -- brings an existing database up to date without touching its data, so this

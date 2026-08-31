@@ -3610,6 +3610,30 @@ now marked `TODO(vkon)` as unverified.
 
 ---
 
+### 2026-08-31 — Server-side fuzzy product search (pg_trgm)
+
+Added PostgreSQL-native fuzzy search using the `pg_trgm` extension. Products
+are now matched by trigram word-similarity rather than exact substring, so
+typos and partial words return results ranked by a 0–1 match score.
+
+- **`schema.sql`** — `CREATE EXTENSION IF NOT EXISTS pg_trgm` plus GIN trigram
+  indexes on `name` and `tagline`.
+- **`lib/db/products.ts`** — `fuzzySearchProducts()` query, weighted across
+  name (1.0×), tagline (0.9×), hp_ranges (0.8×), description (0.6×), and
+  features (0.5×), with an ILIKE fallback for exact substrings.
+  `safeQuery` made generic so it serves both `ProductRow` and `FuzzyRow`.
+- **`app/(site)/search-action.ts`** (NEW) — server action wrapping the fuzzy
+  query. Rate-limited at 30 req/min per IP; fails silent (returns `[]`).
+- **`HeaderSearch.tsx`** and **`ProductCatalogue.tsx`** — hybrid approach:
+  instant client-side substring match as preview, server-side fuzzy results
+  merged in after a 300ms debounce. Results ranked by server score;
+  `HeaderSearch` shows a "% match" label next to each result.
+
+No new runtime dependencies. `pg_trgm` ships with every standard PostgreSQL
+installation including the project's own Docker image.
+
+---
+
 ### 2026-08-10 — Self-hosting and CI/CD
 
 Moved off Vercel onto the deploy console described in `docs/Hosting.md`.

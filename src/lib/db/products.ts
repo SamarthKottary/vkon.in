@@ -112,10 +112,13 @@ function mapProductRow(row: ProductRow): Product {
 }
 
 /** Reads return empty rather than throwing when the DB is absent or down. */
-async function safeQuery(text: string, params: unknown[] = []) {
+async function safeQuery<T extends Record<string, unknown> = ProductRow>(
+  text: string,
+  params: unknown[] = [],
+): Promise<T[]> {
   if (!isDatabaseConfigured()) return [];
   try {
-    return await query<ProductRow>(text, params);
+    return await query<T>(text, params);
   } catch (error) {
     console.error("[db] product query failed:", error);
     return [];
@@ -158,6 +161,81 @@ export async function listFeaturedProducts(limit = 3): Promise<Product[]> {
     [limit],
   );
   return rows.map(mapProductRow);
+}
+
+// ---------------------------------------------------------------------------
+// Fuzzy text search using pg_trgm.
+//
+// `word_similarity(query, column)` finds the best-matching window in `column`
+// with approximately the same length as `query`. This handles typos, partial
+// words, and alternative phrasing — exactly the cases `.includes()` misses.
+// Fields are weighted so a name hit outranks a description hit. An ILIKE
+// fallback catches exact substring matches that trigrams can underscore for
+// very short queries (e.g. "5HP").
+// ---------------------------------------------------------------------------
+
+export type FuzzySearchResult = {
+  slug: string;
+  name: string;
+  category: string;
+  image: string | null;
+  score: number;
+};
+
+type FuzzyRow = {
+  slug: string;
+  name: string;
+  category: string;
+  first_image: string | null;
+  score: number;
+};
+
+/**
+ * Fuzzy-search published products by text similarity.
+ *
+ * Returns up to `limit` results ranked by a composite match score between 0
+ * and 1. The caller is responsible for any further filtering (sector, HP
+ * range, etc.) — this function applies only the text signal.
+ */
+export async function fuzzySearchProducts(
+  queryText: string,
+  limit = 20,
+): Promise<FuzzySearchResult[]> {
+  const q = queryText.trim().toLowerCase();
+  if (!q) return [];
+
+  const rows = await safeQuery<FuzzyRow>(
+    `WITH scored AS (
+       SELECT slug, name, category,
+         (images->0->>'url') AS first_image,
+         GREATEST(
+           word_similarity($1, lower(name))             * 1.0,
+           word_similarity($1, lower(tagline))           * 0.9,
+           word_similarity($1, lower(description))       * 0.6,
+           word_similarity($1, lower(array_to_string(features, ' ')))  * 0.5,
+           word_similarity($1, lower(array_to_string(hp_ranges, ' '))) * 0.8,
+           CASE WHEN lower(name)    LIKE '%' || $1 || '%' THEN 0.55 ELSE 0 END,
+           CASE WHEN lower(tagline) LIKE '%' || $1 || '%' THEN 0.45 ELSE 0 END,
+           CASE WHEN lower(array_to_string(hp_ranges, ' ')) LIKE '%' || $1 || '%' THEN 0.6 ELSE 0 END
+         ) AS score
+       FROM products
+       WHERE published = TRUE
+     )
+     SELECT slug, name, category, first_image, score
+     FROM scored
+     WHERE score > 0.15
+     ORDER BY score DESC
+     LIMIT $2`,
+    [q, limit],
+  );
+
+  return rows.map((r) => ({
+    slug: r.slug,
+    name: r.name,
+    category: r.category as string,
+    image: r.first_image ?? null,
+    score: typeof r.score === "number" ? r.score : Number(r.score),
+  }));
 }
 
 // ---------------------------------------------------------------------------
