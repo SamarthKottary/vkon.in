@@ -660,6 +660,33 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-08-31 (products catalogue, follow-up) — Mobile filter panel reverts to the partial-height sheet; only "Search" closes the panel again
+
+**Client, immediately after the entry below shipped: "I want the previous filter in mobile view and not full page. Also lets only have search close the panel."** Two of that entry's four changes reversed the same day; the desktop left-anchored overlay and the four-column grid were not mentioned and stayed as shipped.
+
+1. **Mobile panel is `max-h-[85vh]`/`rounded-t-2xl`/bottom-anchored again**, not the `inset-0` full-screen version from the prior pass. Confirmed via bounding box: reads `{x:0, y:547, width:390, height:297}` on a 390×844 viewport — clearly a partial sheet with the dimmed page visible above it, not corner-to-corner. The `lg:` override (`lg:right-auto lg:w-96`, pinned left, full height) is untouched — still reads `{x:0, y:0, width:384, height:<viewport>}` on desktop, unaffected by this revert.
+
+2. **"Clear" no longer closes the panel** — back to resetting the URL only, same as every pass before the prior one. Only "Search" (plus Escape and the backdrop) closes it now.
+
+Verified: mobile panel bounding box confirms the partial sheet is back; clicking "Clear" resets filters (`/products`) but the panel stays mounted, on both mobile and desktop; clicking "Search" still closes it; desktop's left-anchored `384px` panel and the four-column `xl` grid from the entry below are both unchanged. `npx tsc --noEmit`, `npx eslint`, `npm run build` all clean.
+
+### 2026-08-31 (products catalogue) — The permanent desktop rail is gone; one overlay filter panel at every width, over the grid rather than beside it; results grid goes to four columns
+
+**Client, one message:**
+> "I want the filter button same in all view modes next to the search bar in mobile view, In case of mobile view the filter extends from bottom of the page to the top right. Similarly in desktop view the filter to extend from left. But it should not push the product cards but be displayed over it on the left side. When we click search or clear button the filer goes away. Then instead of 3 cards in a row in desktop view lets have 4 cards in a row."
+
+**Removed the `lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]` split and its permanent `<aside>` rail entirely.** That layout was the previous design's whole reason the results column had less than the full page to work with — the rail was a real grid column, always rendered from `lg` up, reserving 14rem plus a 3rem gutter beside the cards. "It should not push the product cards but be displayed over it" is a structural instruction, not a styling one: the rail could not become an overlay without stopping being a grid column first. `ProductCatalogue`'s outer element is a plain `<div>` now; the results block is the only column there is at any width.
+
+**One "Filters" trigger, unconditional now — it used to be `lg:hidden`, existing only because the rail already covered desktop.** With the rail gone, the same button that opened the mobile bottom sheet is the only way to reach the filter tree at every width, sitting next to the search input exactly where it always did on mobile ("filter button same in all view modes next to the search bar").
+
+**The overlay panel is one element with two shapes, not two components** — below `lg` it is `absolute inset-0` inside a `fixed inset-0` wrapper, corner to corner ("the filter extends from bottom of the page to the top right" — full-screen, not the previous `max-h-[85vh]` rounded sheet that left a gap at the top); at `lg` and up, `lg:right-auto lg:w-96` is the only override — pinned to the left edge, full height, a fixed 384px width with the rest of the viewport, and the grid under it, visible and dimmed past its right edge ("in desktop view the filter to extend from left"). The full-screen `<button>` backdrop behind it is unconditional too: real, clickable space on desktop next to the narrower panel; simply covered edge-to-edge and unreachable on mobile, which costs nothing since Escape and the panel's own buttons remain.
+
+**"Clear" now closes the panel, not just "Search."** Previously only "Search" called `setFiltersOpen(false)`; "Clear" only reset the URL params, leaving the sheet open on an now-empty filter state. Per "When we click search or clear button the filer goes away," `onClick` on Clear now does both in sequence — reset, then close — matching what "Search" already did.
+
+**Results grid: `xl:grid-cols-[repeat(3,...)]` → `repeat(4,...)`, same breakpoint, same `minmax(17.5rem,1fr)` card floor.** Not an arbitrary bump — with the rail gone, the grid no longer loses 14rem plus a 3rem gutter to it, so the same `xl` width that used to just fit three cards beside a rail now fits four without one. The `sm` (2-column) tier was left unchanged; only the desktop tier was asked to change.
+
+Verified: desktop shows four cards per row at `xl`; the "Filters" button opens a left-anchored, full-height, `384px`-wide panel with the grid visible and dimmed to its right, confirmed by reading its own bounding box (`{x:0, y:0, width:384, height:<viewport>}`); on a 390px mobile viewport the same panel's box reads `{x:0, y:0, width:390, height:844}` — genuinely full-screen; selecting a filter then clicking "Search" closes the panel with the URL already updated; clicking "Clear" resets the URL to `/products` and closes the panel; Escape closes it; clicking the backdrop past the panel's right edge closes it on desktop; no horizontal overflow at 390px or 1440px, open or closed. `npx tsc --noEmit`, `npx eslint`, `npm run build` all clean.
+
 ### 2026-08-31 (featured products pause button; header nav) — Pause button gets square corners; primary nav goes uppercase and gains a Home link
 
 **Client, one message, two unrelated tweaks: "Lets make the pause button in featured product have square boundary instead of round. Also lets Products, About Us and Contact Us all capital letters. Also add HOME button before PRODUCTS."**

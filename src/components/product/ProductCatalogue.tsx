@@ -61,30 +61,71 @@ import type { CategoryMeta, Product } from "@/lib/types";
  * which is exactly the control being replaced; a plain `text` input never
  * grows one, leaving only this component's own clear button to show or hide.
  *
- * **Below `lg`, the whole panel is a bottom sheet** (client: "In mobile view
- * that filter drop dwon must open from the bottom of the page"). Its header
- * is two buttons, not a title and a close icon (client, second pass: "In
- * mobile view filter lets have 2 buttons at the top on the left side clear
- * and on right search") — "Clear" resets every filter, "Search" dismisses
- * the sheet onto the already-live-filtered grid beneath it; Escape and the
- * backdrop still close it too, unlabelled and unchanged from the first pass.
+ * **One overlay panel, one trigger, at every width — not a permanent
+ * desktop rail plus a separate mobile sheet** (client, 2026-08-31: "I want
+ * the filter button same in all view modes next to the search bar... it
+ * should not push the product cards but be displayed over it on the left
+ * side"). The rail that used to occupy its own `lg:grid-cols-[minmax(0,14rem)
+ * ...]` column — permanently visible, pushing the results grid over — is
+ * gone; the same "Filters" trigger that used to be `lg:hidden` now renders
+ * at every width, beside the search input, and opening it always produces
+ * the same `fixed` panel over the grid rather than reserving space beside
+ * it. `filtersOpen`/`FilterPanel`/`panelProps` are otherwise unchanged from
+ * the rail-and-sheet version — only where the panel renders and how it is
+ * reached changed, not the filter tree inside it.
  *
- * **The rail gets its own scrollbar from `lg`** (client: "In desktop view
- * the filter on the left dide of the pagee should have its won seperate
- * scroll bar") — `lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto`, so a long
- * filter list scrolls inside the rail instead of pushing the whole page down
- * past the results already lined up beside it. Its own "Clear all" moved to
- * the top of the rail and picked up `ProductCard`'s add-to-cart scale-pop
- * (client, second pass: "make sure the clear all button is the top and has
- * same animation pop up as add button on product cards") — the mobile
- * sheet's "Clear" got the same pop for the same reason, though only the
- * desktop placement was asked for directly.
+ * **The panel's own shape still differs by width, just as two different
+ * `fixed` placements of the *same* element rather than two different
+ * components.** Below `lg` it is the same partial-height, bottom-anchored,
+ * rounded-top sheet this file has carried since the first pass
+ * (`max-h-[85vh]`, `rounded-t-2xl`) — briefly replaced with a genuinely
+ * full-screen `inset-0` version for one pass (client, 2026-08-31: "In case
+ * of mobile view the filter extends from bottom of the page to the top
+ * right"), then reverted the same day (client, immediately after: "I want
+ * the previous filter in mobile view and not full page"). At `lg` and up,
+ * `lg:right-auto lg:w-96` collapses it down to a fixed-width column pinned
+ * to the left edge, full height, with the rest of the viewport — and the
+ * grid underneath it — visible past its right edge (client, same first
+ * message: "in desktop view the filter to extend from left... it should
+ * not push the product cards but be displayed over it on the left side") —
+ * this part was not reverted. The backdrop button behind it is
+ * unconditional at every width: real, clickable space closing the panel on
+ * a click either past the mobile sheet's top edge or the desktop panel's
+ * right edge.
+ *
+ * **Only "Search" closes the panel, not "Clear."** "Search" dismisses it
+ * onto the already-live-filtered grid beneath it; Escape and the backdrop
+ * close it too. A prior pass briefly made "Clear" close it as well (client:
+ * "When we click search or clear button the filer goes away"), reversed
+ * the same day (client: "lets only have search close the panel") — "Clear"
+ * resets every filter but leaves the panel open again, as it always did
+ * before that one pass.
+ *
+ * **The panel gets its own scrollbar from `lg`** (client, earlier pass: "In
+ * desktop view the filter on the left dide of the pagee should have its
+ * won seperate scroll bar") — a fixed header (`shrink-0`, the two buttons
+ * and the count) above a separately scrolling body, so a long filter list
+ * scrolls inside the panel instead of the whole overlay growing past the
+ * viewport. "Clear"'s hover-pop lives in that fixed header rather than the
+ * scrolling body for the same reason `ProductCard`'s add-to-cart-styled pop
+ * needed the same split in the old rail: a transform that scales an
+ * element past its own box can get sliced by an `overflow-y-auto` ancestor,
+ * which clips *both* axes per the CSS Overflow spec's own rule for a lone
+ * non-`visible` axis.
  *
  * **Every filter button carries `ProductCard`'s "View details" hover — the
  * colour change and the sweep-underline — with no arrow** (client, first
  * pass: "add the same animation to these buttons as view details on product
  * cards without the ->"). The existing accent-left-border "selected" mark is
  * untouched; the sweep is a layered-on hover effect, not a replacement.
+ *
+ * **The results grid is four columns wide at the same breakpoint that used
+ * to hold three** (client, 2026-08-31: "instead of 3 cards in a row in
+ * desktop view lets have 4 cards in a row") — arithmetic, not just
+ * preference: with the rail gone, the grid no longer loses 14rem plus a
+ * 3rem gutter to it, so the same `xl` breakpoint that used to just fit
+ * three `minmax(17.5rem,1fr)` cards beside a rail now comfortably fits four
+ * without one.
  */
 export function ProductCatalogue({ products }: { products: Product[] }) {
   const router = useRouter();
@@ -296,75 +337,12 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
   };
 
   return (
-    <div /* `minmax(0,1fr)` for the results column, not a bare `1fr`. A bare
-         `1fr` is `minmax(auto,1fr)`, and `auto` refuses to shrink below the
-         column's min-content width — for `ProductRow`'s grid of cards that
-         is the widest unbreakable run of text in any card (a long product
-         name, an HP figure). The results column then expands and crushes
-         the rail into a two-character ribbon. */
-      className="lg:grid lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] lg:gap-12">
-      {/* Rail: `lg` and up only now — the mobile disclosure this used to
-          collapse to lives in the bottom sheet below instead. `self-start`
-          stops it stretching to the grid row height, which would break
-          `sticky`.
-
-          Split into a fixed header (`shrink-0`, never scrolls) and a
-          separate scrolling body, rather than one `overflow-y-auto` region
-          holding everything the way the first pass built it — "Clear all"'s
-          hover-pop lived inside that one scrolling region, and a transform
-          that scales an element past its own box can get sliced by an
-          ancestor's overflow clipping, which `overflow-y-auto` triggers on
-          *both* axes per the CSS Overflow spec's own rule for a lone
-          non-`visible` axis (confirmed the cause directly: moving "Clear
-          all" out of the scrolling region was what actually fixed the
-          clipped edges, client: "make sure the button pop up is clear and
-          edges are not cut"). `min-h-0` on the scrolling body is load-
-          bearing — a flex item's default `min-height: auto` refuses to
-          shrink below its content size, which silently stops
-          `overflow-y-auto` from ever engaging inside a flex column. */}
-      <aside className="hidden lg:flex lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:flex-col lg:self-start">
-        <div className="mb-6 shrink-0">
-          {/* Sized off two measurements, not guessed (client: "Make the
-              clear all button... 40% wider and height same as search
-              tab"): the previous pass's content-sized button measured
-              76.4px wide — 76.4 × 1.4 ≈ 107px — and the search input
-              (below, in the results column) measures 42px tall against
-              this button's own `size="sm"` 32px. `className="h-[42px]
-              w-[107px]"` overrides `ui/Button`'s own `sizes.sm` height —
-              confirmed by reading the computed box back afterward (107 ×
-              42, exactly), not assumed safe from the class order alone. */}
-          <div className="inline-block transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearAll}
-              className="h-[42px] w-[107px]"
-            >
-              Clear all
-            </Button>
-          </div>
-          {/* Moved here from the bottom of the filter list (client: "lets
-              move the n out of n products at the bottom of the filter tab
-              below the clear button"). */}
-          <p aria-live="polite" className="label-tech mt-3 text-muted">
-            {countText}
-          </p>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-          <FilterPanel {...panelProps} />
-        </div>
-      </aside>
-
+    <div>
       <div>
-        {/* Search, and — mobile only — the trigger for the filter sheet
-            beside it (client: "next to it lets place the filter for mobile
-            view"). Living inside this column, not above the whole
-            `lg:grid` the way the first pass had it, is what makes it start
-            at the results column's own left edge on desktop rather than
-            the rail's (client, this pass: "Let search bar in desktop view
-            start from the right of filter scroll in desktop view") — below
-            `lg` the rail renders nothing, so this remains the first visible
-            thing on the page exactly as before. */}
+        {/* Search, and the "Filters" trigger beside it, at every width now
+            — see the component note. No more `lg:grid` column split to sit
+            inside: with the rail gone, this results block is the only
+            column there is. */}
         <div className="mb-8 flex items-center gap-3">
           <div className="relative flex-1">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 [transform:translateY(-50%)] text-muted" />
@@ -446,7 +424,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
             onClick={() => setFiltersOpen(true)}
             aria-haspopup="dialog"
             aria-expanded={filtersOpen}
-            className="flex shrink-0 items-center gap-2 border border-line bg-surface-raised px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-line-strong lg:hidden"
+            className="flex shrink-0 items-center gap-2 border border-line bg-surface-raised px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-line-strong"
           >
             Filters
             {activeFilters > 0 && (
@@ -458,7 +436,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
         </div>
 
         {filtered.length > 0 ? (
-            <ul className="grid grid-cols-[minmax(17.5rem,1fr)] gap-6 sm:grid-cols-[repeat(2,minmax(17.5rem,1fr))] xl:grid-cols-[repeat(3,minmax(17.5rem,1fr))]">
+            <ul className="grid grid-cols-[minmax(17.5rem,1fr)] gap-6 sm:grid-cols-[repeat(2,minmax(17.5rem,1fr))] xl:grid-cols-[repeat(4,minmax(17.5rem,1fr))]">
               {filtered.map((product, index) => (
                 <li key={product.id}>
                   <ProductCard product={product} priority={index === 0} headingLevel="h3" />
@@ -479,27 +457,47 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
           )}
         </div>
 
-      {/* The bottom sheet (client: "In mobile view that filter drop dwon
-          must open from the bottom of the page"). Plain conditional mount,
-          no enter transition — matching `layout/Header`'s own mobile drawer,
-          this codebase's one existing precedent for a modal panel, which
-          does the same. Escape and the backdrop still close it; body scroll
-          is locked while it is open for the same reason a background that
-          keeps scrolling behind a sheet reads as broken. */}
+      {/* The one filter overlay, every width — see the component note for
+          the full reasoning. `fixed inset-0` at every breakpoint, unlike
+          the old `lg:hidden` version: the panel inside it is what changes
+          shape by width, not whether this wrapper renders at all. Plain
+          conditional mount, no enter transition — matching `layout/Header`'s
+          own mobile drawer, this codebase's one existing precedent for a
+          modal panel, which does the same. Escape and the backdrop still
+          close it; body scroll is locked while it is open for the same
+          reason a background that keeps scrolling behind a panel reads as
+          broken. */}
       {filtersOpen && (
-        <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true" aria-label="Filters">
+        <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Filters">
+          {/* Real, clickable space at every width — closes on a click on
+              the dimmed area either past the mobile sheet's top edge or the
+              desktop panel's right edge. */}
           <button
             type="button"
             aria-label="Close filters"
             onClick={() => setFiltersOpen(false)}
             className="absolute inset-0 h-full w-full cursor-default bg-black/50"
           />
-          <div className="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-line bg-surface-raised">
-            {/* Two buttons, not a title and a close icon (client: "In mobile
-                view filter lets have 2 buttons at the top on the left side
-                clear and on right search"). "Search" dismisses the sheet
-                onto the grid, already live-filtered underneath it; Escape and
-                the backdrop tap remain as the other two ways out. */}
+          {/* Back to the previous partial-height bottom sheet below `lg`
+              (client, 2026-08-31: "I want the previous filter in mobile
+              view and not full page") — the brief full-screen `inset-0`
+              version from the prior pass is gone; `max-h-[85vh]` and the
+              rounded top corners are exactly what they were before that
+              pass. `lg:right-auto lg:w-96` is still the one change at that
+              breakpoint, unrelated to this revert: pinned to the left edge,
+              full height, a fixed width instead of the viewport (client,
+              prior pass: "in desktop view the filter to extend from left...
+              it should not push the product cards but be displayed over it
+              on the left side"). */}
+          <div className="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-line bg-surface-raised lg:inset-x-auto lg:left-0 lg:right-auto lg:top-0 lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-r lg:w-96">
+            {/* Two buttons, not a title and a close icon (client, earlier
+                pass: "In mobile view filter lets have 2 buttons at the top
+                on the left side clear and on right search"). Only "Search"
+                dismisses the panel, onto the grid already live-filtered
+                underneath it — "Clear" resets every filter but leaves the
+                panel open (client, 2026-08-31: "lets only have search close
+                the panel" — a prior pass briefly had Clear close it too;
+                that direction was reversed the same day). */}
             <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
               <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
                 <Button variant="outline" size="sm" onClick={clearAll}>
@@ -510,14 +508,10 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
                 Search
               </Button>
             </div>
-            {/* Same relocation as the rail's own copy (client: "lets move
-                the n out of n products at the bottom of the filter tab
-                below the clear button") — right under the header here too,
-                rather than at the bottom of the scrolling list beneath. */}
             <p aria-live="polite" className="label-tech border-b border-line px-5 py-3 text-muted">
               {countText}
             </p>
-            <div className="flex-1 overflow-y-auto px-5 py-5">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
               <FilterPanel {...panelProps} />
             </div>
           </div>
