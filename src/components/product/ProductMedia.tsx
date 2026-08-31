@@ -32,9 +32,20 @@ type MediaItem =
  * discovering more cards; a product's own photo set is small and finite —
  * there is a real first and last image, and stopping there is correct, not
  * a gap to route around. Reusing `.hscroll` for the scrollbar-hiding rule
- * it already carries; nothing here needs its `scroll-padding-left`, tuned
- * for a track with a peek of the next card, since each slide here is
- * exactly the track's own width — there is nothing to peek at either side.
+ * it already carries — but explicitly cancelling its `scroll-padding-left`
+ * with `scroll-pl-0` (client, 2026-08-31: "i can see the edge of the
+ * previous image on the 2nd image and also it is not centered"). That
+ * padding is tuned for a *different* track shape, one with a deliberate
+ * peek of the next card — applied here, it shifts where native
+ * `scroll-snap-align: start` actually lands (the browser aligns a slide's
+ * start edge with the scrollport edge *plus* that padding, not the
+ * scrollport edge itself), so a real swipe first settled with the previous
+ * slide's own trailing edge still inside the viewport, then visibly
+ * animated a second time as the settle-timer below corrected it — a real,
+ * visible two-step motion, not just an imprecise final position. `scroll-
+ * pl-0` removes the discrepancy at its source: each slide here is exactly
+ * the track's own width, with nothing to peek at on either side, so native
+ * snap should land it flush on the first try.
  *
  * **`snap-start`, not `snap-center`.** Tried `center` first on the
  * reasoning that it should not matter when a slide exactly fills the
@@ -216,7 +227,7 @@ export function ProductMedia({
           ref={trackRef}
           onScroll={onScroll}
           aria-label={`${productName} photos`}
-          className="hscroll flex snap-x snap-mandatory gap-x-3 overflow-x-auto"
+          className="hscroll flex snap-x snap-mandatory gap-x-3 overflow-x-auto scroll-pl-0"
         >
           {items.map((item, index) => (
             <div

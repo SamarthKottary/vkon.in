@@ -219,7 +219,7 @@ export function ProductCard({
               ref={galleryRef}
               onScroll={onGalleryScroll}
               aria-label={`${product.name} photos`}
-              className="hscroll flex h-full snap-x snap-mandatory gap-x-3 overflow-x-auto"
+              className="hscroll flex h-full snap-x snap-mandatory gap-x-3 overflow-x-auto scroll-pl-0"
             >
               {product.images.map((img, index) => (
                 <div key={index} className="relative h-full w-full flex-none snap-start">
