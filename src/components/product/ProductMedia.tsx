@@ -124,11 +124,28 @@ export function ProductMedia({
   videoUrl,
   videoTitle,
   productName,
+  compact = false,
 }: {
   images: ProductImage[];
   videoUrl: string | null;
   videoTitle: string | null;
   productName: string;
+  /**
+   * `QuickViewModal` only (client: "if there more than one image in a
+   * product do not show preview at the bottom, just the dots are enough.
+   * Otherwise the image becomes too small" — then, once shipped: "This is
+   * only for mobile view. In desktop view its fine to show preview below
+   * like previous") — swaps the thumbnail grid for a small dot row
+   * overlaid on the image itself, but only below `md`; at `md` and up this
+   * prop changes nothing, same thumbnail grid as ever. The dot shape is
+   * `ProductCard`'s own catalogue-grid gallery dots, reused rather than
+   * invented twice for the identical trade-off. The product detail page
+   * passes nothing and keeps
+   * the thumbnail grid exactly as it always has: that page has the room
+   * for it, and showing the actual photos to jump to is strictly more
+   * useful there than a plain position indicator.
+   */
+  compact?: boolean;
 }) {
   const video = parseVideoUrl(videoUrl);
 
@@ -328,10 +345,48 @@ export function ProductMedia({
             </button>
           </>
         )}
+
+        {/* `compact` swaps the thumbnail grid below for this instead, below
+            `md` only (client: "This is only for mobile view. In desktop
+            view its fine to show preview below like previous") — same
+            overlaid-dot shape `ProductCard`'s own catalogue-grid gallery
+            already uses, including the same `pointer-events-none` strip
+            with only each pill itself clickable, so the empty space either
+            side of a short dot row doesn't sit on top of the swipeable
+            track and block a drag started there. `md:hidden` rather than a
+            separate mobile-only render path — both this and the thumbnail
+            grid below stay mounted at every width; only which one is
+            visible changes at the breakpoint, so nothing has to
+            mount/unmount (and lose scroll position or focus) on a resize
+            across it. */}
+        {compact && items.length > 1 && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex items-center justify-center gap-1 md:hidden">
+            {items.map((item, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => goTo(index)}
+                aria-label={
+                  item.kind === "video"
+                    ? `Show video of ${productName}`
+                    : `Show photo ${index + 1} of ${productName}`
+                }
+                aria-current={index === active}
+                className="pointer-events-auto flex h-4 w-3 items-center justify-center"
+              >
+                <span
+                  className={`block h-1 rounded-full shadow-[0_0_1px_rgba(0,0,0,0.6)] transition-all duration-300 ${
+                    index === active ? "w-3 bg-[#23703d]" : "w-1 bg-[#23703d]/45 hover:bg-[#23703d]/70"
+                  }`}
+                />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {items.length > 1 && (
-        <ul className="mt-3 grid grid-cols-5 gap-3">
+        <ul className={`mt-3 grid grid-cols-5 gap-3 ${compact ? "hidden md:grid" : ""}`}>
           {items.map((item, index) => (
             <li key={index}>
               <button

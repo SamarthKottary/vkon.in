@@ -57,8 +57,17 @@ export function QuickViewModal({
         aria-hidden="true"
       />
 
-      {/* Modal Content */}
-      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-hidden bg-surface shadow-modal sm:rounded-none md:flex-row">
+      {/* Modal Content — one scrolling surface below `md`, not two
+          (client: "only the content is scrollable, not the image. I want
+          the entire image and content tab to scrollable as single
+          entity"). Previously `overflow-hidden` here pushed all the
+          overflow onto the details column's own `overflow-y-auto` below,
+          leaving the image stuck outside any scroll — this wrapper now
+          scrolls the stacked image+details column together instead, and
+          only hands scrolling back to the details column at `md`, where
+          the layout is genuinely two side-by-side panes and the image
+          really should stay in place while its own column scrolls. */}
+      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:flex-row md:overflow-hidden">
         <button
           type="button"
           onClick={onClose}
@@ -70,16 +79,39 @@ export function QuickViewModal({
 
         {/* Left Side - Image Gallery */}
         <div className="w-full bg-surface-subtle p-6 md:w-1/2 md:p-8 lg:p-10 border-b border-line md:border-b-0 md:border-r">
-           <ProductMedia
-              images={product.images}
-              videoUrl={product.videoUrl}
-              videoTitle={product.videoTitle}
-              productName={product.name}
-            />
+           {/* Capped below `md` (client: "let it adjust the image size by
+               fitting it as needed to fit the quick view panel in mobile
+               view") — `ProductMedia`'s own square plate is otherwise
+               `w-full` of whatever contains it, which on a narrow phone
+               meant the image alone (plus the thumbnail row and arrows
+               below it) could run to a third or more of the viewport's own
+               height before any content was visible at all. Scoped to this
+               wrapper, not `ProductMedia` itself — that component is shared
+               with the product detail page, which still wants its own
+               full-width treatment untouched. `md:max-w-none` hands the
+               width back to the existing `md:w-1/2` column at the
+               breakpoint where this becomes a real side-by-side layout
+               instead of a stacked one.
+
+               `80%`, not the original `55%` (client, once the thumbnail
+               grid below moved to overlaid dots on mobile: "in mobile
+               there is space for image size to increase") — the grid's own
+               removal freed exactly the space the tighter cap was
+               originally leaving room for, so once it was gone the image
+               was smaller than it needed to be for no remaining reason. */}
+           <div className="mx-auto w-full max-w-[80%] md:max-w-none">
+             <ProductMedia
+                images={product.images}
+                videoUrl={product.videoUrl}
+                videoTitle={product.videoTitle}
+                productName={product.name}
+                compact
+              />
+           </div>
         </div>
 
         {/* Right Side - Details */}
-        <div className="flex w-full flex-col overflow-y-auto p-6 md:w-1/2 md:p-8 lg:p-10">
+        <div className="flex w-full flex-col p-6 md:w-1/2 md:overflow-y-auto md:p-8 lg:p-10">
           <div className="flex flex-col">
             <p className="label-tech text-muted mb-2">{categoryLabel(product.category)}</p>
             <h2 className="text-2xl leading-snug sm:text-3xl text-ink">
