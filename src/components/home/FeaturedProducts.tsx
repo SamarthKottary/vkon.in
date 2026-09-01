@@ -958,14 +958,43 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     });
   }, [sync]);
 
+  /* Seeds `--pop-progress` for whichever card starts centred, on mount and
+     on every resize — without this, that property is only ever written
+     from inside `updatePopProgress`'s own `requestAnimationFrame` loop,
+     which nothing starts until the first touch, swipe, arrow/dot click or
+     autoplay tick (client, 2026-09-01: "when i reloaded i cant see quick
+     view which ever the card centered first after reload" — a fresh page
+     load has had none of those yet, so the CSS `var(--pop-progress,0)`
+     fallback was rendering that first card's Quick View at a flat `0`
+     until whatever interaction happened to come first). `updatePopProgress`
+     itself already re-finds `centeredId` on every call the same way
+     `measure()` does, so this costs one extra per-card scan on mount and
+     on resize, nothing ongoing.
+
+     **Gated on `!hoverCapable`, same as `runPopProgressLoop` itself** —
+     missing that gate on a first pass at this same fix caused a follow-up
+     regression (client: "in desktop view quick view only visible when
+     mouse pointed to it only"): `--pop-progress` is a touch-only mechanism
+     everywhere else in this file, and a pointer device's Quick View is
+     meant to run on `group-hover` alone, with the property left unset so
+     `var(--pop-progress,0)` falls back to its CSS default. Calling
+     `updatePopProgress` unconditionally wrote a real, non-zero value onto
+     a pointer device's cards too, fighting `group-hover` intermittently.
+     The `ResizeObserver` itself still attaches and still calls `sync()`
+     unconditionally — that measurement (`canScroll`, the dots,
+     `centeredId`) was never touch-only and is not part of either fix. */
   useEffect(() => {
     sync();
     const el = trackRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(sync);
+    if (!hoverCapable) updatePopProgress(el);
+    const observer = new ResizeObserver(() => {
+      sync();
+      if (!hoverCapable) updatePopProgress(el);
+    });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [sync, products.length]);
+  }, [sync, products.length, updatePopProgress, hoverCapable]);
 
   /* Opens the belt at `oneSet`, not `0`, once looping is possible — the
      other half of the bidirectional fix on `correctSeam` above: home has
