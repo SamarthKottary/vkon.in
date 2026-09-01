@@ -371,8 +371,50 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
 
+  /* `filtersOpen` is the target state a click sets instantly; `panelMounted`/
+     `panelEntered` stage that into an actual slide, since a plain conditional
+     mount has nothing to transition from or to — it is just there or not.
+     Mounting on open, and dropping `panelEntered` on close, both happen
+     synchronously during render below — the same "adjust state when a prop
+     changes" pattern `searchDraft`/`prevQ` already use further up this file,
+     needed here for the same reason: a `useEffect` doing the same `setState`
+     is a render *after* the one the user sees, and trips this project's
+     `set-state-in-effect` lint rule besides. Only the parts that are
+     genuinely asynchronous — flipping `panelEntered` on *after* the closed
+     position has actually painted, and unmounting only once the slide-out's
+     own duration has elapsed — stay in the effect below. */
+  const [panelMounted, setPanelMounted] = useState(false);
+  const [panelEntered, setPanelEntered] = useState(false);
+  const [prevFiltersOpen, setPrevFiltersOpen] = useState(filtersOpen);
+  const PANEL_TRANSITION_MS = 420;
+  if (filtersOpen !== prevFiltersOpen) {
+    setPrevFiltersOpen(filtersOpen);
+    if (filtersOpen) setPanelMounted(true);
+    else setPanelEntered(false);
+  }
+
   useEffect(() => {
-    if (!filtersOpen) return;
+    if (!panelMounted) return;
+    if (!filtersOpen) {
+      const timer = setTimeout(() => setPanelMounted(false), PANEL_TRANSITION_MS);
+      return () => clearTimeout(timer);
+    }
+    /* Two rAFs, not one — one guarantees the browser has committed the
+       just-mounted "closed" position; a single rAF can still land inside
+       the same paint that already shows the final state, skipping the
+       transition entirely (the classic "mount already open" glitch). */
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setPanelEntered(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [filtersOpen, panelMounted]);
+
+  useEffect(() => {
+    if (!panelMounted) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
@@ -383,7 +425,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [filtersOpen]);
+  }, [panelMounted]);
 
   const activeFilters =
     [sector, category, hp].filter((v) => v !== "all").length +
@@ -544,14 +586,14 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
       {/* The one filter overlay, every width — see the component note for
           the full reasoning. `fixed inset-0` at every breakpoint, unlike
           the old `lg:hidden` version: the panel inside it is what changes
-          shape by width, not whether this wrapper renders at all. Plain
-          conditional mount, no enter transition — matching `layout/Header`'s
-          own mobile drawer, this codebase's one existing precedent for a
-          modal panel, which does the same. Escape and the backdrop still
-          close it; body scroll is locked while it is open for the same
-          reason a background that keeps scrolling behind a panel reads as
-          broken. */}
-      {filtersOpen && (
+          shape by width, not whether this wrapper renders at all. Mounted
+          via `panelMounted`, not `filtersOpen` directly, so the slide/fade
+          below has a closing state to animate through instead of the panel
+          just vanishing — see the state note further up. Escape and the
+          backdrop still close it; body scroll is locked while it is
+          mounted for the same reason a background that keeps scrolling
+          behind a panel reads as broken. */}
+      {panelMounted && (
         <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Filters">
           {/* Real, clickable space at every width — closes on a click on
               the dimmed area either past the mobile sheet's top edge or the
@@ -560,7 +602,9 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
             type="button"
             aria-label="Close filters"
             onClick={() => setFiltersOpen(false)}
-            className="absolute inset-0 h-full w-full cursor-default bg-black/50"
+            className={`absolute inset-0 h-full w-full cursor-default bg-black/50 transition-opacity duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${
+              panelEntered ? "opacity-100" : "opacity-0"
+            }`}
           />
           {/* Back to the previous partial-height bottom sheet below `lg`
               (client, 2026-08-31: "I want the previous filter in mobile
@@ -572,8 +616,36 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
               full height, a fixed width instead of the viewport (client,
               prior pass: "in desktop view the filter to extend from left...
               it should not push the product cards but be displayed over it
-              on the left side"). */}
-          <div className="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-line bg-surface-raised lg:inset-x-auto lg:left-0 lg:right-auto lg:top-0 lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-r lg:w-96">
+              on the left side").
+
+              Slides rather than pops now (client: "the filter... to be
+              smooth and not instant") — off-screen state is
+              `translate-y-full` below `lg` (down, off the bottom, matching
+              the sheet's own bottom anchor) and `-translate-x-full` at `lg`
+              and up (left, off the panel's own left edge); `lg:translate-y-0`
+              on the closed state cancels the mobile vertical offset at that
+              breakpoint rather than leaving the panel diagonally offscreen.
+              `panelEntered` toggles both to `0` together. The curve is
+              `cubic-bezier(0.32,0.72,0,1)` (client, immediately after: "more
+              smoother") rather than a stock `ease-out` — a fast initial
+              move that settles gently into place, the same shape iOS-style
+              sheets use, versus `ease-out`'s more uniform decel reading as
+              comparatively mechanical. Matched on the backdrop above too so
+              the dim and the slide read as one motion, not two. `duration-300`
+              became `duration-[420ms]` alongside it — `PANEL_TRANSITION_MS`
+              below has to stay equal to this, or the unmount fires before the
+              slide-out actually finishes playing. `will-change-transform`
+              hints the browser to composite this on its own layer — this
+              project's low-end-Android target is exactly the hardware where
+              an un-composited transform on an element this large is most
+              likely to visibly stutter. */}
+          <div
+            className={`absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-line bg-surface-raised will-change-transform transition-transform duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] lg:inset-x-auto lg:left-0 lg:right-auto lg:top-0 lg:max-h-none lg:rounded-none lg:border-t-0 lg:border-r lg:w-96 ${
+              panelEntered
+                ? "translate-y-0 lg:translate-x-0"
+                : "translate-y-full lg:translate-y-0 lg:-translate-x-full"
+            }`}
+          >
             {/* Two buttons, not a title and a close icon (client, earlier
                 pass: "In mobile view filter lets have 2 buttons at the top
                 on the left side clear and on right search"). Only "Search"

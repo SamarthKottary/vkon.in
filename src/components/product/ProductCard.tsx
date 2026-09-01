@@ -10,6 +10,63 @@ import { PanelPlaceholder } from "./PanelPlaceholder";
 import { categoryLabel } from "@/content/taxonomy";
 import { QuickViewModal } from "@/components/product/QuickViewModal";
 import type { Product } from "@/lib/types";
+
+/**
+ * Cross-instance registry backing the vertical card's scroll-triggered
+ * Quick View reveal, below — module scope, not component state, because
+ * exclusivity (client: "I only want one quick view button to be visible at
+ * a time") is a question no single card's own `IntersectionObserver` can
+ * answer on its own: it needs every other currently-mounted vertical
+ * card's visibility to compare against, and these are unrelated sibling
+ * component instances with no shared parent state today. A plain `Map`
+ * keyed by element, updated by whichever card's observer just ticked,
+ * survives exactly as long as the cards do — each instance registers on
+ * mount and removes itself on unmount, so navigating away (this module is
+ * shared by `ProductCatalogue`'s grid and `RelatedProducts`' belt, on two
+ * different routes that are never mounted together) or a filter change
+ * that drops a card out of the list cleans up for free.
+ */
+const inViewRegistry = new Map<HTMLElement, number>();
+let inViewWinner: HTMLElement | null = null;
+
+/**
+ * Highest `intersectionRatio` wins the fade-in; everyone else is pinned to
+ * `--iv-progress: 0`, which the wrapper's own `transition-opacity` turns
+ * into a real fade-out rather than a snap. `WIN_MARGIN` is hysteresis: the
+ * challenger has to clear the current winner's ratio by a real amount, not
+ * just tie it, or two cards hovering near-equal ratio at a scroll crossover
+ * would flip the winner back and forth every observer tick instead of
+ * handing off once, cleanly.
+ */
+const WIN_MARGIN = 0.03;
+
+function reconcileInView() {
+  let bestEl: HTMLElement | null = null;
+  let bestRatio = 0;
+  for (const [el, ratio] of inViewRegistry) {
+    if (ratio > bestRatio) {
+      bestRatio = ratio;
+      bestEl = el;
+    }
+  }
+  const heldRatio = inViewWinner ? (inViewRegistry.get(inViewWinner) ?? 0) : 0;
+  if (
+    inViewWinner &&
+    inViewRegistry.has(inViewWinner) &&
+    bestEl !== inViewWinner &&
+    bestRatio <= heldRatio + WIN_MARGIN
+  ) {
+    bestEl = inViewWinner;
+    bestRatio = heldRatio;
+  }
+  inViewWinner = bestRatio > 0 ? bestEl : null;
+
+  for (const [el, ratio] of inViewRegistry) {
+    const progress = el === inViewWinner ? Math.min(ratio / 0.5, 1) : 0;
+    el.style.setProperty("--iv-progress", String(progress));
+  }
+}
+
 /**
  * Catalogue card.
  *
@@ -76,30 +133,68 @@ export function ProductCard({
      position here rather than moved to the image centre, which is that
      component's own look, not this one's).
 
-     Gated on `!hoverCapable`, the same touch-vs-pointer split
-     `FeaturedProducts`/`RecentlyViewed` already use, so a desktop visitor's
-     existing hover-only behaviour is completely unchanged — this only ever
-     fires for a device with no hover to reveal it another way. Declared
-     unconditionally here for the same reason as the gallery state above:
-     only the vertical branch renders the ref this observes, but hooks
-     cannot be called conditionally. */
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [inViewHalf, setInViewHalf] = useState(false);
-  const [hoverCapable, setHoverCapable] = useState(false);
+     Continuous, not a binary flip (client, later: "i want the quick view
+     button to appear only on cards which are visible, they should have
+     similar smooth fading animation") — `--iv-progress` ramps 0→1 as the
+     card's own `intersectionRatio` goes 0%→50%, rather than snapping
+     opacity on right at the 50% boundary the way a single-threshold
+     observer + `entry.isIntersecting` did before. Written straight to the
+     DOM on this wrapper as a CSS custom property, not React state — the
+     same reason `home/FeaturedProducts` writes `--pop-progress` the same
+     way: this fires on every `IntersectionObserver` tick, and routing that
+     through a re-render is cost this component does not need to pay. The
+     Quick View wrapper below reads it back via `var(--iv-progress,0)`,
+     scoped to `[@media(hover:none)]` so a real hover-capable device is
+     structurally unable to have scroll position affect anything there —
+     unlike `FeaturedProducts`' `--pop-progress` (only ever written from a
+     `touchstart`-started loop, so it is simply never set at all on a
+     mouse-only device), a vertical page scroll happens on every device
+     alike, so this needs the explicit media gate that one does not.
+     Declared unconditionally here for the same reason as the gallery state
+     above: only the vertical branch renders the ref this observes, but
+     hooks cannot be called conditionally.
 
-  useEffect(() => {
-    setHoverCapable(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
-  }, []);
+     Exclusive across every mounted card, not per-card independent
+     (client, immediately after testing the fade above: "I only want one
+     quick view button to be visible at a time... it dosent fade away or
+     fade in it looks like its on all cards") — without coordination, any
+     card past 50% visible shows its own button, and on a phone tall enough
+     to fit more than one card at a time (routine on this grid's actual
+     card proportions) two would sit at opacity 1 simultaneously with
+     nothing to visibly animate between them, reading exactly like "always
+     on." Coordinated through the module-level registry above instead:
+     every card reports its own ratio in on every observer tick, `100%`
+     included now, not capped at the 50% this wrapper's own opacity caps
+     at — the registry needs the true ratio past that point to correctly
+     judge "more visible than the current winner" between two cards that
+     are each already past half visible. Only the registry's own winner
+     gets a nonzero `--iv-progress`; every other registered card is pinned
+     to `0`, which this wrapper's existing `transition-opacity` turns into
+     a real fade-out the instant it stops winning — so scrolling past one
+     card into the next reads as a single continuous handoff, the outgoing
+     one fading down as the incoming one fades up, not two independent
+     animations that happen to overlap. */
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = cardRef.current;
     if (!el) return;
+    inViewRegistry.set(el, 0);
+    const thresholds = Array.from({ length: 21 }, (_, i) => i / 20);
     const observer = new IntersectionObserver(
-      ([entry]) => setInViewHalf(entry.isIntersecting),
-      { threshold: 0.5 },
+      ([entry]) => {
+        inViewRegistry.set(el, entry.intersectionRatio);
+        reconcileInView();
+      },
+      { threshold: thresholds },
     );
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      inViewRegistry.delete(el);
+      if (inViewWinner === el) inViewWinner = null;
+      reconcileInView();
+    };
   }, []);
 
   /* The vertical (catalogue-grid) card's own image gallery — left/right
@@ -240,7 +335,7 @@ export function ProductCard({
 
   return (
     <div ref={cardRef} className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} data-inview={(!hoverCapable && inViewHalf) || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-2.5 data-[popped=true]:scale-[1.04] data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-2.5 data-[popped=true]:scale-[1.04] data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
       {/* `z-20` here, not only on the arrows/Quick View button nested
           inside it — found missing the same way as the dot row's own fix
           below: a real swipe on the image itself, not just an arrow
@@ -407,15 +502,26 @@ export function ProductCard({
             cards have no dots to clear, so this stays at its original
             `bottom-4`.
 
-            `group-data-[inview=true]:opacity-100` is the scroll-triggered
-            reveal above — additive to hover, not a replacement for it, and
-            deliberately left at this same bottom position rather than
-            moved to the image centre the way `FeaturedCard`'s own version
-            reveals (client: "the quick button to show as it shows in all
-            products at the bottom part of the image in all products page
-            and at the centre in featured product cards section"). */}
+            `[@media(hover:none)]:[opacity:var(--iv-progress,0)]` is the
+            scroll-triggered reveal above — additive to hover, not a
+            replacement for it, and deliberately left at this same bottom
+            position rather than moved to the image centre the way
+            `FeaturedCard`'s own version reveals (client: "the quick button
+            to show as it shows in all products at the bottom part of the
+            image in all products page and at the centre in featured
+            product cards section"). Base `opacity-0` still covers the
+            plain hover-only case: the media-scoped rule does not apply at
+            all on a real hover-capable device, so there is nothing there to
+            override it outside of an actual `:hover`.
+
+            Duration is split by the same media feature (client, after
+            confirming the exclusive handoff above: "make the fading away
+            and in slower") — `600ms` on touch, where this is the
+            fade-away/fade-in this request is about, `300ms` unchanged on
+            hover, which nobody asked to slow down and which this split
+            leaves alone. */}
         <div
-          className={`absolute left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-data-[popped=true]:opacity-100 group-data-[inview=true]:opacity-100 ${
+          className={`absolute left-1/2 z-20 -translate-x-1/2 opacity-0 [@media(hover:none)]:[opacity:var(--iv-progress,0)] transition-opacity [@media(hover:hover)]:duration-300 [@media(hover:none)]:duration-[600ms] group-hover:opacity-100 group-data-[popped=true]:opacity-100 ${
             product.images.length > 1 ? "bottom-10" : "bottom-4"
           }`}
         >
