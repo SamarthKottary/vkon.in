@@ -660,6 +660,15 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-01 (home, featured products) — `FeaturedCard`'s tagline reveal now shows on a centred mobile card too, not only on pointer hover
+
+**Client: "i see tagline come up when i move the mouse pointer toward the specific card, but those tagline should be visible in mobile view also, when specific card is centered."** The tagline's `grid-rows-[0fr]` → `[1fr]`/opacity reveal (both `FeaturedCard` branches — with and without a photo) only ever keyed off `group-hover`, which a touch device never fires at all — the card's own border/scale pop already reveals for the centred card via `data-popped`/`group-data-[popped=true]` on touch (`isPopped` reads `centeredId` there, per `FeaturedProducts`), but the tagline block had never picked up that same variant.
+
+Added `group-data-[popped=true]:grid-rows-[1fr] group-data-[popped=true]:opacity-100` (plus the matching `mt-*` nudge) alongside the existing `group-hover:` set on both branches — same trigger the button-fade `--pop-progress` mechanism and the rest of the card's pop already use, not a new one. Pointer behaviour is unchanged: `group-hover` still reveals it on its own regardless of `data-popped`.
+
+Verified: reasoned through the existing `data-popped`/`isPopped` wiring (already confirmed correct for the card's own pop and for Quick View's centred-card behaviour) rather than confirmed on a real phone — no browser-automation tool was available in this session; worth confirming on real hardware alongside the other unverified mobile items in this log. `npx tsc --noEmit` not run in this session (no local Node toolchain available); change is a plain Tailwind class addition with no new types.
+
+
 ### 2026-09-01 (home, featured products) — Quick View invisible on the card centred by default right after a reload; `--pop-progress` now seeded on mount, not only from the fade loop
 
 **Client: "when i reloaded i cant see quick view which ever the card centered first after reload in feature product card in home page."** `--pop-progress` (the touch-device Quick View fade, entries above) was written only from inside `updatePopProgress`'s own `requestAnimationFrame` loop, and nothing starts that loop until a touch, swipe, arrow/dot click, or the first autoplay tick. A fresh page load has had none of those yet — `centeredId` and the card's own border/scale pop were already correct at mount (`measure()` sets those independently), but the wrapper's `[opacity:var(--pop-progress,0)]` had nothing written to it yet and fell back to a flat `0`, leaving the default-centred card's Quick View invisible until whatever interaction happened to come first (an autoplay tick, up to 3s later, or a swipe).

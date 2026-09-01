@@ -1172,7 +1172,13 @@ function FeaturedCard({
             </Link>
           </Heading>
           {product.tagline && (
-            <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2">
+            /* `group-data-[popped=true]` reveals this on a touch device
+               when this card is the one centred, same trigger the card's
+               own border/scale pop already uses — `group-hover` alone
+               left it invisible on mobile until the client asked for both
+               (client, 2026-09-01: "tagline...should be visible in mobile
+               view also, when specific card is centered"). */
+            <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2 group-data-[popped=true]:grid-rows-[1fr] group-data-[popped=true]:opacity-100 group-data-[popped=true]:mt-2">
               <p className="overflow-hidden text-sm leading-relaxed text-muted">
                 {product.tagline}
               </p>
@@ -1415,7 +1421,9 @@ function FeaturedCard({
 
           <div>
             {product.tagline && (
-              <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-1.5">
+              /* Same touch reveal as the no-image branch above — see its
+                 own note. */
+              <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-1.5 group-data-[popped=true]:grid-rows-[1fr] group-data-[popped=true]:opacity-100 group-data-[popped=true]:mt-1.5">
                 <p className="overflow-hidden line-clamp-2 text-[0.8125rem] leading-relaxed text-[#14171a]">
                   {product.tagline}
                 </p>
