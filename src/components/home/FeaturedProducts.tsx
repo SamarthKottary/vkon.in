@@ -513,13 +513,56 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
    *  `setCenteredId` bails out of re-rendering on an unchanged value
    *  either way, so having two callers agree on the same value costs
    *  nothing beyond the scan itself, already proven cheap enough at 60fps
-   *  for `--pop-progress`. */
+   *  for `--pop-progress`.
+   *
+   *  **Also factors in vertical screen position now, not only horizontal
+   *  centring within the row** (client, 2026-09-01: "show quick view in
+   *  featured product when card in horizontal center to the screen in
+   *  mobile view, just like in product in product page, but here we
+   *  considering both vertical and horizontal center" — referring to
+   *  `product/ProductCard`'s own vertical-orientation reveal, which fades
+   *  Quick View in purely from how centred a card sits in the *vertical*
+   *  scroll of `/products`' grid). Before this, a card sitting dead centre
+   *  of the row horizontally showed Quick View at full opacity even with
+   *  the whole section barely peeking onto the bottom of the screen —
+   *  the horizontal `closeness` below never looked at where the row
+   *  actually sat vertically at all. `verticalCloseness` is computed once
+   *  per call rather than per card: every card shares one horizontal row,
+   *  so they all sit at (functionally) the same vertical screen position
+   *  regardless of which one is centred. **Its own plateau-then-ramp
+   *  shape, independently tuned from the horizontal factor's** (client,
+   *  same day, three follow-ups: "keep fade effect between center to
+   *  +-20% fades 0 to 100%", then "changes to +-30%", then "keep
+   *  completely visible between +-10%") — see `updatePopProgress` itself
+   *  for the exact numbers. The two factors multiply, not `Math.min`,
+   *  so a card that is dead centre on one axis but only partway centred on
+   *  the other still fades smoothly rather than snapping to whichever axis
+   *  is worse. */
   const updatePopProgress = useCallback(
     (el: HTMLElement) => {
-      const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
+      const trackRect = el.getBoundingClientRect();
+      const trackMid = trackRect.left + el.clientWidth / 2;
       const step = measureStep(el);
       const PLATEAU = 0.4;
       const threshold = PLATEAU * step;
+
+      /* Flat plateau out to ±10% of the viewport's own height from its
+         vertical centre, then a plain linear ramp down to 0% at ±30%
+         (client, 2026-09-01: "keep fade effect between center to +-20%
+         fades 0 to 100%", then "changes to +-30%", then "keep completely
+         visible between +-10%"). The horizontal factor above keeps its
+         own, separately-tuned plateau (`PLATEAU`/`threshold`); only this
+         axis was asked to change. */
+      const viewportMidY = window.innerHeight / 2;
+      const rowMidY = trackRect.top + trackRect.height / 2;
+      const vDistance = Math.abs(rowMidY - viewportMidY);
+      const vThreshold = window.innerHeight * 0.1;
+      const vMax = window.innerHeight * 0.3;
+      const verticalCloseness =
+        vDistance <= vThreshold
+          ? 1
+          : Math.max(0, 1 - (vDistance - vThreshold) / (vMax - vThreshold));
+
       let bestId: string | null = null;
       let bestDistance = Infinity;
       for (const card of el.querySelectorAll<HTMLElement>("[data-product-id]")) {
@@ -529,10 +572,11 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
           bestDistance = distance;
           bestId = card.dataset.productId ?? null;
         }
-        const closeness =
+        const horizontalCloseness =
           distance <= threshold
             ? 1
             : Math.max(0, 1 - (distance - threshold) / (step - threshold));
+        const closeness = horizontalCloseness * verticalCloseness;
         card
           .querySelector<HTMLElement>("[data-quickview-wrapper]")
           ?.style.setProperty("--pop-progress", closeness.toString());
@@ -670,6 +714,36 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     },
     [],
   );
+
+  /* Keeps `--pop-progress` live across a plain *page* scroll, not only a
+     touch/drag on the row itself — `updatePopProgress`'s own vertical
+     factor (see its note) only means anything if something recomputes it
+     as the row's position in the viewport changes, and page scrolling
+     never touches the row's own touch listeners or the drag/autoplay loop
+     above. Window-level, not the track's own `onScroll` (that only fires
+     for the row's *horizontal* scroll, never for the page scrolling the
+     whole section up or down). Throttled to one call per animation frame,
+     same idiom as `onScroll`'s own `syncFrame`. Touch-only, matching every
+     other `--pop-progress` reader/writer in this file — a hover-capable
+     device's Quick View never looks at this property at all. */
+  useEffect(() => {
+    if (hoverCapable) return;
+    const el = trackRef.current;
+    if (!el) return;
+    let frame: number | null = null;
+    const onWindowScroll = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        updatePopProgress(el);
+      });
+    };
+    window.addEventListener("scroll", onWindowScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onWindowScroll);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [hoverCapable, updatePopProgress]);
 
   /** Pulls the scroll position back into a safe middle zone whenever it has
    *  settled within 4px of either true edge of the doubled row — **both
@@ -878,6 +952,29 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const sync = useCallback(() => {
     measure();
 
+    /* Re-arms the pop-progress stop timer on every real scroll frame, not
+       only once from `touchend`/`advance` et al. (client, 2026-09-01:
+       "quick view is not visible in mobile view while scrolling, when it
+       is in center" — confirmed the race: `end()` below and
+       `advance`/`retreat`/`goTo` each schedule one fixed-delay stop,
+       500ms/700ms, sized to outlast the 120ms settle delay plus a typical
+       `scrollTo({behavior:"smooth"})`. `correctCardStep`'s own corrective
+       scrollTo, fired *from inside* the settle timer below, is a second
+       animation on top of that first one whenever a swipe/tick settles
+       short of an exact card step — comfortably long enough, on a real
+       phone, to outlast whatever was left of the original buffer. The
+       `requestAnimationFrame` loop those timers guard then dies mid-nudge,
+       freezing `--pop-progress` at whatever partial value the card had
+       reached *before* `correctCardStep` finished centring it — read as
+       "sometimes not visible" because it depends on how close the settle
+       already was. Guarded on `dragFrame.current`, so this only extends a
+       loop already running (from a touch or a button/autoplay tick) rather
+       than starting one of its own on, say, a plain resize-driven
+       `measure()` call. */
+    if (!hoverCapable && dragFrame.current !== null) {
+      schedulePopProgressStop(500);
+    }
+
     /* Armed on every scroll, cleared and re-armed by the next one, so it only
        ever fires once scrolling has actually stopped — whatever caused it:
        touch drag, momentum, native trackpad-horizontal wheel input, or an
@@ -925,7 +1022,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
       swipePausedRef.current = false;
       if (window.innerWidth < 640) setSwipeResetSignal((n) => n + 1);
     }, 120);
-  }, [measure, correctSeam, correctCardStep]);
+  }, [measure, correctSeam, correctCardStep, hoverCapable, schedulePopProgressStop]);
 
   const onScroll = useCallback(() => {
     if (syncFrame.current !== null) return;
@@ -935,14 +1032,43 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     });
   }, [sync]);
 
+  /* Seeds `--pop-progress` for whichever card starts centred, on mount and
+     on every resize — without this, that property is only ever written
+     from inside `updatePopProgress`'s own `requestAnimationFrame` loop,
+     which nothing starts until the first touch, swipe, arrow/dot click or
+     autoplay tick (client, 2026-09-01: "when i reloaded i cant see quick
+     view which ever the card centered first after reload" — a fresh page
+     load has had none of those yet, so the CSS `var(--pop-progress,0)`
+     fallback was rendering that first card's Quick View at a flat `0`
+     until whatever interaction happened to come first). `updatePopProgress`
+     itself already re-finds `centeredId` on every call the same way
+     `measure()` does, so this costs one extra per-card scan on mount and
+     on resize, nothing ongoing.
+
+     **Gated on `!hoverCapable`, same as `runPopProgressLoop` itself** —
+     missing that gate on a first pass at this same fix caused a follow-up
+     regression (client: "in desktop view quick view only visible when
+     mouse pointed to it only"): `--pop-progress` is a touch-only mechanism
+     everywhere else in this file, and a pointer device's Quick View is
+     meant to run on `group-hover` alone, with the property left unset so
+     `var(--pop-progress,0)` falls back to its CSS default. Calling
+     `updatePopProgress` unconditionally wrote a real, non-zero value onto
+     a pointer device's cards too, fighting `group-hover` intermittently.
+     The `ResizeObserver` itself still attaches and still calls `sync()`
+     unconditionally — that measurement (`canScroll`, the dots,
+     `centeredId`) was never touch-only and is not part of either fix. */
   useEffect(() => {
     sync();
     const el = trackRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(sync);
+    if (!hoverCapable) updatePopProgress(el);
+    const observer = new ResizeObserver(() => {
+      sync();
+      if (!hoverCapable) updatePopProgress(el);
+    });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [sync, products.length]);
+  }, [sync, products.length, updatePopProgress, hoverCapable]);
 
   /* Opens the belt at `oneSet`, not `0`, once looping is possible — the
      other half of the bidirectional fix on `correctSeam` above: home has
