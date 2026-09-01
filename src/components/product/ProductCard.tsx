@@ -61,6 +61,45 @@ export function ProductCard({
   const image = product.images[0];
   const Heading = headingLevel;
 
+  /* Reveals Quick View on the catalogue grid (vertical orientation) purely
+     from scroll position, once a card is roughly half visible — the touch
+     equivalent of the hover reveal every orientation already has, since a
+     touch device has no cursor to trigger `group-hover` at all (client,
+     2026-08-31: "in mobile view in all products page when i scroll down...
+     i want the quick view button to appear when the card is 50% or
+     something visible... same as in how we implement it in featured
+     product cards. But i want the quick button to show... at the bottom
+     part of the image in all products page" — same trigger as
+     `FeaturedProducts`' centred-card pop, kept at its existing bottom
+     position here rather than moved to the image centre, which is that
+     component's own look, not this one's).
+
+     Gated on `!hoverCapable`, the same touch-vs-pointer split
+     `FeaturedProducts`/`RecentlyViewed` already use, so a desktop visitor's
+     existing hover-only behaviour is completely unchanged — this only ever
+     fires for a device with no hover to reveal it another way. Declared
+     unconditionally here for the same reason as the gallery state above:
+     only the vertical branch renders the ref this observes, but hooks
+     cannot be called conditionally. */
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [inViewHalf, setInViewHalf] = useState(false);
+  const [hoverCapable, setHoverCapable] = useState(false);
+
+  useEffect(() => {
+    setHoverCapable(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+  }, []);
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setInViewHalf(entry.isIntersecting),
+      { threshold: 0.5 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   /* The vertical (catalogue-grid) card's own image gallery — left/right
      arrows, swipe, and dots below the image (client, 2026-08-28: "in all
      products page lets have left and right buttons on the product cards
@@ -198,8 +237,8 @@ export function ProductCard({
   }
 
   return (
-    <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-2.5 data-[popped=true]:scale-[1.04] data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+    <div ref={cardRef} className="relative h-full w-full">
+      <article data-popped={isPopped || undefined} data-inview={(!hoverCapable && inViewHalf) || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-2.5 data-[popped=true]:scale-[1.04] data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
       {/* `z-20` here, not only on the arrows/Quick View button nested
           inside it — found missing the same way as the dot row's own fix
           below: a real swipe on the image itself, not just an arrow
@@ -351,9 +390,17 @@ export function ProductCard({
             hover); at a shared fixed position the two would overlap
             whenever a visitor hovered a multi-photo card. Single-photo
             cards have no dots to clear, so this stays at its original
-            `bottom-4`. */}
+            `bottom-4`.
+
+            `group-data-[inview=true]:opacity-100` is the scroll-triggered
+            reveal above — additive to hover, not a replacement for it, and
+            deliberately left at this same bottom position rather than
+            moved to the image centre the way `FeaturedCard`'s own version
+            reveals (client: "the quick button to show as it shows in all
+            products at the bottom part of the image in all products page
+            and at the centre in featured product cards section"). */}
         <div
-          className={`absolute left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100 ${
+          className={`absolute left-1/2 z-20 -translate-x-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-data-[popped=true]:opacity-100 group-data-[inview=true]:opacity-100 ${
             product.images.length > 1 ? "bottom-10" : "bottom-4"
           }`}
         >
@@ -929,7 +976,46 @@ function FeaturedCard({
         <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
           <PanelPlaceholder className="h-20 w-20" />
           
-          <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+          <div
+            data-quickview-wrapper
+            /* Opacity has two independent drivers, deliberately not
+               reconciled into one — a pointer device (`group-hover`) and a
+               touch one (`--pop-progress`, written by `FeaturedProducts`'
+               own `dragLoop`, continuous rather than a flip — see that
+               function's own note for why it is a dedicated
+               `requestAnimationFrame` loop tied to the touch gesture
+               itself now, not something driven off `scroll` events the
+               way the first two passes at this both were).
+               `group-data-[popped=true]` — the discrete pop this card's
+               own border/scale/lift below still use, unchanged — was here
+               too until it turned out to fight the continuous value:
+               `data-popped` only flips at the exact crossed-over instant,
+               so it pinned the *outgoing* card's Quick View at a flat `1`
+               for almost the entire drag instead of letting
+               `--pop-progress` fade it down, then jumped the incoming card
+               straight to `1` rather than letting it rise smoothly —
+               confirmed directly, sampling opacity through a slow drag
+               showed the outgoing card sitting at `1.00` unmoving until
+               the very last step. Removed here; still exactly what drives
+               the article's own pop.
+
+               `[@media(hover:hover)]:transition-opacity duration-300` for
+               a pointer only, not applied on touch at all any more — a
+               real CSS transition chases whatever value it is last given,
+               and a value updating every animation frame needs no
+               transition to look smooth (each frame is already close to
+               the last one); adding one would only add lag on top of an
+               already-continuous signal. A short touch-only transition was
+               tried here for one pass specifically because the previous
+               driver (`measure()`, on `scroll`) could not guarantee a
+               per-frame update on real mobile hardware and the transition
+               was papering over that gap — no longer needed once the
+               driver itself became genuinely per-frame. Scoping the
+               remaining transition to devices that actually have `:hover`
+               keeps the smooth fade for a pointer's hover exactly as
+               before. */
+            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+          >
             <button
               type="button"
               onClick={(e) => {
@@ -1008,7 +1094,49 @@ function FeaturedCard({
           className="object-cover transition-transform duration-300 ease-out md:group-hover:[transform:scale(1.06)]"
         />
 
-        <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+        <div
+            data-quickview-wrapper
+            /* Opacity has two independent drivers now, deliberately not
+               reconciled into one — a pointer device (`group-hover`) and a
+               touch one (`--pop-progress`, written directly by
+               `FeaturedProducts`' own `measure()` on every scroll frame,
+               continuous rather than a flip). `group-data-[popped=true]`
+               — the discrete pop this card's own border/scale/lift below
+               still use, unchanged — was here too until it turned out to
+               fight the continuous value: `data-popped` only flips at the
+               exact crossed-over instant, so it pinned the *outgoing*
+               card's Quick View at a flat `1` for almost the entire drag
+               instead of letting `--pop-progress` fade it down, then
+               jumped the incoming card straight to `1` rather than
+               letting it rise smoothly — confirmed directly, sampling
+               opacity through a slow drag showed the outgoing card
+               sitting at `1.00` unmoving until the very last step. Removed
+               here; still exactly what drives the article's own pop.
+
+               `[@media(hover:hover)]:transition-opacity duration-300` for
+               a pointer, not a bare `transition-opacity` applied
+               everywhere — a real CSS transition chases whatever value it
+               is last given, and `--pop-progress` changes every ~16ms
+               during a drag, so a *300ms* transition still watching it
+               cannot keep pace and visibly lags behind a finger instead of
+               tracking it (confirmed directly — a slow-drag opacity sample
+               showed the value crawling toward each new target instead of
+               reaching it). Scoping that duration to devices that actually
+               have `:hover` keeps the smooth fade for a pointer's hover
+               exactly as before.
+
+               **`[@media(hover:none)]:duration-100` for touch, not no
+               transition at all** (client, follow-up, on a real phone: "it
+               looks like it appears suddenly not smooth enough") — a bare
+               100ms transition is short enough not to meaningfully lag a
+               finger the way 300ms did, but still smooths over any gap
+               between individual `--pop-progress` writes, which land once
+               per scroll frame in this sandbox's own testing but are not
+               guaranteed to land on literally every compositor frame on
+               real hardware; a transition this short closes that gap
+               without reintroducing the lag the longer one caused. */
+            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 [opacity:var(--pop-progress,0)] transition-opacity [@media(hover:hover)]:duration-300 [@media(hover:none)]:duration-100 group-hover:opacity-100"
+          >
           <button
             type="button"
             onClick={(e) => {

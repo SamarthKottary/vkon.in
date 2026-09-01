@@ -84,8 +84,14 @@ import type { Product } from "@/lib/types";
  *    "which card is active" pop below does not depend on this either way —
  *    `measure()` computes the centred card itself, directly from card
  *    rects, regardless of what CSS did to get the scroll there.
- *    Strength is `proximity`, not `mandatory` — see the note further down on
- *    why a vertical scroll needs the row *not* to insist on a snap point.
+ *    Strength is `proximity`, not `mandatory`, from `sm` up — see the note
+ *    further down on why a vertical scroll needs the row *not* to insist on
+ *    a snap point there. **Below `sm` it is `mandatory`, with a settle-timer
+ *    on top** (client, 2026-09-01: "one swipe and the next card to come...
+ *    It should not swipe like this and both cards are visible unless i
+ *    fully swipe across") — a touch swipe carries none of that wheel-noise
+ *    risk, the same reasoning `product/ProductMedia`'s own gallery already
+ *    relies on for the identical pairing; see `correctCardStep`.
  *  - **Exactly one card is ever popped, and only while this section itself is
  *    in view.** An `IntersectionObserver` on the section root (not the
  *    track) drives the in-view half of that; the un-viewing case (scrolling
@@ -204,6 +210,9 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const trackRef = useRef<HTMLUListElement>(null);
   const [canScroll, setCanScroll] = useState({ left: false, right: false });
   const [centeredId, setCenteredId] = useState<string | null>(null);
+  /* Bumped on every mobile scroll-settle so the autoplay interval effect
+     below re-arms — see the note on `sync`'s settle-timer for why. */
+  const [swipeResetSignal, setSwipeResetSignal] = useState(0);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   /* Last known pointer position while it is over the row, in viewport
      coordinates — `null` when it is not. Not React state: it does not need
@@ -230,6 +239,13 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
    *  guaranteed fresh 3s. */
   const hoverPausedRef = useRef(false);
   const modalPausedRef = useRef(false);
+  /* Set the instant a mobile touch starts on the track, cleared once that
+     gesture's own settle is confirmed (or, failing that, on a fallback
+     timer) — see the note on the autoplay interval effect below for why a
+     ref set *immediately*, not the settle-triggered `swipeResetSignal`
+     alone, is what actually closes the race that let autoplay double-fire
+     right after a swipe near its own 3s mark. */
+  const swipePausedRef = useRef(false);
   /* Whether the section itself is in the viewport — see the comment on the
      component for why this, and not an interaction flag, gates the pop. */
   const [inView, setInView] = useState(false);
@@ -323,6 +339,31 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     return first ? first.getBoundingClientRect().width + 24 : el.clientWidth;
   }, []);
 
+  /** Half the leftover space either side of a card once centred — the
+   *  mobile-only peek amount, measured from the real rendered card width
+   *  rather than derived from its own `82%` Tailwind class.
+   *
+   *  **Not `clientWidth * 0.09`, and not a CSS percentage on
+   *  `scroll-padding-left` either — both were tried and both were wrong**
+   *  (client, 2026-09-01, immediately after the `snap-mandatory` pass
+   *  below shipped: "the cards are not centered after the first card").
+   *  `w-[82%]` on the card resolves against the *track's own content box*
+   *  — `clientWidth` minus this track's `px-6`/`24px` padding either side
+   *  — not the bare `clientWidth` a percentage on `scroll-padding-left`
+   *  resolves against. The two are close enough at small paddings to look
+   *  right by eye but are not equal, and the gap between them (confirmed
+   *  directly: a measured `35px` left peek against a `74px` right one,
+   *  where symmetric would be `~55px` each) is exactly what read as
+   *  "not centred." Measuring the actual rendered card width side-steps
+   *  needing to know the padding/percentage relationship at all — this is
+   *  correct for whatever the card's width happens to compute to, not only
+   *  today's `82%`/`px-6` pairing. */
+  const measureHalfPeek = useCallback((el: HTMLElement) => {
+    const first = el.children[0] as HTMLElement | undefined;
+    if (!first) return 0;
+    return (el.clientWidth - first.getBoundingClientRect().width) / 2;
+  }, []);
+
   /** Finds the card at a screen point by geometry, not by asking the browser
    *  to hit-test.
    *
@@ -396,6 +437,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     setCanLoop(oneSet > el.clientWidth + 8);
 
     const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
+    const step = measureStep(el);
     let bestId: string | null = null;
     let bestDistance = Infinity;
     for (const card of el.querySelectorAll<HTMLElement>("[data-product-id]")) {
@@ -419,8 +461,204 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     /* Which dot is lit — see the note on `stepIndex`. `products.length` is
        guaranteed non-zero here: the component returns `null` before this
        track (and therefore this callback) ever renders otherwise. */
-    setStepIndex(Math.round(el.scrollLeft / measureStep(el)) % products.length);
+    setStepIndex(Math.round(el.scrollLeft / step) % products.length);
   }, [canLoop, hoverCapable, findCardAt, measureStep, products.length]);
+
+  /** Continuous Quick View fade, touch only — a per-card `closeness` (`1`
+   *  exactly centred, a flat plateau for the inner 40% of a step either
+   *  side, ramping to `0` a full step away) written straight to a
+   *  `--pop-progress` custom property on each card's own Quick View
+   *  wrapper (client, 2026-09-01, across three messages on this row's
+   *  Quick View: "should come from 0% to 100% visiblity when the card
+   *  comes to the centre... fade away when the next card comes to the
+   *  centre"; "When the card is 40% at the centre the fading animation
+   *  quick view should appear... 40% away... smoothly go away"; and,
+   *  after both landed and were confirmed on a real phone still not
+   *  smooth: "i will let you handle the fade but i should be able to look
+   *  and feel that it is fading away appearing").
+   *
+   *  **Not called from `measure()` any more — see `dragLoop` below for why
+   *  and what replaced it.** The shape of `closeness` itself is unchanged
+   *  from the previous two passes; only *when* it gets evaluated moved.
+   *
+   *  **Also finds and sets `centeredId` itself now, on every frame this
+   *  runs — a second, independent instance of `measure()`'s own identical
+   *  "nearest card" scan, not a replacement for it** (client, follow-up:
+   *  "the centre card pop up is not smooth it feels like there 2 pop
+   *  ups"). `centeredId` drives the whole card's own pop — border, scale,
+   *  lift, shadow, all through one `transition-all duration-300` on the
+   *  `<article>` — and until now it only ever updated from `measure()`,
+   *  which like `--pop-progress` before this file's previous entry only
+   *  runs from `onScroll`. The exact same gap applies here: real mobile
+   *  hardware does not fire `scroll` on every frame of a drag, so
+   *  `centeredId` could sit stale for a stretch of a gesture and then jump
+   *  straight to the new card, restarting that card's `duration-300`
+   *  transition from a cold, un-transitioning start rather than a value
+   *  that had been continuously tracking the swipe — which reads exactly
+   *  like a second, separate pop firing right after the first, not one
+   *  continuous handoff. `measure()` keeps computing and setting it too
+   *  (unchanged, still needed for the very first render and anything that
+   *  is not an active gesture — a resize, the section entering view) —
+   *  `setCenteredId` bails out of re-rendering on an unchanged value
+   *  either way, so having two callers agree on the same value costs
+   *  nothing beyond the scan itself, already proven cheap enough at 60fps
+   *  for `--pop-progress`. */
+  const updatePopProgress = useCallback(
+    (el: HTMLElement) => {
+      const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
+      const step = measureStep(el);
+      const PLATEAU = 0.4;
+      const threshold = PLATEAU * step;
+      let bestId: string | null = null;
+      let bestDistance = Infinity;
+      for (const card of el.querySelectorAll<HTMLElement>("[data-product-id]")) {
+        const rect = card.getBoundingClientRect();
+        const distance = Math.abs(rect.left + rect.width / 2 - trackMid);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestId = card.dataset.productId ?? null;
+        }
+        const closeness =
+          distance <= threshold
+            ? 1
+            : Math.max(0, 1 - (distance - threshold) / (step - threshold));
+        card
+          .querySelector<HTMLElement>("[data-quickview-wrapper]")
+          ?.style.setProperty("--pop-progress", closeness.toString());
+      }
+      setCenteredId(bestId);
+    },
+    [measureStep],
+  );
+
+  const dragFrame = useRef<number | null>(null);
+  const popProgressStopTimer = useRef<number | null>(null);
+
+  /** **Why this exists at all: `measure()` only runs from `onScroll`, and a
+   *  native `scroll` event is not guaranteed to fire on every frame a
+   *  touch drag actually moves through.** The previous two passes both
+   *  drove `--pop-progress` from inside `measure()`, reasoning that it
+   *  already ran on every scroll frame this belt produces — true on a
+   *  desktop browser and true in this sandbox's own synthetic touch
+   *  testing, and confirmed smooth there both times. Confirmed *not*
+   *  smooth on a real phone regardless (client: "not smooth enough" —
+   *  after the plateau fix specifically, which had already ruled out the
+   *  first pass's own most likely cause). Mobile Safari and Chrome are
+   *  both documented to coalesce or throttle `scroll` dispatch during an
+   *  active touch gesture rather than firing once per compositor frame
+   *  the way a desktop wheel/trackpad scroll does — this component's own
+   *  `scrollend`-listener note elsewhere already has "mobile momentum can
+   *  keep `scrollLeft` moving for longer than 120ms between individual
+   *  `scroll` events" on record, the identical mechanism, previously only
+   *  relevant to the seam settle-timer's own timing and now understood to
+   *  also explain a visually stepped fade.
+   *
+   *  The fix is not another CSS knob: it is not depending on `scroll`
+   *  dispatch frequency at all. `requestAnimationFrame` runs once per
+   *  compositor frame regardless of how the browser paces `scroll`, so a
+   *  loop driven by it re-reads the live `scrollLeft` and recomputes every
+   *  card's `closeness` up to 60 times a second for as long as it runs —
+   *  genuinely continuous, not merely frequent.
+   *
+   *  **Split into a shared `runPopProgressLoop`/`schedulePopProgressStop`
+   *  pair, not kept private to the touch-listener effect** (client,
+   *  follow-up: "the quick view button only appears when i swipe... i
+   *  want autoplay to also show quick view button with fading animation")
+   *  — the first version only ever started this loop from `touchstart`,
+   *  so autoplay's own `advance()` (and a tap on an arrow or dot) moved
+   *  the row without ever touching `--pop-progress` at all, leaving Quick
+   *  View invisible through anything that was not a drag. `advance`,
+   *  `retreat` and `goTo` below now call the same two functions a touch
+   *  does — same loop, same stop-timer, one mechanism reacting to the row
+   *  actually moving regardless of what moved it, rather than a second
+   *  one bolted on for autoplay specifically. */
+  const runPopProgressLoop = useCallback(() => {
+    if (hoverCapable) return;
+    if (dragFrame.current !== null) return;
+    const loop = () => {
+      const el = trackRef.current;
+      if (el) updatePopProgress(el);
+      dragFrame.current = window.requestAnimationFrame(loop);
+    };
+    dragFrame.current = window.requestAnimationFrame(loop);
+  }, [hoverCapable, updatePopProgress]);
+
+  /** Clears any previously scheduled stop and arms a new one `delayMs` out
+   *  — called every time something moves the row, so the loop's own
+   *  lifetime always extends to cover whatever just triggered it, whether
+   *  that is one touch gesture or one autoplay tick. */
+  const schedulePopProgressStop = useCallback((delayMs: number) => {
+    if (popProgressStopTimer.current !== null) window.clearTimeout(popProgressStopTimer.current);
+    popProgressStopTimer.current = window.setTimeout(() => {
+      popProgressStopTimer.current = null;
+      if (dragFrame.current !== null) {
+        window.cancelAnimationFrame(dragFrame.current);
+        dragFrame.current = null;
+      }
+    }, delayMs);
+  }, []);
+
+  /** Touch-specific wiring on top of the shared pair above: starts the loop
+   *  immediately on `touchstart` (clearing any stop already scheduled, so
+   *  a second touch before the first one's buffer expired does not let it
+   *  stop mid-gesture) and defers stopping until half a second after
+   *  release — not immediately, because releasing a finger does not mean
+   *  the row stops moving: native momentum and `correctCardStep`'s own
+   *  settle-timer (armed 120ms after the last `scroll` event, then
+   *  animating a `scrollTo` of its own) both keep `scrollLeft` changing
+   *  well past `touchend`, and the fade needs to keep tracking through
+   *  that final glide into place, not freeze the instant a finger lifts.
+   *  `500`ms comfortably covers the 120ms delay plus a
+   *  `scrollTo({behavior:"smooth"})` animation's own duration with margin
+   *  to spare. Also where `swipePausedRef` is set — see the autoplay
+   *  interval effect's own note for why an *instant* flag, not only the
+   *  settle-triggered reset, is what actually stops autoplay racing a
+   *  swipe near its own 3s mark. */
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el || hoverCapable) return;
+
+    const start = () => {
+      swipePausedRef.current = true;
+      if (popProgressStopTimer.current !== null) {
+        window.clearTimeout(popProgressStopTimer.current);
+        popProgressStopTimer.current = null;
+      }
+      runPopProgressLoop();
+    };
+
+    const end = () => {
+      schedulePopProgressStop(500);
+      /* Fallback clear, not the primary one — see the note on the
+         autoplay interval effect. Covers a touch that never produced a
+         `scroll` event at all (a tap, or a drag too small to move
+         anything), where `sync`'s own settle-timer — the fast, correct
+         path — never arms and `swipeResetSignal` never bumps, which
+         would otherwise leave this stuck `true` and autoplay paused
+         forever after one touch. */
+      window.setTimeout(() => {
+        swipePausedRef.current = false;
+      }, 500);
+    };
+
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchend", end, { passive: true });
+    el.addEventListener("touchcancel", end, { passive: true });
+
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, [hoverCapable, runPopProgressLoop, schedulePopProgressStop]);
+
+  useEffect(
+    () => () => {
+      if (popProgressStopTimer.current !== null) window.clearTimeout(popProgressStopTimer.current);
+      if (dragFrame.current !== null) window.cancelAnimationFrame(dragFrame.current);
+    },
+    [],
+  );
 
   /** Pulls the scroll position back into a safe middle zone whenever it has
    *  settled within 4px of either true edge of the doubled row — **both
@@ -497,23 +735,131 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
    *
    *  Returns whether it actually corrected anything, so a caller (`advance`
    *  et al.) that only cares about *acting* on a fresh position can skip a
-   *  redundant re-read when nothing moved. */
+   *  redundant re-read when nothing moved.
+   *
+   *  **The safety margin is `40`, not the original `4`** (client, 2026-08-31,
+   *  mobile centred-card pass below) — `4` was tuned for a track with no
+   *  `scroll-padding-left` (or a few px of it) to speak of, where a written
+   *  `scrollLeft` lands within a pixel or two of intended. Mobile's new
+   *  `scroll-padding-left: 9%` (peek-centring, see the track's own note)
+   *  makes the browser's snap machinery reassert a raw write with far more
+   *  slack than that — confirmed directly: the mount effect below writes
+   *  `oneSet` (`2436`) and the browser reasserts it to `2424`, a 12px
+   *  shortfall. Landing on the wrong side of a 4px margin turned that alone
+   *  into a spurious wrap, immediately after mount, with no gesture at all —
+   *  `correctSeam`'s own settle-timer, armed by the `scroll` event the write
+   *  itself fires, treated "12px short of `oneSet`" as "close enough to the
+   *  true edge to need wrapping." `40` comfortably covers that noise with
+   *  room to spare, while staying tiny next to `oneSet` itself (hundreds of
+   *  pixels at minimum), so it cannot misread the genuine middle of the row
+   *  as an edge either. */
   const correctSeam = useCallback(() => {
     const el = trackRef.current;
     if (!el || !canLoop) return false;
     const oneSet = measureOneSet(el);
-    if (el.scrollLeft < oneSet - 4) {
+    if (el.scrollLeft < oneSet - 40) {
       el.scrollLeft += oneSet;
       measure();
       return true;
     }
-    if (el.scrollLeft >= 2 * oneSet - 4) {
+    if (el.scrollLeft >= 2 * oneSet - 40) {
       el.scrollLeft -= oneSet;
       measure();
       return true;
     }
     return false;
   }, [canLoop, measureOneSet, measure]);
+
+  /* Forces the settled rest position to the nearest exact card-step
+     multiple, mobile only — the same `snap-mandatory` + settle-timer shape
+     `product/ProductMedia`'s own image gallery already uses, for the same
+     complaint (client, 2026-09-01: "It should not swipe like this and both
+     cards are visible unless i fully swipe across" — a screenshot showing
+     two cards half-visible mid-scroll). `snap-proximity` alone can leave a
+     soft swipe resting wherever momentum happened to stop rather than on a
+     card boundary; the fix is not switching this row to `mandatory`
+     everywhere (that reintroduces the exact wheel-capture bug documented
+     above, real trackpad/mouse input on desktop), only below `sm`, where a
+     touch swipe has no such incidental-wheel-noise risk — see the track's
+     own `snap-mandatory sm:snap-proximity`. `window.innerWidth < 640`
+     matches Tailwind's own `sm` boundary directly, since this runs outside
+     any CSS media query. Uses `scrollTo`, not a raw `scrollLeft` write —
+     `correctSeam` above needs the raw form specifically to jump a full
+     `oneSet` instantly and invisibly, but an animated `scrollTo` here reads
+     back reliably afterward the way raw writes under active `scroll-snap`
+     do not (see that function's own note on the 12px mount-time
+     discrepancy `scrollLeft = x` produced) — the same reason
+     `ProductMedia`'s settle-timer already uses `scrollTo` rather than a
+     property write.
+
+     **Must subtract the peek amount, not just round to a multiple of
+     `step`** — a real `snap-start` rest position for card `i` is
+     `i * step - halfPeek`, not `i * step`, once the track carries a
+     nonzero `scroll-padding-left` for the peek-centring effect below (set
+     to `measureHalfPeek`'s own value — see its note for why that is not
+     simply `clientWidth * 0.09`). Card 0 happens to look right either way
+     (`0 * step` and `0 * step - halfPeek` both clamp to `0`, there being
+     nothing to peek before it), which is exactly why an earlier version of
+     this fix that used the wrong half-peek value only showed as broken
+     "after the first card." */
+  const correctCardStep = useCallback(
+    (el: HTMLElement) => {
+      if (window.innerWidth >= 640) return;
+      const step = measureStep(el);
+      const halfPeek = measureHalfPeek(el);
+      const nearest = Math.round((el.scrollLeft + halfPeek) / step);
+      const target = nearest * step - halfPeek;
+      if (Math.abs(el.scrollLeft - target) > 1) {
+        el.scrollTo({ left: target, behavior: "smooth" });
+      }
+    },
+    [measureStep, measureHalfPeek],
+  );
+
+  /* Applies `measureHalfPeek`'s own value as the track's
+     `scroll-padding-left`, mobile only — an inline style rather than a CSS
+     percentage, since `measureHalfPeek` is measured from the real rendered
+     card, not derivable as a fixed percentage in CSS in the first place
+     (see its own note). Cleared (`""`) at `sm` and up so the CSS
+     `sm:[scroll-padding-left:28px] lg:[scroll-padding-left:36px]` rules —
+     untouched by any of this — take back over normally; an inline style
+     always wins over a class regardless of source order, so leaving one
+     behind at a wider breakpoint would silently override those. Its own
+     `ResizeObserver`, not folded into `sync`'s: this sets a style property,
+     `sync` only ever reads the DOM, and keeping a DOM-mutating effect
+     separate from the measure-only one is the same separation of concerns
+     every other effect in this file already keeps.
+
+     **`useLayoutEffect`, not `useEffect`, and declared before the "opens
+     at `oneSet`" layout effect below — both load-bearing.** React runs
+     every `useLayoutEffect` before the browser paints and before any
+     passive `useEffect` fires, but that guarantee does not extend to a
+     passive effect racing a layout effect: a plain `useEffect` here would
+     apply this padding *after* that mount-time jump already read whatever
+     `scroll-padding-left` was in effect (the `.hscroll` default, not this
+     value), landing the opening position wrong until the next resize
+     happened to correct it. Declared first, purely for the ordering: React
+     runs same-type effects in declaration order, and `oneSet`'s own jump
+     needs this value already applied when it reads the DOM. */
+  useLayoutEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const applyPeek = () => {
+      if (window.innerWidth >= 640) {
+        el.style.scrollPaddingLeft = "";
+        return;
+      }
+      el.style.scrollPaddingLeft = `${measureHalfPeek(el)}px`;
+    };
+    applyPeek();
+    const observer = new ResizeObserver(applyPeek);
+    observer.observe(el);
+    window.addEventListener("resize", applyPeek);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", applyPeek);
+    };
+  }, [measureHalfPeek]);
 
   /* Throttled to one run per animation frame — see the note on the
      component. Native `scroll` fires far more often than the display
@@ -528,8 +874,47 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
        Correcting mid-gesture would mean fighting a touch drag still in
        progress. */
     if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
-    settleTimer.current = window.setTimeout(correctSeam, 120);
-  }, [measure, correctSeam]);
+    settleTimer.current = window.setTimeout(() => {
+      correctSeam();
+      const el = trackRef.current;
+      if (!el) return;
+      correctCardStep(el);
+      /* "After swipe the timer should be reset" (client) — bumps a signal
+         the autoplay interval effect below depends on, so it tears down
+         and recreates the interval, starting a fresh 3s window from
+         whenever a gesture last settled rather than continuing whatever
+         was left of the old one. Mobile-only, matching everything else in
+         this pass — desktop's arrow/dot clicks were not asked to do this
+         and keep the interval running on its existing phase, exactly as
+         `running`'s own docblock argues for hover. Fires on every settle,
+         autoplay's own ticks included — harmless there, since each tick
+         already produces its own settle a moment later, so the interval
+         keeps re-arming itself every ~3.1s regardless.
+
+         **`swipePausedRef` clears here too, unconditionally, not only
+         inside that `< 640` branch** (client, follow-up: "the timer when
+         it is close to 3 seconds dosent reset when i swipe then. After i
+         swipe near the 3 second limit it fires and swipes the next card")
+         — this is the fix for that report, and it is not the same bug as
+         "the interval never resets": the interval *was* resetting, but
+         only once this settle-timer fires, 120ms plus a scroll-settle
+         animation after the swipe itself — a real gap, easily 300ms or
+         more, during which the *old* interval's own already-scheduled tick
+         is still live. A swipe landing inside that gap let the old tick
+         fire anyway, autoplay stepping the row a second time right on top
+         of the visitor's own swipe. `swipePausedRef` closes the gap from
+         the other end: set `true` the instant a touch starts (see the
+         touch-listener effect above), it makes the interval's own tick
+         skip itself — same mechanism `hoverPausedRef` already uses for a
+         footer hover — for the *entire* window from touch-start through
+         this settle, not only after the new interval exists. Cleared here
+         unconditionally (not gated on the same `< 640` check the signal
+         bump is) so a stray settle on a wide touch viewport can never
+         leave it stuck. */
+      swipePausedRef.current = false;
+      if (window.innerWidth < 640) setSwipeResetSignal((n) => n + 1);
+    }, 120);
+  }, [measure, correctSeam, correctCardStep]);
 
   const onScroll = useCallback(() => {
     if (syncFrame.current !== null) return;
@@ -651,9 +1036,22 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
    *  `oneSet` offset either way, so the jump — in whichever direction it
    *  turns out to fire — cannot be seen, and doing it between animations
    *  rather than inside one avoids cancelling a scroll already in flight. */
+  /** `runPopProgressLoop()` + `schedulePopProgressStop(700)` — the same
+   *  pair the touch listener calls, so autoplay's own tick (and an arrow
+   *  or dot tap) drives Quick View's fade exactly the way a swipe already
+   *  does, rather than moving the row with nothing watching it (client:
+   *  "i want autoplay to also show quick view button with fading
+   *  animation"). `700`ms, not touch's `500`, because there is no gesture
+   *  in progress keeping the loop alive the way an unreleased finger does
+   *  — this is one `scrollBy`/`scrollTo` animation and nothing else, so
+   *  the buffer only needs to outlast that single smooth-scroll's own
+   *  duration, with the same kind of margin touch's figure already
+   *  carries. No-ops on a hover-capable device, same as the loop itself. */
   const advance = () => {
     const el = trackRef.current;
     if (!el) return;
+    runPopProgressLoop();
+    schedulePopProgressStop(700);
     correctSeam();
     const step = measureStep(el);
     el.scrollBy({ left: step, behavior: "smooth" });
@@ -670,6 +1068,8 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const retreat = () => {
     const el = trackRef.current;
     if (!el) return;
+    runPopProgressLoop();
+    schedulePopProgressStop(700);
     correctSeam();
     const step = measureStep(el);
     el.scrollBy({ left: -step, behavior: "smooth" });
@@ -686,6 +1086,8 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const goTo = (target: number) => {
     const el = trackRef.current;
     if (!el) return;
+    runPopProgressLoop();
+    schedulePopProgressStop(700);
     correctSeam();
     const step = measureStep(el);
     el.scrollTo({ left: target * step, behavior: "smooth" });
@@ -703,7 +1105,32 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
      and nothing to scroll in the first place. **Footer hover is deliberately
      not one of them** — it skips the tick from inside the callback instead,
      via `hoverPausedRef`; see below, and the note on that ref for why that
-     distinction is the entire fix. */
+     distinction is the entire fix.
+
+     **`swipeResetSignal` is the one deliberate exception to "never tear
+     this down just to restart the cadence"** (client, 2026-09-01: "After
+     swipe the timer should be reset") — mobile only, bumped by `sync`'s own
+     settle-timer once a gesture has genuinely stopped. A manual swipe and
+     autoplay's own tick fighting over the same card within moments of each
+     other is a worse feel than the interval's phase drifting by the ~120ms
+     its own settle already takes, which is all restarting here costs — see
+     the note on `sync` for why this is safe to fire unconditionally on
+     every settle, autoplay's included.
+
+     **`swipePausedRef` closes the gap that reset alone left open** (client,
+     follow-up: "the timer when it is close to 3 seconds dosent reset when
+     i swipe then. After i swipe near the 3 second limit it fires and
+     swipes the next card") — the reset above only takes effect once
+     `sync`'s settle-timer actually fires, itself 120ms plus a scroll-settle
+     animation after the swipe, easily 300ms+ in total. A swipe landing
+     inside that window left the *old* interval's already-scheduled tick
+     free to fire anyway, doubling up with the visitor's own swipe — the
+     reset was real, just not instant enough to close a race that short.
+     Set the instant a touch starts (see the touch-listener effect,
+     `swipePausedRef.current = true`) rather than only once settled, and
+     checked below the same way `hoverPausedRef` already is, so any tick
+     that would otherwise fire *during* a swipe — before the reset has even
+     happened yet — is skipped instead of firing on the stale schedule. */
   const canAdvance = canLoop || canScroll.right;
   const running = autoplay && !paused && inView && canAdvance;
 
@@ -714,14 +1141,17 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
          cursor sits on a footer, so leaving one resumes on the original
          cadence rather than restarting a fresh 3s — see `hoverPausedRef`.
          A tick spent hovering is simply lost, which is what "pause" should
-         mean here: the belt does not "catch up" afterwards. */
-      if (hoverPausedRef.current || modalPausedRef.current) return;
+         mean here: the belt does not "catch up" afterwards. Same for a
+         tick landing mid-swipe (`swipePausedRef`) — it is not deferred
+         either, since the swipe's own settle is about to reset this
+         interval's phase anyway. */
+      if (hoverPausedRef.current || modalPausedRef.current || swipePausedRef.current) return;
       /* No end to test for: `advance` carries the seam, so every tick is the
          same single step whether or not it happens to cross it. */
       advance();
     }, 3000);
     return () => window.clearInterval(id);
-  }, [running, canLoop]);
+  }, [running, canLoop, swipeResetSignal]);
 
   if (products.length === 0) return null;
 
@@ -884,7 +1314,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
            `measureStep`/`correctSeam`/the CSS `scroll-padding-left` above
            all depend on) — `canLoop` already being false is precisely the
            signal that this row has no overflow to protect. */
-        className={`hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-6 overflow-x-auto px-6 pb-10 pt-16 [scroll-padding-left:24px] sm:px-7 sm:[scroll-padding-left:28px] lg:px-9 lg:[scroll-padding-left:36px] ${
+        className={`hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-mandatory sm:snap-proximity items-stretch gap-6 overflow-x-auto px-6 pb-10 pt-16 sm:px-7 sm:[scroll-padding-left:28px] lg:px-9 lg:[scroll-padding-left:36px] ${
           canLoop ? "justify-start" : "justify-center"
         }`}
       >

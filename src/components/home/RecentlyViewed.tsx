@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeftIcon, ArrowRightIcon } from "@/components/icons/ui";
 import { ProductCard } from "@/components/product/ProductCard";
 import {
@@ -49,16 +49,42 @@ const SHOWN = 6;
  * measures rects directly instead of using `IntersectionObserver` for the
  * centred-card check itself.
  *
- * **Snap is `proximity`, not `mandatory`, and there is no `onWheel` handler**
+ * **Snap is `proximity` from `sm` up, and there is no `onWheel` handler**
  * (client, 2026-08-24 — this row had both, converting any vertical wheel
  * delta into a horizontal scroll of the row and blocking the page underneath
  * it, the same bug `home/FeaturedProducts` had and was fixed the same way).
  * `mandatory` snap on its own was *also* enough to make scrolling the page
- * over this row unreliable — real wheel/trackpad input is rarely perfectly
- * vertical, and mandatory snap grabs a gesture that carries even a few
- * pixels of incidental horizontal noise rather than letting it chain to the
- * page. `proximity` only pulls in a scroll that was already going to land
- * near a snap point on its own.
+ * over this row unreliable at those widths — real wheel/trackpad input is
+ * rarely perfectly vertical, and mandatory snap grabs a gesture that carries
+ * even a few pixels of incidental horizontal noise rather than letting it
+ * chain to the page. `proximity` only pulls in a scroll that was already
+ * going to land near a snap point on its own.
+ *
+ * **Below `sm` it is `mandatory`, with a settle-timer on top** (client,
+ * 2026-09-01: "lets implement the same swipe mechanism for recent viewed
+ * cards in mobile view. Just the swipe feature and the card should be the
+ * centre") — the identical pairing `home/FeaturedProducts`' own row just
+ * got, for the identical reason: a touch swipe carries none of the
+ * incidental-wheel-noise risk `proximity` exists to avoid, so `mandatory`
+ * is safe there even though it is not here. `correctCardStep` forces the
+ * settled rest position to the nearest exact card-step multiple, since
+ * `mandatory` alone is not perfectly reliable from every gesture shape
+ * either — see that component's own note on `correctCardStep` for the full
+ * reasoning, unchanged here beyond this row having no seam/loop to also
+ * correct. This row has no autoplay to reset a timer on and no Quick View
+ * to fade, so neither of those two `FeaturedProducts` mechanisms apply —
+ * out of scope here, not overlooked.
+ *
+ * **Centring is measured from the real rendered card, not a CSS
+ * percentage** (`measureHalfPeek`, applied as an inline
+ * `scroll-padding-left` below `sm`) — the same fix, for the same reason,
+ * as `FeaturedProducts`' own centring: a percentage on `scroll-padding-left`
+ * resolves against the track's bare `clientWidth`, while this card's own
+ * width resolves against the track's *content box* (`clientWidth` minus
+ * its `px-6` padding), so a flat `4%` was never exactly half the true peek
+ * to begin with — confirmed wrong there via direct measurement before this
+ * row ever got the same treatment, not re-derived by hitting the same bug
+ * twice.
  */
 export function RecentlyViewed({ products }: { products: Product[] }) {
   const raw = useSyncExternalStore<string | null>(
@@ -110,6 +136,121 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
 
   const poppedId = inView ? (hoverCapable ? hoveredId ?? centeredId : centeredId) : null;
 
+  /** One card's width plus the gap between cards — the exact distance a
+   *  swipe or a page button steps by. Matches `page`'s own inline
+   *  calculation below exactly; both read the same `16px` gap. */
+  const measureStep = useCallback((el: HTMLElement) => {
+    const first = el.children[0] as HTMLElement | undefined;
+    return first ? first.getBoundingClientRect().width + 16 : el.clientWidth;
+  }, []);
+
+  /** Half the leftover space either side of a card once centred — see the
+   *  component's own note on why this is measured from the real rendered
+   *  card rather than assumed as a fixed CSS percentage. */
+  const measureHalfPeek = useCallback((el: HTMLElement) => {
+    const first = el.children[0] as HTMLElement | undefined;
+    if (!first) return 0;
+    return (el.clientWidth - first.getBoundingClientRect().width) / 2;
+  }, []);
+
+  /** Applies `measureHalfPeek`'s value as the track's own
+   *  `scroll-padding-left`, mobile only — see `FeaturedProducts`' own
+   *  identical effect for the full reasoning (an inline style, not a CSS
+   *  class, since the value is only knowable after layout; cleared at `sm`
+   *  and up so the existing `sm:`/`lg:` CSS values take back over). No
+   *  ordering constraint against a mount-time jump the way that
+   *  component's version has — this row has no equivalent to reset — so a
+   *  plain `useEffect` would be safe here too, but `useLayoutEffect` costs
+   *  nothing extra and keeps the two components' identical mechanisms
+   *  identical in shape as well as behaviour.
+   *
+   *  **`recent.length` is in the dependency array for a reason specific to
+   *  this component, not copied blindly from `FeaturedProducts`'** —
+   *  confirmed missing the hard way: without it, every card measured a
+   *  flat, unhalved `20px` peek (`.hscroll`'s own base
+   *  `scroll-padding-left`, not this effect's value) no matter how the
+   *  track resized. This row returns `null` — no `<ul>`, `trackRef.current`
+   *  still empty — until `raw` resolves from `localStorage` (see the
+   *  component's own note), so this effect's *first* run is always a
+   *  same-render no-op on a `null` ref. `measureHalfPeek` never changes
+   *  reference, so with only that in the array React saw an unchanged
+   *  dependency list on the next render and skipped re-running the effect
+   *  entirely — never mind that the ref had since been attached to a real
+   *  element. `sync`'s own `ResizeObserver` effect further down already
+   *  depends on `recent.length` for what turns out to be the identical
+   *  reason; this one needed the same fix, not a different one. */
+  useLayoutEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const applyPeek = () => {
+      if (window.innerWidth >= 640) {
+        el.style.scrollPaddingLeft = "";
+        return;
+      }
+      el.style.scrollPaddingLeft = `${measureHalfPeek(el)}px`;
+    };
+    applyPeek();
+    const observer = new ResizeObserver(applyPeek);
+    observer.observe(el);
+    window.addEventListener("resize", applyPeek);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", applyPeek);
+    };
+  }, [measureHalfPeek, recent.length]);
+
+  /** Forces the settled rest position to the nearest exact card-step
+   *  multiple, mobile only — see `FeaturedProducts`' own `correctCardStep`
+   *  for the general reasoning (`snap-mandatory` alone is not perfectly
+   *  reliable from every gesture shape; `scrollTo`, not a raw `scrollLeft`
+   *  write, is what actually reads back correctly under active
+   *  `scroll-snap`). No seam or loop on this row to also correct, unlike
+   *  that component's version — this is the whole of what settling needs
+   *  to do here.
+   *
+   *  **The target is the nearest card's own `offsetLeft`, not
+   *  `index * step`** — confirmed directly this track's own `px-6` leading
+   *  padding makes a difference here that it apparently does not visibly
+   *  break for `FeaturedProducts`' formula-based version: a real drag
+   *  settled natively at `317px` (correct — native `snap-mandatory`
+   *  already resolves `card.offsetLeft - scrollPaddingLeft` on its own),
+   *  but the `index * step - halfPeek` formula computed `292.9375px`
+   *  for the same card, silently missing that this track's first card
+   *  does not start at `0` — it starts `24px` in, at the track's own
+   *  padding. Forcing a `scrollTo` toward that wrong target fought the
+   *  browser's own already-correct native resolution rather than
+   *  reinforcing it, which is a worse source of visible "lag" than no
+   *  correction at all would have been. Reading each card's real
+   *  `offsetLeft` directly, the same way `sync`'s own nearest-card scan
+   *  already does, is correct regardless of leading padding, non-uniform
+   *  gaps, or anything else a formula would have to know about in
+   *  advance. */
+  const correctCardStep = useCallback(
+    (el: HTMLElement) => {
+      if (window.innerWidth >= 640) return;
+      const halfPeek = measureHalfPeek(el);
+      const trackMid = el.getBoundingClientRect().left + el.clientWidth / 2;
+      let bestOffsetLeft: number | null = null;
+      let bestDistance = Infinity;
+      for (const card of el.querySelectorAll<HTMLElement>("[data-product-id]")) {
+        const rect = card.getBoundingClientRect();
+        const distance = Math.abs(rect.left + rect.width / 2 - trackMid);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestOffsetLeft = card.offsetLeft;
+        }
+      }
+      if (bestOffsetLeft === null) return;
+      const target = bestOffsetLeft - halfPeek;
+      if (Math.abs(el.scrollLeft - target) > 1) {
+        el.scrollTo({ left: target, behavior: "smooth" });
+      }
+    },
+    [measureHalfPeek],
+  );
+
+  const settleTimer = useRef<number | null>(null);
+
   const sync = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
@@ -131,7 +272,24 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
       }
     }
     setCenteredId(bestId);
-  }, []);
+
+    /* Armed on every scroll, cleared and re-armed by the next one, so it
+       only ever fires once scrolling has actually stopped — the same
+       "never correct mid-gesture" rule every other settle-timer on this
+       site already follows. */
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(() => {
+      const trackEl = trackRef.current;
+      if (trackEl) correctCardStep(trackEl);
+    }, 120);
+  }, [correctCardStep]);
+
+  useEffect(
+    () => () => {
+      if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     sync();
@@ -145,9 +303,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
   const page = (direction: 1 | -1) => {
     const el = trackRef.current;
     if (!el) return;
-    const first = el.firstElementChild as HTMLElement | null;
-    const step = first ? first.getBoundingClientRect().width + 16 : el.clientWidth;
-    el.scrollBy({ left: step * direction, behavior: "smooth" });
+    el.scrollBy({ left: measureStep(el) * direction, behavior: "smooth" });
   };
 
   // `null` is the pre-hydration state, not an empty list — see the note on
@@ -241,7 +397,7 @@ export function RecentlyViewed({ products }: { products: Product[] }) {
                 which centres its content when everything fits, recently viewed
                 cards should always start and align from the left edge of the
                 page even if there is only a single card. */
-            className={`hscroll mt-8 flex snap-x snap-proximity items-stretch gap-4 overflow-x-auto py-10 ${
+            className={`hscroll mt-8 flex snap-x snap-mandatory sm:snap-proximity items-stretch gap-4 overflow-x-auto py-10 sm:[scroll-padding-left:1.5rem] lg:[scroll-padding-left:2rem] ${
               recent.length > 2
                 ? `mx-[calc(50%-50vw)] px-6 sm:px-7 lg:px-9 ${
                     showArrows ? "justify-start" : "justify-center"
