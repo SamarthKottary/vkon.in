@@ -660,6 +660,24 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-01 (products catalogue) — Vertical `ProductCard`'s own tagline reveal removed; Quick View already shows it
+
+**Client: "remove tagline for product card in the product page, because tagline available in quick view."** The hover-reveal tagline paragraph (`grid-rows-[0fr]` → `group-hover:grid-rows-[1fr]`, between the price and the "Range" row) was specific to the vertical/catalogue-grid branch of `ProductCard` — the one rendered on `/products`, `home/RecentlyViewed`'s strip and `product/RelatedProducts`. `HorizontalCard` and `FeaturedCard` each carry their own, separate tagline block and were not touched; `QuickViewModal` already renders the tagline on its own, which is what made this one redundant rather than the site's only copy.
+
+Verified: catalogue cards no longer show a tagline on hover; price now sits directly above the "Range" row with no gap left behind; Quick View (unaffected) still shows the tagline. `npx tsc --noEmit` not run in this session (no local Node toolchain available); change is a plain JSX removal with no new types.
+
+
+### 2026-09-01 (home, featured products) — Quick View sometimes stayed invisible on a centred mobile card; a race between two independent timers, not the fade logic itself
+
+**Client: "please check why some time quick view is not visible in mobile view while scrolling, when it is in center for featured product card in home page."** The fade itself (`--pop-progress`, driven by `updatePopProgress`'s `requestAnimationFrame` loop, entries above) was not the bug — its *lifetime* was. `touchend`/`touchcancel` and `advance`/`retreat`/`goTo` each schedule exactly one fixed-delay stop for that loop (`schedulePopProgressStop(500)` and `(700)` respectively), sized to outlast the 120ms settle delay in `sync` plus one typical `scrollTo({behavior:"smooth"})`.
+
+**`correctCardStep` (this same day, above) is a second animation on top of that first one.** It fires from *inside* the settle timer, after the gesture or tick has already been accounted for, whenever a swipe or autoplay step settles short of an exact card boundary — which on a real phone is common, not the exception. That second `scrollTo` needed time the original 500ms/700ms buffer was never sized to include, since it did not exist yet when those figures were picked. Once it ran long enough, the `requestAnimationFrame` loop those timers guard died mid-nudge, freezing `--pop-progress` at whatever partial value the card had reached the instant it stopped — not always invisible, which is exactly why it read as "*sometimes* not visible": whether it froze near `0`, mid-fade, or already at `1` depended entirely on how close the settle was when the buffer ran out.
+
+**Fixed by re-arming the stop timer from `sync` itself, on every real scroll frame, not only once from whatever started the gesture.** `sync` already re-arms its *own* settle timer this way on every `scroll` event; `schedulePopProgressStop(500)` now runs alongside it, guarded on `dragFrame.current !== null` so it only extends a loop already running (from a touch or a button/autoplay tick) rather than starting one of its own on an unrelated `measure()` call (a resize, for instance). Since `correctCardStep`'s own corrective `scrollTo` is a genuine scroll animation, it keeps firing `scroll` events of its own, which keeps pushing this deadline out for as long as that correction is actually still moving the row — the loop now only stops once scrolling has *fully* settled, corrective nudge included, instead of on a fixed clock that assumed there would only ever be one animation to outlast.
+
+Verified by reasoning through the timeline `correctCardStep`'s own changelog entry already put on record (settle timer + a second `scrollTo`) rather than on a real phone — no browser-automation tool was available in this session to reproduce the original intermittent race directly; worth confirming on real hardware alongside the other unverified mobile items in this log. `npx tsc --noEmit` not run in this session (no local Node toolchain available); change is additive to an already-verified per-frame `requestAnimationFrame` loop and introduces no new types.
+
+
 ### 2026-09-01 (product/ProductMedia, QuickViewModal) — Quick View's gallery drops the thumbnail grid for a multi-photo product, in favour of the dots `ProductCard`'s own gallery already uses
 
 **Client: "In quick view panel if there more than one image in a product do not show preview at the bottom, just the dots are enough. Otherwise the image becomes too small."** The thumbnail grid (`grid-cols-5`, one square per photo) is a real, several-rows-tall claim on the modal's own vertical space — on top of the width cap the entry above already put on the image itself, that space cost read as the image being squeezed from two directions at once, not one.

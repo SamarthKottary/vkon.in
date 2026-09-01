@@ -878,6 +878,29 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const sync = useCallback(() => {
     measure();
 
+    /* Re-arms the pop-progress stop timer on every real scroll frame, not
+       only once from `touchend`/`advance` et al. (client, 2026-09-01:
+       "quick view is not visible in mobile view while scrolling, when it
+       is in center" — confirmed the race: `end()` below and
+       `advance`/`retreat`/`goTo` each schedule one fixed-delay stop,
+       500ms/700ms, sized to outlast the 120ms settle delay plus a typical
+       `scrollTo({behavior:"smooth"})`. `correctCardStep`'s own corrective
+       scrollTo, fired *from inside* the settle timer below, is a second
+       animation on top of that first one whenever a swipe/tick settles
+       short of an exact card step — comfortably long enough, on a real
+       phone, to outlast whatever was left of the original buffer. The
+       `requestAnimationFrame` loop those timers guard then dies mid-nudge,
+       freezing `--pop-progress` at whatever partial value the card had
+       reached *before* `correctCardStep` finished centring it — read as
+       "sometimes not visible" because it depends on how close the settle
+       already was. Guarded on `dragFrame.current`, so this only extends a
+       loop already running (from a touch or a button/autoplay tick) rather
+       than starting one of its own on, say, a plain resize-driven
+       `measure()` call. */
+    if (!hoverCapable && dragFrame.current !== null) {
+      schedulePopProgressStop(500);
+    }
+
     /* Armed on every scroll, cleared and re-armed by the next one, so it only
        ever fires once scrolling has actually stopped — whatever caused it:
        touch drag, momentum, native trackpad-horizontal wheel input, or an
@@ -925,7 +948,7 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
       swipePausedRef.current = false;
       if (window.innerWidth < 640) setSwipeResetSignal((n) => n + 1);
     }, 120);
-  }, [measure, correctSeam, correctCardStep]);
+  }, [measure, correctSeam, correctCardStep, hoverCapable, schedulePopProgressStop]);
 
   const onScroll = useCallback(() => {
     if (syncFrame.current !== null) return;

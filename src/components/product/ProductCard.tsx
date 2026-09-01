@@ -568,14 +568,6 @@ export function ProductCard({
           </p>
         )}
 
-        {product.tagline && (
-          <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2">
-            <p className="overflow-hidden text-sm leading-relaxed text-muted">
-              {product.tagline}
-            </p>
-          </div>
-        )}
-
         {product.hpRanges.length > 0 && (
           <dl className="mt-4 flex gap-2 text-sm">
             <dt className="label-tech pt-1 text-muted">Range</dt>
