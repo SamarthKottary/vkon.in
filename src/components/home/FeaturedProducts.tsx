@@ -529,12 +529,12 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
    *  actually sat vertically at all. `verticalCloseness` is computed once
    *  per call rather than per card: every card shares one horizontal row,
    *  so they all sit at (functionally) the same vertical screen position
-   *  regardless of which one is centred. **A plain linear ramp, not the
-   *  horizontal factor's plateau-then-ramp shape** (client, same day:
-   *  "keep fade effect between center to +-20% fades 0 to 100%") — 100%
-   *  right at the viewport's vertical centre, straight down to 0% at ±20%
-   *  of the viewport's own height away from it; see `updatePopProgress`
-   *  itself for the exact shape. The two factors multiply, not `Math.min`,
+   *  regardless of which one is centred. **Its own plateau-then-ramp
+   *  shape, independently tuned from the horizontal factor's** (client,
+   *  same day, three follow-ups: "keep fade effect between center to
+   *  +-20% fades 0 to 100%", then "changes to +-30%", then "keep
+   *  completely visible between +-10%") — see `updatePopProgress` itself
+   *  for the exact numbers. The two factors multiply, not `Math.min`,
    *  so a card that is dead centre on one axis but only partway centred on
    *  the other still fades smoothly rather than snapping to whichever axis
    *  is worse. */
@@ -546,17 +546,22 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
       const PLATEAU = 0.4;
       const threshold = PLATEAU * step;
 
-      /* Plain linear ramp, no plateau — 100% right at the viewport's
-         vertical centre, straight down to 0% at ±30% of the viewport's
-         own height away from it (client, 2026-09-01: "keep fade effect
-         between center to +-20% fades 0 to 100%", then "changes to
-         +-30%"). The horizontal factor above keeps its own plateau
-         (`PLATEAU`/`threshold`); only this axis was asked to change. */
+      /* Flat plateau out to ±10% of the viewport's own height from its
+         vertical centre, then a plain linear ramp down to 0% at ±30%
+         (client, 2026-09-01: "keep fade effect between center to +-20%
+         fades 0 to 100%", then "changes to +-30%", then "keep completely
+         visible between +-10%"). The horizontal factor above keeps its
+         own, separately-tuned plateau (`PLATEAU`/`threshold`); only this
+         axis was asked to change. */
       const viewportMidY = window.innerHeight / 2;
       const rowMidY = trackRect.top + trackRect.height / 2;
       const vDistance = Math.abs(rowMidY - viewportMidY);
+      const vThreshold = window.innerHeight * 0.1;
       const vMax = window.innerHeight * 0.3;
-      const verticalCloseness = Math.max(0, 1 - vDistance / vMax);
+      const verticalCloseness =
+        vDistance <= vThreshold
+          ? 1
+          : Math.max(0, 1 - (vDistance - vThreshold) / (vMax - vThreshold));
 
       let bestId: string | null = null;
       let bestDistance = Infinity;
