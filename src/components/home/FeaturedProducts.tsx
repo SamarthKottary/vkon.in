@@ -84,16 +84,14 @@ import type { Product } from "@/lib/types";
  *    "which card is active" pop below does not depend on this either way —
  *    `measure()` computes the centred card itself, directly from card
  *    rects, regardless of what CSS did to get the scroll there.
- *    Strength is `proximity` at every width, never `mandatory` — see the
- *    note further down on why a vertical scroll needs the row *not* to
- *    insist on a snap point there. **Below `sm`, exact card-boundary rest
- *    positions come from a JS settle-timer instead** (client, 2026-09-01:
- *    "one swipe and the next card to come... It should not swipe like this
- *    and both cards are visible unless i fully swipe across") — `mandatory`
- *    was tried first and paired with this for one same-day pass, then
- *    reverted once it reintroduced the desktop vertical-scroll-glitch bug
- *    on touch instead (client, later the same day: "i feel some glitch
- *    when feature card scrolling vertically"); see `correctCardStep`.
+ *    Strength is `proximity`, not `mandatory`, from `sm` up — see the note
+ *    further down on why a vertical scroll needs the row *not* to insist on
+ *    a snap point there. **Below `sm` it is `mandatory`, with a settle-timer
+ *    on top** (client, 2026-09-01: "one swipe and the next card to come...
+ *    It should not swipe like this and both cards are visible unless i
+ *    fully swipe across") — a touch swipe carries none of that wheel-noise
+ *    risk, the same reasoning `product/ProductMedia`'s own gallery already
+ *    relies on for the identical pairing; see `correctCardStep`.
  *  - **Exactly one card is ever popped, and only while this section itself is
  *    in view.** An `IntersectionObserver` on the section root (not the
  *    track) drives the in-view half of that; the un-viewing case (scrolling
@@ -784,29 +782,19 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   }, [canLoop, measureOneSet, measure]);
 
   /* Forces the settled rest position to the nearest exact card-step
-     multiple, mobile only — the same settle-timer idiom
+     multiple, mobile only — the same `snap-mandatory` + settle-timer shape
      `product/ProductMedia`'s own image gallery already uses, for the same
      complaint (client, 2026-09-01: "It should not swipe like this and both
      cards are visible unless i fully swipe across" — a screenshot showing
      two cards half-visible mid-scroll). `snap-proximity` alone can leave a
      soft swipe resting wherever momentum happened to stop rather than on a
-     card boundary.
-
-     **Not paired with CSS `snap-mandatory` below `sm` any more** — that
-     pairing shipped alongside this function, then was reverted the same
-     day once it reintroduced the exact wheel/gesture-capture bug this file
-     already root-caused for desktop back on 2026-08-24: `mandatory` snap
-     claims *any* gesture that ends near a snap point regardless of why it
-     happened, so an incidental vertical page-scroll starting with a finger
-     over a card got grabbed the same way a noisy trackpad scroll once did
-     (client: "i feel some glitch when feature card scrolling vertically").
-     This function alone is the fix for "both cards visible" — it is a JS
-     settle-timer correction layered on top of whatever CSS snap is doing,
-     so it still forces an exact card boundary under plain `proximity`,
-     without needing the browser's own strict snap or its vertical-scroll
-     side effect. `window.innerWidth < 640` matches Tailwind's own `sm`
-     boundary directly, since this runs outside any CSS media query. Uses
-     `scrollTo`, not a raw `scrollLeft` write —
+     card boundary; the fix is not switching this row to `mandatory`
+     everywhere (that reintroduces the exact wheel-capture bug documented
+     above, real trackpad/mouse input on desktop), only below `sm`, where a
+     touch swipe has no such incidental-wheel-noise risk — see the track's
+     own `snap-mandatory sm:snap-proximity`. `window.innerWidth < 640`
+     matches Tailwind's own `sm` boundary directly, since this runs outside
+     any CSS media query. Uses `scrollTo`, not a raw `scrollLeft` write —
      `correctSeam` above needs the raw form specifically to jump a full
      `oneSet` instantly and invisibly, but an animated `scrollTo` here reads
      back reliably afterward the way raw writes under active `scroll-snap`
@@ -970,48 +958,14 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     });
   }, [sync]);
 
-  /* Seeds `--pop-progress` for whichever card starts centred, on mount and
-     on every resize — without this, that property is only ever written
-     from inside `updatePopProgress`'s own `requestAnimationFrame` loop,
-     which nothing starts until the first touch, swipe, arrow/dot click or
-     autoplay tick (client, 2026-09-01: "when i reloaded i cant see quick
-     view which ever the card centered first after reload" — a fresh page
-     load has had none of those yet, so the CSS `var(--pop-progress,0)`
-     fallback was rendering that first card's Quick View at a flat `0`
-     until whatever interaction happened to come first). `updatePopProgress`
-     itself already re-finds `centeredId` on every call, so this costs
-     nothing beyond one extra scan already proven cheap at 60fps.
-
-     **Gated on `!hoverCapable`, same as `runPopProgressLoop` itself** —
-     missing at first, and the direct cause of a follow-up regression
-     (client: "in desktop view quick view only visible when mouse pointed
-     to it only, some thing from the mobile view effected desktop view").
-     `--pop-progress` is documented everywhere else in this file as a
-     touch-only mechanism; a pointer device's Quick View is meant to run on
-     `group-hover` alone, untouched by this property at all (confirmed:
-     without a value here it simply falls back to the CSS default `0` in
-     `var(--pop-progress,0)`, and `group-hover:opacity-100` handles the
-     rest). Calling this unconditionally wrote a real, non-zero value onto
-     a pointer device's cards too — whichever one sits nearest the track's
-     centre at that instant — fighting `group-hover` intermittently instead
-     of leaving the desktop path alone. Restricting the seed to touch
-     devices fixes the desktop regression while keeping the mobile
-     reload fix intact. The `ResizeObserver` itself still attaches and
-     still calls `sync()` on every device — that measurement (`canScroll`,
-     the dots, `centeredId`) was never touch-only and stays exactly as it
-     always did; only the extra `updatePopProgress` call is conditional. */
   useEffect(() => {
     sync();
     const el = trackRef.current;
     if (!el) return;
-    if (!hoverCapable) updatePopProgress(el);
-    const observer = new ResizeObserver(() => {
-      sync();
-      if (!hoverCapable) updatePopProgress(el);
-    });
+    const observer = new ResizeObserver(sync);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [sync, products.length, updatePopProgress, hoverCapable]);
+  }, [sync, products.length]);
 
   /* Opens the belt at `oneSet`, not `0`, once looping is possible — the
      other half of the bidirectional fix on `correctSeam` above: home has
@@ -1393,31 +1347,8 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
            break every "first card starts at the true edge" assumption
            `measureStep`/`correctSeam`/the CSS `scroll-padding-left` above
            all depend on) — `canLoop` already being false is precisely the
-           signal that this row has no overflow to protect.
-
-           **Plain `snap-proximity` at every width, not `snap-mandatory`
-           below `sm`** — the mobile-only `mandatory` from `correctCardStep`'s
-           own pass reintroduced the exact bug this file spent all of
-           2026-08-24 root-causing and fixing for desktop: `mandatory` snap
-           claims *any* gesture that ends anywhere near a snap point,
-           regardless of why the gesture happened, so a mostly-vertical
-           touch scroll carrying a few incidental pixels of horizontal drift
-           over this row got grabbed too, instead of chaining up to the page
-           (client, 2026-09-01: "i feel some glitch when feature card
-           scrolling vertically"). That reasoning was already on record for
-           desktop wheel/trackpad input; `correctCardStep`'s own note argued
-           a touch swipe carries "no such incidental-wheel-noise risk," which
-           is true for a *horizontal* swipe deliberately paging the row but
-           not for an incidental vertical page-scroll that merely happens to
-           start with a finger over a card — the same gesture class the
-           desktop fix already had to account for. `correctCardStep` itself
-           does not depend on snap strictness at all: it is a JS settle-timer
-           correction, layered on top of whatever CSS snap is doing, so it
-           still forces an exact card-boundary rest position under plain
-           `proximity` — solving "both cards half-visible" without needing
-           the browser's own strict snap and without regressing vertical
-           scroll a second time. */
-        className={`hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-proximity items-stretch gap-6 overflow-x-auto px-6 pb-10 pt-16 sm:px-7 sm:[scroll-padding-left:28px] lg:px-9 lg:[scroll-padding-left:36px] ${
+           signal that this row has no overflow to protect. */
+        className={`hscroll mx-[calc(50%-50vw)] mt-8 flex snap-x snap-mandatory sm:snap-proximity items-stretch gap-6 overflow-x-auto px-6 pb-10 pt-16 sm:px-7 sm:[scroll-padding-left:28px] lg:px-9 lg:[scroll-padding-left:36px] ${
           canLoop ? "justify-start" : "justify-center"
         }`}
       >

@@ -1139,16 +1139,8 @@ function FeaturedCard({
                right automatically"). Independent of everything else on
                this element — it is a plain hit-test marker, unrelated to
                which opacity mechanism is driving the button underneath
-               it.
-
-               `bottom-[25%] left-1/2 -translate-x-1/2`, not centred
-               (client, 2026-09-01: "place quick view in the feature card
-               25% above from the bottom of the image", then "make 15%
-               from bottom", then "i changed to 10%", then "change quick
-               view to 25% again") — replaces the previous `top-1/2
-               -translate-y-1/2` dead-centre position; horizontal centring
-               is untouched. */
-            className="absolute bottom-[25%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+               it. */
+            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
           >
             <button
               type="button"
@@ -1172,13 +1164,7 @@ function FeaturedCard({
             </Link>
           </Heading>
           {product.tagline && (
-            /* `group-data-[popped=true]` reveals this on a touch device
-               when this card is the one centred, same trigger the card's
-               own border/scale pop already uses — `group-hover` alone
-               left it invisible on mobile until the client asked for both
-               (client, 2026-09-01: "tagline...should be visible in mobile
-               view also, when specific card is centered"). */
-            <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2 group-data-[popped=true]:grid-rows-[1fr] group-data-[popped=true]:opacity-100 group-data-[popped=true]:mt-2">
+            <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2">
               <p className="overflow-hidden text-sm leading-relaxed text-muted">
                 {product.tagline}
               </p>
@@ -1279,16 +1265,8 @@ function FeaturedCard({
              "when i point the mouse on the quick view its should not
              scroll to right automatically"). A plain hit-test marker,
              independent of which opacity mechanism drives the button
-             underneath it.
-
-             `bottom-[25%] left-1/2 -translate-x-1/2`, not centred (client,
-             2026-09-01: "place quick view in the feature card 25% above
-             from the bottom of the image", then "make 15% from bottom",
-             then "i changed to 10%", then "change quick view to 25%
-             again") — replaces the previous `top-1/2 -translate-y-1/2`
-             dead-centre position; horizontal centring is untouched. Kept
-             in sync with the no-image branch above. */
-          className="absolute bottom-[25%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+             underneath it. */
+          className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
         >
           <button
             type="button"
@@ -1421,9 +1399,7 @@ function FeaturedCard({
 
           <div>
             {product.tagline && (
-              /* Same touch reveal as the no-image branch above — see its
-                 own note. */
-              <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-1.5 group-data-[popped=true]:grid-rows-[1fr] group-data-[popped=true]:opacity-100 group-data-[popped=true]:mt-1.5">
+              <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-1.5">
                 <p className="overflow-hidden line-clamp-2 text-[0.8125rem] leading-relaxed text-[#14171a]">
                   {product.tagline}
                 </p>
