@@ -958,14 +958,29 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
     });
   }, [sync]);
 
+  /* Seeds `--pop-progress` for whichever card starts centred, on mount and
+     on every resize — without this, that property is only ever written
+     from inside `updatePopProgress`'s own `requestAnimationFrame` loop,
+     which nothing starts until the first touch, swipe, arrow/dot click or
+     autoplay tick (client, 2026-09-01: "when i reloaded i cant see quick
+     view which ever the card centered first after reload" — a fresh page
+     load has had none of those yet, so the CSS `var(--pop-progress,0)`
+     fallback was rendering that first card's Quick View at a flat `0`
+     until whatever interaction happened to come first). `updatePopProgress`
+     itself already re-finds `centeredId` on every call, so this costs
+     nothing beyond one extra scan already proven cheap at 60fps. */
   useEffect(() => {
     sync();
     const el = trackRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(sync);
+    updatePopProgress(el);
+    const observer = new ResizeObserver(() => {
+      sync();
+      updatePopProgress(el);
+    });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [sync, products.length]);
+  }, [sync, products.length, updatePopProgress]);
 
   /* Opens the belt at `oneSet`, not `0`, once looping is possible — the
      other half of the bidirectional fix on `correctSeam` above: home has
