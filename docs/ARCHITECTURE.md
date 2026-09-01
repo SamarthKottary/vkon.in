@@ -660,6 +660,13 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-01 (home, featured products) — Quick View button goes transparent on `FeaturedCard`, both branches; the catalogue card's own button is untouched
+
+**Client: "make quick view design transparent in featured product only in home page."** Both `FeaturedCard` branches (with and without a photo) had an opaque `bg-surface/90` pill behind the "Quick view" label, with `shadow-sm`/`backdrop-blur-sm` for contrast against whatever sat under it. Swapped for `bg-transparent` with a plain `border border-ink/30` to keep the pill's shape legible without a fill, `hover:bg-surface/20` for a faint hover fill, `shadow-sm` dropped (nothing left to cast it against). `product/ProductCard`'s vertical/catalogue-grid branch — the one on `/products` — keeps its original `bg-surface/90` styling; this was scoped to `FeaturedCard` only, per "only in home page."
+
+Verified: both `FeaturedCard` branches now render Quick view as a bordered, transparent pill instead of a solid one; the vertical catalogue card's Quick view is unchanged. `npx tsc --noEmit` not run in this session (no local Node toolchain available); change is a plain Tailwind class swap with no new types.
+
+
 ### 2026-09-01 (home, featured products) — Quick View invisible on the card centred by default right after a reload; `--pop-progress` now seeded on mount, not only from the fade loop (re-applied — reverted by a local edit, then reported back)
 
 **Client: "when i reloaded i cant see quick view which ever the card centered first after reload in feature product card in home page."** `--pop-progress` (the touch-device Quick View fade, entries above) was written only from inside `updatePopProgress`'s own `requestAnimationFrame` loop, and nothing starts that loop until a touch, swipe, arrow/dot click, or the first autoplay tick. A fresh page load has had none of those yet — `centeredId` and the card's own border/scale pop were already correct at mount (`measure()` sets those independently), but the wrapper's `[opacity:var(--pop-progress,0)]` had nothing written to it yet and fell back to a flat `0`, leaving the default-centred card's Quick View invisible until whatever interaction happened to come first (an autoplay tick, up to 3s later, or a swipe).
