@@ -653,11 +653,28 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
                 underneath it — "Clear" resets every filter but leaves the
                 panel open (client, 2026-08-31: "lets only have search close
                 the panel" — a prior pass briefly had Clear close it too;
-                that direction was reversed the same day). */}
+                that direction was reversed the same day).
+
+                Left button relabels to "Exit" once there is nothing left to
+                clear (client: "When we click filter and then search after
+                that we click clear then it should show exit instead of
+                clear. Once we press clear, the clear button should become
+                exit. Which closes the filter.") — `clearAll` on an already-
+                empty filter set is a no-op, so a "Clear" label sitting
+                there doing nothing is the wrong affordance; `activeFilters
+                === 0` catches every path to that state, not just clicking
+                Clear itself (deselecting every filter by hand, or opening
+                the panel fresh with nothing active, land here the same
+                way), and switches this button to close the panel instead —
+                the one thing left worth doing with it. */}
             <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
               <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
-                <Button variant="outline" size="sm" onClick={clearAll}>
-                  Clear
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={activeFilters === 0 ? () => setFiltersOpen(false) : clearAll}
+                >
+                  {activeFilters === 0 ? "Exit" : "Clear"}
                 </Button>
               </div>
               <Button variant="primary" size="sm" onClick={() => setFiltersOpen(false)}>
