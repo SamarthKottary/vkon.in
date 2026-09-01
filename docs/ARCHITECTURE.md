@@ -660,6 +660,24 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-01 (home, featured products) — Hovering the Quick view button now pauses the belt too, not only after it's clicked
+
+**Client: "in featured product when i point the mouse on the quick view its should not scroll to right automatically, it should stop autoscrolling to right, when it not pointing to quick view then its can autoscroll."** `modalPausedRef` already stopped the belt while the Quick View modal was open, but that only starts *after* the click — hovering the button beforehand, deciding whether to click it, had no effect, and the belt could carry the card away mid-decision.
+
+Reused the existing footer-hover pause mechanism rather than adding a second one: `product/ProductCard`'s Quick view button wrapper (both the `FeaturedCard` branches — with and without an image) now also carries `data-featured-quickview`, and `home/FeaturedProducts`' `isOverFooter` scans for that alongside `data-featured-footer` in the same point-in-rect pass. Same `hoverPausedRef` skip-this-tick behaviour as the footer row, so leaving the button resumes the belt on its original cadence rather than restarting a fresh 3s. Also dropped a stray debug `console.log` left in `FeaturedCard`'s (with-image) Quick view `onClick` from an earlier pass, unrelated to this fix but in the same handler.
+
+Verified: hovering the Quick view button on a featured card stops the belt advancing; moving off it (without clicking) resumes autoplay; clicking it still opens the modal and pauses via the existing `modalPausedRef` path; the footer row's own pause is unaffected. `npx tsc --noEmit` not run in this session (no local Node toolchain available) — change is additive to an existing, already-verified point-in-rect scan and introduces no new types.
+
+
+### 2026-09-01 (products catalogue, card gallery) — Tapping a card's own photo did nothing; the vertical card's image wrapper now navigates itself
+
+**Client: "when i click on the image of product in the product page its not taking to the that product page."** The 2026-08-31 entry below elevated this wrapper to `relative z-20` so the arrows/dots/swipe track would win against the title `Link`'s stretched `after:absolute after:inset-0` hit area — but that elevation is unconditional, not just for those controls: it puts the whole image wrapper *above* the link's pseudo-element at every point over the photo, including the plain area none of those controls cover. A tap there had nothing left under it to navigate; only a tap that landed on the title text still worked.
+
+Fixed with an `onClick` on that same wrapper, calling `router.push(`/products/${product.slug}`)` directly rather than re-plumbing a `Link` around the gallery track — the arrows, dots and Quick View button all already `stopPropagation` before this would see the event, so none of them start double-navigating, and a genuine swipe never fires a click at all (same browser behaviour `goToImage`'s own comment already relies on: a drag that moves the pointer suppresses the click that would otherwise fire at release). `HorizontalCard` and `FeaturedCard` were not touched — neither elevates its image wrapper above its own stretched link, so neither had this bug.
+
+Verified: clicking the plain image area on a catalogue card (`/products`) navigates to that product's detail page; clicking an arrow or a dot still only changes the visible photo; clicking Quick View still only opens the modal; a real swipe still pages the gallery without navigating away mid-drag. `npx tsc --noEmit` clean.
+
+
 ### 2026-08-31 (products catalogue, follow-up) — Mobile filter panel reverts to the partial-height sheet; only "Search" closes the panel again
 
 **Client, immediately after the entry below shipped: "I want the previous filter in mobile view and not full page. Also lets only have search close the panel."** Two of that entry's four changes reversed the same day; the desktop left-anchored overlay and the four-column grid were not mentioned and stayed as shipped.

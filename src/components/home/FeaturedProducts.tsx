@@ -350,14 +350,25 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   }, []);
 
   /** Same point-in-rect approach as `findCardAt`, over
-   *  `product/ProductCard`'s `data-featured-footer` marker — whether the
-   *  pointer is inside any card's "View details"/add-to-cart row, on a real
-   *  or duplicate copy alike. Drives `hoverPausedRef`. */
+   *  `product/ProductCard`'s `data-featured-footer` and `data-featured-quickview`
+   *  markers — whether the pointer is inside any card's "View details"/
+   *  add-to-cart row *or* its Quick view button, on a real or duplicate copy
+   *  alike. Drives `hoverPausedRef`.
+   *
+   *  Quick view joined the footer here rather than getting its own ref
+   *  (client, 2026-09-01: "when i point the mouse on the quick view its
+   *  should not scroll to right automatically... when it not pointing to
+   *  quick view then its can autoscroll") — `modalPausedRef` already covers
+   *  the button *after* it's clicked and the modal is open; this covers the
+   *  hover *before* that click, which needed the same "skip this tick"
+   *  treatment the footer row already had, not a new mechanism. */
   const isOverFooter = useCallback((x: number, y: number) => {
     const el = trackRef.current;
     if (!el) return false;
-    for (const footer of el.querySelectorAll<HTMLElement>("[data-featured-footer]")) {
-      const rect = footer.getBoundingClientRect();
+    for (const zone of el.querySelectorAll<HTMLElement>(
+      "[data-featured-footer], [data-featured-quickview]",
+    )) {
+      const rect = zone.getBoundingClientRect();
       if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
         return true;
       }

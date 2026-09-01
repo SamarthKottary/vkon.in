@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon } from "@/components/icons/ui";
@@ -60,6 +61,7 @@ export function ProductCard({
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const image = product.images[0];
   const Heading = headingLevel;
+  const router = useRouter();
 
   /* The vertical (catalogue-grid) card's own image gallery — left/right
      arrows, swipe, and dots below the image (client, 2026-08-28: "in all
@@ -211,8 +213,21 @@ export function ProductCard({
           exactly the ordering that let the link win. Elevating the whole
           image wrapper once here covers the track inside it along with
           everything already elevated individually (arrows, Quick View),
-          rather than needing the same fix repeated on each. */}
-      <div className="relative z-20 aspect-square overflow-hidden border-b border-line bg-surface-subtle">
+          rather than needing the same fix repeated on each.
+
+          That same elevation, though, puts this wrapper above the title
+          `Link`'s own stretched hit area at every point over the image, so
+          a plain tap here — anywhere the arrows/dots/Quick View above don't
+          already `stopPropagation` it first — now has nothing under it to
+          navigate. `onClick` below stands in for the link at exactly the
+          points those controls leave alone; a real swipe never reaches it,
+          for the same reason `goToImage`'s own comment gives: a drag that
+          moves the pointer suppresses the click a browser would otherwise
+          fire at release. */}
+      <div
+        className="relative z-20 aspect-square overflow-hidden border-b border-line bg-surface-subtle"
+        onClick={() => router.push(`/products/${product.slug}`)}
+      >
         {image ? (
           product.images.length > 1 ? (
             <div
@@ -929,7 +944,10 @@ function FeaturedCard({
         <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
           <PanelPlaceholder className="h-20 w-20" />
           
-          <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+          <div
+            data-featured-quickview
+            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100"
+          >
             <button
               type="button"
               onClick={(e) => {
@@ -1008,11 +1026,13 @@ function FeaturedCard({
           className="object-cover transition-transform duration-300 ease-out md:group-hover:[transform:scale(1.06)]"
         />
 
-        <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100">
+        <div
+          data-featured-quickview
+          className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 data-[popped=true]:opacity-100"
+        >
           <button
             type="button"
             onClick={(e) => {
-              console.log("FeaturedCard quick view button clicked for", product.name);
               e.preventDefault();
               e.stopPropagation();
               setIsQuickViewOpen(true);
