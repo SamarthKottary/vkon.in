@@ -526,15 +526,18 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
    *  of the row horizontally showed Quick View at full opacity even with
    *  the whole section barely peeking onto the bottom of the screen —
    *  the horizontal `closeness` below never looked at where the row
-   *  actually sat vertically at all. `verticalCloseness` is the same
-   *  plateau-then-ramp shape as the horizontal one, just measured against
-   *  the viewport's own vertical centre instead of the track's horizontal
-   *  one, and computed once per call rather than per card: every card
-   *  shares one horizontal row, so they all sit at (functionally) the same
-   *  vertical screen position regardless of which one is centred. The two
-   *  factors multiply, not `Math.min`, so a card that is dead centre on one
-   *  axis but only partway centred on the other still fades smoothly
-   *  rather than snapping to whichever axis is worse. */
+   *  actually sat vertically at all. `verticalCloseness` is computed once
+   *  per call rather than per card: every card shares one horizontal row,
+   *  so they all sit at (functionally) the same vertical screen position
+   *  regardless of which one is centred. **A plain linear ramp, not the
+   *  horizontal factor's plateau-then-ramp shape** (client, same day:
+   *  "keep fade effect between center to +-20% fades 0 to 100%") — 100%
+   *  right at the viewport's vertical centre, straight down to 0% at ±20%
+   *  of the viewport's own height away from it; see `updatePopProgress`
+   *  itself for the exact shape. The two factors multiply, not `Math.min`,
+   *  so a card that is dead centre on one axis but only partway centred on
+   *  the other still fades smoothly rather than snapping to whichever axis
+   *  is worse. */
   const updatePopProgress = useCallback(
     (el: HTMLElement) => {
       const trackRect = el.getBoundingClientRect();
@@ -543,15 +546,17 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
       const PLATEAU = 0.4;
       const threshold = PLATEAU * step;
 
+      /* Plain linear ramp, no plateau — 100% right at the viewport's
+         vertical centre, straight down to 0% at ±20% of the viewport's
+         own height away from it (client, 2026-09-01: "keep fade effect
+         between center to +-20% fades 0 to 100%"). The horizontal factor
+         above keeps its own plateau (`PLATEAU`/`threshold`); only this
+         axis was asked to change. */
       const viewportMidY = window.innerHeight / 2;
       const rowMidY = trackRect.top + trackRect.height / 2;
       const vDistance = Math.abs(rowMidY - viewportMidY);
-      const vThreshold = window.innerHeight * PLATEAU;
-      const vMax = window.innerHeight * 0.5;
-      const verticalCloseness =
-        vDistance <= vThreshold
-          ? 1
-          : Math.max(0, 1 - (vDistance - vThreshold) / (vMax - vThreshold));
+      const vMax = window.innerHeight * 0.2;
+      const verticalCloseness = Math.max(0, 1 - vDistance / vMax);
 
       let bestId: string | null = null;
       let bestDistance = Infinity;
