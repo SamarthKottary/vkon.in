@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon } from "@/components/icons/ui";
@@ -60,6 +61,7 @@ export function ProductCard({
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const image = product.images[0];
   const Heading = headingLevel;
+  const router = useRouter();
 
   /* Reveals Quick View on the catalogue grid (vertical orientation) purely
      from scroll position, once a card is roughly half visible — the touch
@@ -250,8 +252,21 @@ export function ProductCard({
           exactly the ordering that let the link win. Elevating the whole
           image wrapper once here covers the track inside it along with
           everything already elevated individually (arrows, Quick View),
-          rather than needing the same fix repeated on each. */}
-      <div className="relative z-20 aspect-square overflow-hidden border-b border-line bg-surface-subtle">
+          rather than needing the same fix repeated on each.
+
+          That same elevation, though, puts this wrapper above the title
+          `Link`'s own stretched hit area at every point over the image, so
+          a plain tap here — anywhere the arrows/dots/Quick View above don't
+          already `stopPropagation` it first — now has nothing under it to
+          navigate. `onClick` below stands in for the link at exactly the
+          points those controls leave alone; a real swipe never reaches it,
+          for the same reason `goToImage`'s own comment gives: a drag that
+          moves the pointer suppresses the click a browser would otherwise
+          fire at release. */}
+      <div
+        className="relative z-20 aspect-square overflow-hidden border-b border-line bg-surface-subtle"
+        onClick={() => router.push(`/products/${product.slug}`)}
+      >
         {image ? (
           product.images.length > 1 ? (
             <div
@@ -978,6 +993,7 @@ function FeaturedCard({
           
           <div
             data-quickview-wrapper
+            data-featured-quickview
             /* Opacity has two independent drivers, deliberately not
                reconciled into one — a pointer device (`group-hover`) and a
                touch one (`--pop-progress`, written by `FeaturedProducts`'
@@ -1013,7 +1029,19 @@ function FeaturedCard({
                driver itself became genuinely per-frame. Scoping the
                remaining transition to devices that actually have `:hover`
                keeps the smooth fade for a pointer's hover exactly as
-               before. */
+               before.
+
+               `data-featured-quickview` — a second marker, alongside
+               `data-quickview-wrapper` on the same element — is a
+               teammate's addition (2026-09-01, pulled in the same day):
+               `FeaturedProducts`' own `isOverFooter` now also matches this
+               attribute, so hovering Quick View pauses autoplay the same
+               way hovering the footer row already did (client: "when i
+               point the mouse on the quick view its should not scroll to
+               right automatically"). Independent of everything else on
+               this element — it is a plain hit-test marker, unrelated to
+               which opacity mechanism is driving the button underneath
+               it. */
             className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
           >
             <button
@@ -1095,52 +1123,56 @@ function FeaturedCard({
         />
 
         <div
-            data-quickview-wrapper
-            /* Opacity has two independent drivers now, deliberately not
-               reconciled into one — a pointer device (`group-hover`) and a
-               touch one (`--pop-progress`, written directly by
-               `FeaturedProducts`' own `measure()` on every scroll frame,
-               continuous rather than a flip). `group-data-[popped=true]`
-               — the discrete pop this card's own border/scale/lift below
-               still use, unchanged — was here too until it turned out to
-               fight the continuous value: `data-popped` only flips at the
-               exact crossed-over instant, so it pinned the *outgoing*
-               card's Quick View at a flat `1` for almost the entire drag
-               instead of letting `--pop-progress` fade it down, then
-               jumped the incoming card straight to `1` rather than
-               letting it rise smoothly — confirmed directly, sampling
-               opacity through a slow drag showed the outgoing card
-               sitting at `1.00` unmoving until the very last step. Removed
-               here; still exactly what drives the article's own pop.
+          data-quickview-wrapper
+          data-featured-quickview
+          /* Opacity has two independent drivers, deliberately not
+             reconciled into one — a pointer device (`group-hover`) and a
+             touch one (`--pop-progress`, written by `FeaturedProducts`'
+             own `dragLoop`, continuous rather than a flip — see that
+             function's own note for why it is a dedicated
+             `requestAnimationFrame` loop tied to the touch gesture itself
+             now, not something driven off `scroll` events the way the
+             first two passes at this both were). `group-data-[popped=true]`
+             — the discrete pop this card's own border/scale/lift below
+             still use, unchanged — was here too until it turned out to
+             fight the continuous value: `data-popped` only flips at the
+             exact crossed-over instant, so it pinned the *outgoing* card's
+             Quick View at a flat `1` for almost the entire drag instead of
+             letting `--pop-progress` fade it down, then jumped the
+             incoming card straight to `1` rather than letting it rise
+             smoothly — confirmed directly, sampling opacity through a slow
+             drag showed the outgoing card sitting at `1.00` unmoving until
+             the very last step. Removed here; still exactly what drives
+             the article's own pop.
 
-               `[@media(hover:hover)]:transition-opacity duration-300` for
-               a pointer, not a bare `transition-opacity` applied
-               everywhere — a real CSS transition chases whatever value it
-               is last given, and `--pop-progress` changes every ~16ms
-               during a drag, so a *300ms* transition still watching it
-               cannot keep pace and visibly lags behind a finger instead of
-               tracking it (confirmed directly — a slow-drag opacity sample
-               showed the value crawling toward each new target instead of
-               reaching it). Scoping that duration to devices that actually
-               have `:hover` keeps the smooth fade for a pointer's hover
-               exactly as before.
+             `[@media(hover:hover)]:transition-opacity duration-300` for a
+             pointer only, not applied on touch at all any more — a real
+             CSS transition chases whatever value it is last given, and a
+             value updating every animation frame needs no transition to
+             look smooth (each frame is already close to the last one);
+             adding one would only add lag on top of an already-continuous
+             signal. A short touch-only transition was tried here for one
+             pass specifically because the previous driver (`measure()`,
+             on `scroll`) could not guarantee a per-frame update on real
+             mobile hardware and the transition was papering over that gap
+             — no longer needed once the driver itself became genuinely
+             per-frame. Scoping the remaining transition to devices that
+             actually have `:hover` keeps the smooth fade for a pointer's
+             hover exactly as before.
 
-               **`[@media(hover:none)]:duration-100` for touch, not no
-               transition at all** (client, follow-up, on a real phone: "it
-               looks like it appears suddenly not smooth enough") — a bare
-               100ms transition is short enough not to meaningfully lag a
-               finger the way 300ms did, but still smooths over any gap
-               between individual `--pop-progress` writes, which land once
-               per scroll frame in this sandbox's own testing but are not
-               guaranteed to land on literally every compositor frame on
-               real hardware; a transition this short closes that gap
-               without reintroducing the lag the longer one caused. */
-            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 [opacity:var(--pop-progress,0)] transition-opacity [@media(hover:hover)]:duration-300 [@media(hover:none)]:duration-100 group-hover:opacity-100"
-          >
+             `data-featured-quickview` — a teammate's addition, pulled in
+             the same day: `FeaturedProducts`' own `isOverFooter` now also
+             matches this attribute, so hovering Quick View pauses autoplay
+             the same way hovering the footer row already did (client:
+             "when i point the mouse on the quick view its should not
+             scroll to right automatically"). A plain hit-test marker,
+             independent of which opacity mechanism drives the button
+             underneath it. */
+          className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+        >
           <button
             type="button"
             onClick={(e) => {
-              console.log("FeaturedCard quick view button clicked for", product.name);
               e.preventDefault();
               e.stopPropagation();
               setIsQuickViewOpen(true);
