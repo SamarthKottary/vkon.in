@@ -1150,14 +1150,7 @@ function FeaturedCard({
                 setIsQuickViewOpen(true);
                 if (onQuickViewOpenChange) onQuickViewOpenChange(true);
               }}
-              /* Transparent, home-page-only design (client, 2026-09-01:
-                 "make quick view design transparent in featured product
-                 only in home page") — the vertical catalogue card's own
-                 Quick view button (`bg-surface/90` above) is untouched;
-                 this is `FeaturedCard` specifically. No opaque fill behind
-                 the label any more, just a border to keep its pill shape
-                 legible against whatever sits under it. */
-              className="whitespace-nowrap rounded-full border border-ink/30 bg-transparent px-4 py-1.5 text-sm font-medium text-ink backdrop-blur-sm transition-colors hover:bg-surface/20"
+              className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
             >
               Quick view
             </button>
@@ -1283,9 +1276,7 @@ function FeaturedCard({
               setIsQuickViewOpen(true);
               if (onQuickViewOpenChange) onQuickViewOpenChange(true);
             }}
-            /* Same transparent, home-page-only design as the no-image
-               branch above — see its own note. */
-            className="whitespace-nowrap rounded-full border border-ink/30 bg-transparent px-4 py-1.5 text-sm font-medium text-ink backdrop-blur-sm transition-colors hover:bg-surface/20"
+            className="whitespace-nowrap rounded-full bg-surface/90 px-4 py-1.5 text-sm font-medium text-ink shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
           >
             Quick view
           </button>

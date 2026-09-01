@@ -671,11 +671,13 @@ Added a `verticalCloseness` factor, the same plateau-then-ramp shape as the exis
 Verified by reasoning through the existing plateau/ramp shape already confirmed smooth for the horizontal factor, applied identically to the vertical one, rather than confirmed on a real phone — no browser-automation tool was available in this session; worth confirming on real hardware alongside the other unverified mobile items in this log. `npx tsc --noEmit` not run in this session (no local Node toolchain available); change reuses the existing `updatePopProgress` signature and adds no new types.
 
 
-### 2026-09-01 (home, featured products) — Quick View button goes transparent on `FeaturedCard`, both branches; the catalogue card's own button is untouched
+### 2026-09-01 (home, featured products) — Quick View button goes transparent on `FeaturedCard`, both branches; the catalogue card's own button is untouched; reverted the same day
 
 **Client: "make quick view design transparent in featured product only in home page."** Both `FeaturedCard` branches (with and without a photo) had an opaque `bg-surface/90` pill behind the "Quick view" label, with `shadow-sm`/`backdrop-blur-sm` for contrast against whatever sat under it. Swapped for `bg-transparent` with a plain `border border-ink/30` to keep the pill's shape legible without a fill, `hover:bg-surface/20` for a faint hover fill, `shadow-sm` dropped (nothing left to cast it against). `product/ProductCard`'s vertical/catalogue-grid branch — the one on `/products` — keeps its original `bg-surface/90` styling; this was scoped to `FeaturedCard` only, per "only in home page."
 
-Verified: both `FeaturedCard` branches now render Quick view as a bordered, transparent pill instead of a solid one; the vertical catalogue card's Quick view is unchanged. `npx tsc --noEmit` not run in this session (no local Node toolchain available); change is a plain Tailwind class swap with no new types.
+**Reverted later the same day (client: "remove transparent view for quick view card in featured product revert to previous design").** Both `FeaturedCard` branches are back to the original `bg-surface/90 shadow-sm backdrop-blur-sm hover:bg-surface` pill; the transparent/bordered variant above is gone. The vertical catalogue card's own button was never touched by either change.
+
+Verified: both `FeaturedCard` branches render the original opaque pill again; the vertical catalogue card's Quick view remains unchanged throughout. `npx tsc --noEmit` not run in this session (no local Node toolchain available); change is a plain Tailwind class revert with no new types.
 
 
 ### 2026-09-01 (home, featured products) — Quick View invisible on the card centred by default right after a reload; `--pop-progress` now seeded on mount, not only from the fade loop (re-applied — reverted by a local edit, then reported back)
