@@ -1141,13 +1141,14 @@ function FeaturedCard({
                which opacity mechanism is driving the button underneath
                it.
 
-               `bottom-[10%] left-1/2 -translate-x-1/2`, not centred
+               `bottom-[25%] left-1/2 -translate-x-1/2`, not centred
                (client, 2026-09-01: "place quick view in the feature card
                25% above from the bottom of the image", then "make 15%
-               from bottom", then "i changed to 10%") — replaces the
-               previous `top-1/2 -translate-y-1/2` dead-centre position;
-               horizontal centring is untouched. */
-            className="absolute bottom-[10%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+               from bottom", then "i changed to 10%", then "change quick
+               view to 25% again") — replaces the previous `top-1/2
+               -translate-y-1/2` dead-centre position; horizontal centring
+               is untouched. */
+            className="absolute bottom-[25%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
           >
             <button
               type="button"
@@ -1274,14 +1275,14 @@ function FeaturedCard({
              independent of which opacity mechanism drives the button
              underneath it.
 
-             `bottom-[10%] left-1/2 -translate-x-1/2`, not centred (client,
+             `bottom-[25%] left-1/2 -translate-x-1/2`, not centred (client,
              2026-09-01: "place quick view in the feature card 25% above
              from the bottom of the image", then "make 15% from bottom",
-             then "i changed to 10%") — replaces the previous `top-1/2
-             -translate-y-1/2` dead-centre position; horizontal centring is
-             untouched. Kept in sync with the no-image branch above, which
-             the client's own edit changed directly in this file. */
-          className="absolute bottom-[10%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+             then "i changed to 10%", then "change quick view to 25%
+             again") — replaces the previous `top-1/2 -translate-y-1/2`
+             dead-centre position; horizontal centring is untouched. Kept
+             in sync with the no-image branch above. */
+          className="absolute bottom-[25%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
         >
           <button
             type="button"
