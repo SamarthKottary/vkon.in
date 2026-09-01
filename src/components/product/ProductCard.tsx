@@ -1147,7 +1147,7 @@ function FeaturedCard({
                from bottom") — replaces the previous `top-1/2
                -translate-y-1/2` dead-centre position; horizontal centring
                is untouched. */
-            className="absolute bottom-[15%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+            className="absolute bottom-[10%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
           >
             <button
               type="button"
