@@ -547,15 +547,15 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
       const threshold = PLATEAU * step;
 
       /* Plain linear ramp, no plateau — 100% right at the viewport's
-         vertical centre, straight down to 0% at ±20% of the viewport's
+         vertical centre, straight down to 0% at ±30% of the viewport's
          own height away from it (client, 2026-09-01: "keep fade effect
-         between center to +-20% fades 0 to 100%"). The horizontal factor
-         above keeps its own plateau (`PLATEAU`/`threshold`); only this
-         axis was asked to change. */
+         between center to +-20% fades 0 to 100%", then "changes to
+         +-30%"). The horizontal factor above keeps its own plateau
+         (`PLATEAU`/`threshold`); only this axis was asked to change. */
       const viewportMidY = window.innerHeight / 2;
       const rowMidY = trackRect.top + trackRect.height / 2;
       const vDistance = Math.abs(rowMidY - viewportMidY);
-      const vMax = window.innerHeight * 0.2;
+      const vMax = window.innerHeight * 0.3;
       const verticalCloseness = Math.max(0, 1 - vDistance / vMax);
 
       let bestId: string | null = null;
