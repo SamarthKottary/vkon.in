@@ -660,6 +660,17 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-01 (home, featured products) — Quick View's mobile fade now factors in vertical screen position too, not only horizontal centring in the row
+
+**Client: "show quick view in featured product when card in horizontal center to the screen in mobile view, just like in product in product page, but here we considering both vertical and horizontal center for showing quick view."** Referring to `product/ProductCard`'s own vertical-orientation reveal, which fades Quick View in purely from how centred a card sits in `/products`' *vertical* page scroll. `FeaturedProducts`' own `updatePopProgress` only ever measured horizontal distance from the track's centre — a card could sit dead centre of the row and show Quick View at full opacity with the whole section barely peeking onto the bottom of the screen, since nothing in that calculation looked at the row's actual vertical position at all.
+
+Added a `verticalCloseness` factor, the same plateau-then-ramp shape as the existing horizontal one, measured against the viewport's own vertical centre rather than the track's horizontal one, computed once per call rather than per card (every card shares one horizontal row, so all sit at the same vertical screen position regardless of which is centred). The two factors multiply, so a card centred on one axis but only partway centred on the other still fades smoothly instead of snapping to whichever axis is worse.
+
+**Also added a page-scroll listener, since a plain vertical page scroll never touched `--pop-progress` before this** — `updatePopProgress` was previously only ever called from the row's own touch/drag loop or from a mount/resize effect, none of which fire from scrolling the *page* past the section without touching the row itself. A new `window` `scroll` listener (throttled to one call per animation frame, same idiom as the row's own `onScroll`) now keeps both factors live as the visitor scrolls, touch-only like everything else `--pop-progress` drives.
+
+Verified by reasoning through the existing plateau/ramp shape already confirmed smooth for the horizontal factor, applied identically to the vertical one, rather than confirmed on a real phone — no browser-automation tool was available in this session; worth confirming on real hardware alongside the other unverified mobile items in this log. `npx tsc --noEmit` not run in this session (no local Node toolchain available); change reuses the existing `updatePopProgress` signature and adds no new types.
+
+
 ### 2026-09-01 (home, featured products) — Quick View button goes transparent on `FeaturedCard`, both branches; the catalogue card's own button is untouched
 
 **Client: "make quick view design transparent in featured product only in home page."** Both `FeaturedCard` branches (with and without a photo) had an opaque `bg-surface/90` pill behind the "Quick view" label, with `shadow-sm`/`backdrop-blur-sm` for contrast against whatever sat under it. Swapped for `bg-transparent` with a plain `border border-ink/30` to keep the pill's shape legible without a fill, `hover:bg-surface/20` for a faint hover fill, `shadow-sm` dropped (nothing left to cast it against). `product/ProductCard`'s vertical/catalogue-grid branch — the one on `/products` — keeps its original `bg-surface/90` styling; this was scoped to `FeaturedCard` only, per "only in home page."
