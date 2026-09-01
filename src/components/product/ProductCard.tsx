@@ -1141,12 +1141,13 @@ function FeaturedCard({
                which opacity mechanism is driving the button underneath
                it.
 
-               `bottom-[25%] left-1/2 -translate-x-1/2`, not centred
+               `bottom-[15%] left-1/2 -translate-x-1/2`, not centred
                (client, 2026-09-01: "place quick view in the feature card
-               25% above from the bottom of the image") — replaces the
-               previous `top-1/2 -translate-y-1/2` dead-centre position;
-               horizontal centring is untouched. */
-            className="absolute bottom-[25%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+               25% above from the bottom of the image", then "make 15%
+               from bottom") — replaces the previous `top-1/2
+               -translate-y-1/2` dead-centre position; horizontal centring
+               is untouched. */
+            className="absolute bottom-[15%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
           >
             <button
               type="button"
@@ -1273,12 +1274,12 @@ function FeaturedCard({
              independent of which opacity mechanism drives the button
              underneath it.
 
-             `bottom-[25%] left-1/2 -translate-x-1/2`, not centred (client,
+             `bottom-[15%] left-1/2 -translate-x-1/2`, not centred (client,
              2026-09-01: "place quick view in the feature card 25% above
-             from the bottom of the image") — replaces the previous
-             `top-1/2 -translate-y-1/2` dead-centre position; horizontal
-             centring is untouched. */
-          className="absolute bottom-[25%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+             from the bottom of the image", then "make 15% from bottom")
+             — replaces the previous `top-1/2 -translate-y-1/2` dead-centre
+             position; horizontal centring is untouched. */
+          className="absolute bottom-[15%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
         >
           <button
             type="button"
