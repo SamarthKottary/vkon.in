@@ -1139,8 +1139,14 @@ function FeaturedCard({
                right automatically"). Independent of everything else on
                this element — it is a plain hit-test marker, unrelated to
                which opacity mechanism is driving the button underneath
-               it. */
-            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+               it.
+
+               `bottom-[25%] left-1/2 -translate-x-1/2`, not centred
+               (client, 2026-09-01: "place quick view in the feature card
+               25% above from the bottom of the image") — replaces the
+               previous `top-1/2 -translate-y-1/2` dead-centre position;
+               horizontal centring is untouched. */
+            className="absolute bottom-[25%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
           >
             <button
               type="button"
@@ -1265,8 +1271,14 @@ function FeaturedCard({
              "when i point the mouse on the quick view its should not
              scroll to right automatically"). A plain hit-test marker,
              independent of which opacity mechanism drives the button
-             underneath it. */
-          className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
+             underneath it.
+
+             `bottom-[25%] left-1/2 -translate-x-1/2`, not centred (client,
+             2026-09-01: "place quick view in the feature card 25% above
+             from the bottom of the image") — replaces the previous
+             `top-1/2 -translate-y-1/2` dead-centre position; horizontal
+             centring is untouched. */
+          className="absolute bottom-[25%] left-1/2 z-20 -translate-x-1/2 [opacity:var(--pop-progress,0)] [@media(hover:hover)]:transition-opacity [@media(hover:hover)]:duration-300 group-hover:opacity-100"
         >
           <button
             type="button"

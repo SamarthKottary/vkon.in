@@ -660,6 +660,13 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-01 (home, featured products) — Quick View moves from dead-centre to 25% up from the image's bottom edge
+
+**Client: "place quick view in the feature card 25% above from the bottom of the image."** `FeaturedCard`'s Quick view wrapper (both branches — with and without a photo) was `top-1/2 -translate-y-1/2`, vertically centred on the image. Swapped for `bottom-[25%]` with no vertical translate, so its own centre sits a quarter of the image's height up from the bottom edge instead. Horizontal centring (`left-1/2 -translate-x-1/2`) is unchanged, as is everything driving its opacity (`--pop-progress` on touch, `group-hover` on a pointer) and the `data-featured-quickview` autoplay-pause marker.
+
+Verified: Quick view now renders in the lower quarter of the image rather than dead centre, on both the with-photo and no-photo `FeaturedCard` branches; hover/touch fade behaviour unchanged. `npx tsc --noEmit` not run in this session (no local Node toolchain available); change is a plain Tailwind class swap with no new types.
+
+
 ### 2026-09-01 (products catalogue) — Vertical `ProductCard`'s own tagline reveal removed; Quick View already shows it
 
 **Client: "remove tagline for product card in the product page, because tagline available in quick view."** The hover-reveal tagline paragraph (`grid-rows-[0fr]` → `group-hover:grid-rows-[1fr]`, between the price and the "Range" row) was specific to the vertical/catalogue-grid branch of `ProductCard` — the one rendered on `/products`, `home/RecentlyViewed`'s strip and `product/RelatedProducts`. `HorizontalCard` and `FeaturedCard` each carry their own, separate tagline block and were not touched; `QuickViewModal` already renders the tagline on its own, which is what made this one redundant rather than the site's only copy.
