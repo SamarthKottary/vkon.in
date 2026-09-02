@@ -223,8 +223,22 @@ export function QuickViewModal({
             and this footer stays pinned to the visible bottom edge instead
             of scrolling out of view — mobile does the same against the
             outer modal wrapper's own single scroll surface, per that
-            wrapper's note. */}
-        <div className="sticky bottom-0 md:col-start-2 -mx-6 border-t border-line bg-surface px-6 pb-6 pt-4 md:-mx-8 md:px-8 md:pb-8 lg:-mx-10 lg:px-10 lg:pb-10">
+            wrapper's note.
+
+            **Plain `p-6 md:p-8 lg:p-10`, not the `-mx-*` bleed from the
+            previous pass** (client, with a screenshot: "add to cart footer
+            only to right of the quick card, not complete width" — it was
+            rendering edge-to-edge, under the image column too). The
+            negative-margin trick cancelled the *text column's own*
+            padding, which only made sense while this footer was nested
+            inside that column as its last child. It is now its own
+            sibling grid cell (`md:col-start-2`) with no such padding to
+            cancel — the same negative margin instead overflowed this
+            cell's own column bounds, bleeding into column 1 next to it,
+            which is the full-width bar in the screenshot. Matching the
+            text column's own padding directly, rather than fighting it,
+            keeps this footer's background flush with *its* column only. */}
+        <div className="sticky bottom-0 md:col-start-2 border-t border-line bg-surface p-6 md:p-8 lg:p-10">
             <div className="flex items-center gap-4">
               <div className="flex-1">
                  <AddToCartButton slug={product.slug} name={product.name} />
