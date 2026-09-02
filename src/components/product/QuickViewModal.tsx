@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ProductMedia } from "@/components/product/ProductMedia";
@@ -18,6 +18,8 @@ export function QuickViewModal({
   onClose: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  const imageColRef = useRef<HTMLDivElement>(null);
+  const [imageHeight, setImageHeight] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -36,6 +38,42 @@ export function QuickViewModal({
     };
   }, [onClose]);
 
+  /** Measures the image column's own rendered height so the text column
+   *  beside it (below) can be capped to exactly that, at `md` and up —
+   *  the actual fix for "Add to cart starts at the image's bottom edge,"
+   *  after three CSS-only passes each fixed one reported case and broke
+   *  another (client, across several rounds: "add cart button always stay
+   *  in same position irrespictive of any content above it," then, once a
+   *  longer Specification table made the *text* side taller than the
+   *  image for the first time: "remove footer at right where product
+   *  image is present keep it how it was in commit 408b75c8 for image
+   *  section, and move cart section footer to up which starts from the
+   *  bottom of image").
+   *
+   *  None of `align-items: stretch` + `flex-1`, a two-row CSS grid sized
+   *  to `max(image, text)`, or that grid capped with `minmax(0, 1fr)` can
+   *  express "this row's height is *this specific cell's* content height"
+   *  — only "the taller of the two," a different question the moment text
+   *  content (now including Specification) can plausibly be taller than
+   *  the image. A `ResizeObserver` on the image column answers the actual
+   *  question directly instead of approximating it with row-sizing rules.
+   *
+   *  **Depends on `mounted`, not `[]`** — this component returns `null`
+   *  until `mounted` flips true (the escape-key/body-scroll effect above),
+   *  so `imageColRef.current` is still `null` on the very first commit; an
+   *  empty dependency array would run once against that `null` and never
+   *  again, silently never observing anything. */
+  useEffect(() => {
+    if (!mounted) return;
+    const el = imageColRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setImageHeight(entry.contentRect.height);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [mounted]);
+
   if (!mounted) return null;
 
   // Blank lines separate paragraphs in the admin textarea. We just show the first one.
@@ -50,6 +88,7 @@ export function QuickViewModal({
       role="dialog"
       aria-modal="true"
       aria-label={`Quick view of ${product.name}`}
+      style={imageHeight != null ? ({ "--qv-image-h": `${Math.round(imageHeight)}px` } as React.CSSProperties) : undefined}
     >
       {/* Backdrop */}
       <div 
@@ -69,49 +108,14 @@ export function QuickViewModal({
           the layout is genuinely two side-by-side panes and the image
           really should stay in place while its own column scrolls.
 
-          **`md:grid md:grid-cols-2`, not `md:flex-row`** (client,
-          2026-09-02: "add cart and view details section starts from the
-          red line which i drawn" — the red line marked the image's own
-          bottom edge, and the ask was for the footer to *begin* there, not
-          end there). A two-column flex row can only make the two columns'
-          *total* heights match (`align-items: stretch`); it has no way to
-          say "the footer starts exactly where the image ends" once the
-          text above it is short enough to leave slack — that slack has to
-          go *somewhere*, and stretching the preceding content block to
-          soak it up (the previous pass's fix) puts the footer flush with
-          the column's *bottom*, not its top. A CSS grid with two rows does
-          this natively instead: image and the text content are both row 1
-          (`md:col-start-2` puts the footer in column 2 only, so grid's
-          normal auto-flow leaves it out of row 1 and drops it to row 2),
-          so row 1's height is `max(image, text content)` and row 2 —
-          sized purely by the footer's own content — starts exactly at
-          that boundary, whichever column was taller. No `flex-1` hack is
-          needed on the text block any more; a grid cell stretches to fill
-          its own row by default, the same guarantee `flex-1` was standing
-          in for.
-
-          **`md:grid-rows-[minmax(0,1fr)_auto]`** (client, once the
-          Specification table pushed a product's text past the image's own
-          height: "add ti cart section remain in same position as we
-          discussed earlier, if above section show have a scroll option if
-          the conect exceeds") — plain `auto` rows (the pass above) have no
-          ceiling, so once the text column's own content out-grew the
-          image, row 1 simply grew to fit *all* of it, carrying the footer
-          down past the modal's own `max-h-full` and past what
-          `md:overflow-hidden` on this wrapper was clipping — with nothing
-          left above it actually smaller than its content, the text
-          column's own `md:overflow-y-auto` had nothing to engage on
-          either, so `sticky bottom-0` fell through to the browser
-          viewport itself instead of this modal, which is exactly the
-          floating-outside-the-card footer in the screenshot. `minmax(0,
-          1fr)` caps row 1 at whatever space is actually left inside the
-          `max-h-full` card once row 2's own footer has taken its share —
-          *that* is what finally gives the text column's `overflow-y-auto`
-          a real ceiling to scroll under, keeping the footer inside the
-          card at a fixed spot instead of drifting to the window's own
-          bottom edge. Row 2 stays `auto`: the footer's height is exactly
-          its own content, never more. */}
-      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:grid md:grid-cols-2 md:grid-rows-[minmax(0,1fr)_auto] md:overflow-hidden">
+          Reverted from a two-column CSS grid back to this plain
+          `md:flex-row` (client: "keep it how it was in commit 408b75c8 for
+          image section") — three grid-based passes at pinning the footer
+          to the image's bottom each broke a different content-length case;
+          see the `ResizeObserver` note above for the actual, measured fix,
+          which does not need any special row/column arrangement here at
+          all, only the plain two-column layout this always was. */}
+      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:flex-row md:overflow-hidden">
         <button
           type="button"
           onClick={onClose}
@@ -121,12 +125,8 @@ export function QuickViewModal({
           <CloseIcon className="h-5 w-5" />
         </button>
 
-        {/* Left Side - Image Gallery — grid row 1, column 1 (implicit,
-            first in DOM order). Its own box stretches to row 1's height
-            (grid's per-cell default), same as the text column beside it;
-            row 2 (the footer) has nothing placed in column 1 at all, so it
-            is simply blank there rather than needing a matching spacer. */}
-        <div className="w-full bg-surface-subtle p-6 md:p-8 lg:p-10 border-b border-line md:border-b-0 md:border-r">
+        {/* Left Side - Image Gallery */}
+        <div ref={imageColRef} className="w-full bg-surface-subtle p-6 md:w-1/2 md:p-8 lg:p-10 border-b border-line md:border-b-0 md:border-r">
            {/* Capped below `md` (client: "let it adjust the image size by
                fitting it as needed to fit the quick view panel in mobile
                view") — `ProductMedia`'s own square plate is otherwise
@@ -137,8 +137,9 @@ export function QuickViewModal({
                wrapper, not `ProductMedia` itself — that component is shared
                with the product detail page, which still wants its own
                full-width treatment untouched. `md:max-w-none` hands the
-               width back to the grid column at the breakpoint where this
-               becomes a real side-by-side layout instead of a stacked one.
+               width back to the existing `md:w-1/2` column at the
+               breakpoint where this becomes a real side-by-side layout
+               instead of a stacked one.
 
                `80%`, not the original `55%` (client, once the thumbnail
                grid below moved to overlaid dots on mobile: "in mobile
@@ -157,10 +158,18 @@ export function QuickViewModal({
            </div>
         </div>
 
-        {/* Text content — grid row 1, column 2. Second in DOM order, so
-            grid auto-placement drops it beside the image in row 1 without
-            any explicit placement needed. */}
-        <div className="p-6 md:overflow-y-auto md:p-8 lg:p-10">
+        {/* Right Side - Details */}
+        <div className="flex w-full flex-col md:w-1/2">
+          {/* Scrollable text content — capped to `--qv-image-h` (the
+              measured image column height, set above) only at `md` and
+              up; below `md` there is no cap at all, matching this modal's
+              single mobile scroll surface. `overflow-y-auto` only engages
+              once the content genuinely exceeds that cap — a short
+              product simply leaves blank space below its last row, same
+              as before. */}
+          <div
+            className="overflow-y-visible p-6 md:max-h-[var(--qv-image-h)] md:overflow-y-auto md:p-8 lg:p-10"
+          >
             <p className="label-tech text-muted mb-2">{categoryLabel(product.category)}</p>
             <h2 className="text-2xl leading-snug sm:text-3xl text-ink">
               <Link href={`/products/${product.slug}`} className="hover:text-accent transition-colors" onClick={onClose}>
@@ -208,37 +217,14 @@ export function QuickViewModal({
                  </div>
               </div>
             )}
-        </div>
+          </div>
 
-        {/* Add to cart + "View full details" — grid row 2, column 2 only
-            (`md:col-start-2` at `md`+; below `md` the grid isn't active at
-            all, so this is a plain third block stacked after the text,
-            same as before). Starts exactly where row 1 ends — the image's
-            own bottom edge, whenever the image is the taller of the two
-            row-1 cells — rather than being pushed to the *column's*
-            bottom the way the previous `flex-1` pass did. `sticky
-            bottom-0` still covers the opposite, genuinely-overflowing
-            case: if the text content above grows past row 1's height, this
-            column keeps scrolling internally (`md:overflow-y-auto` above)
-            and this footer stays pinned to the visible bottom edge instead
-            of scrolling out of view — mobile does the same against the
-            outer modal wrapper's own single scroll surface, per that
-            wrapper's note.
-
-            **Plain `p-6 md:p-8 lg:p-10`, not the `-mx-*` bleed from the
-            previous pass** (client, with a screenshot: "add to cart footer
-            only to right of the quick card, not complete width" — it was
-            rendering edge-to-edge, under the image column too). The
-            negative-margin trick cancelled the *text column's own*
-            padding, which only made sense while this footer was nested
-            inside that column as its last child. It is now its own
-            sibling grid cell (`md:col-start-2`) with no such padding to
-            cancel — the same negative margin instead overflowed this
-            cell's own column bounds, bleeding into column 1 next to it,
-            which is the full-width bar in the screenshot. Matching the
-            text column's own padding directly, rather than fighting it,
-            keeps this footer's background flush with *its* column only. */}
-        <div className="sticky bottom-0 md:col-start-2 border-t border-line bg-surface p-6 md:p-8 lg:p-10">
+          {/* Add to cart + "View full details" — a plain sibling right
+              after the capped content block above, so it always renders
+              at that block's own bottom edge: the image's measured
+              height, exactly, regardless of how short or long the text
+              content is (or whether it needs its own scrollbar). */}
+          <div className="border-t border-line bg-surface p-6 md:p-8 lg:p-10">
             <div className="flex items-center gap-4">
               <div className="flex-1">
                  <AddToCartButton slug={product.slug} name={product.name} />
@@ -252,6 +238,7 @@ export function QuickViewModal({
             >
               View full details
             </Link>
+          </div>
         </div>
       </div>
     </div>
