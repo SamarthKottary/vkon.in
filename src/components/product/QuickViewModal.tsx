@@ -146,17 +146,42 @@ export function QuickViewModal({
                  </p>
               </div>
             )}
+          </div>
 
-            <div className="mt-8 flex items-center gap-4">
+          {/* Add to cart + "View full details" — `sticky bottom-0`, not
+              flowing after whatever the description/range block above
+              happens to run to (client, 2026-09-01/02: "add cart button
+              exactly mid section by red line which is redline exactly
+              start from the buttom of the image in quick view... always
+              stay in same position irrespictive of any content above it",
+              then "adjust according for mobile view also. button should
+              be in static position").
+
+              One rule works at every width because this column's nearest
+              *scrolling* ancestor changes with the breakpoint, not this
+              element: below `md` this column has no scroll of its own
+              (only the outer modal wrapper does — see that wrapper's own
+              note on the single mobile scroll surface), so `sticky`
+              resolves against *that* outer viewport and this footer pins
+              to the bottom of the whole modal exactly like a fixed mobile
+              CTA bar. At `md` and up this column becomes the real scroll
+              container (`md:overflow-y-auto` above) and the same rule
+              pins it to the bottom of *this column's* own viewport
+              instead — which, because the two columns are stretched to
+              equal height by the row's default flex alignment, lines up
+              with the foot of the image column beside it, the "red line"
+              from the request. Neither case needed a different class. */}
+          <div className="sticky bottom-0 mt-8 -mx-6 border-t border-line bg-surface px-6 pb-6 pt-4 md:-mx-8 md:px-8 md:pb-8 lg:-mx-10 lg:px-10 lg:pb-10">
+            <div className="flex items-center gap-4">
               <div className="flex-1">
                  <AddToCartButton slug={product.slug} name={product.name} />
               </div>
             </div>
-            
-            <Link 
-              href={`/products/${product.slug}`} 
+
+            <Link
+              href={`/products/${product.slug}`}
               onClick={onClose}
-              className="mt-6 text-sm font-medium text-accent underline underline-offset-4 self-start"
+              className="mt-4 block text-sm font-medium text-accent underline underline-offset-4"
             >
               View full details
             </Link>
