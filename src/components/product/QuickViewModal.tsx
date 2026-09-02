@@ -88,8 +88,30 @@ export function QuickViewModal({
           that boundary, whichever column was taller. No `flex-1` hack is
           needed on the text block any more; a grid cell stretches to fill
           its own row by default, the same guarantee `flex-1` was standing
-          in for. */}
-      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:grid md:grid-cols-2 md:overflow-hidden">
+          in for.
+
+          **`md:grid-rows-[minmax(0,1fr)_auto]`** (client, once the
+          Specification table pushed a product's text past the image's own
+          height: "add ti cart section remain in same position as we
+          discussed earlier, if above section show have a scroll option if
+          the conect exceeds") — plain `auto` rows (the pass above) have no
+          ceiling, so once the text column's own content out-grew the
+          image, row 1 simply grew to fit *all* of it, carrying the footer
+          down past the modal's own `max-h-full` and past what
+          `md:overflow-hidden` on this wrapper was clipping — with nothing
+          left above it actually smaller than its content, the text
+          column's own `md:overflow-y-auto` had nothing to engage on
+          either, so `sticky bottom-0` fell through to the browser
+          viewport itself instead of this modal, which is exactly the
+          floating-outside-the-card footer in the screenshot. `minmax(0,
+          1fr)` caps row 1 at whatever space is actually left inside the
+          `max-h-full` card once row 2's own footer has taken its share —
+          *that* is what finally gives the text column's `overflow-y-auto`
+          a real ceiling to scroll under, keeping the footer inside the
+          card at a fixed spot instead of drifting to the window's own
+          bottom edge. Row 2 stays `auto`: the footer's height is exactly
+          its own content, never more. */}
+      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:grid md:grid-cols-2 md:grid-rows-[minmax(0,1fr)_auto] md:overflow-hidden">
         <button
           type="button"
           onClick={onClose}
