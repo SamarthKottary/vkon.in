@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ProductMedia } from "@/components/product/ProductMedia";
+import { SpecTable } from "@/components/product/SpecTable";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { CloseIcon } from "@/components/icons/ui";
 import { categoryLabel } from "@/content/taxonomy";
@@ -66,8 +67,29 @@ export function QuickViewModal({
           scrolls the stacked image+details column together instead, and
           only hands scrolling back to the details column at `md`, where
           the layout is genuinely two side-by-side panes and the image
-          really should stay in place while its own column scrolls. */}
-      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:flex-row md:overflow-hidden">
+          really should stay in place while its own column scrolls.
+
+          **`md:grid md:grid-cols-2`, not `md:flex-row`** (client,
+          2026-09-02: "add cart and view details section starts from the
+          red line which i drawn" — the red line marked the image's own
+          bottom edge, and the ask was for the footer to *begin* there, not
+          end there). A two-column flex row can only make the two columns'
+          *total* heights match (`align-items: stretch`); it has no way to
+          say "the footer starts exactly where the image ends" once the
+          text above it is short enough to leave slack — that slack has to
+          go *somewhere*, and stretching the preceding content block to
+          soak it up (the previous pass's fix) puts the footer flush with
+          the column's *bottom*, not its top. A CSS grid with two rows does
+          this natively instead: image and the text content are both row 1
+          (`md:col-start-2` puts the footer in column 2 only, so grid's
+          normal auto-flow leaves it out of row 1 and drops it to row 2),
+          so row 1's height is `max(image, text content)` and row 2 —
+          sized purely by the footer's own content — starts exactly at
+          that boundary, whichever column was taller. No `flex-1` hack is
+          needed on the text block any more; a grid cell stretches to fill
+          its own row by default, the same guarantee `flex-1` was standing
+          in for. */}
+      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:grid md:grid-cols-2 md:overflow-hidden">
         <button
           type="button"
           onClick={onClose}
@@ -77,8 +99,12 @@ export function QuickViewModal({
           <CloseIcon className="h-5 w-5" />
         </button>
 
-        {/* Left Side - Image Gallery */}
-        <div className="w-full bg-surface-subtle p-6 md:w-1/2 md:p-8 lg:p-10 border-b border-line md:border-b-0 md:border-r">
+        {/* Left Side - Image Gallery — grid row 1, column 1 (implicit,
+            first in DOM order). Its own box stretches to row 1's height
+            (grid's per-cell default), same as the text column beside it;
+            row 2 (the footer) has nothing placed in column 1 at all, so it
+            is simply blank there rather than needing a matching spacer. */}
+        <div className="w-full bg-surface-subtle p-6 md:p-8 lg:p-10 border-b border-line md:border-b-0 md:border-r">
            {/* Capped below `md` (client: "let it adjust the image size by
                fitting it as needed to fit the quick view panel in mobile
                view") — `ProductMedia`'s own square plate is otherwise
@@ -89,9 +115,8 @@ export function QuickViewModal({
                wrapper, not `ProductMedia` itself — that component is shared
                with the product detail page, which still wants its own
                full-width treatment untouched. `md:max-w-none` hands the
-               width back to the existing `md:w-1/2` column at the
-               breakpoint where this becomes a real side-by-side layout
-               instead of a stacked one.
+               width back to the grid column at the breakpoint where this
+               becomes a real side-by-side layout instead of a stacked one.
 
                `80%`, not the original `55%` (client, once the thumbnail
                grid below moved to overlaid dots on mobile: "in mobile
@@ -110,25 +135,10 @@ export function QuickViewModal({
            </div>
         </div>
 
-        {/* Right Side - Details */}
-        <div className="flex w-full flex-col p-6 md:w-1/2 md:p-8 lg:p-10">
-          {/* `flex-1` — the actual fix for the button sitting too high on a
-              short product (client, with a screenshot: "i still see its
-              not been alligned as i asked"). `sticky bottom-0` alone
-              (previous pass) only engages once scrolling would carry the
-              footer off-screen; it does nothing when the content is short
-              enough that nothing scrolls at all, which is exactly the
-              screenshot's case — the footer just sat in normal flow, right
-              after "motor starrter", nowhere near the image's foot. `flex-1`
-              makes this block *claim the column's full stretched height*
-              (the column matches the taller image column via the row's
-              default flex alignment) regardless of how little it actually
-              contains, which pushes the footer below it down to the
-              column's true bottom every time — short content or long.
-              `md:overflow-y-auto` moved here from the column itself, so a
-              genuinely long description scrolls within this block alone,
-              never carrying the footer down with it. */}
-          <div className="flex flex-1 flex-col md:overflow-y-auto">
+        {/* Text content — grid row 1, column 2. Second in DOM order, so
+            grid auto-placement drops it beside the image in row 1 without
+            any explicit placement needed. */}
+        <div className="p-6 md:overflow-y-auto md:p-8 lg:p-10">
             <p className="label-tech text-muted mb-2">{categoryLabel(product.category)}</p>
             <h2 className="text-2xl leading-snug sm:text-3xl text-ink">
               <Link href={`/products/${product.slug}`} className="hover:text-accent transition-colors" onClick={onClose}>
@@ -162,22 +172,37 @@ export function QuickViewModal({
                  </p>
               </div>
             )}
-          </div>
 
-          {/* Add to cart + "View full details" — sits right at the bottom
-              of the column because the `flex-1` block above it always
-              claims the rest of the space first (see its own note); `sticky
-              bottom-0` is kept on top of that, not instead of it, purely
-              for the genuinely-overflowing case, where this block's own
-              content grows past the column's stretched height and *this*
-              column itself starts scrolling (mobile: the outer modal wrapper
-              scrolls instead, per its own "single mobile scroll surface"
-              note) — then this footer stays pinned to the visible bottom
-              edge rather than scrolling out of view with the rest. Neither
-              mechanism does anything the other doesn't cover: `flex-1`
-              handles "content shorter than the column," `sticky` handles
-              "content taller than the column." */}
-          <div className="sticky bottom-0 -mx-6 border-t border-line bg-surface px-6 pb-6 pt-4 md:-mx-8 md:px-8 md:pb-8 lg:-mx-10 lg:px-10 lg:pb-10">
+            {/* Specification — same `SpecTable` the product detail page
+                uses, so a spec row reads identically whether opened here
+                or there (client, 2026-09-02: "also add Specification of
+                the product in the quick view card after RANGE"). Renders
+                nothing on its own when a product has no spec rows. */}
+            {product.spec.length > 0 && (
+              <div className="mt-6 border-t border-line pt-4">
+                 <p className="label-tech text-muted">Specification</p>
+                 <div className="mt-2">
+                   <SpecTable rows={product.spec} />
+                 </div>
+              </div>
+            )}
+        </div>
+
+        {/* Add to cart + "View full details" — grid row 2, column 2 only
+            (`md:col-start-2` at `md`+; below `md` the grid isn't active at
+            all, so this is a plain third block stacked after the text,
+            same as before). Starts exactly where row 1 ends — the image's
+            own bottom edge, whenever the image is the taller of the two
+            row-1 cells — rather than being pushed to the *column's*
+            bottom the way the previous `flex-1` pass did. `sticky
+            bottom-0` still covers the opposite, genuinely-overflowing
+            case: if the text content above grows past row 1's height, this
+            column keeps scrolling internally (`md:overflow-y-auto` above)
+            and this footer stays pinned to the visible bottom edge instead
+            of scrolling out of view — mobile does the same against the
+            outer modal wrapper's own single scroll surface, per that
+            wrapper's note. */}
+        <div className="sticky bottom-0 md:col-start-2 -mx-6 border-t border-line bg-surface px-6 pb-6 pt-4 md:-mx-8 md:px-8 md:pb-8 lg:-mx-10 lg:px-10 lg:pb-10">
             <div className="flex items-center gap-4">
               <div className="flex-1">
                  <AddToCartButton slug={product.slug} name={product.name} />
@@ -191,7 +216,6 @@ export function QuickViewModal({
             >
               View full details
             </Link>
-          </div>
         </div>
       </div>
     </div>
