@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ProductMedia } from "@/components/product/ProductMedia";
@@ -58,17 +58,29 @@ export function QuickViewModal({
    *  the image. A `ResizeObserver` on the image column answers the actual
    *  question directly instead of approximating it with row-sizing rules.
    *
+   *  **`getBoundingClientRect().height`, not the observer entry's own
+   *  `contentRect.height`** — `contentRect` excludes padding, so on this
+   *  column's `p-6`/`md:p-8`/`lg:p-10` it under-measured by up to 2×40px,
+   *  a real (if minor) discrepancy caught on review before this shipped.
+   *
+   *  **A synchronous first read via `useLayoutEffect`, before the
+   *  `ResizeObserver` attaches** — the observer's own first callback is
+   *  inherently async (fires on a later frame, never synchronously even
+   *  inside a layout effect), so without this, the very first paint would
+   *  briefly render with no cap at all.
+   *
    *  **Depends on `mounted`, not `[]`** — this component returns `null`
    *  until `mounted` flips true (the escape-key/body-scroll effect above),
    *  so `imageColRef.current` is still `null` on the very first commit; an
    *  empty dependency array would run once against that `null` and never
    *  again, silently never observing anything. */
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!mounted) return;
     const el = imageColRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(([entry]) => {
-      setImageHeight(entry.contentRect.height);
+    setImageHeight(el.getBoundingClientRect().height);
+    const observer = new ResizeObserver(() => {
+      setImageHeight(el.getBoundingClientRect().height);
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -108,14 +120,23 @@ export function QuickViewModal({
           the layout is genuinely two side-by-side panes and the image
           really should stay in place while its own column scrolls.
 
-          Reverted from a two-column CSS grid back to this plain
-          `md:flex-row` (client: "keep it how it was in commit 408b75c8 for
-          image section") — three grid-based passes at pinning the footer
-          to the image's bottom each broke a different content-length case;
-          see the `ResizeObserver` note above for the actual, measured fix,
-          which does not need any special row/column arrangement here at
-          all, only the plain two-column layout this always was. */}
-      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:flex-row md:overflow-hidden">
+          **`md:grid md:grid-cols-2 md:grid-rows-[var(--qv-image-h)_auto]`,
+          not `md:flex-row`** — a flex row's `align-items: stretch`
+          equalises the row to the *taller* column's own natural size, and
+          once the right column's total need (text content plus the
+          footer sitting below it) exceeds the image's own height, the row
+          grows to match *that*, stretching the image column down with
+          blank space to fill the gap — reopening the exact visible gap
+          this was meant to close, confirmed on review of a screenshot
+          before it shipped. A grid row sized to an *explicit* length
+          (the measured `--qv-image-h`, not `auto` or `minmax`) has no such
+          feedback loop: row 1's height is that value, full stop, entirely
+          decoupled from what either cell inside it actually contains.
+          Image and text share row 1 (plain DOM order); the footer alone
+          gets `md:col-start-2`, which drops it to row 2 since row 1's
+          second column is already taken — row 2 is `auto`, sized purely
+          by the footer's own content, never influencing row 1. */}
+      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:grid md:grid-cols-2 md:grid-rows-[var(--qv-image-h)_auto] md:overflow-hidden">
         <button
           type="button"
           onClick={onClose}
@@ -159,17 +180,15 @@ export function QuickViewModal({
         </div>
 
         {/* Right Side - Details */}
-        <div className="flex w-full flex-col md:w-1/2">
-          {/* Scrollable text content — capped to `--qv-image-h` (the
-              measured image column height, set above) only at `md` and
-              up; below `md` there is no cap at all, matching this modal's
-              single mobile scroll surface. `overflow-y-auto` only engages
-              once the content genuinely exceeds that cap — a short
-              product simply leaves blank space below its last row, same
-              as before. */}
-          <div
-            className="overflow-y-visible p-6 md:max-h-[var(--qv-image-h)] md:overflow-y-auto md:p-8 lg:p-10"
-          >
+        <div className="flex w-full flex-col md:contents">
+          {/* Text content — row 1, column 2 (plain DOM order; grid
+              auto-placement drops it beside the image). Its own box is
+              stretched to row 1's *explicit* height by grid's default
+              per-cell alignment, so `overflow-y-auto` has a real, fixed
+              ceiling to scroll under the moment content exceeds it — a
+              short product just leaves blank space below its last row,
+              same as before. */}
+          <div className="overflow-y-auto p-6 md:p-8 lg:p-10">
             <p className="label-tech text-muted mb-2">{categoryLabel(product.category)}</p>
             <h2 className="text-2xl leading-snug sm:text-3xl text-ink">
               <Link href={`/products/${product.slug}`} className="hover:text-accent transition-colors" onClick={onClose}>
@@ -219,12 +238,13 @@ export function QuickViewModal({
             )}
           </div>
 
-          {/* Add to cart + "View full details" — a plain sibling right
-              after the capped content block above, so it always renders
-              at that block's own bottom edge: the image's measured
-              height, exactly, regardless of how short or long the text
-              content is (or whether it needs its own scrollbar). */}
-          <div className="border-t border-line bg-surface p-6 md:p-8 lg:p-10">
+          {/* Add to cart + "View full details" — grid row 2, column 2
+              (`md:col-start-2`; below `md` the grid isn't active, so this
+              is a plain block stacked after the text, same as before).
+              Always renders at row 1's bottom edge — the image's own
+              measured height, exactly, never inflated by how tall the text
+              column's own content needs to be. */}
+          <div className="border-t border-line bg-surface p-6 md:col-start-2 md:p-8 lg:p-10">
             <div className="flex items-center gap-4">
               <div className="flex-1">
                  <AddToCartButton slug={product.slug} name={product.name} />
