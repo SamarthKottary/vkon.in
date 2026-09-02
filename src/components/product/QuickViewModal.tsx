@@ -111,8 +111,24 @@ export function QuickViewModal({
         </div>
 
         {/* Right Side - Details */}
-        <div className="flex w-full flex-col p-6 md:w-1/2 md:overflow-y-auto md:p-8 lg:p-10">
-          <div className="flex flex-col">
+        <div className="flex w-full flex-col p-6 md:w-1/2 md:p-8 lg:p-10">
+          {/* `flex-1` — the actual fix for the button sitting too high on a
+              short product (client, with a screenshot: "i still see its
+              not been alligned as i asked"). `sticky bottom-0` alone
+              (previous pass) only engages once scrolling would carry the
+              footer off-screen; it does nothing when the content is short
+              enough that nothing scrolls at all, which is exactly the
+              screenshot's case — the footer just sat in normal flow, right
+              after "motor starrter", nowhere near the image's foot. `flex-1`
+              makes this block *claim the column's full stretched height*
+              (the column matches the taller image column via the row's
+              default flex alignment) regardless of how little it actually
+              contains, which pushes the footer below it down to the
+              column's true bottom every time — short content or long.
+              `md:overflow-y-auto` moved here from the column itself, so a
+              genuinely long description scrolls within this block alone,
+              never carrying the footer down with it. */}
+          <div className="flex flex-1 flex-col md:overflow-y-auto">
             <p className="label-tech text-muted mb-2">{categoryLabel(product.category)}</p>
             <h2 className="text-2xl leading-snug sm:text-3xl text-ink">
               <Link href={`/products/${product.slug}`} className="hover:text-accent transition-colors" onClick={onClose}>
@@ -148,30 +164,20 @@ export function QuickViewModal({
             )}
           </div>
 
-          {/* Add to cart + "View full details" — `sticky bottom-0`, not
-              flowing after whatever the description/range block above
-              happens to run to (client, 2026-09-01/02: "add cart button
-              exactly mid section by red line which is redline exactly
-              start from the buttom of the image in quick view... always
-              stay in same position irrespictive of any content above it",
-              then "adjust according for mobile view also. button should
-              be in static position").
-
-              One rule works at every width because this column's nearest
-              *scrolling* ancestor changes with the breakpoint, not this
-              element: below `md` this column has no scroll of its own
-              (only the outer modal wrapper does — see that wrapper's own
-              note on the single mobile scroll surface), so `sticky`
-              resolves against *that* outer viewport and this footer pins
-              to the bottom of the whole modal exactly like a fixed mobile
-              CTA bar. At `md` and up this column becomes the real scroll
-              container (`md:overflow-y-auto` above) and the same rule
-              pins it to the bottom of *this column's* own viewport
-              instead — which, because the two columns are stretched to
-              equal height by the row's default flex alignment, lines up
-              with the foot of the image column beside it, the "red line"
-              from the request. Neither case needed a different class. */}
-          <div className="sticky bottom-0 mt-8 -mx-6 border-t border-line bg-surface px-6 pb-6 pt-4 md:-mx-8 md:px-8 md:pb-8 lg:-mx-10 lg:px-10 lg:pb-10">
+          {/* Add to cart + "View full details" — sits right at the bottom
+              of the column because the `flex-1` block above it always
+              claims the rest of the space first (see its own note); `sticky
+              bottom-0` is kept on top of that, not instead of it, purely
+              for the genuinely-overflowing case, where this block's own
+              content grows past the column's stretched height and *this*
+              column itself starts scrolling (mobile: the outer modal wrapper
+              scrolls instead, per its own "single mobile scroll surface"
+              note) — then this footer stays pinned to the visible bottom
+              edge rather than scrolling out of view with the rest. Neither
+              mechanism does anything the other doesn't cover: `flex-1`
+              handles "content shorter than the column," `sticky` handles
+              "content taller than the column." */}
+          <div className="sticky bottom-0 -mx-6 border-t border-line bg-surface px-6 pb-6 pt-4 md:-mx-8 md:px-8 md:pb-8 lg:-mx-10 lg:px-10 lg:pb-10">
             <div className="flex items-center gap-4">
               <div className="flex-1">
                  <AddToCartButton slug={product.slug} name={product.name} />
