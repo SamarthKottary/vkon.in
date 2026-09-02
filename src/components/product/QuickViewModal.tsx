@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ProductMedia } from "@/components/product/ProductMedia";
@@ -18,61 +18,23 @@ export function QuickViewModal({
   onClose: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
-  const imageColRef = useRef<HTMLDivElement>(null);
-  const [imageHeight, setImageHeight] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
     // Prevent scrolling on the body when modal is open
     document.body.style.overflow = "hidden";
-    
+
     // Close on escape
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleEscape);
-    
+
     return () => {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", handleEscape);
     };
   }, [onClose]);
-
-  /** Measures the image column's own rendered height so the text column
-   *  beside it (below) can be capped to exactly that, at `md` and up —
-   *  the actual fix for "Add to cart starts at the image's bottom edge,"
-   *  after three CSS-only passes each fixed one reported case and broke
-   *  another (client, across several rounds: "add cart button always stay
-   *  in same position irrespictive of any content above it," then, once a
-   *  longer Specification table made the *text* side taller than the
-   *  image for the first time: "remove footer at right where product
-   *  image is present keep it how it was in commit 408b75c8 for image
-   *  section, and move cart section footer to up which starts from the
-   *  bottom of image").
-   *
-   *  None of `align-items: stretch` + `flex-1`, a two-row CSS grid sized
-   *  to `max(image, text)`, or that grid capped with `minmax(0, 1fr)` can
-   *  express "this row's height is *this specific cell's* content height"
-   *  — only "the taller of the two," a different question the moment text
-   *  content (now including Specification) can plausibly be taller than
-   *  the image. A `ResizeObserver` on the image column answers the actual
-   *  question directly instead of approximating it with row-sizing rules.
-   *
-   *  **Depends on `mounted`, not `[]`** — this component returns `null`
-   *  until `mounted` flips true (the escape-key/body-scroll effect above),
-   *  so `imageColRef.current` is still `null` on the very first commit; an
-   *  empty dependency array would run once against that `null` and never
-   *  again, silently never observing anything. */
-  useEffect(() => {
-    if (!mounted) return;
-    const el = imageColRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(([entry]) => {
-      setImageHeight(entry.contentRect.height);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [mounted]);
 
   if (!mounted) return null;
 
@@ -88,34 +50,38 @@ export function QuickViewModal({
       role="dialog"
       aria-modal="true"
       aria-label={`Quick view of ${product.name}`}
-      style={imageHeight != null ? ({ "--qv-image-h": `${Math.round(imageHeight)}px` } as React.CSSProperties) : undefined}
     >
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-ink/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Modal Content — one scrolling surface below `md`, not two
-          (client: "only the content is scrollable, not the image. I want
-          the entire image and content tab to scrollable as single
-          entity"). Previously `overflow-hidden` here pushed all the
-          overflow onto the details column's own `overflow-y-auto` below,
-          leaving the image stuck outside any scroll — this wrapper now
-          scrolls the stacked image+details column together instead, and
-          only hands scrolling back to the details column at `md`, where
-          the layout is genuinely two side-by-side panes and the image
-          really should stay in place while its own column scrolls.
+      {/* Modal Content — a single clean rectangle at every width, capped so
+          it never outgrows the viewport (`max-h-[90vh]`, `md:max-h-[85vh]`).
 
-          Reverted from a two-column CSS grid back to this plain
-          `md:flex-row` (client: "keep it how it was in commit 408b75c8 for
-          image section") — three grid-based passes at pinning the footer
-          to the image's bottom each broke a different content-length case;
-          see the `ResizeObserver` note above for the actual, measured fix,
-          which does not need any special row/column arrangement here at
-          all, only the plain two-column layout this always was. */}
-      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:flex-row md:overflow-hidden">
+          Below `md` it stacks (image over content) and the whole card is one
+          scroll surface (`overflow-y-auto`) — client: "I want the entire
+          image and content tab to scrollable as single entity."
+
+          At `md` and up it is a two-pane row (`md:flex-row md:overflow-hidden`)
+          whose two columns are stretched to equal height by flex's default
+          `align-items: stretch`, so the card stays a rectangle whichever side
+          is taller — never the L-shape a grid produced (image in one cell, the
+          footer hanging in a separate row below it with the left side blank).
+          The image column fills its half; the details column carries its own
+          internal scroll and a pinned footer — see each below.
+
+          **`md:max-h-[min(85vh,600px)]`, not a flat `85vh`** (client: "move
+          add cart section up") — a long Specification table pushed the card to
+          the full `85vh`, which on a tall window left the square image
+          centred in a much taller column with big blank margins and the footer
+          sitting low. Capping the desktop height at 600px keeps the modal
+          compact — image, content and the Add to cart footer all sit higher —
+          while `min(85vh, …)` still yields to the viewport on a short window
+          so it never overflows off-screen. */}
+      <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-y-auto bg-surface shadow-modal sm:rounded-none md:max-h-[min(85vh,600px)] md:flex-row md:overflow-hidden">
         <button
           type="button"
           onClick={onClose}
@@ -125,51 +91,51 @@ export function QuickViewModal({
           <CloseIcon className="h-5 w-5" />
         </button>
 
-        {/* Left Side - Image Gallery */}
-        <div ref={imageColRef} className="w-full bg-surface-subtle p-6 md:w-1/2 md:p-8 lg:p-10 border-b border-line md:border-b-0 md:border-r">
-           {/* Capped below `md` (client: "let it adjust the image size by
-               fitting it as needed to fit the quick view panel in mobile
-               view") — `ProductMedia`'s own square plate is otherwise
-               `w-full` of whatever contains it, which on a narrow phone
-               meant the image alone (plus the thumbnail row and arrows
-               below it) could run to a third or more of the viewport's own
-               height before any content was visible at all. Scoped to this
-               wrapper, not `ProductMedia` itself — that component is shared
-               with the product detail page, which still wants its own
-               full-width treatment untouched. `md:max-w-none` hands the
-               width back to the existing `md:w-1/2` column at the
-               breakpoint where this becomes a real side-by-side layout
-               instead of a stacked one.
+        {/* Left Side - Image Gallery. `md:items-center md:justify-center` (a
+            flex column) keeps the image centred in its half when the details
+            column beside it is the taller of the two and stretches this one
+            past the image's own height — so any extra space sits evenly above
+            and below the photo rather than pooling under it. */}
+        <div className="flex w-full flex-col bg-surface-subtle p-6 md:w-1/2 md:items-center md:justify-center md:p-8 lg:p-10 border-b border-line md:border-b-0 md:border-r">
+          {/* Capped below `md` (client: "let it adjust the image size by
+              fitting it as needed to fit the quick view panel in mobile
+              view") — `ProductMedia`'s own square plate is otherwise `w-full`
+              of whatever contains it, which on a narrow phone meant the image
+              alone (plus the thumbnail row and arrows below it) could run to a
+              third or more of the viewport's own height before any content was
+              visible at all. Scoped to this wrapper, not `ProductMedia`
+              itself — that component is shared with the product detail page,
+              which still wants its own full-width treatment untouched.
+              `md:max-w-none` hands the width back to this column at the
+              breakpoint where this becomes a real side-by-side layout.
 
-               `80%`, not the original `55%` (client, once the thumbnail
-               grid below moved to overlaid dots on mobile: "in mobile
-               there is space for image size to increase") — the grid's own
-               removal freed exactly the space the tighter cap was
-               originally leaving room for, so once it was gone the image
-               was smaller than it needed to be for no remaining reason. */}
-           <div className="mx-auto w-full max-w-[80%] md:max-w-none">
-             <ProductMedia
-                images={product.images}
-                videoUrl={product.videoUrl}
-                videoTitle={product.videoTitle}
-                productName={product.name}
-                compact
-              />
-           </div>
+              `80%`, not the original `55%` (client, once the thumbnail grid
+              moved to overlaid dots on mobile: "in mobile there is space for
+              image size to increase"). */}
+          <div className="mx-auto w-full max-w-[80%] md:max-w-none">
+            <ProductMedia
+              images={product.images}
+              videoUrl={product.videoUrl}
+              videoTitle={product.videoTitle}
+              productName={product.name}
+              compact
+            />
+          </div>
         </div>
 
-        {/* Right Side - Details */}
-        <div className="flex w-full flex-col md:w-1/2">
-          {/* Scrollable text content — capped to `--qv-image-h` (the
-              measured image column height, set above) only at `md` and
-              up; below `md` there is no cap at all, matching this modal's
-              single mobile scroll surface. `overflow-y-auto` only engages
-              once the content genuinely exceeds that cap — a short
-              product simply leaves blank space below its last row, same
-              as before. */}
-          <div
-            className="overflow-y-visible p-6 md:max-h-[var(--qv-image-h)] md:overflow-y-auto md:p-8 lg:p-10"
-          >
+        {/* Right Side - Details. A flex column filling its half of the card;
+            below `md` it is a plain block in the card's own single scroll. */}
+        <div className="flex w-full flex-col md:w-1/2 md:overflow-hidden">
+          {/* Content — `md:min-h-0 md:overflow-y-auto`, NOT `md:flex-1`
+              (client: "move add cart section up"). `flex-1` made this box
+              claim the column's whole leftover height, so the footer below
+              was shoved to the card's very bottom with blank space between it
+              and short content. Without it, the box takes its natural height
+              and the footer sits directly beneath — `min-h-0` still lets it
+              shrink and scroll under its own scrollbar when the content (a
+              long Specification table) genuinely exceeds the column, so the
+              footer stays put in that case too. */}
+          <div className="p-6 md:min-h-0 md:overflow-y-auto md:p-8 lg:p-10">
             <p className="label-tech text-muted mb-2">{categoryLabel(product.category)}</p>
             <h2 className="text-2xl leading-snug sm:text-3xl text-ink">
               <Link href={`/products/${product.slug}`} className="hover:text-accent transition-colors" onClick={onClose}>
@@ -197,47 +163,65 @@ export function QuickViewModal({
 
             {product.hpRanges.length > 0 && (
               <div className="mt-6 border-t border-line pt-4">
-                 <p className="label-tech text-muted">Range</p>
-                 <p className="mt-2 font-mono text-sm text-ink">
-                   {product.hpRanges.join(" · ")}
-                 </p>
+                <p className="label-tech text-muted">Range</p>
+                <p className="mt-2 font-mono text-sm text-ink">
+                  {product.hpRanges.join(" · ")}
+                </p>
               </div>
             )}
 
-            {/* Specification — same `SpecTable` the product detail page
-                uses, so a spec row reads identically whether opened here
-                or there (client, 2026-09-02: "also add Specification of
-                the product in the quick view card after RANGE"). Renders
-                nothing on its own when a product has no spec rows. */}
+            {/* Specification — same `SpecTable` the product detail page uses,
+                so a spec row reads identically whether opened here or there
+                (client, 2026-09-02: "also add Specification of the product in
+                the quick view card after RANGE"). Renders nothing when a
+                product has no spec rows. */}
             {product.spec.length > 0 && (
               <div className="mt-6 border-t border-line pt-4">
-                 <p className="label-tech text-muted">Specification</p>
-                 <div className="mt-2">
-                   <SpecTable rows={product.spec} />
-                 </div>
+                <p className="label-tech text-muted">Specification</p>
+                <div className="mt-2">
+                  <SpecTable rows={product.spec} />
+                </div>
               </div>
             )}
+
+            {/* "View full details" — after the Specification, right-aligned
+                (client, 2026-09-02: "move view full details in add to cart
+                section and move after specification align to right"). It sits
+                in the scrollable content, not the pinned footer below, so the
+                footer now carries only the Add to cart control. */}
+            <div className="mt-6 flex justify-end">
+              <Link
+                href={`/products/${product.slug}`}
+                onClick={onClose}
+                className="text-sm font-medium text-accent underline underline-offset-4"
+              >
+                View full details
+              </Link>
+            </div>
           </div>
 
-          {/* Add to cart + "View full details" — a plain sibling right
-              after the capped content block above, so it always renders
-              at that block's own bottom edge: the image's measured
-              height, exactly, regardless of how short or long the text
-              content is (or whether it needs its own scrollbar). */}
-          <div className="border-t border-line bg-surface p-6 md:p-8 lg:p-10">
+          {/* Add to cart — the only control in the pinned footer now;
+              "View full details" moved up into the scrollable content, after
+              the Specification (see above).
+
+              At `md` and up it is the flex sibling the content region above
+              does not consume, so it sits at the bottom of the details
+              column, static.
+
+              Below `md` the whole card is one scroll surface, so a plain
+              block here would scroll away with the content — `sticky bottom-0`
+              instead pins it to the bottom of the card's viewport while the
+              image and content scroll behind it (client, 2026-09-02: "in
+              mobile view why add to card section is not pinned static like it
+              done in desktop view"). `md:static` hands it back to the flex
+              layout at the breakpoint where that takes over. `shrink-0` keeps
+              it from being squeezed when the content is long. */}
+          <div className="sticky bottom-0 z-10 shrink-0 border-t border-line bg-surface p-6 md:static md:p-8 lg:p-10">
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                 <AddToCartButton slug={product.slug} name={product.name} />
+                <AddToCartButton slug={product.slug} name={product.name} />
               </div>
             </div>
-
-            <Link
-              href={`/products/${product.slug}`}
-              onClick={onClose}
-              className="mt-4 block text-sm font-medium text-accent underline underline-offset-4"
-            >
-              View full details
-            </Link>
           </div>
         </div>
       </div>
