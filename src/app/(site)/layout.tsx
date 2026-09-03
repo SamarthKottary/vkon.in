@@ -116,10 +116,47 @@ export default async function SiteLayout({
       </a>
 
       <Header menu={menu} searchProducts={searchProducts} suggestionTerms={suggestionTerms} />
-      <main id="main" className="flex-1">
+      {/* `bg-surface` is load-bearing, not decoration: it is what hides
+          the footer behind this while the footer is pinned (see below).
+          `body` carries the same colour, but a background set on `body`
+          propagates to the canvas and leaves the element itself
+          transparent, so it cannot do this job. */}
+      <main id="main" className="flex-1 bg-surface">
         {children}
       </main>
-      <Footer />
+
+      {/* The footer is revealed rather than scrolled to — the page above
+          slides off it like a curtain opening (client: "Could we do a
+          similar curtain opening scene for the bottom most section below
+          the tell us what your running section", after the same treatment
+          on the home hero).
+
+          It is the mirror of the hero's, and the offset is on the mirror
+          side: `bottom`, which is the sticky edge that *works* for a box
+          whose natural position is the end of the document — a bottom
+          offset only ever shifts a box up, to pull it into view from
+          below, which is exactly what is wanted here and exactly why the
+          hero could not use it.
+
+          **The figure is the footer at its tallest, and again erring high
+          is the safe direction.** The footer is 1267–1316px on a phone
+          (five stacked blocks), 766px at `md`, 517–537px from `lg` up, so
+          one number would either strand the top of the tall version
+          off-screen or reduce the wide one to a 100px sliver of reveal.
+          Too *low* a figure pins the footer with its own top edge above
+          the viewport and it stays there — unreachable, since a pinned
+          box does not scroll. Too high only weakens the effect: the
+          footer pins lower and less of it shows early.
+
+          `-z-10`, not a `z-10` on `main`: putting the stacking on the
+          footer keeps `main` unpositioned, so nothing inside any page —
+          the catalogue's own fixed filter panel, the modals — has its
+          z-index suddenly scoped to a new stacking context. A negative
+          z-index paints below in-flow content but above the canvas, which
+          is precisely the layer this wants. */}
+      <div className="sticky bottom-[min(0px,calc(100svh_-_83rem))] -z-10 md:bottom-[min(0px,calc(100svh_-_48rem))] lg:bottom-[min(0px,calc(100svh_-_34rem))]">
+        <Footer />
+      </div>
       <FloatingContact />
       <MobileActionBar />
 

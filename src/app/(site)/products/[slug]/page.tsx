@@ -2,19 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { ContactStrip } from "@/components/home/ContactStrip";
-import { CheckIcon, PhoneIcon, WhatsAppIcon } from "@/components/icons/ui";
+import { CheckIcon } from "@/components/icons/ui";
 import { ProductMedia } from "@/components/product/ProductMedia";
+import { ProductPrice } from "@/components/product/ProductPrice";
 import { RecordView } from "@/components/product/RecordView";
 import { RelatedProducts } from "@/components/product/RelatedProducts";
 import { ProtectionList } from "@/components/product/ProtectionList";
 import { SpecTable } from "@/components/product/SpecTable";
-import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { categoryLabel } from "@/content/taxonomy";
-import { site } from "@/content/site";
 import { getProductBySlug, listProducts } from "@/lib/db/products";
-import { productEnquiryMessage, telLink, whatsAppLink } from "@/lib/contact";
 import { breadcrumbJsonLd, pageMetadata, productJsonLd } from "@/lib/seo";
 
 /**
@@ -141,21 +139,31 @@ export default async function ProductPage({
                 </div>
               )}
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                {/* First of the three: adding to the cart is the only one that
-                    keeps the visitor on the page, so it leads. The two contact
-                    routes stay exactly as they were — a dealer pricing a list
-                    and a farmer whose pump is down today want different
-                    things, and neither should have to use the other's. */}
-                <AddToCartButton slug={product.slug} name={product.name} />
-                <Button href={whatsAppLink(productEnquiryMessage(product))} size="lg" variant="outline">
-                  <WhatsAppIcon className="h-4 w-4" />
-                  Enquire on WhatsApp
-                </Button>
-                <Button href={telLink()} variant="outline" size="lg">
-                  <PhoneIcon className="h-4 w-4" />
-                  {site.phone.display}
-                </Button>
+              {/* Price left, Add to cart right (client, 2026-09-03: "lets
+                  remove the enquire on watsapp and call phone buttons, instead
+                  place price on the left and add to cart on the right").
+
+                  **The two contact routes are gone from this row, not from the
+                  page.** They were here because this page had no price and a
+                  buyer had to ask for one; with the figure on screen that is no
+                  longer the only way to get an answer. Both are still reachable
+                  without scrolling — `layout/FloatingContact` keeps a call and a
+                  WhatsApp button pinned on desktop, `layout/MobileActionBar`
+                  does the same on a phone — and the "Want a price on the …"
+                  strip further down this page still carries both.
+
+                  `justify-between` with the price first reads correctly at
+                  every width: below `sm` the two stack in that order anyway,
+                  which is the order the client named. */}
+              <div className="mt-8 grid grid-cols-2 gap-4 items-center sm:grid-cols-[2fr_3fr]">
+                <div className="min-w-0 pr-2 sm:pr-4">
+                  {product.price != null && (
+                    <ProductPrice product={product} size="regular" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <AddToCartButton slug={product.slug} name={product.name} />
+                </div>
               </div>
 
               {product.spec.length > 0 && (

@@ -81,6 +81,13 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS seo_title       TEXT NOT NULL DEFA
 ALTER TABLE products ADD COLUMN IF NOT EXISTS seo_description TEXT NOT NULL DEFAULT '';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS price           INTEGER;
 
+-- Added 2026-09-03: list price + optional discount. `price` is the M.R.P. --
+-- what the product is worth before any reduction -- and `discount_percent` is
+-- the reduction applied to it, 0-99. The selling price is derived at render
+-- time (`components/product/ProductPrice`) rather than stored, so the two
+-- numbers can never disagree with the third.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_percent INTEGER;
+
 -- ---------------------------------------------------------------------------
 -- Per-page SEO overrides for the static routes, editable at /admin/seo.
 -- One row per path; a blank value falls back to the page's built-in metadata

@@ -11,23 +11,23 @@ export function SpecTable({ rows }: { rows: SpecRow[] }) {
   if (rows.length === 0) return null;
 
   return (
-    <table className="w-full border-collapse text-left">
-      <caption className="sr-only">Technical specification</caption>
-      <tbody>
+    <div className="w-full text-left">
+      <p className="sr-only">Technical specification</p>
+      <div className="divide-y divide-line border-y border-line">
         {rows.map((row) => (
-          <tr key={row.label} className="border-t border-line last:border-b">
-            <th
-              scope="row"
-              className="label-tech w-2/5 py-3.5 pr-4 align-top font-medium text-muted"
-            >
+          <div
+            key={row.label}
+            className="grid grid-cols-[2fr_3fr] items-baseline py-3.5"
+          >
+            <div className="label-tech pr-4 font-medium text-muted">
               {row.label}
-            </th>
-            <td className="py-3.5 align-top text-[0.9375rem] text-ink">
+            </div>
+            <div className="text-[0.9375rem] text-ink">
               {row.value}
-            </td>
-          </tr>
+            </div>
+          </div>
         ))}
-      </tbody>
-    </table>
+      </div>
+    </div>
   );
 }

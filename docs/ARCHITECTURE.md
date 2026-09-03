@@ -145,7 +145,7 @@ src/
                ContactStrip, RecentlyViewed (client)
     product/   ProductCard, ProductRow (client), ProductMedia (client),
                ProductCatalogue (client), SpecTable, ProtectionList,
-               PanelPlaceholder, RecordView (client)
+               PanelPlaceholder, RecordView (client), ProductPrice
     icons/     protections.tsx (12-icon set), ui.tsx, Logo.tsx
     theme/     ThemeScript (pre-paint, inline), ThemeToggle (client)
     ui/        Button, Container, Section, Badge, JsonLd
@@ -170,7 +170,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | Component | Why |
 |---|---|
 | `theme/ThemeToggle` | Reads `data-theme` via `useSyncExternalStore` |
-| `layout/Header` | Drawer state, focus trap, Escape, hide-on-scroll |
+| `layout/Header` | Drawer state, focus trap, Escape, hide-on-scroll — and, on a curtain page, tracking `[data-curtain]`'s edge so the sheet pushes it off (§9) |
 | `layout/ProductsMenu` | Dropdown state, outside-click, measured slider |
 | `layout/SubscribePanel` | `useActionState` over the public sign-up action |
 | `layout/IntroSplash` | Session-gated brand intro; logo flies to the header logo (measured) |
@@ -344,7 +344,13 @@ is a code change whichever way it is stored.
 
 ### Tables
 
-Two, both in `src/lib/db/schema.sql`.
+**Four**, all in `src/lib/db/schema.sql`, which is applied idempotently on every
+deploy — new columns arrive as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so the
+file is safe to re-run and there is no migration tool.
+
+**There are no foreign keys.** Each entity is independent: a product has no rows
+pointing at it, and an enquiry names no product. Ids are application-generated
+`TEXT` (`crypto.randomUUID()`), not database sequences.
 
 **`products`.** `src/lib/db/products.ts` is the
 only module that touches it, and `mapProductRow` is the single snake_case →
@@ -359,15 +365,71 @@ cannot get into a broken state.
 Unknown keys are filtered out at read time, so removing one from the taxonomy
 degrades instead of breaking a page.
 
+| Column | Type | Notes |
+|---|---|---|
+| `id` | TEXT PK | |
+| `slug` | TEXT NOT NULL **UNIQUE** | URL segment — renders at `/products/<slug>` |
+| `name` | TEXT NOT NULL | |
+| `category` | TEXT NOT NULL | key from `content/taxonomy.ts`; the sector is derived from it |
+| `tagline` | TEXT DEFAULT `''` | one line, shown on cards |
+| `description` | TEXT DEFAULT `''` | blank lines separate paragraphs |
+| `hp_ranges` | TEXT[] | |
+| `features` | TEXT[] | |
+| `protections` | TEXT[] | keys into the 12-icon set; unknown keys filtered at read time |
+| `spec` | JSONB | `[{ label, value }]` |
+| `images` | JSONB | `[{ url, alt, pathname }]` — `pathname` is what lets delete remove the files |
+| `video_url` / `video_title` | TEXT NULL | YouTube/Vimeo, parsed by `lib/video.ts` |
+| `published` | BOOLEAN DEFAULT TRUE | |
+| `featured` | BOOLEAN DEFAULT FALSE | drives the home carousel |
+| `sort_order` | INTEGER DEFAULT 0 | set by the server, never by the form |
+| `price` | INTEGER NULL | **M.R.P.** in whole rupees |
+| `discount_percent` | INTEGER NULL | 0–99; the selling price is derived, never stored |
+| `seo_title` / `seo_description` | TEXT DEFAULT `''` | blank falls back to name/tagline at render |
+| `created_at` / `updated_at` | TIMESTAMPTZ | |
+
+Indexes: `(published, sort_order, created_at DESC)` for the listing, `(category)`,
+and GIN trigram indexes on `name` and `tagline` for fuzzy search.
+
 **`subscribers`.** `src/lib/db/subscribers.ts` is the only module that touches
 it. One address per row, stored lower-cased and trimmed so the `UNIQUE`
 constraint means what it looks like it means, plus the path it was submitted
 from. Written by the public action in `app/(site)/actions.ts`; read and deleted
 at `/admin/subscribers`.
 
+| Column | Type | Notes |
+|---|---|---|
+| `id` | TEXT PK | |
+| `email` | TEXT NOT NULL **UNIQUE** | stored lower-cased and trimmed |
+| `source` | TEXT DEFAULT `''` | path it was submitted from |
+| `created_at` | TIMESTAMPTZ | indexed |
+
 **`enquiries`.** `src/lib/db/enquiries.ts` is the only module that touches it.
 One row per contact-form submission, with `handled` as a flag rather than a
 deletion — a dealt-with enquiry is still a record of who asked for what.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | TEXT PK | |
+| `name` / `email` / `message` | TEXT NOT NULL | |
+| `phone` / `source` | TEXT DEFAULT `''` | |
+| `handled` | BOOLEAN DEFAULT FALSE | a person deciding they have replied, not a deletion |
+| `created_at` | TIMESTAMPTZ | indexed for the inbox |
+
+**`page_seo`.** `src/lib/db/pageSeo.ts` is the only module that touches it. One
+row per static route, edited at `/admin/seo`; a blank value falls back to the
+page's built-in metadata at render time, so an empty table changes nothing.
+
+| Column | Type | Notes |
+|---|---|---|
+| `path` | TEXT **PK** | one row per static route |
+| `title` / `description` | TEXT DEFAULT `''` | blank falls back to built-in metadata |
+| `updated_at` | TIMESTAMPTZ | |
+
+**Two things are derived rather than stored**, and both are easy to "fix"
+wrongly: a product's **sector** (from its category, above) and its **selling
+price** — `round(price × (100 − discount_percent) / 100)`, computed in
+`product/ProductPrice` and nowhere else, so the three figures on screen cannot
+disagree.
 
 **Nothing in this codebase sends email.** The site collects addresses and
 enquiries and shows them in the admin. That is a bigger deal for enquiries than
@@ -381,6 +443,111 @@ not met today — see §11 and ADMIN.md §7.6–7.7.
 plate and only injects the provider iframe after a click, so nothing is
 requested from YouTube — and no third-party cookie is set — for a visitor who
 never presses play.
+
+---
+
+## 8a. Server surface: endpoints, actions and their shapes
+
+Lettered rather than numbered because the sections below it are cross-referenced
+by number from source files (`content/taxonomy.ts` and `layout/SubscribePanel`
+both cite §9, `icons/ui.tsx` cites §2, `lib/rate-limit.ts` cites §11) — the same
+reason §10a exists. Renumbering would break those.
+
+**Almost nothing here is an HTTP endpoint.** There are exactly two route
+handlers; every other write is a server action, and every read happens inside a
+server component. There is no REST or GraphQL layer to call from the client.
+
+### Route handlers
+
+| Method | Path | Response |
+|---|---|---|
+| `GET` | `/api/health` | `200 {status:"ok", database:"ok", products:number, latencyMs:number}` · `503 {status:"error", database:"unconfigured"}`. `force-dynamic`, `Cache-Control: no-store`. |
+| `GET` | `/media/[...path]` | Streams one uploaded file from `UPLOAD_DIR` with a mapped content type (jpeg/png/webp/avif). |
+
+`/api/health` exists because **`GET /` proves nothing** — public reads fail soft,
+so the home page returns 200 with the database down, and a deploy verified on
+that basis went green while every query was failing. It is what the container
+healthcheck and `cicd/verify.sh` probe.
+
+`/media/[...path]` accepts **exactly one flat segment** and 404s anything else.
+That is the path-traversal defence in full — it rejects rather than filters, so
+`..`, encoded separators and absolute paths are all covered by one rule. Do not
+"improve" it into a sanitiser.
+
+Also generated: `/sitemap.xml`, `/robots.txt`, `/opengraph-image`, `/icon.png`.
+
+### Public server actions — `app/(site)/actions.ts`
+
+Unauthenticated, and therefore reachable by anyone on the internet as a bare
+POST. Each carries all three guards named in §9.
+
+| Action | Signature |
+|---|---|
+| `subscribeAction` | `(prev: SubscribeState, formData) → SubscribeState` — `{status:"idle"\|"ok"\|"error", message?}`. Rate limit 5 / 10 min. |
+| `sendEnquiryAction` | `(prev: EnquiryState, formData) → EnquiryState` — adds `fieldErrors?: Record<string,string>`. Limit 3 / 10 min; caps name 120, phone 40, message 4000. |
+
+`app/(site)/search-action.ts` → `fuzzySearchAction(q: string) → FuzzySearchResult[]`,
+rate-limited, returning `[]` for an empty or >200-character query.
+
+### Admin server actions — `app/admin/actions.ts`
+
+**Every mutating action calls `await requireAdmin()` as its first statement.**
+`logoutAction` deliberately does not — clearing your own cookie is not
+privileged.
+
+| Action | Signature |
+|---|---|
+| `loginAction` | `(prev: ActionState, formData) → ActionState` |
+| `logoutAction` | `() → void` |
+| `saveProductAction` | `(prev: ActionState, formData) → ActionState` — create or update |
+| `deleteProductAction` | `(formData) → void` — removes the image files too, not just the row |
+| `reorderProductsAction` | `(ids: string[]) → void` — the full ordered id list |
+| `savePageSeoAction` | `(prev: ActionState, formData) → ActionState` |
+| `uploadImageAction` | `(prev: UploadState, formData) → UploadState` — `{uploaded?: {url, pathname, alt}}` |
+| `deleteSubscriberAction` | `(formData) → void` |
+| `setEnquiryHandledAction` / `deleteEnquiryAction` | `(formData) → void` |
+
+`ActionState = { error?, fieldErrors?: Record<string,string>, ok? }`, consumed by
+`useActionState` in the forms.
+
+### Data access — `lib/db/`
+
+`client.ts` exposes `getPool`, `query`, `isDatabaseConfigured`.
+
+- **Reads fail soft.** `safeQuery` returns `[]` when the database is absent or
+  down, so a broken database renders an empty catalogue rather than a 500 — and
+  it is why `next build` needs no credentials and must never be given production
+  ones.
+- **Writes deliberately throw.** The admin has to see failures.
+
+| Module | Exports |
+|---|---|
+| `products.ts` | `listProducts`, `getProductBySlug`, `getProductById`, `listFeaturedProducts`, `fuzzySearchProducts`, `createProduct`, `updateProduct`, `deleteProduct`, `slugExists`, `nextSortOrder`, `reorderProducts` |
+| `subscribers.ts` | `normaliseEmail`, `addSubscriber`, `listSubscribers`, `deleteSubscriber` |
+| `enquiries.ts` | `createEnquiry`, `listEnquiries`, `setEnquiryHandled`, `deleteEnquiry` |
+| `pageSeo.ts` | `getPageSeo`, `listPageSeo`, `upsertPageSeo`, `resolvePageMetadata` |
+
+### How data reaches the UI
+
+```
+Visitor      ─▶ server component (page.tsx, force-dynamic)
+                  └─▶ lib/db/* ──SQL──▶ Postgres
+                  └─▶ props ─▶ components/ ─▶ HTML
+
+Visitor form ─▶ public action ─▶ honeypot → rateLimit → validate
+                              └─▶ lib/db ─▶ Postgres
+
+Admin form   ─▶ admin action  ─▶ requireAdmin() → buildInput() → slugExists()
+                              └─▶ create/updateProduct ─▶ Postgres
+                                   (next request re-reads it — nothing cached)
+
+Cart / recently viewed ─▶ localStorage ─▶ useSyncExternalStore ─▶ client components
+```
+
+**The cart and recently-viewed lists are not in the database.** `lib/cart.ts` and
+`lib/recent.ts` keep them in `localStorage` behind `useSyncExternalStore`, and
+the cart stores slugs and quantities only — never names, images or prices — so a
+product later renamed, repriced or unpublished cannot go stale in someone's cart.
 
 ---
 
@@ -400,6 +567,62 @@ validated values reaching Postgres through parameterised queries only. A new
 public action must carry all three, or belong in the admin file instead.
 
 **A sector is derived from a category, never stored on a product.** §8.
+
+**A curtain sheet must carry `data-curtain`, and a page must have at most one.**
+`layout/Header` finds it with a single `document.querySelector` per navigation
+and reads its leading edge on every scroll frame; that edge is what pushes the
+header off the top, so the sheet on `/`, `/products`, `/about` and `/contact`
+each carry the attribute. Drop it and that page silently reverts to the plain
+hide-on-scroll-down behaviour — no error, just a header that leaves while the
+hero is still on screen, which is the thing the client asked to stop. Add a
+second one on the same page and the header follows whichever the query returns
+first. The attribute is the whole contract: the header takes no props for this,
+because `(site)/layout` renders it once for every route beneath it and never
+re-renders per page.
+
+**Both curtain offsets must stay at or above the tallest rendered height of
+the element they pin** — the home hero (`app/(site)/page.tsx`, `63rem` below
+`md`, `52rem` at `md`, `38rem` at `lg`) and the site footer
+(`app/(site)/layout.tsx`, `83rem`, `48rem` at `md`, `34rem` at `lg`). Each is
+pinned so the page can slide over or off it; because a pinned box no longer
+scrolls, anything the offset pushes past the edge of the viewport is
+unreachable rather than merely off-screen. Measured 105px of the hero's own
+figures lost that way at 320px wide before its figure was raised. Over-
+estimating is free for the footer and for the hero's two non-`lg` tiers — the
+hero curtain and its bottom edge are the same point in the flow, so the space
+under an early pin is curtain rather than page background, and for the footer
+a high figure only pins it lower and reveals less of it early.
+
+**The hero's three figures are content *floors*, not its height — it does not
+have one.** `home/Hero` carries `min-h: 100svh` less the chrome permanently
+parked over the viewport (the header's `h-16` + 1px border; below `md`, also
+`MobileActionBar`'s 3.5rem), so its height is `max(content, one screenful)`.
+On every desktop the screenful wins and the hero is exactly as tall as the
+window; on every phone the content wins, because the headline wraps to four or
+five lines. The tier figures describe only that second case, and **must be
+measured against a viewport too short for `min-h` to bind, or you measure the
+window instead of the content**: 984px at 320 wide, 926 at 360, 883 at 390,
+853 at 640, 817 at 768, 803 to 1023, a flat 586 from `lg` up.
+
+That is also what makes one formula right in both cases. Where the screenful
+wins, `100svh − <floor>` is positive, `min()` collapses it to plain `top-0`,
+and a hero exactly `100svh − 65px` tall pins with all of itself on screen.
+Where the content wins, the floor is the real height and the negative offset
+does its original job.
+
+**Do not go back to sizing the hero by hand.** Two passes on 2026-09-03 tried
+to land it inside "a desktop" by trimming padding to a measured figure, and
+both were wrong on a real machine: a laptop's *usable* browser height is its
+screen height less whatever tab strip, address bar and bookmarks bar it shows,
+which no constant here can know. The first pass cut the figures' labels off a
+real laptop while passing every viewport tested; the second left the image a
+short band with the next section showing beneath it (client: "Can we not solve
+it for every device rather than just guessing and fitting at a fixed height").
+Asking the viewport is the only thing that answers for every device at once.
+Re-measure every tier if the hero's or footer's padding, type scale or column
+count changes.
+
+
 
 **Product-driven routes must stay `force-dynamic`.** Reintroducing ISR
 reintroduces the stale-by-one-request bug in §3.
@@ -659,6 +882,218 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-03 (docs) — §8a added for the server surface; §8's table list corrected from two to four; a duplicate root `ARCHITECTURE.md` folded back in
+
+A generated `ARCHITECTURE.md` and `.antigravityrules` were written to the repo
+root to give an external coding agent its operating context. `.antigravityrules`
+stays — it has no counterpart and no name collision. The root `ARCHITECTURE.md`
+does not: **two files with the same name and different update rules drift**, and
+only one of them is enforced. `AGENTS.md` compels this file to be updated with
+every structural change; nothing compelled that one, so it would have rotted into
+something actively misleading. Its two genuinely-new pieces are folded in here
+and the duplicate is deleted.
+
+**§8's "Tables" opened with "Two, both in `src/lib/db/schema.sql`" and then
+described three.** There are four — `products`, `page_seo`, `subscribers`,
+`enquiries` — and `page_seo` was missing from the section entirely. Corrected,
+with a per-column table for each, the absence of foreign keys made explicit, and
+a note naming the two values that are derived rather than stored (a product's
+sector, and its selling price) since both are easy to "fix" wrongly.
+
+**§8a is the new one: the server surface.** There was no single place listing
+what can actually be called — the route handlers, the three public actions and
+the ten admin actions, with their signatures and state shapes — which is the
+first thing anyone integrating a UI needs and the thing an agent is most likely
+to invent if it is not written down. It also records the two facts that are
+surprising from the outside: there are only two HTTP endpoints, and the cart is
+`localStorage`, not a table.
+
+**Lettered `8a`, not renumbered.** Section numbers here are cross-referenced from
+*source files* — `content/taxonomy.ts` and `layout/SubscribePanel` cite §9,
+`icons/ui.tsx` cites §2, `lib/rate-limit.ts` cites §11 — as well as from
+`ADMIN.md` and `HANDOFF.md`. Inserting a numbered §9 would have silently
+invalidated every one of them. §10a already set the precedent.
+
+### 2026-09-03 (products, admin, seo) — Product pricing: a discount percentage, a shared `ProductPrice` block, and the price taking over five surfaces
+
+**Client: "Lets add product pricing to the cards and also make provision in the admin panel to insert price and discount percent… displayed with discount percent and discounted price"**, with a reference screenshot in the Indian retail idiom (`-47%`, `₹6,895`, `M.R.P.: ₹12,999` struck through) and one constraint attached: "Make sure u dont change size of the product cards, featured cards, recent view cards, quick view and others."
+
+**Half the plumbing already existed.** `price` was a column, a `Product` field, an admin input and a plain `₹ X` on three cards. What this adds is `discount_percent` alongside it, through the seven-file path in ADMIN.md §6: `schema.sql` (`ADD COLUMN IF NOT EXISTS`), `types.ts`, the three places in `db/products.ts` (row type, `mapProductRow`, `writeParams` + both column lists — the `$n` placeholders shift, which is the part to check), the form, and `buildInput`.
+
+**`price` is the M.R.P. and the selling price is derived, never stored.** Entering a percentage rather than a second rupee figure is what the client asked for, and it means the three numbers on screen cannot disagree: `round(price × (100 − pct) / 100)` is computed in `product/ProductPrice` and nowhere else. Validation clamps the percentage to 0–99 server-side — 100 would price the product at zero, the one wrong value that would still render as a real offer — and drops a discount submitted with no price, since it could never appear. Verified by submitting 150 with the input's `max` attribute stripped: stored 99.
+
+**`ProductPrice` has three states, and the empty one carries the weight.** Every row in the database is unpriced the day this ships, so the component renders nothing without a price and each caller supplies its own fallback: the catalogue and featured cards fall back to the "View details" they showed before, so an unpriced card is byte-for-byte the card that was there. Priced, no discount → the figure alone, no `-0%` and no strikethrough against itself.
+
+**Five surfaces, each moving the price rather than adding a second copy** — which is also what keeps the geometry still. `/products` and Related: into the footer where "View details" was, and out of the line under the name. `FeaturedCard`: the same swap, keeping `data-featured-footer` (the autoplay-pause contract with `home/FeaturedProducts`) on the row and `shrink-0` on the price for the reason the Link carried it. `RecentlyViewed`'s horizontal card: into the bottom-left of the strip the Add button's `pb-12` already reserves, `absolute` like the button rather than a flex row, because that card's body is a float-and-clear L. Quick View and the product page: price left, control right.
+
+**The product page lost its WhatsApp and Call buttons from that row**, per the client. They were there because the page had no price and a buyer had to ask for one. Both remain reachable without scrolling — `layout/FloatingContact` on desktop, `layout/MobileActionBar` on a phone — and the "Want a price on the …" strip below still carries both.
+
+**One new design token, `--color-price-off`.** The palette is deliberately brand-green + graphite + one amber, so adding a red was a real decision rather than a default: a percentage off is the one thing on a card that is neither structure nor brand, and the convention every Indian customer reads it by is red — the brand green would make a discount look like a link. Measured per §6's contrast rule: 6.5:1 on white, 6.3:1 on `surface`, 7.7:1 for the dark-mode value on `surface-raised`, against the 4.5:1 it needs at 14px.
+
+**`offers` added to `productJsonLd`**, gated on a price existing — an `Offer` with a missing or zero price is reported as an error against the page by Search Console rather than ignored. The rounding is duplicated there rather than imported, because `lib/seo.ts` is plain data with no React in it; a note on both sides says so.
+
+**The size constraint held, measured rather than eyeballed.** The compact block is two lines in 35px, inside the 36px the `h-9` Add button already sets as the footer's height, so the reserved strip in each card's invisible sizing clone still matches. At 1440×900: catalogue cards 434×286 priced and unpriced alike, featured 447×387 across all 24, horizontal 245×392 — no dimension differs between a priced card and an unpriced one anywhere. Verified live at desktop and on an `iPhone 13`, in both themes, and through a full admin round-trip (load existing values, save new ones, read them back from Postgres). `npx tsc --noEmit` and `npm run build` clean; `npm run lint` unchanged at its 15 pre-existing problems.
+
+**Not yet done: the server migration.** `schema.sql` is applied by the deploy script, so a normal deploy picks the column up — ADMIN.md §6 step 7 says to confirm it rather than assume, because an `ADD COLUMN` that silently fails leaves the app querying a column that is not there.
+
+### 2026-09-03 (header; home, products, about, contact) — The curtain pushes the header off the top instead of the header retracting on its own
+
+**Client: "the top bar should not go away untill the curtain comes up… It should be like the curtain pushing the top bar up and it goes away."** The header hid at 120px of downward scroll, which on a curtain page meant it left while the hero was still the whole screen — nothing had visually happened to justify it. Now, on the four pages that have a curtain, the sheet drives it: the header holds for the entire time the sheet is below it, then the sheet's leading edge carries it off 1:1, and the two stay in contact the whole way.
+
+**`[data-curtain]` on the four sheets is the whole interface.** `layout/Header` resolves it once per navigation with `document.querySelector` and reads `getBoundingClientRect().top` per scroll frame; `push = clamp(0, headerHeight − edge, headerHeight)` is written straight to `style.transform`. No prop, because `(site)/layout` renders the header once for every route under it and never re-renders per page; recorded as a §9 constraint since deleting the attribute degrades silently rather than breaking. Measuring the real edge rather than a scroll threshold is also what makes it correct per device without a constant — the hero is a screenful on a desktop and content-tall on a phone, so no hard-coded distance could have worked.
+
+**Three details that are load-bearing rather than decorative.** The DELTA noise floor still gates the *direction* but no longer gates the push, or the header would step up in 6px jumps instead of tracking the edge. The transition is switched off while pushing — an eased transform would let the header drift out of contact with the edge supposedly moving it — and restored for the scroll-up return, the one moment it moves under its own power. And the push is skipped entirely while a panel is open, with the transform cleared, since the drawer's close button and the products dropdown both travel with the header; verified directly — opening the drawer with the header fully pushed off brings it back from 0 to 65.
+
+Scrolling **up** still returns it immediately, unchanged, so the nav stays one flick away deep in a long page. Pages with no curtain — `/protection`, `/cart`, `/products/[slug]` — keep the original behaviour untouched, verified alongside.
+
+### 2026-09-03 (about page stats redesign) — Full-bleed stats section redesign with bold font on About Us page
+
+**Client: "In about us page, In 03 info section lets change the design style and font of the 35+, 50k, and 25 products section. Refer the image attached for reference. Keep it full screen from left to right end to end with bod font."** — Updated `about/page.tsx` and `StatCounter.tsx`:
+- Converted stats block into a full-bleed end-to-end full-width section (`w-full border-y border-line bg-surface-subtle/80 py-12 sm:py-16 dark:bg-surface-raised`).
+- Replaced monospace numbers with bold sans-serif font (`font-sans font-bold text-4xl sm:text-5xl lg:text-[3.5rem] text-ink`) with clean vertical column dividers on desktop (`sm:divide-x sm:divide-line`), matching Zoomcar reference styling.
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0). `npm run lint` unchanged at 15 pre-existing problems.
+
+### 2026-09-03 (featured & recent inline desktop price) — Inline single-line price display on desktop for featured and recently viewed cards
+
+**Client: "Why did you distort price size in quick view, product details page. I said not to touch others right only featured product section and recent viewed section. Revert the others to how they were previously and just edit the featured product and recent viewed sections."** — Reverted generic `size="regular"` and `size="compact"` font sizes in `ProductPrice.tsx` back to their exact original proportions (`text-xl sm:text-3xl` for regular, `text-base` for compact). Scoped the single-line desktop format strictly to `variant="inline-desktop"` on `FeaturedCard` and `HorizontalCard` (`₹15,999 M.R.P.: ₹27,999 (43% off)`).
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0). `npm run lint` unchanged at 15 pre-existing problems.
+
+### 2026-09-03 (price typography scale) — Increased font sizes for ProductPrice across cards and product details page
+
+**Client: "Increase the size of price of product card in all products page, and product details page a bit."** — Updated `ProductPrice.tsx` typography scale:
+- `compact` (Product Cards): Price increased from `text-base` to `text-lg sm:text-xl`, discount badge to `text-sm sm:text-base`, M.R.P. to `text-xs`.
+- `regular` (Product Details page & Quick View modal): Price increased from `text-xl sm:text-3xl` to `text-2xl sm:text-4xl`, discount badge to `text-xl sm:text-3xl`, M.R.P. to `text-sm sm:text-base`.
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0). `npm run lint` unchanged at 15 pre-existing problems.
+
+### 2026-09-03 (mobile price side-by-side layout) — Divided price and Add to Cart button into 50/50 side-by-side columns on mobile
+
+**Client: "In mobile view lets devide it into half and half and have it next to each and not below one and another"** — Updated `QuickViewModal.tsx` and `app/(site)/products/[slug]/page.tsx` to use `grid grid-cols-2` on mobile viewports (`< sm`), placing the price block in the left 50% column and the `AddToCartButton` in the right 50% column. `ProductPrice` text sizes were tuned for regular size (`text-lg sm:text-2xl` and `text-xl sm:text-3xl`) to fit cleanly within 50% mobile columns without wrapping.
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0). `npm run lint` unchanged at 15 pre-existing problems.
+
+### 2026-09-03 (product details CTA column alignment) — Aligned Add to Cart button precisely on CSS Grid column 2 with specification table values
+
+**Client: "The green box of add to cart shuld be on the same column as Direct on line text. The left side of the box should be on the same vertical line as D in direct on line text in specification table."** — Updated both `SpecTable` rows and `app/(site)/products/[slug]/page.tsx`'s price CTA section to share `grid grid-cols-[2fr_3fr]`. Column 1 (`2fr`, 40%) holds the price block and specification labels, placing the left edge of the green `AddToCartButton` box on the exact same vertical grid track (`grid line 2`) as the specification values (e.g. "Direct on line(DOL)").
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0). `npm run lint` unchanged at 15 pre-existing problems.
+
+### 2026-09-03 (product details CTA placement) — Brought Add to Cart button closer to price on product details page desktop view
+
+**Client: "In product details page in desktop view, bring the add to cart button closer to the price its a bit too far right"** — `app/(site)/products/[slug]/page.tsx` updated to replace `sm:justify-between` with `sm:justify-start sm:gap-8`, placing the "Add to cart" button adjacent to the price block on desktop.
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0). `npm run lint` unchanged at 15 pre-existing problems.
+
+### 2026-09-03 (pricing desktop alignment) — Updated card price display on desktop view to match mobile 2-line layout
+
+**Client: "Make the price in all products page in desktop view same as mobile view"** — `ProductPrice` component updated so that `compact` mode renders the 2-line layout (`-47% ₹6,895` / `M.R.P.: ₹12,999`) consistently across both mobile and desktop viewports on product cards.
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0). `npm run lint` unchanged at 15 pre-existing problems.
+
+### 2026-09-03 (cart buttons) — Fixed dimensions for AddToCartButton and QuantityStepper to prevent size shifts on click
+
+**Client: "Fix the add to cart buttons everywhere, when we click add it reduces or increases in size. Keep the add to cart button sizes fixed for the different pages and sections in both mobile and desktop view."** — `AddToCartButton` and `QuantityStepper` updated to use fixed dimensions per size variant.
+
+- **`compact` size (Cards)**: Fixed at `96px × 36px` (`w-24 h-9`) for both `AddToCartButton` and `QuantityStepper`.
+- **`default` size (Product page & Quick View modal)**: Fixed at `160px × 48px` (`w-40 h-12`) for both `AddToCartButton` and `QuantityStepper`.
+- Both components pass through `className` props to preserve layout positioning across cards and pages without size expansion/contraction on state changes.
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0). `npm run lint` unchanged at 15 pre-existing problems.
+
+### 2026-09-03 (pricing) — Unified card price display across Featured products, Recently viewed, and Product catalogue cards
+
+**Client: "Lets keep it as it is in mobile view, but let the featured product cards, recent viewed cards, all product page cards have the price as it is in this image. Keep the product details page price as is"** — `ProductPrice` component updated to differentiate `compact` size behavior based on viewport width while leaving `regular` size (Product Details page and Quick View modal) untouched.
+
+- **Mobile View (`< sm`)**: Retains the existing 2-line layout (`-47% ₹6,895` / `M.R.P.: ₹12,999`).
+- **Desktop View (`>= sm`)**: Formats price into a single inline flex row matching the reference image layout: `₹15,999` `M.R.P.: ₹27,999` `(43% off)`.
+- **Product Details Page (`size="regular"`)**: Untouched, preserving its full-width regular layout.
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0). `npm run lint` unchanged at 15 pre-existing problems.
+
+### 2026-09-03 (home, third pass) — The hero stops being a hand-sized box and becomes one screenful, derived: `min-h: 100svh − chrome`
+
+**Client: "Now image is too small in both laptop and pc, and below what we make section is visible. Can we not solve it for every device rather than just guessing and fitting at a fixed height."** Correct on both counts, and the second is the real finding: the previous two passes that day had been trimming padding toward a number, and a number cannot be right for every device — a laptop's usable browser height is its screen height less whatever tab strip, address bar and bookmarks bar it happens to show. Squeezing the hero to 586px to survive the worst case then left it a short band with the next section visible under it on every screen that was not the worst case.
+
+**`home/Hero`'s section takes `min-h: calc(100svh − 4rem − 1px)`, and `− 3.5rem` more below `md`.** Those subtrahends are exact, not measured: the header is an explicit `h-16` plus a 1px bottom border (65px at every width, verified across 320–1920), and `MobileActionBar` is `fixed bottom-0` at 3.5rem. `min-h` rather than `h` is the whole trick — where the content is taller than a screen, which is every phone, the hero grows past it and the existing curtain offset takes over unchanged; where it is shorter, which is every desktop, the box is exactly one screenful and the padding stops deciding anything.
+
+**The section becomes `flex flex-col`, `HeroRotator` `flex flex-1 flex-col`, and its `Container` `flex flex-1 flex-col justify-center`.** The photograph is `absolute inset-0` inside the rotator, so stretching the rotator is what makes the image a full screen rather than a band — the client's "image is too small". The copy takes the slack and centres in it, so a tall monitor gets air around the headline and a short laptop closes the same block up to its padding, with no figure in the repo deciding which. The progress marks and figures ride the bottom edge.
+
+**The figures' bottom padding is now `lg:pb-[max(0.75rem,2.5svh)]`** — with the hero's bottom edge now the *screen's* bottom edge, that padding is the gap between the last label and the edge of the display, so it scales with the display: 15px at 600 tall, 22.5 at 900, 27 at 1080, 36 at 1440. The `max()` holds the old 12px as a floor so short viewports pay nothing for it and the content floor is unmoved.
+
+**Fixed an accessibility regression from the first pass along the way:** chasing the fixed height had taken the progress marks' padding to `lg:py-1.5`, leaving a 15px-tall target against the 24px WCAG 2.5.8 minimum. Restored to `lg:py-3` (27px) — the screenful pays for it out of slack rather than out of the control.
+
+**The three curtain constants in `app/(site)/page.tsx` are unchanged** (`63rem` + `3.5rem` below `md`, `52rem` at `md`, `38rem` at `lg`) but now mean something different, recorded in §9: they are the tallest the *content alone* gets in each tier, which is what still binds when the viewport is too short for `min-h`. Measured against a deliberately short viewport so `min-h` could not bind: 984/926/883 at 320/360/390, 817 at 768, 803 to 1023, a flat 586 from `lg` up — all still under their tier's figure.
+
+Verified live at eight viewport/device combinations: the hero's bottom edge lands *exactly* on the viewport bottom at 1366×660, 1366×700, 1366×768, 1440×900, 1920×1080 and 2560×1440 (no gap, nothing of the next section showing), and the content floor takes over gracefully below that. Pinned-state reachability re-checked at all eight with the mobile action bar's 57px accounted for: **zero unreachable content anywhere**, including 320×568 where the figures are tightest. Curtain transition on scroll unchanged. `npx tsc --noEmit` and `npm run build` clean; `npm run lint` at its existing 15 pre-existing problems, none in these files.
+
+### 2026-09-03 (home, follow-up) — The `lg` hero shrunk again, and its curtain constant with it, after a real laptop still cropped the figures' labels
+
+**Client: "In my laptop screen, i can see the range number but not the name like motor range covered, protections built in... But in my pc monitor i can see the range name as well."** The same day's first pass got the hero to a flat 705px at `lg` and set the curtain's `lg` tier to a tight `45rem` (720px) against it — verified clean down to a 768px-tall viewport in this file's own testing, all in headless Chromium with the OS chrome that testing cannot reproduce subtracted out. A real laptop's *browser* viewport is shorter than its screen resolution once the tab strip, address bar and any bookmarks bar are subtracted — commonly by 100–150px — so a laptop reporting a taller resolution than 720px can still hand the page under 705 + 65 (header) of real height, cutting the bottom row's labels first since they are the last thing in the hero.
+
+**Declined the reflex fix.** Padding the `45rem` constant further would only have added a bigger version of the exact bug §9 already warns this tier against: a looser constant crops the hero's *top* on any window it did not need to, for no gain, since there is no bottom content left once the hero already fits. The actual fix is the same lever the first pass used — shrink the hero more — so the constant can stay tight rather than grow.
+
+**A second, more aggressive spacing-only pass, `lg:` only again:** the slide container's `pt-14/pb-10` (from the first pass) drops to `pt-8/pb-6`, the headline's own top margin gets an `lg:mt-3`, the body paragraph's `lg:mt-6` drops to `lg:mt-3`, the CTA row's `lg:mt-8` to `lg:mt-4`, the progress marks' `py-4` touch padding gets an `lg:py-1.5`, and the figures `<dl>`'s `lg:pt-8/pb-6/gap-y-8` drop to `lg:pt-3/pb-3/gap-y-3`. Hero height at `lg`: 705px → 586px, flat across 1024–1920 as before. The curtain's `lg` tier follows it down to `38rem` (608px) — the same ~15–20px buffer over the real figure the other tiers already carry, not the razor-thin margin a first instinct toward `37rem` would have left.
+
+Verified live at 1366×660 — deliberately shorter than any viewport this file has tested before, standing in for a real laptop's reduced browser chrome — with all four figures and their labels fully on screen, no scroll. Re-checked 1366×768, 1440×900 and 1920×1080 still show the whole hero with generous room to spare, and the curtain transition on scroll is unchanged. `iPhone 13` (883px) and a tablet-width viewport (803px) both measured identical to before this change — only the `lg` tier moved. `npx tsc --noEmit`, `npm run build` both clean.
+
+### 2026-09-03 (home) — The hero's desktop padding is tightened so it fits an ordinary window with no scroll before the curtain rises
+
+**Client: "Lets move the content like category name, headline, description, the explore button and range below up. So that it fits in desktop without needing to scroll down, then curtain comes as we scroll down."** Spacing-only changes, `lg:` and up, in `components/home/HeroRotator.tsx` and `components/home/Hero.tsx`: the slide container's `pt-36/pb-20` drops to `pt-14/pb-10`, the body paragraph's `mt-8` to `mt-6`, the CTA row's `mt-12` to `mt-8`, and the figures `<dl>`'s `sm:pt-14/pb-8` to `lg:pt-8/pb-6`. Nothing below `lg` moved — mobile and tablet keep their existing padding and existing curtain figures. Type scale, headline copy and the rotator's own logic are all untouched.
+
+**The hero drops from a flat 889px to a flat 705px from `lg` up** (unchanged across every width `lg` covers, 1024–1920, since the headline wraps the same three lines at all of them behind `max-w-4xl`). That is short enough to fit inside every desktop viewport height actually in use — 1366×768, 1440×900, 1280×800, 1920×1080 — with the full slide, its body, the Explore link and all four figures on screen at once, no scroll.
+
+**This forced a third tier onto the hero's curtain offset in `app/(site)/page.tsx`**, which had been two (`63rem` below `md`, `56rem` at `md` and up): a shared `56rem` was sized to the *old* 889px `lg` height, and left unchanged it would have kept computing a negative `top` on any desktop window under 896px tall — cropping the *top* of the now much-shorter hero for no reason, on windows the hero would already fit into cleanly. Split at `lg`: `52rem` for the untouched `md`-to-`lg` range (actual 817px, tablets), `45rem` for `lg` and up (actual 705px, real desktops) — tight against the real figure rather than padded, since the point of this tier is that `100svh − 45rem` comes out positive and `min()` collapses it to plain `top-0` on any window 720px tall or more. §9 updated to record why this one tier is the exception to "erring high is free."
+
+Verified live at nine viewport/width combinations from 1920×1080 down to 768×700: `top-0` (no crop at all) at every ordinary desktop height tested down to 768px tall; a crop only appears on a `lg`-width window shorter than 720px, and separately on a `md`-range (768–1023 wide) window shorter than 832px — both unchanged edge cases, not new ones. Scrolled through the transition at 1440×900: the hero holds still while the "What we make" sheet rises cleanly over it, matching the existing home/about/contact/products curtains. `iPhone 13` (883px) and an iPad-width viewport (803px) both measured unchanged from before this change. `npx tsc --noEmit`, `npm run build` both clean.
+
+### 2026-09-02 (products) — The catalogue masthead pins and the grid rises over it, same curtain as home/about/contact
+
+**Client: "Lets have the same moving up curtain on all products page, where it moves over everything we build section."** `PageHero` itself stays untouched — wrapped externally in `app/(site)/products/page.tsx`, the same way the home page wraps `Hero`: the `<PageHero compact>` masthead goes in a `sticky top-0 z-0` box, and the catalogue plus `ContactStrip` below it go in one `relative z-10 bg-surface` sheet.
+
+**Plain `top-0`, no negative-offset arithmetic.** `compact` is `PageHero`'s short mode already used here — measured 201–227px across 320–1280px wide, nowhere near tall enough to strand anything of its own past the fold the way the hero (817–984px) needed `min(0px, calc(100svh - …))` for. Same reasoning as the about/contact mastheads, not a new pattern.
+
+Verified live at 1280×800 and on an `iPhone 13`: the masthead pins under the header and the grid slides up over it cleanly by ~250px of scroll, no photograph or background showing through; the mobile filter drawer still opens over everything exactly as before. `npx tsc --noEmit` clean.
+
+### 2026-09-02 (about, contact) — Both mastheads pin and their pages rise over them
+
+**Client: "Lets have curtain going up feature for about us and contact us page where it moves over the top image."** The same two-wrapper shape the home page already carries: the masthead `<section>` becomes `sticky top-0 z-0`, and everything from the section below it down to `SubscribePanel` goes in one `relative z-10 bg-surface` sheet. `JsonLd` stays outside — it renders a script tag, not content.
+
+**No arithmetic here, unlike the hero.** These mastheads are fixed bands — measured 384px on `/about` and 360px on `/contact` at desktop, 304px on both at phone width — so they fit inside any viewport and pinning the top edge cannot put anything of their own out of reach. The hero needed `min(0px, calc(100svh - …))` only because it is 817–984px and taller than a phone screen; copying that machinery here would have been cargo cult.
+
+**`sticky` replaces each section's `relative` rather than joining it** — both set `position`, and the absolutely positioned scrim layers inside still resolve against the same box. Each section's existing `isolate` is now doing double duty: as well as its original job it keeps those `-z-10` scrim layers from competing with the layout's own `-z-10` footer.
+
+Verified live at 1440×900 and on an `iPhone 13`: both mastheads pin at `top: 0` and stay there from ~200px of scroll onward, with the page sheet passing over them and no photograph showing through it; the footer reveal at the other end of both pages is unaffected. `npx tsc --noEmit`, `npm run lint`, `npm run build` all clean.
+
+### 2026-09-02 (site layout) — The footer is revealed rather than scrolled to: the page slides off it as the curtain opens
+
+**Client: "Could we do a similar curtain opening scene for the bottom most section below the tell us what your running section"** — the section below "Tell us what you're running" (`home/ContactStrip`) is the site footer, which lives in `app/(site)/layout.tsx`, so this is every page in the group and not the home page alone. One wrapper and one class: `<Footer>` goes in a `sticky` box, `<main>` gains `bg-surface`.
+
+**This is the mirror of the hero's curtain, and it takes the offset sticky actually supports.** `bottom` only ever shifts a box *up*, to pull it into view from below — useless for the hero, which starts at the top of the document, and exactly right for the footer, which ends it. So where the hero needed a negative `top`, the footer takes `bottom: min(0px, calc(100svh - <footer height>))`: plain `bottom-0` wherever the footer fits the viewport, and pinned by its own top edge where it does not.
+
+**`bg-surface` on `<main>` is load-bearing.** `body` already carries that colour, but a background set on `body` propagates to the canvas and leaves the element itself transparent — so without it the pinned footer would show through every page from the top down.
+
+**`-z-10` on the footer, not `z-10` on `<main>`.** Both put the footer behind, but raising `main` would make it a stacking context and silently rescope the z-index of everything inside every page — the catalogue's own fixed filter panel among them. A negative z-index paints below in-flow content and above the canvas, which is the layer this wants, and leaves `main` unpositioned. Verified directly: the filter panel still opens over the page and under the header exactly as before.
+
+**Three figures, because the footer's height triples on a phone.** Measured 1267–1316px below `768` (five stacked blocks), 766px at `md`, 517–537px from `lg` up. One shared worst case would either strand the tall version's top off-screen or cut the wide one's reveal to a ~100px sliver. Same safe direction as the hero — too low strands the top permanently, too high only weakens the effect. Recorded in §9 alongside the hero's.
+
+Verified live at six viewports from 1440×900 to 320×568: the footer's top edge is reachable at every one — pinned at a fixed offset while the page slides off it on desktop and tablet, then releasing to scroll normally on a phone, where the footer is roughly twice the viewport. No footer bleeds through mid-page at any width; `/products`, `/about`, `/contact` and `/cart` all behave identically, and the catalogue's filter panel is unaffected. `npx tsc --noEmit`, `npm run lint`, `npm run build` all clean.
+
+### 2026-09-02 (home) — The hero pins and the rest of the page rises over it as one curtain
+
+**Client: "The what we make section should move up like a curtain over the slide show and ranges at the bottom, when we scroll up."** Two wrappers in `app/(site)/page.tsx` and nothing else — no new component, no dependency, no scroll listener, no measurement at runtime. `<Hero>` goes in a `sticky` box at `z-0`; everything after it goes in one `relative z-10 bg-surface` sheet. The hero holds still, the sheet scrolls up over it, and because every section below already paints its own background the sheet's leading edge is opaque whatever it happens to be.
+
+**The offset is a negative `top`, and the reason is worth keeping.** `bottom-0` is the name for the behaviour wanted here — scroll normally until the bottom of the hero reaches the bottom of the screen, then hold — but it does not do it: a bottom sticky offset only ever shifts a box *up*, to pull it into view from below, and this box starts at the top of the document. Applied, it measured no offset at all; the hero simply scrolled away. `top: min(0px, calc(100svh - <hero height>))` expresses the same intent the way sticky actually works, and `min()` collapses it to a plain `top-0` on a viewport tall enough not to need it.
+
+**Why the hero cannot just be pinned by its top.** It is 817–984px tall depending on how the headline wraps, against 664px on an iPhone 13 — so `top-0` would freeze it with the "1–40 HP" figure strip along its bottom, the "ranges" of the request, permanently below the fold. Pinning is what makes that fatal rather than untidy: a pinned element no longer scrolls, so those figures would never be reachable at all. This is now a §9 constraint.
+
+**Two figures, split at `md`, plus an allowance for the mobile action bar.** The hero's height is content-driven — 984px at 320 wide, 926 at 360, 883 at 390, 853 at 640, 817 at 768, 889 at 1024 through 1920 — so one worst-case number would have pinned a 1440×900 desktop 108px earlier than it needs. `63rem` below `md` covers the narrow-screen wraps; `56rem` from `md` up covers the 889 maximum there. Below `md` the offset also carries `3.5rem` for `layout/MobileActionBar`, which is `fixed bottom-0` and 57px tall: without it the hero pins with its second row of figures behind that bar, which they would normally have scrolled clear of.
+
+**`svh`, not `vh` or `dvh`.** `vh` is the *largest* viewport on a phone, so with the browser chrome showing it would push the figures under it; `dvh` changes as the chrome collapses, sliding the pinned hero mid-scroll. And a browser that does not understand `svh` drops the whole declaration, leaving `top: auto` — sticky with no offsets does nothing, so the page degrades to the plain stacked layout it was.
+
+Verified live across nine viewports (1920×1080 down to 320×568): the hero's figures are fully clear of the fold and of the mobile action bar at every one, with the curtain — never the page background — filling any space under them; the desktop pin lands 7–11px off the bottom at 1024–1440. Pinning is symmetric, unpinning cleanly on the way back to the top, and there are no console errors. `npx tsc --noEmit`, `npm run lint`, `npm run build` all clean.
 
 ### 2026-09-02 (Quick View) — All the footer-pinning machinery removed; back to a plain clean rectangle matching the client's reference screenshot
 

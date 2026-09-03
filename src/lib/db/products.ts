@@ -36,6 +36,7 @@ type ProductRow = {
   featured: boolean;
   sort_order: number;
   price: number | null;
+  discount_percent: number | null;
   seo_title: string;
   seo_description: string;
   created_at: Date;
@@ -45,7 +46,7 @@ type ProductRow = {
 const SELECT_COLUMNS = `
   id, slug, name, category, tagline, description,
   hp_ranges, features, protections, spec, images,
-  video_url, video_title, published, featured, sort_order, price,
+  video_url, video_title, published, featured, sort_order, price, discount_percent,
   seo_title, seo_description,
   created_at, updated_at
 `;
@@ -104,6 +105,7 @@ function mapProductRow(row: ProductRow): Product {
     featured: row.featured,
     sortOrder: row.sort_order,
     price: row.price,
+    discountPercent: row.discount_percent,
     seoTitle: row.seo_title ?? "",
     seoDescription: row.seo_description ?? "",
     createdAt: row.created_at.toISOString(),
@@ -247,7 +249,8 @@ const WRITE_VALUES = `
   slug = $2, name = $3, category = $4, tagline = $5, description = $6,
   hp_ranges = $7, features = $8, protections = $9, spec = $10, images = $11,
   video_url = $12, video_title = $13, published = $14, featured = $15,
-  sort_order = $16, price = $17, seo_title = $18, seo_description = $19, updated_at = now()
+  sort_order = $16, price = $17, discount_percent = $18,
+  seo_title = $19, seo_description = $20, updated_at = now()
 `;
 
 function writeParams(input: ProductInput): unknown[] {
@@ -268,6 +271,7 @@ function writeParams(input: ProductInput): unknown[] {
     input.featured,
     input.sortOrder,
     input.price,
+    input.discountPercent,
     input.seoTitle,
     input.seoDescription,
   ];
@@ -279,9 +283,9 @@ export async function createProduct(input: ProductInput): Promise<Product> {
     `INSERT INTO products (
        id, slug, name, category, tagline, description,
        hp_ranges, features, protections, spec, images,
-       video_url, video_title, published, featured, sort_order, price,
+       video_url, video_title, published, featured, sort_order, price, discount_percent,
        seo_title, seo_description
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
      RETURNING ${SELECT_COLUMNS}`,
     [id, ...writeParams(input)],
   );

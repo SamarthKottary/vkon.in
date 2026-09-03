@@ -20,8 +20,20 @@ import { primaryNav } from "@/content/nav";
  * the fixed drawer, so the drawer no longer needs to be a sibling. It still is,
  * because a dialog belongs outside the banner landmark.
  *
- * It retracts on the way down the page and returns on the way up. Three rules
- * keep that from being annoying:
+ * **How it retracts depends on whether the page has a curtain.**
+ *
+ * On `/`, `/products`, `/about` and `/contact` the page is a pinned hero or
+ * masthead with one opaque sheet rising over it, marked `data-curtain`. There
+ * the sheet drives the header: it stays put for the whole time the sheet is
+ * still below it — the entire hero, however tall that is on this device — and
+ * then the sheet's leading edge carries it off the top, 1:1, as if pushing it
+ * (client, 2026-09-03: "the top bar should not go away untill the curtain
+ * comes up… It should be like the curtain pushing the top bar up and it goes
+ * away"). Scrolling up still returns it immediately, so the nav is never more
+ * than a flick away further down a long page.
+ *
+ * Everywhere else it keeps the original behaviour — retract on the way down,
+ * return on the way up — under three rules that keep it from being annoying:
  *   - it never hides within the first HIDE_AFTER px, so the top of the page
  *     always has its header;
  *   - a movement under DELTA px is ignored, so momentum scrolling and the
@@ -57,6 +69,20 @@ export function Header({
   const [hidden, setHidden] = useState(false);
   const lastYRef = useRef(0);
   const tickingRef = useRef(false);
+  const headerRef = useRef<HTMLElement>(null);
+  /** Last committed scroll direction, once past the DELTA noise floor. */
+  const upRef = useRef(false);
+  /**
+   * The current page's curtain sheet, or null on a page without one.
+   *
+   * Looked up from the DOM rather than passed in as a prop because the curtain
+   * belongs to the page and the header belongs to the layout — `(site)/layout`
+   * renders this component once for every route under it and never re-renders
+   * per page, so there is nothing to thread a prop through.
+   */
+  const curtainRef = useRef<HTMLElement | null>(null);
+  const panelOpen = open || productsOpen || searchOpen;
+  const panelOpenRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -115,13 +141,87 @@ export function Header({
       tickingRef.current = false;
       const y = Math.max(0, window.scrollY);
       const previous = lastYRef.current;
+      const header = headerRef.current;
+      const curtain = curtainRef.current;
 
-      if (Math.abs(y - previous) < DELTA) return;
-      lastYRef.current = y;
+      /* Pages without a curtain keep the original behaviour: retract on the
+         way down past HIDE_AFTER, return on the way up. */
+      if (!curtain || !header) {
+        if (Math.abs(y - previous) < DELTA) return;
+        lastYRef.current = y;
+        setHidden(y > previous && y > HIDE_AFTER);
+        return;
+      }
 
-      setHidden(y > previous && y > HIDE_AFTER);
+      /* Never retract out from under an open panel — same rule as the class
+         expression below, and for the same reason: the drawer's close button
+         and the products dropdown both travel with the header. */
+      if (panelOpenRef.current) return;
+
+      /**
+       * On a curtain page the sheet drives the header, not the scroll
+       * direction (client: "the top bar should not go away untill the curtain
+       * comes up… It should be like the curtain pushing the top bar up and it
+       * goes away").
+       *
+       * `push` is how far the curtain's leading edge has travelled into the
+       * header's own band: 0 for the whole time the sheet is still below the
+       * header — which is the entire pinned hero or masthead, the part the
+       * client wants the nav to sit through — then rising 1:1 with the sheet
+       * until it has taken the header's full height. Reading the edge's real
+       * position is what keeps this correct on every page and viewport: the
+       * hero is a screenful tall on a desktop and content-tall on a phone, so
+       * there is no scroll distance that could have been hard-coded here.
+       */
+      const height = header.offsetHeight;
+      const edge = curtain.getBoundingClientRect().top;
+      const push = Math.min(height, Math.max(0, height - edge));
+
+      /* The direction still matters, but only to bring the header back: the
+         DELTA floor gates the direction, never the push, so the push stays
+         pixel-continuous instead of stepping in 6px jumps. */
+      let up = upRef.current;
+      if (Math.abs(y - previous) >= DELTA) {
+        up = y < previous;
+        upRef.current = up;
+        lastYRef.current = y;
+      }
+
+      const offset = up ? 0 : push;
+      /* Rigid while the curtain is pushing — a transition here would let the
+         header drift out of contact with the edge that is supposed to be
+         moving it — and eased on the way back, which is the one moment it
+         moves on its own. Clearing the property returns it to the class. */
+      header.style.transition = up ? "" : "none";
+      header.style.transform = offset === 0 ? "" : `translate3d(0,${-offset}px,0)`;
     });
   }, []);
+
+  /* The curtain belongs to the page, so a client-side navigation swaps it.
+     Clearing the inline transform matters as much as re-reading the element:
+     left behind on a page with no curtain to bring it back, it would strand
+     the header off screen. */
+  useEffect(() => {
+    curtainRef.current = document.querySelector<HTMLElement>("[data-curtain]");
+    const header = headerRef.current;
+    if (header) {
+      header.style.transition = "";
+      header.style.transform = "";
+    }
+  }, [pathname]);
+
+  /* Mirrored into a ref because `onScroll` is built once and never sees a
+     later render's state. Clearing the transform on open is what actually
+     brings the header back down under a panel opened while it was pushed. */
+  useEffect(() => {
+    panelOpenRef.current = panelOpen;
+    if (!panelOpen) return;
+    const header = headerRef.current;
+    if (header) {
+      header.style.transition = "";
+      header.style.transform = "";
+    }
+  }, [panelOpen]);
 
   useEffect(() => {
     lastYRef.current = Math.max(0, window.scrollY);
@@ -135,9 +235,15 @@ export function Header({
   return (
     <>
       <header
+        ref={headerRef}
         /* `relative` is what the dropdown positions against. It must not
            retract while that panel is open, or the panel travels off screen
-           with it. */
+           with it.
+
+           These classes are the whole story only on a page with no curtain.
+           Where there is one, `onScroll` writes an inline transform instead
+           and `hidden` stays false — the inline value wins, and clearing it
+           hands the header back to `translate-y-0` here. */
         className={`sticky top-0 z-50 border-b border-line bg-surface transition-transform duration-300 ${
           hidden && !open && !productsOpen && !searchOpen ? "-translate-y-full" : "translate-y-0"
         }`}

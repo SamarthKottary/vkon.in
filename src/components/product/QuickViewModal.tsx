@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ProductMedia } from "@/components/product/ProductMedia";
 import { SpecTable } from "@/components/product/SpecTable";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
+import { ProductPrice } from "@/components/product/ProductPrice";
 import { CloseIcon } from "@/components/icons/ui";
 import { categoryLabel } from "@/content/taxonomy";
 import type { Product } from "@/lib/types";
@@ -143,11 +144,10 @@ export function QuickViewModal({
               </Link>
             </h2>
 
-            {product.price != null && (
-              <p className="mt-3 text-2xl font-semibold text-ink">
-                ₹ {product.price.toLocaleString("en-IN")}
-              </p>
-            )}
+            {/* The price moved to the pinned footer, beside Add to cart
+                (client, 2026-09-03: "In quick view panel price will be
+                displayed on the left and add to cart on the right"). Moved,
+                not duplicated — it is the same decision the cards took. */}
 
             {product.tagline && (
               <p className="mt-4 text-body leading-relaxed">
@@ -217,8 +217,23 @@ export function QuickViewModal({
               layout at the breakpoint where that takes over. `shrink-0` keeps
               it from being squeezed when the content is long. */}
           <div className="sticky bottom-0 z-10 shrink-0 border-t border-line bg-surface p-6 md:static md:p-8 lg:p-10">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
+            {/* Price left, Add to cart right (client, 2026-09-03). `min-w-0`
+                on the price and `shrink-0` on the button so a long figure
+                truncates rather than squeezing the control — the button
+                widens into a `QuantityStepper` once the product is in the
+                cart, and an unprotected flex sibling absorbs that whole
+                squeeze.
+
+                Without a price the button keeps the full width it had before
+                this row gained a second child, so an unpriced product's
+                footer is unchanged. */}
+            <div className="grid grid-cols-2 gap-3 items-center sm:flex sm:items-center sm:justify-between sm:gap-4">
+              {product.price != null && (
+                <div className="min-w-0">
+                  <ProductPrice product={product} size="regular" />
+                </div>
+              )}
+              <div className={product.price != null ? "min-w-0" : "col-span-2"}>
                 <AddToCartButton slug={product.slug} name={product.name} />
               </div>
             </div>

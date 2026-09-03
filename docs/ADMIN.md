@@ -95,6 +95,8 @@ hidden fields. The client form is a convenience, never a control:
 | `category` | Must be in `CATEGORY_KEYS`; anything else silently becomes `starter`. |
 | `protections` | Filtered to known keys; unknown ones are dropped. |
 | `videoUrl` | Must parse as YouTube or Vimeo, else rejected with a field error. |
+| `price` | Whole rupees, the **M.R.P.** — the figure before any discount. Negative or unparseable becomes blank; blank shows no price anywhere. |
+| `discountPercent` | Whole number, clamped to **0–99** server-side. Dropped entirely if there is no `price`, since it could never be shown. 100 is refused because it would price the product at zero. |
 | `seoTitle` | Trimmed, capped at 70 chars. Blank falls back to the product name at render. |
 | `seoDescription` | Trimmed, capped at 200 chars. Blank falls back to the tagline. |
 | lists | `parseLines` — one per line, blanks dropped. |
@@ -358,6 +360,19 @@ and the page says so in as many words.
 ---
 
 ## Change log
+
+**2026-09-03** — Product pricing. `discount_percent` joins the existing `price`
+column, and the two are entered as **M.R.P. + percent off** rather than two
+rupee figures — the selling price is derived at render time in
+`components/product/ProductPrice`, so the three numbers a customer sees cannot
+disagree. Both are in the §3 validation table; the percent is clamped 0–99 in
+`buildInput`, not merely on the input's `max`. Note for §4's "admin content can
+break public layouts" rule: the price block replaces "View details" inside a
+card footer whose height is reserved by an invisible sizing clone, so it is
+built to two lines in 36px — a longer treatment there changes every card's
+height. Prices show on the catalogue, featured and recently-viewed cards, in
+Quick View and on the product page; an unpriced product falls back to exactly
+what was there before.
 
 **2026-08-19** — Enquiries added: a third thing to manage, and the first one
 where not noticing it costs money. New §7.7 on the notification gap and the two

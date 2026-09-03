@@ -71,8 +71,8 @@ export function ProductForm({ product }: { product?: Product }) {
 
         <Field
           id={`${uid}-price`}
-          label="Price (₹)"
-          hint="Price in INR. Leave blank if not available."
+          label="M.R.P. (₹)"
+          hint="List price before discount, in whole rupees. Leave blank to show no price at all."
           error={fieldError("price")}
         >
           <input
@@ -82,8 +82,35 @@ export function ProductForm({ product }: { product?: Product }) {
             min="0"
             step="1"
             defaultValue={product?.price ?? ""}
-            placeholder="499"
+            placeholder="12999"
             className={input(fieldError("price"))}
+          />
+        </Field>
+
+        {/* Percent, not the selling price: what the customer is shown is the
+            figure that was typed, rather than one reconstructed from a
+            rounded rupee amount — and the two can never drift apart. The
+            selling price is derived at render time.
+
+            `max="99"` is the real ceiling, not a nicety: 100 would price the
+            product at zero and the action clamps it to the same range, since
+            a number input is a hint to the browser and not a control. */}
+        <Field
+          id={`${uid}-discountPercent`}
+          label="Discount (%)"
+          hint="Whole number, 0–99. Blank or 0 shows the M.R.P. on its own, with no discount."
+          error={fieldError("discountPercent")}
+        >
+          <input
+            id={`${uid}-discountPercent`}
+            name="discountPercent"
+            type="number"
+            min="0"
+            max="99"
+            step="1"
+            defaultValue={product?.discountPercent ?? ""}
+            placeholder="47"
+            className={input(fieldError("discountPercent"))}
           />
         </Field>
 

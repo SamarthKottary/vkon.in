@@ -166,10 +166,28 @@ const PROFILES: SocialProfile[] = PROFILE_ORDER.flatMap((key) => {
 export default function AboutPage() {
   return (
     <>
+      {/* The masthead pins and everything under it rises over it as one
+          sheet — the same curtain the home page's hero carries (client:
+          "Lets have curtain going up feature for about us and contact us
+          page where it moves over the top image").
+
+          A plain `top-0` here, with none of the negative-offset
+          arithmetic the hero needs: this masthead is a fixed band, 304px
+          tall and 360px at `lg`, so it fits inside any viewport we build
+          for and pinning its top edge never puts anything of its own out
+          of reach. The hero is 817–984px and taller than a phone screen,
+          which is the only reason that one is complicated.
+
+          `sticky` replaces the section's own `relative` rather than
+          joining it — both set `position`, and the absolutely positioned
+          scrim layers inside still resolve against this box either way.
+          The `isolate` below is now doing double duty: as well as its
+          original job it is what keeps this box's `-z-10` layers from
+          competing with the layout's own `-z-10` footer. */}
       {/* Masthead. `isolate` keeps the -z-10 layers inside this section rather
           than sliding behind the page background. Same two-layer scrim and the
           same heights as /contact, so the two mastheads read as a pair. */}
-      <section className="relative isolate overflow-hidden">
+      <section className="sticky top-0 z-0 isolate overflow-hidden">
         <Image
           src="/aboutus-background.jpg"
           alt=""
@@ -228,185 +246,192 @@ export default function AboutPage() {
         </Container>
       </section>
 
-      <section className="py-12 sm:py-14 lg:py-16">
-        <Container size="wide">
+      {/* The curtain. One opaque sheet over the masthead — `bg-surface`
+          is what guarantees the photograph never shows through whatever
+          the leading edge happens to be, and `z-10` puts the whole sheet
+          above the pinned masthead's `z-0`. `JsonLd` stays outside it:
+          it renders a script tag, not content. */}
+      <div data-curtain className="relative z-10 bg-surface">
 
-          <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-            <RailHeading index="01">About us</RailHeading>
+        <section className="py-12 sm:py-14 lg:py-16">
+          <Container size="wide">
 
-            <div className="max-w-2xl">
-              {/* The opening paragraph is the company's positioning statement,
-                  so it is set larger than the body that follows it. */}
-              <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
-                At {site.legalName}, we improve people&rsquo;s lives and the
-                environment with automation and IoT that&rsquo;s reliable,
-                efficient, safe and sustainable&mdash;and we make sure it
-                works.
-              </p>
+            <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+              <RailHeading index="01">About us</RailHeading>
 
-              {/* Reworded from "We power this shift across every walk of
-                  life:" when the paragraph above it was cut on 2026-08-24.
-                  "This shift" pointed at that paragraph; with it gone the
-                  phrase referred to nothing. The lead-in itself has to stay in
-                  some form — it is the sentence the three cards complete. */}
-              <p className="mt-8 text-[1.0625rem] font-medium leading-relaxed text-ink">
-                We power automation across every walk of life:
-              </p>
+              <div className="max-w-2xl">
+                {/* The opening paragraph is the company's positioning statement,
+                    so it is set larger than the body that follows it. */}
+                <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
+                  At {site.legalName}, we improve people&rsquo;s lives and the
+                  environment with automation and IoT that&rsquo;s reliable,
+                  efficient, safe and sustainable&mdash;and we make sure it
+                  works.
+                </p>
 
-              {/* The three markets as 3D tilt cards. `[perspective]` lives on
-                  the grid, not each card, so neighbours share one vanishing
-                  point and the row reads as one plane rather than three. The
-                  icon sits on a `tilt-layer` that stands off the card face, so
-                  it floats above the copy as the card leans. */}
-              <ul className="reveal mt-8 grid gap-4 sm:grid-cols-3">
-                {TRANSITION.map((item, index) => {
-                  const Icon = item.icon;
-                  return (
-                    <li key={item.lead}>
-                      <TiltCard className="group h-full">
-                        <div className="relative flex h-full flex-col overflow-hidden border border-line bg-surface-raised p-5 shadow-card transition-shadow duration-300 group-hover:shadow-card-hover">
-                          <span
-                            aria-hidden
-                            className="tilt-glare pointer-events-none absolute inset-0"
-                          />
-                          <div className="tilt-layer flex items-center justify-between">
-                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent">
-                              <Icon className="h-5 w-5" />
-                            </span>
-                            <span className="label-tech text-muted">
-                              {`0${index + 1}`}
-                            </span>
+                {/* Reworded from "We power this shift across every walk of
+                    life:" when the paragraph above it was cut on 2026-08-24.
+                    "This shift" pointed at that paragraph; with it gone the
+                    phrase referred to nothing. The lead-in itself has to stay in
+                    some form — it is the sentence the three cards complete. */}
+                <p className="mt-8 text-[1.0625rem] font-medium leading-relaxed text-ink">
+                  We power automation across every walk of life:
+                </p>
+
+                {/* The three markets as 3D tilt cards. `[perspective]` lives on
+                    the grid, not each card, so neighbours share one vanishing
+                    point and the row reads as one plane rather than three. The
+                    icon sits on a `tilt-layer` that stands off the card face, so
+                    it floats above the copy as the card leans. */}
+                <ul className="reveal mt-8 grid gap-4 sm:grid-cols-3">
+                  {TRANSITION.map((item, index) => {
+                    const Icon = item.icon;
+                    return (
+                      <li key={item.lead}>
+                        <TiltCard className="group h-full">
+                          <div className="relative flex h-full flex-col overflow-hidden border border-line bg-surface-raised p-5 shadow-card transition-shadow duration-300 group-hover:shadow-card-hover">
+                            <span
+                              aria-hidden
+                              className="tilt-glare pointer-events-none absolute inset-0"
+                            />
+                            <div className="tilt-layer flex items-center justify-between">
+                              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent">
+                                <Icon className="h-5 w-5" />
+                              </span>
+                              <span className="label-tech text-muted">
+                                {`0${index + 1}`}
+                              </span>
+                            </div>
+                            <p className="tilt-layer mt-4 font-medium text-ink">
+                              {item.lead}
+                            </p>
+                            <p className="tilt-layer mt-2 text-sm leading-relaxed text-body">
+                              {item.body}
+                            </p>
                           </div>
-                          <p className="tilt-layer mt-4 font-medium text-ink">
-                            {item.lead}
-                          </p>
-                          <p className="tilt-layer mt-2 text-sm leading-relaxed text-body">
-                            {item.body}
-                          </p>
-                        </div>
-                      </TiltCard>
-                    </li>
-                  );
-                })}
-              </ul>
+                        </TiltCard>
+                      </li>
+                    );
+                  })}
+                </ul>
 
-            </div>
-          </div>
-        </Container>
-      </section>
-
-
-      <section className="border-t border-line py-14 sm:py-16">
-        <Container size="wide">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-            <RailHeading index="02">Products</RailHeading>
-
-            {/* Same `TiltCard` the three market cards in §01 use — client
-                asked for "that same animation" on this box and the brochure
-                box in §03. `max-w-2xl` moved onto `TiltCard` itself (it was on
-                the card below): the tilt's `perspective` and rotation are
-                computed from this element's own `getBoundingClientRect`, so
-                the width has to live on whichever element the ref is on, not
-                a descendant. */}
-            <TiltCard className="reveal max-w-2xl">
-              <div className="relative overflow-hidden border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
-                <span
-                  aria-hidden
-                  className="tilt-glare pointer-events-none absolute inset-0"
-                />
-                <span className="tilt-layer flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
-                  <FactoryIcon className="h-6 w-6" />
-                </span>
-                <p className="tilt-layer mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
-                  Explore our products
-                </p>
-                <p className="tilt-layer mt-4 text-[1.0625rem] leading-relaxed text-body">
-                  Motor starters, industrial panels, solar, cables and home
-                  automation. Filter the range by category, sub-category or
-                  motor rating.
-                </p>
-
-                <Button href="/products" size="lg" sweep className="tilt-layer mt-7">
-                  See all products
-                  <ArrowRightIcon className="h-4 w-4" />
-                </Button>
               </div>
-            </TiltCard>
-          </div>
-        </Container>
-      </section>
+            </div>
+          </Container>
+        </section>
 
-      <section className="border-t border-line py-14 sm:py-16">
-        <Container size="wide">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-            <RailHeading index="03">Info</RailHeading>
 
-            {/* `max-w-2xl` on the column rather than on the card, so the
-                brochure card, the figures and the photo strip share one right
-                edge — and the same one as §02 and §04. `min-w-0` because the
-                gallery is a horizontal scroller: without it the column takes
-                its min-content width from the whole strip and pushes the grid
-                wider than the page. */}
-            <div className="min-w-0 max-w-2xl">
-              {/* Standfirst (client, 2026-08-24) — §01 and §04 both open with
-                  one before their content; §03 went straight into the
-                  brochure card with nothing to say what the section covers.
-                  Names the three things below it: the download, the figures,
-                  the photographs. */}
-              <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
-                A closer look at Vkon Automation &mdash; the full range to
-                download, a few figures on where we stand, and photographs
-                from our own work.
-              </p>
+        <section className="border-t border-line py-14 sm:py-16">
+          <Container size="wide">
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+              <RailHeading index="02">Products</RailHeading>
 
-              {/* Same `TiltCard` §01's market cards and §02's box use — see
-                  the note on §02 for why `max-w-2xl` sits here rather than on
-                  the card inside it. */}
-              <TiltCard className="reveal mt-8">
+              {/* Same `TiltCard` the three market cards in §01 use — client
+                  asked for "that same animation" on this box and the brochure
+                  box in §03. `max-w-2xl` moved onto `TiltCard` itself (it was on
+                  the card below): the tilt's `perspective` and rotation are
+                  computed from this element's own `getBoundingClientRect`, so
+                  the width has to live on whichever element the ref is on, not
+                  a descendant. */}
+              <TiltCard className="reveal max-w-2xl">
                 <div className="relative overflow-hidden border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
                   <span
                     aria-hidden
                     className="tilt-glare pointer-events-none absolute inset-0"
                   />
                   <span className="tilt-layer flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
-                    <DownloadIcon className="h-6 w-6" />
+                    <FactoryIcon className="h-6 w-6" />
                   </span>
                   <p className="tilt-layer mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
-                    Download our brochure
+                    Explore our products
                   </p>
                   <p className="tilt-layer mt-4 text-[1.0625rem] leading-relaxed text-body">
-                    The full range in one PDF &mdash; ratings, enclosures and
-                    protection features, ready to print or forward.
+                    Motor starters, industrial panels, solar, cables and home
+                    automation. Filter the range by category, sub-category or
+                    motor rating.
                   </p>
 
-                  {/* `download` asks the browser to save rather than navigate,
-                      and names the saved file: without the attribute a PDF opens
-                      in the built-in viewer on most desktops, which is not what
-                      a button reading "Download" promises. Same-origin, so the
-                      attribute is honoured. */}
-                  <Button
-                    href={BROCHURE}
-                    download="Vkon-Automation-Brochure.pdf"
-                    size="lg"
-                    sweep
-                    className="tilt-layer mt-7"
-                  >
-                    <DownloadIcon className="h-4 w-4" />
-                    Download brochure (PDF)
+                  <Button href="/products" size="lg" sweep className="tilt-layer mt-7">
+                    See all products
+                    <ArrowRightIcon className="h-4 w-4" />
                   </Button>
                 </div>
               </TiltCard>
+            </div>
+          </Container>
+        </section>
 
-              {/* The figures. A plain grid rather than cards: three bordered
-                  boxes here would compete with the brochure card directly
-                  above and the photographs directly below. */}
-              {/* `divide-x` only from `sm`: stacked on a phone the rules would
-                  run horizontally between the figures and read as three
-                  separate rows rather than one band. The `border-y` closes the
-                  band top and bottom at every width. */}
-              <div className="mt-12 grid grid-cols-1 gap-8 border-y border-line py-10 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-line">
+        <section className="border-t border-line py-14 sm:py-16">
+          <Container size="wide">
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+              <RailHeading index="03">Info</RailHeading>
+
+              {/* `max-w-2xl` on the column rather than on the card, so the
+                  brochure card, the figures and the photo strip share one right
+                  edge — and the same one as §02 and §04. `min-w-0` because the
+                  gallery is a horizontal scroller: without it the column takes
+                  its min-content width from the whole strip and pushes the grid
+                  wider than the page. */}
+              <div className="min-w-0 max-w-2xl">
+                {/* Standfirst (client, 2026-08-24) — §01 and §04 both open with
+                    one before their content; §03 went straight into the
+                    brochure card with nothing to say what the section covers.
+                    Names the three things below it: the download, the figures,
+                    the photographs. */}
+                <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
+                  A closer look at Vkon Automation &mdash; the full range to
+                  download, a few figures on where we stand, and photographs
+                  from our own work.
+                </p>
+
+                {/* Same `TiltCard` §01's market cards and §02's box use — see
+                    the note on §02 for why `max-w-2xl` sits here rather than on
+                    the card inside it. */}
+                <TiltCard className="reveal mt-8">
+                  <div className="relative overflow-hidden border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
+                    <span
+                      aria-hidden
+                      className="tilt-glare pointer-events-none absolute inset-0"
+                    />
+                    <span className="tilt-layer flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
+                      <DownloadIcon className="h-6 w-6" />
+                    </span>
+                    <p className="tilt-layer mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
+                      Download our brochure
+                    </p>
+                    <p className="tilt-layer mt-4 text-[1.0625rem] leading-relaxed text-body">
+                      The full range in one PDF &mdash; ratings, enclosures and
+                      protection features, ready to print or forward.
+                    </p>
+
+                    {/* `download` asks the browser to save rather than navigate,
+                        and names the saved file: without the attribute a PDF opens
+                        in the built-in viewer on most desktops, which is not what
+                        a button reading "Download" promises. Same-origin, so the
+                        attribute is honoured. */}
+                    <Button
+                      href={BROCHURE}
+                      download="Vkon-Automation-Brochure.pdf"
+                      size="lg"
+                      sweep
+                      className="tilt-layer mt-7"
+                    >
+                      <DownloadIcon className="h-4 w-4" />
+                      Download brochure (PDF)
+                    </Button>
+                  </div>
+                </TiltCard>
+
+              </div>
+            </div>
+          </Container>
+
+          {/* Full-bleed stats section running edge to edge from left to right */}
+          <div className="mt-14 w-full border-y border-line bg-surface-subtle/80 py-12 sm:py-16 dark:bg-surface-raised">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+              <div className="grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-y-0 sm:divide-x sm:divide-line">
                 {STATS.map((stat) => (
-                  <div key={stat.label}>
+                  <div key={stat.label} className="py-6 sm:py-0">
                     <StatCounter
                       value={stat.value}
                       suffix={stat.suffix}
@@ -415,73 +440,72 @@ export default function AboutPage() {
                   </div>
                 ))}
               </div>
-
             </div>
           </div>
-        </Container>
 
-        {/* Outside the `Container`, so the strip runs from the left edge of
-            the window to the right (client, 2026-08-24). Done by placement
-            rather than the usual `w-screen left-1/2 -mx-[50vw]` trick, which
-            measures `100vw` *including* the scrollbar and so overflows the
-            page by its width on every desktop browser that reserves one.
-            `AboutGallery` puts its dots back inside a Container so they still
-            line up with the text above; it carries no other controls — see
-            the note at the top of that file. */}
-        <div className="mt-12">
-          <AboutGallery images={GALLERY} />
-        </div>
-      </section>
-
-      <section className="border-t border-line py-14 sm:py-16">
-        <Container size="wide">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-            <RailHeading index="04">Social media</RailHeading>
-
-            {/* No `max-w-2xl` here, unlike §01–§03. Five cards in one row
-                need the whole column: capped at 2xl each would be ~130px and
-                the platform names would not fit. The standfirst keeps its own
-                measure so the prose still reads at a comfortable line length
-                — it is the card row, not the text, that wants the width. */}
-            <div className="min-w-0">
-              <p className="max-w-2xl text-xl leading-snug tracking-tight text-ink sm:text-2xl">
-                Follow along for installations, new panels and product updates
-                as we publish them.
-              </p>
-
-              {/* Rows down the page below `lg`, one row of five from it
-                  (client, 2026-08-24). `SocialProfileCard` changes shape at
-                  the same breakpoint — horizontal in the stacked form,
-                  vertical in the row — so the two have to move together.
-
-                  `items-stretch` is implicit in a grid, and the card is
-                  `h-full`, which is what makes the five equal height with
-                  their buttons aligned rather than each ending where its own
-                  text does.
-
-                  Order is still the client's — Instagram, Facebook, X,
-                  YouTube, LinkedIn — and lives in `PROFILE_ORDER`. */}
-              <ul className="mt-8 grid grid-cols-1 gap-x-3 gap-y-8 lg:grid-cols-5">
-                {PROFILES.map((profile) => (
-                  /* `min-w-0` for the same reason `ProductCatalogue` needs
-                     `minmax(0,1fr)`: the card's chrome bar holds a
-                     `white-space: nowrap` URL whose min-content width is the
-                     whole string, and a track sized `auto` takes its minimum
-                     from exactly that. Without it the column widened to fit
-                     LinkedIn's URL and put five pixels of horizontal scroll on
-                     a 390px phone. `min-w-0` on the truncating span alone does
-                     not do it — that frees the flex item, not its container. */
-                  <li key={profile.key} className="min-w-0">
-                    <SocialProfileCard profile={profile} />
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {/* Outside the `Container`, so the strip runs from the left edge of
+              the window to the right (client, 2026-08-24). Done by placement
+              rather than the usual `w-screen left-1/2 -mx-[50vw]` trick, which
+              measures `100vw` *including* the scrollbar and so overflows the
+              page by its width on every desktop browser that reserves one.
+              `AboutGallery` puts its dots back inside a Container so they still
+              line up with the text above; it carries no other controls — see
+              the note at the top of that file. */}
+          <div className="mt-12">
+            <AboutGallery images={GALLERY} />
           </div>
-        </Container>
-      </section>
+        </section>
 
-      <SubscribePanel />
+        <section className="border-t border-line py-14 sm:py-16">
+          <Container size="wide">
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+              <RailHeading index="04">Social media</RailHeading>
+
+              {/* No `max-w-2xl` here, unlike §01–§03. Five cards in one row
+                  need the whole column: capped at 2xl each would be ~130px and
+                  the platform names would not fit. The standfirst keeps its own
+                  measure so the prose still reads at a comfortable line length
+                  — it is the card row, not the text, that wants the width. */}
+              <div className="min-w-0">
+                <p className="max-w-2xl text-xl leading-snug tracking-tight text-ink sm:text-2xl">
+                  Follow along for installations, new panels and product updates
+                  as we publish them.
+                </p>
+
+                {/* Rows down the page below `lg`, one row of five from it
+                    (client, 2026-08-24). `SocialProfileCard` changes shape at
+                    the same breakpoint — horizontal in the stacked form,
+                    vertical in the row — so the two have to move together.
+
+                    `items-stretch` is implicit in a grid, and the card is
+                    `h-full`, which is what makes the five equal height with
+                    their buttons aligned rather than each ending where its own
+                    text does.
+
+                    Order is still the client's — Instagram, Facebook, X,
+                    YouTube, LinkedIn — and lives in `PROFILE_ORDER`. */}
+                <ul className="mt-8 grid grid-cols-1 gap-x-3 gap-y-8 lg:grid-cols-5">
+                  {PROFILES.map((profile) => (
+                    /* `min-w-0` for the same reason `ProductCatalogue` needs
+                       `minmax(0,1fr)`: the card's chrome bar holds a
+                       `white-space: nowrap` URL whose min-content width is the
+                       whole string, and a track sized `auto` takes its minimum
+                       from exactly that. Without it the column widened to fit
+                       LinkedIn's URL and put five pixels of horizontal scroll on
+                       a 390px phone. `min-w-0` on the truncating span alone does
+                       not do it — that frees the flex item, not its container. */
+                    <li key={profile.key} className="min-w-0">
+                      <SocialProfileCard profile={profile} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </Container>
+        </section>
+
+        <SubscribePanel />
+      </div>
 
       <JsonLd
         data={breadcrumbJsonLd([

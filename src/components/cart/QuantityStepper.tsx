@@ -25,15 +25,17 @@ export function QuantityStepper({
   name,
   qty,
   size = "compact",
+  className = "",
 }: {
   slug: string;
   /** For the accessible names — never rendered. */
   name: string;
   qty: number;
   size?: "compact" | "default";
+  className?: string;
 }) {
   const compact = size === "compact";
-  const box = compact ? "h-9 w-9" : "h-11 w-11";
+  const btnSize = compact ? "h-9 w-8 shrink-0" : "h-12 w-12 shrink-0";
   const icon = compact ? "h-3.5 w-3.5" : "h-4 w-4";
 
   const press = (event: React.MouseEvent, run: () => void) => {
@@ -44,9 +46,9 @@ export function QuantityStepper({
 
   return (
     <div
-      className={`relative z-10 inline-flex items-center border border-line-strong bg-surface-raised ${
-        compact ? "" : "rounded-sm"
-      }`}
+      className={`relative z-10 inline-flex shrink-0 items-center border border-line-strong bg-surface-raised ${
+        compact ? "h-9 w-24" : "h-12 w-40 rounded-sm"
+      } ${className}`}
     >
       <button
         type="button"
@@ -54,7 +56,7 @@ export function QuantityStepper({
         aria-label={
           qty === 1 ? `Remove ${name} from cart` : `Decrease quantity of ${name}`
         }
-        className={`${box} inline-flex items-center justify-center text-muted transition-colors hover:bg-surface-subtle hover:text-ink`}
+        className={`${btnSize} inline-flex items-center justify-center text-muted transition-colors hover:bg-surface-subtle hover:text-ink`}
       >
         {qty === 1 ? (
           <TrashIcon className={icon} />
@@ -63,11 +65,9 @@ export function QuantityStepper({
         )}
       </button>
 
-      {/* `tabular-nums` and a min width so the control does not change size as
-          the count crosses from 9 to 10 and shift what sits beside it. */}
       <span
         aria-live="polite"
-        className={`min-w-[2ch] text-center font-mono tabular-nums text-ink ${
+        className={`flex-1 text-center font-mono tabular-nums text-ink ${
           compact ? "text-[0.8125rem]" : "text-sm"
         }`}
       >
@@ -78,7 +78,7 @@ export function QuantityStepper({
         type="button"
         onClick={(e) => press(e, () => addToCart(slug, 1))}
         aria-label={`Increase quantity of ${name}`}
-        className={`${box} inline-flex items-center justify-center text-muted transition-colors hover:bg-surface-subtle hover:text-ink`}
+        className={`${btnSize} inline-flex items-center justify-center text-muted transition-colors hover:bg-surface-subtle hover:text-ink`}
       >
         <PlusIcon className={icon} />
       </button>

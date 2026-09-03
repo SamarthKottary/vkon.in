@@ -89,6 +89,8 @@ Protection covers the conditions that actually destroy pumps on a rural feeder: 
     { label: "Enclosure", value: "IP54 polycarbonate" },
     { label: "Warranty", value: "6 months" },
   ],
+  price: 12999,
+  discount_percent: 47,
   published: true,
   featured: true,
   sort_order: 1,
@@ -108,8 +110,8 @@ try {
     `INSERT INTO products (
        id, slug, name, category, tagline, description,
        hp_ranges, features, protections, spec, images,
-       video_url, video_title, published, featured, sort_order
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       video_url, video_title, price, discount_percent, published, featured, sort_order
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      ON CONFLICT (slug) DO UPDATE SET
        name = EXCLUDED.name,
        tagline = EXCLUDED.tagline,
@@ -121,6 +123,8 @@ try {
        images = EXCLUDED.images,
        video_url = EXCLUDED.video_url,
        video_title = EXCLUDED.video_title,
+       price = EXCLUDED.price,
+       discount_percent = EXCLUDED.discount_percent,
        updated_at = now()
      RETURNING slug`,
     [
@@ -137,6 +141,8 @@ try {
       JSON.stringify(demo.images),
       demo.video_url,
       demo.video_title,
+      demo.price,
+      demo.discount_percent,
       demo.published,
       demo.featured,
       demo.sort_order,

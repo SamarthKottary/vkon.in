@@ -82,8 +82,23 @@ export type Product = {
   published: boolean;
   featured: boolean;
   sortOrder: number;
-  /** Price in INR (whole rupees). Null if not set. */
+  /**
+   * List price ("M.R.P.") in INR, whole rupees. Null if not set.
+   *
+   * This is the price *before* any discount, which is why the struck-through
+   * figure on a card is this one. What the customer pays is derived from it
+   * and `discountPercent` — see `components/product/ProductPrice`.
+   */
   price: number | null;
+  /**
+   * Reduction off `price`, as a whole percentage 0-99. Null or 0 means the
+   * product is simply sold at `price` and no discount is shown at all.
+   *
+   * Stored rather than the selling price so the percentage the customer is
+   * shown is the one that was entered, not one reconstructed from a rounded
+   * figure — and so the two can never drift apart.
+   */
+  discountPercent: number | null;
   /** Optional meta-title override; blank falls back to the product name. */
   seoTitle: string;
   /** Optional meta-description override; blank falls back to the tagline. */

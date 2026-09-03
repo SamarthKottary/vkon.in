@@ -1,0 +1,209 @@
+# .antigravityrules — vkon.in
+
+Rules derived by inspecting this repository. Everything below reflects code that
+exists today. Where a rule encodes a bug that has already happened, it says so.
+
+> **Read first:** `AGENTS.md` (loaded via `CLAUDE.md`), then `docs/HANDOFF.md`,
+> `docs/ARCHITECTURE.md` and — for `/admin` work — `docs/ADMIN.md`. This file
+> summarises; those are the authority.
+>
+> In `docs/ARCHITECTURE.md` specifically: **§8** is the data model (four tables,
+> per-column), **§8a** is the server surface (every route handler and server
+> action with its signature, plus how data reaches the UI), and **§9** is the
+> load-bearing constraints — each one encodes a bug that has already happened.
+> There is deliberately **no second architecture document in the repo root**; a
+> duplicate was folded into `docs/ARCHITECTURE.md` on 2026-09-03 precisely so the
+> two could not drift.
+
+---
+
+## 1. Tech stack (exact, as detected)
+
+**Runtime and framework**
+- Next.js **16.2.12**, App Router, `output: "standalone"`, Turbopack in dev.
+- React **19.2.4** / React DOM **19.2.4**.
+- TypeScript **^5**, `strict: true`, `noEmit`, `moduleResolution: "bundler"`.
+- Node **22-alpine** in Docker.
+
+**Data**
+- PostgreSQL **16-alpine**, accessed through **`pg` ^8.22.0** directly.
+- **No ORM.** No Prisma, Drizzle, Supabase, Kysely or query builder. SQL is
+  hand-written in `src/lib/db/*.ts` with numbered placeholders (`$1`, `$2`, …).
+- Schema is a single idempotent file: `src/lib/db/schema.sql`.
+
+**Styling**
+- Tailwind CSS **v4** via `@tailwindcss/postcss`. **CSS-first: there is no
+  `tailwind.config.*`** — tokens live in `@theme` inside `src/app/globals.css`.
+- Fonts are **self-hosted** `next/font/local` woff2 in `src/app/fonts/`
+  (Inter variable; IBM Plex Mono 400/500). No `next/font/google`.
+
+**Tooling**
+- ESLint **^9** flat config (`eslint.config.mjs`) extending
+  `eslint-config-next/core-web-vitals` + `/typescript`. Script is bare `eslint`.
+- Docker + Docker Compose (app, db, db-setup, cloudflared-under-a-profile).
+
+**Runtime dependency policy — enforced**
+`dependencies` are exactly `next`, `react`, `react-dom`, `pg`. This site targets
+low-end Android phones on rural connections. **Adding a runtime dependency is a
+decision to record in `docs/ARCHITECTURE.md`, not a default.** Reach for a
+platform API or ~40 lines of local code first.
+
+**Not present — do not introduce without being asked**
+No test runner, no CSS-in-JS, no component library (shadcn/Radix/MUI), no state
+manager (Redux/Zustand/Jotai), no data-fetching library (TanStack Query/SWR), no
+form library, no animation library, no ORM, no `src/middleware.ts`.
+
+---
+
+## 2. Code standards
+
+### Extensions and file naming
+| Thing | Convention | Example |
+|---|---|---|
+| Component | `PascalCase.tsx` | `components/product/ProductCard.tsx` |
+| Hook / client util | `camelCase.ts` | `components/cart/useCart.ts` |
+| Library module | `camelCase.ts` | `lib/db/products.ts`, `lib/rate-limit.ts` |
+| Route file | Next.js reserved lowercase | `page.tsx`, `layout.tsx`, `route.ts` |
+| Server actions | `actions.ts` co-located with its route group | `app/(site)/actions.ts` |
+| Schema | `.sql` | `lib/db/schema.sql` |
+| Node scripts | `.mjs` | `scripts/db-setup.mjs` |
+
+`kebab-case.ts` appears only where the name is genuinely two words describing a
+mechanism (`rate-limit.ts`). Prefer `camelCase.ts` for new lib modules.
+
+### Imports
+- Always use the `@/*` alias (`@/components/...`, `@/lib/...`, `@/content/...`).
+  Relative imports appear only for same-directory siblings.
+- Import order as found: external → `@/components` → `@/content` → `@/lib` →
+  `import type`.
+- Use `import type { … }` for type-only imports (`isolatedModules` is on).
+
+### Components
+- **Server component by default.** Add `"use client"` only for state, refs,
+  effects, browser APIs, or event handlers. 36 of 46 components are client
+  components; each one is listed with its justification in
+  `docs/ARCHITECTURE.md` → Client components. **Add your new client component to
+  that table in the same change.**
+- One component per file; the default export matches the filename. Small private
+  sub-components may live in the same file below the main export (see
+  `ProductCard.tsx`'s `HorizontalCard` / `FeaturedCard`).
+- Props are declared inline as a destructured object with an inline type
+  literal, not a separate `Props` interface:
+  ```tsx
+  export function ProductPrice({
+    product,
+    size = "compact",
+  }: {
+    product: Pick<Product, "price" | "discountPercent">;
+    size?: "compact" | "regular";
+  }) { … }
+  ```
+- Data is read in server components / route files and passed down. **Components
+  never touch the database** — that is the layering rule below.
+
+### Styling
+- Tailwind utility classes inline. No CSS modules, no styled-components.
+- **Use the semantic tokens** (`text-ink`, `bg-surface`, `border-line`,
+  `text-accent`, `text-band-ink`, `text-price-off`, …), not raw palette values
+  and not arbitrary hex. Dark mode works *because* only semantic tokens are
+  redefined under `[data-theme="dark"]`.
+- New colour → add it as a semantic token in **both** theme blocks in
+  `globals.css`, and **state the measured contrast ratio in a comment**. Every
+  pair in that file is measured and clears WCAG AA; that is a documented rule,
+  not a habit.
+- Shared multi-property idioms belong in `@layer components` / `@layer
+  utilities` in `globals.css` (`.label-tech`, `.hscroll`, `.reveal`, `.tilt`,
+  `.rule-grid`).
+- Some named Tailwind utilities are **silently absent in this version** —
+  `translate-x-1` and `scale-x-0` among them. The codebase uses the
+  arbitrary-property form instead: `[transform:translateX(0.25rem)]`,
+  `[transform:scaleX(0)]`. Follow that; a silent no-op has bitten this repo
+  more than once.
+- Tailwind v4 arbitrary values need underscores for spaces:
+  `top-[min(0px,calc(100svh_-_38rem))]`.
+
+### Comments
+This codebase comments **why**, at length, and that is deliberate — comments
+record decisions, rejected alternatives and the bug each constraint prevents.
+Match that density when touching commented code. Do not delete a comment that
+explains a constraint because the code around it moved.
+
+---
+
+## 3. Safety rules
+
+### Layering — strictly one-directional
+```
+app/(site) · app/admin  →  components/  →  lib/  →  content/
+```
+- `components/` does presentation only and **never** imports from `lib/db/`.
+- `content/` holds fixed vocabularies as code constants (taxonomy, nav, site
+  details, hero segments). Product data lives in Postgres, never in `content/`.
+
+### Database and admin
+- **`await requireAdmin()` is the first statement of every mutating server
+  action.** Not after parsing, not after a guard — first. Server actions are
+  independently addressable POST endpoints; page-level auth does not protect
+  them.
+- `app/(site)/actions.ts` is the only unauthenticated write path. Every action
+  there carries all three of: a honeypot returning the ordinary success message,
+  a `rateLimit()` keyed on the client address, and bounded/validated values.
+  A new public action carries all three or belongs in the admin file.
+- **Re-validate everything server-side**, including `<select>` values, `min`/`max`
+  and hidden fields. HTML attributes are hints to the browser, not controls.
+- Adding an editable field is a **seven-file recipe** — follow `docs/ADMIN.md`
+  §6 in order. In `lib/db/products.ts` you must update the row type,
+  `mapProductRow`, `writeParams` **and both column lists**; the `$n` placeholders
+  shift, and that is the step that silently corrupts writes if missed.
+- `schema.sql` is applied idempotently on deploy — new columns use
+  `ALTER TABLE … ADD COLUMN IF NOT EXISTS`. Never write a destructive migration
+  into it.
+- Reads go through `safeQuery`, which returns `[]` when the database is absent
+  or down. Writes deliberately throw so the admin sees failures. Keep that split.
+- Product-facing routes stay **`force-dynamic`**. ISR was tried and rejected:
+  `revalidatePath` still serves the stale copy to the next request, so an admin
+  who saved a product and reloaded saw the old version.
+
+### Files and uploads
+- **Uploads never go in `public/`.** That directory is baked into the Docker
+  image and anything written there at runtime vanishes on the next deploy.
+  `UPLOAD_DIR` (default `data/uploads`) is a mounted volume, served by
+  `/media/[...path]`.
+- `/media/[...path]` accepts exactly **one flat segment** and rejects anything
+  else. That is the traversal defence — do not "improve" it into a filter.
+
+### Layout and visual constraints
+- `docs/ARCHITECTURE.md` §9 lists load-bearing constraints; each encodes a real
+  bug. Read it before changing sticky offsets, the hero, the footer, the curtain
+  sheets or the header.
+- Curtain pages (`/`, `/products`, `/about`, `/contact`) mark their sheet with
+  **`data-curtain`**; `layout/Header` reads it to be pushed off the top. Removing
+  the attribute degrades silently — no error, just wrong behaviour.
+- `data-featured-footer` on `FeaturedCard`'s footer is a cross-component contract
+  with `home/FeaturedProducts` autoplay pausing. Renaming it silently disables
+  that.
+- `ProductCard`'s vertical and featured branches size themselves with an
+  **invisible clone**. Content added to a card footer must fit the reserved
+  height (36px) or every card in the grid changes size.
+
+### Verification before claiming done
+- `npx tsc --noEmit` — and if it reports errors in `.next/dev/types/validator.ts`,
+  that is stale generated output from a killed dev server: `rm -rf .next/dev/types`
+  and re-run.
+- `npm run build`.
+- `npm run lint` — **there is a known baseline of 15 pre-existing problems
+  (10 errors, 5 warnings)**. Compare against that number; do not "fix" unrelated
+  pre-existing ones as part of another change.
+- Anything visual: run the dev server and drive a real browser. Static reading
+  misses rendering bugs. Note the intro splash intercepts pointer events for
+  ~2.3s after load.
+
+### Documentation is part of the change
+Per `AGENTS.md`: any change that touches structure, adds/removes a dependency,
+adds a client component, or alters a §9 constraint **must update
+`docs/ARCHITECTURE.md` in the same change and add a dated change-log entry**.
+Content-only edits (`src/content/`, copy, product data) do not need one.
+
+### Git
+Do not commit or push unless asked. Do not commit in the server's deploy
+directory — the console treats the checked-out SHA as "what is deployed".

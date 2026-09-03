@@ -134,6 +134,35 @@ export function productJsonLd(product: Product) {
           },
         }
       : {}),
+    /* `offers` is what turns a Product result into a rich one with a price
+       attached, so it goes in the moment there is a price to put there — but
+       only then. An `Offer` with a missing or zero `price` is an invalid offer,
+       and Search Console reports it as an error against the page rather than
+       ignoring it, which is worse than having no offer at all.
+
+       The figure is the *selling* price, matching what the page shows: the
+       same derivation as `product/ProductPrice`, deliberately duplicated
+       rather than imported, because that module is a component and this one is
+       plain data with no React in it. If the rounding rule there changes, it
+       has to change here too — the two are checked against each other by the
+       structured-data test, which flags a price that disagrees with the visible
+       one. */
+    ...(product.price != null
+      ? {
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "INR",
+            price:
+              product.discountPercent != null && product.discountPercent > 0
+                ? Math.round(
+                    (product.price * (100 - product.discountPercent)) / 100,
+                  )
+                : product.price,
+            url: `${site.url}/products/${product.slug}`,
+            availability: "https://schema.org/InStock",
+          },
+        }
+      : {}),
     brand: { "@type": "Brand", name: site.name },
     manufacturer: {
       "@type": "Organization",

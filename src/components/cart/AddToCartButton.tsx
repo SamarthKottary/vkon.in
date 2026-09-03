@@ -55,6 +55,7 @@ export function AddToCartButton({
         name={name}
         qty={qty}
         size={compact ? "compact" : "default"}
+        className={className}
       />
     );
   }
@@ -70,8 +71,8 @@ export function AddToCartButton({
       aria-label={`Add ${name} to cart`}
       className={`relative z-10 inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-accent font-medium text-surface transition-colors hover:bg-accent-strong ${
         compact
-          ? "h-9 gap-2 px-3 text-[0.8125rem]"
-          : "h-12 gap-2.5 px-6 text-[0.9375rem]"
+          ? "h-9 w-24 gap-1.5 px-2 text-[0.8125rem]"
+          : "h-12 w-40 gap-2 px-4 text-[0.9375rem]"
       } ${className}`}
     >
       <CartIcon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />

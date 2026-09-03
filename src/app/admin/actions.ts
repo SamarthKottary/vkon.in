@@ -167,7 +167,27 @@ async function buildInput(formData: FormData): Promise<{
     );
 
   const priceRaw = String(formData.get("price") ?? "").trim();
-  const price = priceRaw ? parseInt(priceRaw, 10) : null;
+  const parsedPrice = priceRaw ? parseInt(priceRaw, 10) : null;
+  const price =
+    parsedPrice === null || Number.isNaN(parsedPrice) || parsedPrice < 0
+      ? null
+      : parsedPrice;
+
+  /* Clamped to 0–99 here rather than trusted from the form: `min`/`max` on a
+     number input are a hint to the browser, and this action is an
+     independently addressable POST endpoint. 100 would price the product at
+     zero, which is the one value that would render as a real offer while
+     being certainly wrong.
+
+     A discount with no price to take it off is dropped — `ProductPrice` has
+     nothing to show in that case, and storing it would leave a number in the
+     admin that never appears anywhere. */
+  const discountRaw = String(formData.get("discountPercent") ?? "").trim();
+  const parsedDiscount = discountRaw ? parseInt(discountRaw, 10) : null;
+  const discountPercent =
+    price === null || parsedDiscount === null || Number.isNaN(parsedDiscount)
+      ? null
+      : Math.min(99, Math.max(0, parsedDiscount));
 
   return {
     fieldErrors,
@@ -184,7 +204,8 @@ async function buildInput(formData: FormData): Promise<{
       features: parseLines(formData.get("features")),
       protections,
       spec: parseSpec(formData.get("spec")),
-      price: Number.isNaN(price) ? null : price,
+      price,
+      discountPercent,
       published: formData.get("published") === "on",
       featured: formData.get("featured") === "on",
       seoTitle: String(formData.get("seoTitle") ?? "").trim().slice(0, 70),

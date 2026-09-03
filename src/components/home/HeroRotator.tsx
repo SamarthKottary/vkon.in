@@ -25,7 +25,7 @@ const SLIDE_MS = 5000;
  * other two stay light.
  */
 const HEADLINE =
-  "mt-6 text-[2.5rem] font-normal leading-[1.05] tracking-normal text-band-ink sm:text-6xl lg:text-7xl";
+  "mt-6 text-[2.5rem] font-normal leading-[1.05] tracking-normal text-band-ink sm:text-6xl lg:mt-3 lg:text-7xl";
 
 /**
  * Rotating hero, one market segment at a time.
@@ -138,7 +138,12 @@ export function HeroRotator({
       role="region"
       aria-roledescription="carousel"
       aria-label="What Vkon builds"
-      className="relative"
+      /* `flex flex-1 flex-col` so this fills the screenful `Hero`'s `min-h`
+         asks for — see the note there. The artwork below is `absolute inset-0`
+         against this box, so stretching it is what makes the photograph a full
+         screen rather than a band; the copy takes the slack and the progress
+         marks and figures ride the bottom edge. */
+      className="relative flex flex-1 flex-col"
     >
       {hasArtwork && (
         <div aria-hidden className="absolute inset-0 overflow-hidden">
@@ -219,11 +224,19 @@ export function HeroRotator({
         </div>
       )}
 
-      <Container size="wide" className="relative">
+      {/* `flex-1` takes every pixel the screenful leaves over once the marks
+          and figures below have taken theirs, and `justify-center` spends it
+          evenly above and below the copy. That is what replaced the old fixed
+          `lg:pt-36`: on a tall monitor the copy sits in the middle of the frame
+          with air around it, on a short laptop the same block closes up to its
+          padding, and neither case is a number anybody had to guess. */}
+      <Container size="wide" className="relative flex flex-1 flex-col justify-center">
         {/* Asymmetric on purpose: the hero is trimmed from the bottom, where the
             progress marks and figures follow, not from the top where the
-            headline needs air. */}
-        <div className="max-w-4xl pb-14 pt-20 sm:pb-16 sm:pt-28 lg:pb-20 lg:pt-36">
+            headline needs air. These are now *minimums* — the floor the copy
+            closes to on a viewport too short to give it slack — not the thing
+            that sets the hero's height. */}
+        <div className="max-w-4xl pb-14 pt-20 sm:pb-16 sm:pt-28 lg:pb-6 lg:pt-8">
           <div className="grid">
             {segments.map((segment, i) => {
               const active = i === index;
@@ -259,7 +272,7 @@ export function HeroRotator({
                       grey forces the scrim darker to hold 4.5:1 — brightening
                       the text by one step buys far more headroom than dimming
                       the picture, and the picture is the point. */}
-                  <p className="mt-8 max-w-xl text-lg leading-relaxed text-band-body">
+                  <p className="mt-8 max-w-xl text-lg leading-relaxed text-band-body lg:mt-3">
                     {segment.body}
                   </p>
                 </div>
@@ -267,7 +280,7 @@ export function HeroRotator({
             })}
           </div>
 
-          <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-4">
+          <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-4 lg:mt-4">
             {children}
           </div>
         </div>
@@ -288,7 +301,13 @@ export function HeroRotator({
                    `flex-1` marks spanning the viewport. The visible line is
                    2px tall; the padding is what makes this a real touch
                    target. */
-                className="group w-10 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-band-accent sm:w-14"
+                /* `lg:py-3` and no lower: the visible line is 3px, so the
+                   padding is the whole target, and 3 + 24 keeps it at the
+                   24px WCAG 2.5.8 minimum. An earlier pass had this at
+                   `lg:py-1.5` while chasing a fixed hero height and left a
+                   15px target — the screenful `min-h` now pays for the
+                   difference out of slack instead of out of the control. */
+                className="group w-10 py-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-band-accent sm:w-14 lg:py-3"
               >
                 <span className="sr-only">Show {segment.label}</span>
                 {/* band-ink at low alpha, not band-line. Over a photograph the dark

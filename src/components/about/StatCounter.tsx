@@ -85,26 +85,16 @@ export function StatCounter({
   }, [value, duration]);
 
   return (
-    /* Centred at every width, phone included (client, 2026-08-24). The figure
-       and its label are centred on each other rather than left-aligned to the
-       column, so the three read as a row of plaques — which is what a stat
-       band is — instead of three left-aligned paragraphs. */
-    <div ref={ref} className="text-center">
-      {/* `tabular-nums` is load-bearing: without it the digits are
-          proportional, every frame is a different width, and the figure
-          jitters sideways for the whole run — most visibly on a 1 following
-          a 0. `aria-hidden` on the animating half plus one `sr-only` final
-          value keeps a screen reader from announcing a live-updating number
-          it never asked for. */}
+    <div ref={ref} className="text-center px-4">
       <p
         aria-hidden
-        className="font-mono text-[2.5rem] leading-none tabular-nums tracking-tight text-ink sm:text-[3.25rem]"
+        className="font-sans font-bold text-4xl sm:text-5xl lg:text-[3.5rem] leading-none tabular-nums tracking-tight text-ink"
       >
         {shown}
         <span className="text-accent">{suffix}</span>
       </p>
       <p className="sr-only">{`${value}${suffix} ${label}`}</p>
-      <p aria-hidden className="label-tech mt-3 text-muted">
+      <p aria-hidden className="mt-3 text-sm sm:text-base font-medium text-muted">
         {label}
       </p>
     </div>

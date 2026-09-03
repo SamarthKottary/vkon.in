@@ -9,6 +9,7 @@ import { ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon } from "@/c
 import { PanelPlaceholder } from "./PanelPlaceholder";
 import { categoryLabel } from "@/content/taxonomy";
 import { QuickViewModal } from "@/components/product/QuickViewModal";
+import { ProductPrice } from "@/components/product/ProductPrice";
 import type { Product } from "@/lib/types";
 
 /**
@@ -562,11 +563,11 @@ export function ProductCard({
           </Link>
         </Heading>
 
-        {product.price != null && (
-          <p className="mt-1 text-lg font-semibold text-ink">
-            ₹ {product.price.toLocaleString("en-IN")}
-          </p>
-        )}
+        {/* The price used to sit here, under the name. It moved into the
+            footer row below, where "View details" was (client, 2026-09-03:
+            "In all products page lets remove the view all details button,
+            instead lets place price there"). Moving it rather than adding a
+            second copy is also what keeps the card the same height. */}
 
         {product.hpRanges.length > 0 && (
           <dl className="mt-4 flex gap-2 text-sm">
@@ -598,17 +599,28 @@ export function ProductCard({
             `FeaturedCard`'s own copy of this same arrow before its 2026-08-26
             fix) gets fixed here too, rather than left as a second
             unfixed instance next to an already-fixed one. */}
+        {/* Price where "View details" was — and "View details" still there
+            whenever there is no price to put in its place. Every row in the
+            database is unpriced the day this ships, so without the fallback
+            this row would simply empty out; with it, an unpriced card is
+            exactly the card that was here before. The whole card is still one
+            stretched link either way, so nothing is lost when the price wins:
+            the destination did not live in that text. */}
         <div className="mt-auto flex items-center justify-between gap-3 pt-6">
-          <span className="relative flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-accent">
-            <span className="relative">
-              View details
-              <span
-                aria-hidden
-                className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover:[transform:scaleX(1)]"
-              />
+          {product.price != null ? (
+            <ProductPrice product={product} />
+          ) : (
+            <span className="relative flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-accent">
+              <span className="relative">
+                View details
+                <span
+                  aria-hidden
+                  className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover:[transform:scaleX(1)]"
+                />
+              </span>
+              <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover:[transform:translateX(0.25rem)]" />
             </span>
-            <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover:[transform:translateX(0.25rem)]" />
-          </span>
+          )}
           <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
             <AddToCartButton slug={product.slug} name={product.name} size="compact" />
           </div>
@@ -976,11 +988,8 @@ function HorizontalCard({
         </p>
       )}
 
-      {product.price != null && (
-        <p className="mt-1 text-sm font-semibold text-ink">
-          ₹ {product.price.toLocaleString("en-IN")}
-        </p>
-      )}
+      {/* The price moved out of the flow and down into the footer strip the
+          card already reserves — see the note beside it below. */}
 
       {/* The corner arrow was a decoration for a card that was entirely a
           link. With a real control here it would read as a second button and
@@ -1002,6 +1011,28 @@ function HorizontalCard({
           itself is shared across every card on the site, so wrapping it in
           a plain `<div>` that scales on its own hover, rather than editing
           the button, keeps every other card's instance exactly as it was. */}
+      {/* The price takes the left half of that same reserved strip (client,
+          2026-09-03: "In recent viewed product cards as well on the left empty
+          space show price"), which is exactly the space the button's own
+          `pb-12` already holds open — so this costs the card no height at all
+          and adds nothing to the flow above it.
+
+          `absolute`, matching the button, rather than a flex row across the
+          strip: the card's body is a float-and-clear L (see the note at the
+          top of this component), and introducing a flex row at the foot of it
+          would put the two controls in different formatting contexts. Pinning
+          both to the same edge keeps them on one line by construction.
+
+          `right-20` reserves the button's own width plus a gap, so a long
+          price truncates rather than sliding under it. */}
+      {product.price != null && (
+        <ProductPrice
+          product={product}
+          variant="inline-desktop"
+          className="absolute bottom-3 left-4 right-28"
+        />
+      )}
+
       <div className="absolute bottom-3 right-4 transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
           <AddToCartButton slug={product.slug} name={product.name} size="compact" />
       </div>
@@ -1390,11 +1421,11 @@ function FeaturedCard({
               </Link>
             </Heading>
 
-            {product.price != null && (
-              <p className="mt-1 text-base font-semibold text-[#14171a]">
-                ₹ {product.price.toLocaleString("en-IN")}
-              </p>
-            )}
+            {/* The price moved down into the footer row, where "View details"
+                was — see the note there. It cannot stay here as well: this
+                block sits over the photograph and uses literal, theme-invariant
+                colours, while the footer is a light surface using the ordinary
+                tokens, so one `ProductPrice` cannot serve both. */}
           </div>
 
           <div>
@@ -1500,31 +1531,50 @@ function FeaturedCard({
         data-featured-footer
         className="mt-auto flex items-center justify-between gap-3 bg-surface-raised/90 p-3 backdrop-blur-sm"
       >
-        <Link
-          href={`/products/${product.slug}`}
-          /* `shrink-0 whitespace-nowrap` (client, 2026-08-27: "the view
-             details button is in 2 lines... I want it to be in one line" —
-             happening "sometimes", not always, is the tell). This row's
-             other child, `AddToCartButton`, already carries both classes
-             itself and explains why in its own doc comment: once a product
-             is already in the cart it swaps for the wider `QuantityStepper`,
-             and a flex child with no `shrink-0` of its own absorbs 100% of
-             the resulting squeeze — which is exactly this Link, exactly
-             when the row runs out of room, exactly the "sometimes" the
-             client saw. `shrink-0` stops it giving up width at all;
-             `whitespace-nowrap` stops the text wrapping even if it
-             somehow still did. */
-          className="group/details relative flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-ink transition-colors hover:text-accent"
-        >
-          <span className="relative">
-            View details
-            <span
-              aria-hidden
-              className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover/details:[transform:scaleX(1)]"
-            />
-          </span>
-          <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover/details:translate-x-1" />
-        </Link>
+        {/* Price in place of "View details" (client, 2026-09-03: "In featured
+            product cards display price instead of view all details button"),
+            falling back to the link whenever there is no price — the same
+            fallback the vertical card takes, and for the same reason.
+
+            Losing the link costs this card less than it looks: unlike the
+            others its stretched link is scoped to the image above, which stays
+            the target. `shrink-0` carries over from the Link for the reason
+            its own note gives — `AddToCartButton` widens into a
+            `QuantityStepper` once the product is in the cart, and an
+            unprotected flex sibling absorbs the whole squeeze. */}
+        {product.price != null ? (
+          <ProductPrice
+            product={product}
+            variant="inline-desktop"
+            className="shrink-0"
+          />
+        ) : (
+          <Link
+            href={`/products/${product.slug}`}
+            /* `shrink-0 whitespace-nowrap` (client, 2026-08-27: "the view
+               details button is in 2 lines... I want it to be in one line" —
+               happening "sometimes", not always, is the tell). This row's
+               other child, `AddToCartButton`, already carries both classes
+               itself and explains why in its own doc comment: once a product
+               is already in the cart it swaps for the wider `QuantityStepper`,
+               and a flex child with no `shrink-0` of its own absorbs 100% of
+               the resulting squeeze — which is exactly this Link, exactly
+               when the row runs out of room, exactly the "sometimes" the
+               client saw. `shrink-0` stops it giving up width at all;
+               `whitespace-nowrap` stops the text wrapping even if it
+               somehow still did. */
+            className="group/details relative flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-ink transition-colors hover:text-accent"
+          >
+            <span className="relative">
+              View details
+              <span
+                aria-hidden
+                className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover/details:[transform:scaleX(1)]"
+              />
+            </span>
+            <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover/details:translate-x-1" />
+          </Link>
+        )}
         <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
           <AddToCartButton slug={product.slug} name={product.name} size="compact" />
         </div>

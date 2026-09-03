@@ -113,6 +113,17 @@
   --color-accent-strong: #1a5a2e;
   --color-accent-soft: #e1eeda;
 
+  /* Discount figure on a price block (`product/ProductPrice`). The one red in
+     the palette, and it earns its place: a percentage off is the single thing
+     on a product card that is neither structure nor brand, and the Indian
+     retail convention every customer already reads it by is red. Using the
+     brand green instead would make a discount look like a link.
+
+     Measured, per the contrast rule above: 6.5:1 on `surface-raised` (#ffffff)
+     and 6.3:1 on `surface` (#f7faf8), both clear of the 4.5:1 this needs — it
+     renders at 14px on a card. */
+  --color-price-off: #b3261e;
+
   /* Solid action colour (primary buttons). Inverts between themes. */
   --color-action: #14171a;
   --color-action-hover: #333a41;
@@ -214,6 +225,11 @@
   --color-accent-strong: #7ecba6;
   /* #12402b gave accent text only 4.28:1 here; this clears 5.1:1. */
   --color-accent-soft: #0e3322;
+
+  /* 7.7:1 on `surface-raised` (#16191d). The light value inverted rather than
+     reused — #b3261e on a near-black card is unreadable, the same reason every
+     other semantic token here is redefined instead of shared. */
+  --color-price-off: #ff8a7a;
 
   /* Inverted: the primary button is light-on-dark here. */
   --color-action: #f2f4f5;

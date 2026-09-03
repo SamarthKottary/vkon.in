@@ -30,9 +30,38 @@ const FIGURES = [
   { value: "280–440", unit: "V", label: "Input supply band" },
 ];
 
+/**
+ * **One screenful, derived — never a fixed height guessed against one machine.**
+ *
+ * The section's `min-h` is `100svh` less the two things permanently parked over
+ * the viewport: the header (`layout/Header`, an explicit `h-16` plus its 1px
+ * bottom border = 65px at every width, so `4rem + 1px` is exact rather than
+ * measured) and, below `md`, `layout/MobileActionBar` (`fixed bottom-0`,
+ * 3.5rem).
+ *
+ * This replaced a run of hand-tuned padding figures that tried to land the hero
+ * inside "a desktop". They could not: a laptop's usable browser height is its
+ * screen height less whatever tab strip, address bar and bookmarks bar it
+ * happens to show, which no constant in this repo can know (client: "Can we not
+ * solve it for every device rather than just guessing and fitting at a fixed
+ * height"). Asking the viewport is the only thing that answers for every device
+ * at once.
+ *
+ * `min-h`, not `h`: where the content is taller than one screen — every phone,
+ * since the headline wraps to four or five lines — the hero grows past it and
+ * the curtain offset in `app/(site)/page.tsx` takes over, the behaviour that
+ * was already there. Where the content is shorter, which is every desktop, the
+ * box fills exactly one screen and the padding below stops deciding anything.
+ *
+ * `flex flex-col` so `HeroRotator` can stretch into that height: the photograph
+ * is `absolute inset-0` inside it, so the image is as tall as this box — which
+ * is what stops it reading as a short band on a big monitor — and the figures
+ * dock to the bottom edge of the screen instead of wherever the padding
+ * happened to end.
+ */
 export function Hero() {
   return (
-    <section className="relative overflow-hidden bg-band">
+    <section className="relative flex min-h-[calc(100svh_-_4rem_-_1px_-_3.5rem)] flex-col overflow-hidden bg-band md:min-h-[calc(100svh_-_4rem_-_1px)]">
       <div aria-hidden className="absolute inset-0 rule-grid opacity-70" />
 
       {/* The rotator owns the layout from here down, because its progress bar
@@ -45,7 +74,14 @@ export function Hero() {
         segments={heroSegments}
         footer={
           <Container size="wide">
-            <dl className="grid grid-cols-2 gap-x-8 gap-y-8 pb-7 pt-12 sm:grid-cols-4 sm:pb-8 sm:pt-14">
+            {/* The bottom padding is the gap between the last label and the
+                bottom edge of the screen, now that the hero is exactly one
+                screenful — so it scales with the screen rather than sitting at
+                one number that is generous on a monitor and crowding on a
+                laptop. `max()` holds the old 12px as a floor, so a short
+                viewport pays nothing for this and the hero's minimum height is
+                unchanged. */}
+            <dl className="grid grid-cols-2 gap-x-8 gap-y-8 pb-7 pt-12 sm:grid-cols-4 sm:pb-8 sm:pt-14 lg:gap-y-3 lg:pb-[max(0.75rem,2.5svh)] lg:pt-3">
               {FIGURES.map((figure) => (
                 <div key={figure.label}>
                   <dd className="font-mono text-2xl text-band-ink sm:text-3xl">
