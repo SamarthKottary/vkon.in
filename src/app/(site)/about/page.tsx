@@ -187,6 +187,7 @@ export default function AboutPage() {
       {/* Masthead. `isolate` keeps the -z-10 layers inside this section rather
           than sliding behind the page background. Same two-layer scrim and the
           same heights as /contact, so the two mastheads read as a pair. */}
+      {/* Masthead pins at z-0 */}
       <section className="sticky top-0 z-0 isolate overflow-hidden">
         <Image
           src="/aboutus-background.jpg"
@@ -197,16 +198,6 @@ export default function AboutPage() {
           className="-z-10 object-cover"
         />
 
-        {/* Shaped like the hero's: heavy left, falling to transparent at the
-            right edge so the photograph's subject is seen rather than dimmed.
-            The flat floor is mobile-only — at 390px the copy spans the full
-            width, so a left-weighted gradient covers none of it — and lifts
-            entirely at `lg`, where the copy stays in the left column.
-
-            The headline and tagline sit at the *bottom* left here, not the top,
-            so the third layer is a bottom band rather than the hero's top-left
-            diagonal. Measured against rendered pixels; see the note in
-            `HeroRotator`. */}
         <div aria-hidden className="absolute inset-0 -z-10 bg-scrim/45 lg:bg-transparent" />
         <div
           aria-hidden
@@ -216,16 +207,10 @@ export default function AboutPage() {
           aria-hidden
           className="absolute inset-0 -z-10 bg-gradient-to-t from-scrim/55 via-transparent to-transparent"
         />
-        {/* Faint engineering grid over the photo — a quiet technical texture
-            that reads as futuristic without competing with the headline. */}
         <div aria-hidden className="rule-grid absolute inset-0 -z-10 opacity-30" />
 
         <Container size="wide">
           <div className="flex min-h-[19rem] flex-col justify-end py-12 sm:min-h-[21rem] sm:py-14 lg:min-h-[22.5rem] lg:py-16">
-            {/* The green "About · Vkon Automation" eyebrow above the headline
-                is removed (client, 2026-08-27: "remove the ABOUT VKON which
-                is written in green"), not just hidden — no replacement text
-                took its place. */}
             <h1 className="max-w-3xl text-[2.5rem] leading-[1.02] tracking-tight text-band-ink sm:text-6xl lg:text-[4rem]">
               We make future automation work.
             </h1>
@@ -246,266 +231,254 @@ export default function AboutPage() {
         </Container>
       </section>
 
-      {/* The curtain. One opaque sheet over the masthead — `bg-surface`
-          is what guarantees the photograph never shows through whatever
-          the leading edge happens to be, and `z-10` puts the whole sheet
-          above the pinned masthead's `z-0`. `JsonLd` stays outside it:
-          it renders a script tag, not content. */}
-      <div data-curtain className="relative z-10 bg-surface">
+      {/* Section 01: About us — the first curtain, and the one the header
+          watches.
 
-        <section className="py-12 sm:py-14 lg:py-16">
-          <Container size="wide">
+          `data-curtain` is the §9 contract with `layout/Header`: it finds the
+          one marked sheet per page and lets its leading edge push the header
+          off the top, rather than the header retracting on its own while the
+          masthead is still the whole screen. The attribute went missing when
+          this page was split from a single sheet into four sectional
+          curtains, and it fails silently — `/about` was back on plain
+          hide-on-scroll while `/`, `/products` and `/contact` kept the push.
+          §01 is the sheet that rises over the masthead here, so it is the one
+          that carries it; there must not be a second. */}
+      <section data-curtain className="sticky top-0 z-10 flex min-h-[85vh] flex-col justify-center border-t border-line bg-surface py-20 sm:py-24 lg:py-32 shadow-[0_-12px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_-12px_30px_rgba(0,0,0,0.4)]">
+        <Container size="wide">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+            <RailHeading index="01">About us</RailHeading>
 
-            <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-              <RailHeading index="01">About us</RailHeading>
+            <div className="max-w-2xl">
+              <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
+                At {site.legalName}, we improve people&rsquo;s lives and the
+                environment with automation and IoT that&rsquo;s reliable,
+                efficient, safe and sustainable&mdash;and we make sure it
+                works.
+              </p>
 
-              <div className="max-w-2xl">
-                {/* The opening paragraph is the company's positioning statement,
-                    so it is set larger than the body that follows it. */}
-                <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
-                  At {site.legalName}, we improve people&rsquo;s lives and the
-                  environment with automation and IoT that&rsquo;s reliable,
-                  efficient, safe and sustainable&mdash;and we make sure it
-                  works.
-                </p>
+              <p className="mt-8 text-[1.0625rem] font-medium leading-relaxed text-ink">
+                We power automation across every walk of life:
+              </p>
 
-                {/* Reworded from "We power this shift across every walk of
-                    life:" when the paragraph above it was cut on 2026-08-24.
-                    "This shift" pointed at that paragraph; with it gone the
-                    phrase referred to nothing. The lead-in itself has to stay in
-                    some form — it is the sentence the three cards complete. */}
-                <p className="mt-8 text-[1.0625rem] font-medium leading-relaxed text-ink">
-                  We power automation across every walk of life:
-                </p>
-
-                {/* The three markets as 3D tilt cards. `[perspective]` lives on
-                    the grid, not each card, so neighbours share one vanishing
-                    point and the row reads as one plane rather than three. The
-                    icon sits on a `tilt-layer` that stands off the card face, so
-                    it floats above the copy as the card leans. */}
-                <ul className="reveal mt-8 grid gap-4 sm:grid-cols-3">
-                  {TRANSITION.map((item, index) => {
-                    const Icon = item.icon;
-                    return (
-                      <li key={item.lead}>
-                        <TiltCard className="group h-full">
-                          <div className="relative flex h-full flex-col overflow-hidden border border-line bg-surface-raised p-5 shadow-card transition-shadow duration-300 group-hover:shadow-card-hover">
-                            <span
-                              aria-hidden
-                              className="tilt-glare pointer-events-none absolute inset-0"
-                            />
-                            <div className="tilt-layer flex items-center justify-between">
-                              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent">
-                                <Icon className="h-5 w-5" />
-                              </span>
-                              <span className="label-tech text-muted">
-                                {`0${index + 1}`}
-                              </span>
-                            </div>
-                            <p className="tilt-layer mt-4 font-medium text-ink">
-                              {item.lead}
-                            </p>
-                            <p className="tilt-layer mt-2 text-sm leading-relaxed text-body">
-                              {item.body}
-                            </p>
+              <ul className="mt-8 grid gap-4 sm:grid-cols-3">
+                {TRANSITION.map((item, index) => {
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.lead}>
+                      <TiltCard className="group h-full">
+                        <div className="relative flex h-full flex-col overflow-hidden border border-line bg-surface-raised p-5 shadow-card transition-shadow duration-300 group-hover:shadow-card-hover">
+                          <span
+                            aria-hidden
+                            className="tilt-glare pointer-events-none absolute inset-0"
+                          />
+                          <div className="tilt-layer flex items-center justify-between">
+                            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent">
+                              <Icon className="h-5 w-5" />
+                            </span>
+                            <span className="label-tech text-muted">
+                              {`0${index + 1}`}
+                            </span>
                           </div>
-                        </TiltCard>
-                      </li>
-                    );
-                  })}
-                </ul>
-
-              </div>
+                          <p className="tilt-layer mt-4 font-medium text-ink">
+                            {item.lead}
+                          </p>
+                          <p className="tilt-layer mt-2 text-sm leading-relaxed text-body">
+                            {item.body}
+                          </p>
+                        </div>
+                      </TiltCard>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-          </Container>
-        </section>
+          </div>
+        </Container>
+      </section>
 
+      {/* Section 02: Products - Curtain 2 (z-20) */}
+      <section className="sticky top-0 z-20 flex min-h-[85vh] flex-col justify-center border-t border-line bg-surface py-20 sm:py-24 lg:py-32 shadow-[0_-12px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_-12px_30px_rgba(0,0,0,0.4)]">
+        <Container size="wide">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+            <RailHeading index="02">Products</RailHeading>
 
-        <section className="border-t border-line py-14 sm:py-16">
-          <Container size="wide">
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-              <RailHeading index="02">Products</RailHeading>
+            <TiltCard className="max-w-2xl">
+              <div className="relative overflow-hidden border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
+                <span
+                  aria-hidden
+                  className="tilt-glare pointer-events-none absolute inset-0"
+                />
+                <span className="tilt-layer flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
+                  <FactoryIcon className="h-6 w-6" />
+                </span>
+                <p className="tilt-layer mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
+                  Explore our products
+                </p>
+                <p className="tilt-layer mt-4 text-[1.0625rem] leading-relaxed text-body">
+                  Motor starters, industrial panels, solar, cables and home
+                  automation. Filter the range by category, sub-category or
+                  motor rating.
+                </p>
 
-              {/* Same `TiltCard` the three market cards in §01 use — client
-                  asked for "that same animation" on this box and the brochure
-                  box in §03. `max-w-2xl` moved onto `TiltCard` itself (it was on
-                  the card below): the tilt's `perspective` and rotation are
-                  computed from this element's own `getBoundingClientRect`, so
-                  the width has to live on whichever element the ref is on, not
-                  a descendant. */}
-              <TiltCard className="reveal max-w-2xl">
+                <Button href="/products" size="lg" sweep className="tilt-layer mt-7">
+                  See all products
+                  <ArrowRightIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </TiltCard>
+          </div>
+        </Container>
+      </section>
+
+      {/* Section 03: Info — brochure, numbers and the photograph strip as one
+          piece, and the curtain that *holds* while §04 is drawn over it
+          (client, 2026-09-04: "I want the 04 section to come after 03 ends
+          like a curtain").
+
+          **This one is pinned by a negative top offset, and the arithmetic is
+          the point.** §01 and §02 are `min-h-[85vh]` and so always shorter
+          than the viewport, which is what lets them pin at a plain `top-0`.
+          This section cannot be: it carries the brochure card, the figures
+          band and the photograph strip, and measures 1325–1547px. A box that
+          tall pinned at `top-0` would freeze with its own bottom below the
+          fold and leave it there — a pinned box does not scroll, so the
+          gallery would become unreachable. `top: 100svh - <height>` is
+          negative for exactly the overflow, which delays the pin until the
+          section's bottom edge has reached the bottom of the viewport — the
+          moment it has been read to the end, and the same moment §04's top
+          edge arrives there, since §04 follows it directly in flow. §04 then
+          rises over a section that has stopped moving, and `min()` returns
+          the plain `0px` on a viewport tall enough to hold all of this, where
+          the ordinary top pin is already right.
+
+          **The figure is the section at its tallest per breakpoint, rounded
+          up, and erring high is the safe direction** — the mirror of the
+          footer's note in the layout. Too high only softens the effect: the
+          section locks a few dozen pixels later, with §04 already over its
+          foot. Too low pins it early and takes the bottom of the gallery away
+          for good. Re-measure if the strip gains photographs or the figures
+          band gains a column. */}
+      <section className="sticky top-[min(0px,calc(100svh_-_100rem))] z-30 border-t border-line bg-surface py-20 sm:py-24 lg:py-32 shadow-[0_-12px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_-12px_30px_rgba(0,0,0,0.4)] md:top-[min(0px,calc(100svh_-_88rem))]">
+        <Container size="wide">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+            <RailHeading index="03">Info</RailHeading>
+
+            <div className="min-w-0 max-w-2xl">
+              <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
+                A closer look at Vkon Automation &mdash; the full range to
+                download, a few figures on where we stand, and photographs
+                from our own work.
+              </p>
+
+              <TiltCard className="mt-8">
                 <div className="relative overflow-hidden border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
                   <span
                     aria-hidden
                     className="tilt-glare pointer-events-none absolute inset-0"
                   />
                   <span className="tilt-layer flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
-                    <FactoryIcon className="h-6 w-6" />
+                    <DownloadIcon className="h-6 w-6" />
                   </span>
                   <p className="tilt-layer mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
-                    Explore our products
+                    Download our brochure
                   </p>
                   <p className="tilt-layer mt-4 text-[1.0625rem] leading-relaxed text-body">
-                    Motor starters, industrial panels, solar, cables and home
-                    automation. Filter the range by category, sub-category or
-                    motor rating.
+                    The full range in one PDF &mdash; ratings, enclosures and
+                    protection features, ready to print or forward.
                   </p>
 
-                  <Button href="/products" size="lg" sweep className="tilt-layer mt-7">
-                    See all products
-                    <ArrowRightIcon className="h-4 w-4" />
+                  <Button
+                    href={BROCHURE}
+                    download="Vkon-Automation-Brochure.pdf"
+                    size="lg"
+                    sweep
+                    className="tilt-layer mt-7"
+                  >
+                    <DownloadIcon className="h-4 w-4" />
+                    Download brochure (PDF)
                   </Button>
                 </div>
               </TiltCard>
             </div>
-          </Container>
-        </section>
+          </div>
+        </Container>
 
-        <section className="border-t border-line py-14 sm:py-16">
-          <Container size="wide">
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-              <RailHeading index="03">Info</RailHeading>
-
-              {/* `max-w-2xl` on the column rather than on the card, so the
-                  brochure card, the figures and the photo strip share one right
-                  edge — and the same one as §02 and §04. `min-w-0` because the
-                  gallery is a horizontal scroller: without it the column takes
-                  its min-content width from the whole strip and pushes the grid
-                  wider than the page. */}
-              <div className="min-w-0 max-w-2xl">
-                {/* Standfirst (client, 2026-08-24) — §01 and §04 both open with
-                    one before their content; §03 went straight into the
-                    brochure card with nothing to say what the section covers.
-                    Names the three things below it: the download, the figures,
-                    the photographs. */}
-                <p className="text-xl leading-snug tracking-tight text-ink sm:text-2xl">
-                  A closer look at Vkon Automation &mdash; the full range to
-                  download, a few figures on where we stand, and photographs
-                  from our own work.
-                </p>
-
-                {/* Same `TiltCard` §01's market cards and §02's box use — see
-                    the note on §02 for why `max-w-2xl` sits here rather than on
-                    the card inside it. */}
-                <TiltCard className="reveal mt-8">
-                  <div className="relative overflow-hidden border border-line bg-surface-raised p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover sm:p-8">
-                    <span
-                      aria-hidden
-                      className="tilt-glare pointer-events-none absolute inset-0"
-                    />
-                    <span className="tilt-layer flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
-                      <DownloadIcon className="h-6 w-6" />
-                    </span>
-                    <p className="tilt-layer mt-5 text-2xl leading-snug tracking-tight sm:text-3xl">
-                      Download our brochure
-                    </p>
-                    <p className="tilt-layer mt-4 text-[1.0625rem] leading-relaxed text-body">
-                      The full range in one PDF &mdash; ratings, enclosures and
-                      protection features, ready to print or forward.
-                    </p>
-
-                    {/* `download` asks the browser to save rather than navigate,
-                        and names the saved file: without the attribute a PDF opens
-                        in the built-in viewer on most desktops, which is not what
-                        a button reading "Download" promises. Same-origin, so the
-                        attribute is honoured. */}
-                    <Button
-                      href={BROCHURE}
-                      download="Vkon-Automation-Brochure.pdf"
-                      size="lg"
-                      sweep
-                      className="tilt-layer mt-7"
-                    >
-                      <DownloadIcon className="h-4 w-4" />
-                      Download brochure (PDF)
-                    </Button>
-                  </div>
-                </TiltCard>
-
-              </div>
+        {/* Numbers / Stats section */}
+        <div className="mt-16 w-full border-y border-line bg-surface-subtle/80 py-12 sm:py-16 dark:bg-surface-raised">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-y-0 sm:divide-x sm:divide-line">
+              {STATS.map((stat) => (
+                <div key={stat.label} className="py-6 sm:py-0">
+                  <StatCounter
+                    value={stat.value}
+                    suffix={stat.suffix}
+                    label={stat.label}
+                  />
+                </div>
+              ))}
             </div>
-          </Container>
+          </div>
+        </div>
 
-          {/* Full-bleed stats section running edge to edge from left to right */}
-          <div className="mt-14 w-full border-y border-line bg-surface-subtle/80 py-12 sm:py-16 dark:bg-surface-raised">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-              <div className="grid grid-cols-1 divide-y divide-line sm:grid-cols-3 sm:divide-y-0 sm:divide-x sm:divide-line">
-                {STATS.map((stat) => (
-                  <div key={stat.label} className="py-6 sm:py-0">
-                    <StatCounter
-                      value={stat.value}
-                      suffix={stat.suffix}
-                      label={stat.label}
-                    />
-                  </div>
+        {/* Image slideshow - part of Section 03 single piece */}
+        <div className="mt-16">
+          <AboutGallery images={GALLERY} />
+        </div>
+      </section>
+
+      {/* Section 04: Social media, with the subscribe panel attached to its
+          foot — the last block in `main`, and in ordinary flow.
+
+          It is deliberately *not* sticky and carries no trailing scroll room.
+          It had both until 2026-09-04 — `sticky top-0` inside a `pb-[80vh]`
+          wrapper — and together they were the bug the client reported ("after
+          subscribe section i see the 02 explore our product section again"):
+          once the wrapper's bottom passed, this section unpinned and scrolled
+          away, while §01 and §02 were still pinned at `top-0` behind it. The
+          80vh of empty wrapper below the subscribe panel is what they showed
+          through, so scrolling past the sign-up replayed "Explore our
+          products".
+
+          Ending `main` at this section's foot is what retires those earlier
+          curtains for good: a sticky box cannot leave its containing block,
+          so §01–§03 can never sit below this section's bottom edge, and at
+          `z-40` this section covers all three until the page slides away.
+
+          That slide is the last curtain and it belongs to the layout, not
+          here: the footer is pinned at the bottom *behind* `main`, so
+          scrolling on past the subscribe panel opens it rather than scrolling
+          down to it (client: "as we scroll down it opens the bottom most
+          section like a curtain"). Adding padding, a spacer or another
+          section after this one would break that by putting something between
+          the sign-up and the page's bottom edge. */}
+      <section className="relative z-40 border-t border-line bg-surface pt-20 sm:pt-24 lg:pt-32 shadow-[0_-12px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_-12px_30px_rgba(0,0,0,0.4)]">
+        <Container size="wide">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
+            <RailHeading index="04">Social media</RailHeading>
+
+            <div className="min-w-0">
+              <p className="max-w-2xl text-xl leading-snug tracking-tight text-ink sm:text-2xl">
+                Follow along for installations, new panels and product updates
+                as we publish them.
+              </p>
+
+              <ul className="mt-8 grid grid-cols-1 gap-x-3 gap-y-8 lg:grid-cols-5">
+                {PROFILES.map((profile) => (
+                  <li key={profile.key} className="min-w-0">
+                    <SocialProfileCard profile={profile} />
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           </div>
+        </Container>
 
-          {/* Outside the `Container`, so the strip runs from the left edge of
-              the window to the right (client, 2026-08-24). Done by placement
-              rather than the usual `w-screen left-1/2 -mx-[50vw]` trick, which
-              measures `100vw` *including* the scrollbar and so overflows the
-              page by its width on every desktop browser that reserves one.
-              `AboutGallery` puts its dots back inside a Container so they still
-              line up with the text above; it carries no other controls — see
-              the note at the top of that file. */}
-          <div className="mt-12">
-            <AboutGallery images={GALLERY} />
-          </div>
-        </section>
-
-        <section className="border-t border-line py-14 sm:py-16">
-          <Container size="wide">
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-16">
-              <RailHeading index="04">Social media</RailHeading>
-
-              {/* No `max-w-2xl` here, unlike §01–§03. Five cards in one row
-                  need the whole column: capped at 2xl each would be ~130px and
-                  the platform names would not fit. The standfirst keeps its own
-                  measure so the prose still reads at a comfortable line length
-                  — it is the card row, not the text, that wants the width. */}
-              <div className="min-w-0">
-                <p className="max-w-2xl text-xl leading-snug tracking-tight text-ink sm:text-2xl">
-                  Follow along for installations, new panels and product updates
-                  as we publish them.
-                </p>
-
-                {/* Rows down the page below `lg`, one row of five from it
-                    (client, 2026-08-24). `SocialProfileCard` changes shape at
-                    the same breakpoint — horizontal in the stacked form,
-                    vertical in the row — so the two have to move together.
-
-                    `items-stretch` is implicit in a grid, and the card is
-                    `h-full`, which is what makes the five equal height with
-                    their buttons aligned rather than each ending where its own
-                    text does.
-
-                    Order is still the client's — Instagram, Facebook, X,
-                    YouTube, LinkedIn — and lives in `PROFILE_ORDER`. */}
-                <ul className="mt-8 grid grid-cols-1 gap-x-3 gap-y-8 lg:grid-cols-5">
-                  {PROFILES.map((profile) => (
-                    /* `min-w-0` for the same reason `ProductCatalogue` needs
-                       `minmax(0,1fr)`: the card's chrome bar holds a
-                       `white-space: nowrap` URL whose min-content width is the
-                       whole string, and a track sized `auto` takes its minimum
-                       from exactly that. Without it the column widened to fit
-                       LinkedIn's URL and put five pixels of horizontal scroll on
-                       a 390px phone. `min-w-0` on the truncating span alone does
-                       not do it — that frees the flex item, not its container. */
-                    <li key={profile.key} className="min-w-0">
-                      <SocialProfileCard profile={profile} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </Container>
-        </section>
-
-        <SubscribePanel />
-      </div>
+        {/* Subscribe panel attached directly to the foot of §04 — no gap, no
+            section of its own, so the two read as one closing block. */}
+        <div className="mt-16 border-t border-line">
+          <SubscribePanel />
+        </div>
+      </section>
 
       <JsonLd
         data={breadcrumbJsonLd([

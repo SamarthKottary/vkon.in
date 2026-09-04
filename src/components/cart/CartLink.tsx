@@ -7,6 +7,7 @@ import {
   cartCount,
   getCartServerSnapshot,
   getCartSnapshot,
+  openCartDrawer,
   parseCart,
   subscribeCart,
 } from "@/lib/cart";
@@ -38,6 +39,10 @@ export function CartLink({ className = "" }: { className?: string }) {
   return (
     <Link
       href="/cart"
+      onClick={(e) => {
+        e.preventDefault();
+        openCartDrawer();
+      }}
       aria-label={
         count && count > 0 ? `Cart, ${count} item${count === 1 ? "" : "s"}` : "Cart"
       }

@@ -3,6 +3,7 @@ import { FloatingContact } from "@/components/layout/FloatingContact";
 import { Header } from "@/components/layout/Header";
 import { IntroSplash } from "@/components/layout/IntroSplash";
 import { MobileActionBar } from "@/components/layout/MobileActionBar";
+import { CartDrawer } from "@/components/cart/CartDrawer";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { categories, categoriesInSector, sectors, categoryLabel, sectorLabel, sectorOf } from "@/content/taxonomy";
 import { protectionMeta } from "@/components/icons/protections";
@@ -121,7 +122,7 @@ export default async function SiteLayout({
           `body` carries the same colour, but a background set on `body`
           propagates to the canvas and leaves the element itself
           transparent, so it cannot do this job. */}
-      <main id="main" className="flex-1 bg-surface">
+      <main id="main" className="relative z-10 flex-1 bg-surface">
         {children}
       </main>
 
@@ -148,17 +149,16 @@ export default async function SiteLayout({
           box does not scroll. Too high only weakens the effect: the
           footer pins lower and less of it shows early.
 
-          `-z-10`, not a `z-10` on `main`: putting the stacking on the
-          footer keeps `main` unpositioned, so nothing inside any page —
-          the catalogue's own fixed filter panel, the modals — has its
-          z-index suddenly scoped to a new stacking context. A negative
-          z-index paints below in-flow content but above the canvas, which
-          is precisely the layer this wants. */}
-      <div className="sticky bottom-[min(0px,calc(100svh_-_83rem))] -z-10 md:bottom-[min(0px,calc(100svh_-_48rem))] lg:bottom-[min(0px,calc(100svh_-_34rem))]">
+          `z-0`, with `relative z-10` on `main`: putting `z-10` on `main` keeps
+          it above the footer (`z-0`) while scrolling so the curtain reveal
+          effect is preserved, while allowing the footer links to receive
+          mouse hover and pointer events properly when revealed. */}
+      <div className="sticky bottom-[min(0px,calc(100svh_-_83rem))] z-0 md:bottom-[min(0px,calc(100svh_-_48rem))] lg:bottom-[min(0px,calc(100svh_-_34rem))]">
         <Footer />
       </div>
       <FloatingContact />
       <MobileActionBar />
+      <CartDrawer products={products} />
 
       <JsonLd data={organizationJsonLd()} />
     </>

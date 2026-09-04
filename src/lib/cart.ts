@@ -122,6 +122,28 @@ function writeCart(lines: CartLine[]): void {
   window.dispatchEvent(new Event(EVENT));
 }
 
+/** Signal to open the slide-over Cart Drawer from the right. */
+export const DRAWER_EVENT = "vkon-cart-drawer-open";
+
+export function openCartDrawer(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(DRAWER_EVENT));
+}
+
+export function subscribeCartDrawer(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(DRAWER_EVENT, onChange);
+  return () => window.removeEventListener(DRAWER_EVENT, onChange);
+}
+
+/** Format currency in INR (e.g. ₹818.63) */
+export function formatRupees(amount: number): string {
+  return "₹" + amount.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 /** Adds, or increases an existing line. Returns the new total quantity. */
 export function addToCart(slug: string, qty = 1): number {
   if (typeof window === "undefined" || !slug) return 0;
@@ -133,6 +155,7 @@ export function addToCart(slug: string, qty = 1): number {
   else lines.push({ slug, qty: Math.min(Math.max(qty, 1), MAX_QTY) });
 
   writeCart(lines);
+  openCartDrawer();
   return cartCount(lines);
 }
 

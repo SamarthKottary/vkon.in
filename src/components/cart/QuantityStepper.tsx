@@ -76,7 +76,7 @@ export function QuantityStepper({
 
       <button
         type="button"
-        onClick={(e) => press(e, () => addToCart(slug, 1))}
+        onClick={(e) => press(e, () => setCartQty(slug, qty + 1))}
         aria-label={`Increase quantity of ${name}`}
         className={`${btnSize} inline-flex items-center justify-center text-muted transition-colors hover:bg-surface-subtle hover:text-ink`}
       >

@@ -580,18 +580,33 @@ first. The attribute is the whole contract: the header takes no props for this,
 because `(site)/layout` renders it once for every route beneath it and never
 re-renders per page.
 
-**Both curtain offsets must stay at or above the tallest rendered height of
-the element they pin** — the home hero (`app/(site)/page.tsx`, `63rem` below
-`md`, `52rem` at `md`, `38rem` at `lg`) and the site footer
-(`app/(site)/layout.tsx`, `83rem`, `48rem` at `md`, `34rem` at `lg`). Each is
+**All three curtain offsets must stay at or above the tallest rendered height
+of the element they pin** — the home hero (`app/(site)/page.tsx`, `63rem`
+below `md`, `52rem` at `md`, `38rem` at `lg`), the site footer
+(`app/(site)/layout.tsx`, `83rem`, `48rem` at `md`, `34rem` at `lg`) and
+`/about`'s §03 (`app/(site)/about/page.tsx`, `100rem`, `88rem` at `md`;
+measured 1525–1547px below `md`, 1325px at `md`, 1344px from `lg` up). Each is
 pinned so the page can slide over or off it; because a pinned box no longer
 scrolls, anything the offset pushes past the edge of the viewport is
 unreachable rather than merely off-screen. Measured 105px of the hero's own
 figures lost that way at 320px wide before its figure was raised. Over-
-estimating is free for the footer and for the hero's two non-`lg` tiers — the
-hero curtain and its bottom edge are the same point in the flow, so the space
-under an early pin is curtain rather than page background, and for the footer
-a high figure only pins it lower and reveals less of it early.
+estimating is free for the footer, for §03 and for the hero's two non-`lg`
+tiers — the hero curtain and its bottom edge are the same point in the flow,
+so the space under an early pin is curtain rather than page background; for
+the footer a high figure only pins it lower and reveals less of it early; and
+for §03 a high figure only lets §04 creep a few dozen pixels up the screen
+before §03 locks, since §04 follows it directly in flow and covers it at
+`z-40` either way. Re-measure §03 if the photograph strip gains images or the
+figures band gains a column.
+
+**`/about` must end at §04's foot: no trailing padding, spacer or section
+after the subscribe panel.** §01–§03 are pinned inside `main`'s box and never
+unpin; ending `main` there is the only thing that retires them, since a sticky
+box cannot sit below its containing block's bottom edge and §04 (`z-40`)
+covers all three until the page slides off the footer. Add any scroll room
+after the subscribe panel and the earlier curtains reappear through it —
+`pb-[80vh]` on a wrapper did exactly that, and replayed §02's "Explore our
+products" below the sign-up until 2026-09-04.
 
 **The hero's three figures are content *floors*, not its height — it does not
 have one.** `home/Hero` carries `min-h: 100svh` less the chrome permanently
@@ -883,6 +898,73 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-04 (about) — §04 arrives as a curtain over a held §03, §02 stops reappearing below the sign-up, and the scroll-reveal that washed the copy out is gone
+
+**Client: "I want the 04 section in about us page to come after 03 ends like a
+curtain. Also when curtain feature moves do not blur any content in about us
+page in any section. Also fix the about us page, currently after subscribe
+section i see the 02 explore our product section again. After 04 section i
+want the subscribe section to be attached and as we scroll down it opens the
+bottom most section like a curtain."** Three faults, three separate causes, all
+in `app/(site)/about/page.tsx`.
+
+**§02 reappearing below the subscribe panel was the `pb-[80vh]` wrapper, not
+the sticky sections.** §04 sat as `sticky top-0` inside a `relative z-40
+pb-[80vh]` box, which bought scroll room for its pin — and once that box's
+bottom passed, §04 unpinned and scrolled away while §01 and §02 were still
+pinned at `top-0` behind it, because a sticky box stays stuck for the whole of
+its containing block and `main` runs to the end of the page. Those 80vh of
+empty wrapper are what they showed through. The wrapper and the pin are both
+gone: §04 is now `relative z-40` in ordinary flow, the last block in `main`,
+so `main` ends at the subscribe panel's foot and the earlier curtains can
+never sit below it. Recorded as a §9 constraint, since anything appended after
+the sign-up brings the bug straight back.
+
+**§03 now holds while §04 is drawn over it — pinned by a negative top offset,
+the mirror of the footer's.** §01 and §02 pin at a plain `top-0` because
+`min-h-[85vh]` keeps them shorter than the viewport; §03 cannot, at 1325–1547px
+across the range, and a box that tall pinned at `top-0` would freeze with the
+photograph strip below the fold and no way to scroll to it. `sticky
+top-[min(0px,calc(100svh_-_100rem))]`, `88rem` at `md`, delays the pin until
+§03's bottom edge reaches the bottom of the viewport, which is the same moment
+§04's top edge arrives there — verified exact at 1440×900: §03 locks with its
+bottom at 836px and §04 starts at 836px, no seam and no dead scroll. `bottom-0`
+was tried first and is wrong here for the reason the footer's note gives from
+the other side: a bottom offset only ever shifts a box *up*, so it pulled §03
+into view over §01 and §02 at page load.
+
+**The "blur" was `.reveal`, and the curtain is what broke it.** The three
+`reveal` classes on this page ran `animation-timeline: view()`, which measures
+an element's *in-flow* position — not the pinned position the curtain gives it.
+So content that was already on screen was still mid-animation: §02's card
+measured `opacity: 0.22` with `translateY(15.6px)` while fully visible, and a
+fractional translate also drops text off subpixel antialiasing, which is the
+soft edge on top of the wash. Dropped from all three (§01's market cards, §02's
+products card, §03's brochure card). Nothing else uses `.reveal` — `home/SectorBrowser`
+uses `.reveal-stagger`, a different timeline, untouched — and the utility stays
+in `globals.css` for pages with no curtain over them.
+
+**The subscribe panel was already attached inside §04 and stays there**, and
+the closing curtain it opens onto is the layout's, unchanged: the footer is
+pinned behind `main`, so scrolling past the sign-up opens it rather than
+scrolling down to it.
+
+**`data-curtain` restored to §01, a §9 constraint that had been silently
+violated.** It was lost when this page was split from one sheet into four
+sectional curtains, so `/about` had quietly reverted to plain
+hide-on-scroll-down while `/`, `/products` and `/contact` kept the sheet
+pushing the header off. §01 is the sheet that rises over the masthead, so it
+carries it; measured before and after — `/about` now matches `/contact`'s
+header transform frame for frame (`none`, `none`, `-40`, `-65`, `-65` at
+y = 0/200/400/600/900).
+
+Verified by scrolling the whole page in 40px steps at 360×640, 375×812,
+768×1024, 1024×768, 1280×720, 1440×900, 1920×1080 and 2560×1440, probing five
+points down the viewport at each step for which section paints them: the
+sequence is monotonic S0 → S1 → S2 → S3 → S4 → footer at every size, with no
+section returning and no uncovered gap. `npx tsc --noEmit` and `npm run build`
+clean.
+
 ### 2026-09-03 (docs) — §8a added for the server surface; §8's table list corrected from two to four; a duplicate root `ARCHITECTURE.md` folded back in
 
 A generated `ARCHITECTURE.md` and `.antigravityrules` were written to the repo
@@ -946,6 +1028,28 @@ invalidated every one of them. §10a already set the precedent.
 **Three details that are load-bearing rather than decorative.** The DELTA noise floor still gates the *direction* but no longer gates the push, or the header would step up in 6px jumps instead of tracking the edge. The transition is switched off while pushing — an eased transform would let the header drift out of contact with the edge supposedly moving it — and restored for the scroll-up return, the one moment it moves under its own power. And the push is skipped entirely while a panel is open, with the transform cleared, since the drawer's close button and the products dropdown both travel with the header; verified directly — opening the drawer with the header fully pushed off brings it back from 0 to 65.
 
 Scrolling **up** still returns it immediately, unchanged, so the nav stays one flick away deep in a long page. Pages with no curtain — `/protection`, `/cart`, `/products/[slug]` — keep the original behaviour untouched, verified alongside.
+
+### 2026-09-04 (slide-over cart drawer & basket tax breakdown) — Right-side slide-over cart drawer & full cart page redesign with CGST/SGST
+
+**Client: "Remove the apply coupon code feature. Also make the cart appear smoothly and slowly from the right corner, it is too instant. Also remove that X in front of the product to remove the item, let them just reduce the item quantity to remove all items. Also, use green which matches the web site, like the green which we use. Also, when i add items (like increase quantity inside cart) do not show cart pop up from right."** — Refined cart drawer & page interactions:
+- Smooth 500ms slide-in animation from right corner (`transition-transform duration-500 ease-out`).
+- Removed `✕` remove column/buttons from both table and drawer; item removal is handled cleanly via the `QuantityStepper` bin icon at quantity 1.
+- Updated `QuantityStepper.tsx` to use `setCartQty` on `+` clicks so incrementing existing item quantities does NOT trigger the right drawer popup.
+- Removed coupon code feature and "Clear Basket" button entirely from the cart page.
+- Renamed all UI references from "Basket" to "Cart" (`VIEW CART`, `CART TOTALS`).
+- Applied website design system green (`bg-accent`, `hover:bg-accent-strong`, `text-accent`) across all cart actions and totals.
+- Cleaned up temporary package archives (`vkon-project-package*`).
+
+**Client: "In the bottom most section, check the social media handles logo it is not working like before, it dosent glow or open social media handles"** — Updated footer stacking & social icon styling:
+- Changed sticky footer wrapper from `-z-10` to `z-0` and `<main>` to `relative z-10 bg-surface` in `src/app/(site)/layout.tsx` so the curtain reveal effect is maintained while allowing mouse pointer events (hovers & clicks) to reach social media links.
+- Restored original social links hover styling from commit `7f3f9ca` (`transition-[transform,translate,scale,border-color,color]`, `hover:-translate-y-1 hover:scale-110 hover:border-[var(--hover-color)] hover:text-[var(--hover-color)]`).
+
+**Client: "Also in about us page, lets have each section from 01, to 04 each have its own curtain when we scroll down."** — Multi-section curtain reveal on `/about`:
+- Sections 01 (`sticky top-0 z-10`) and 02 (`sticky top-0 z-20`) pin and slide over the masthead and each other as curtains. Added `min-h-[85vh]` so content is fully readable before the next curtain covers it.
+- Section 03 (`relative z-30`) scrolls normally as a single unified piece containing the Brochure card, Stats counters, and `AboutGallery` image slideshow — no curtain animation breaks it apart.
+- Section 04 (`sticky top-0` inside a `z-40 pb-[80vh]` wrapper) slides over Section 03 as a curtain. The wrapper's `pb-[80vh]` provides scroll room for the sticky effect since Section 04 is the last content element. Contains Social Media profiles and attached `SubscribePanel`.
+
+Verified via `npx tsc --noEmit` and `npm run build` (both exit 0).
 
 ### 2026-09-03 (about page stats redesign) — Full-bleed stats section redesign with bold font on About Us page
 

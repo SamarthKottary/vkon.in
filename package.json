@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "db:setup": "node scripts/db-setup.mjs",
-    "db:seed": "node scripts/db-seed.mjs"
+    "db:seed": "node scripts/db-seed.mjs",
+    "db:export": "node scripts/db-export.mjs",
+    "db:restore": "node scripts/db-restore.mjs",
+    "setup:local": "node scripts/setup-local.mjs"
   },
   "dependencies": {
     "next": "16.2.12",
