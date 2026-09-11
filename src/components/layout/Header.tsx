@@ -464,7 +464,7 @@ export function Header({
                           href="/account"
                           onClick={() => setOpen(false)}
                           aria-current={isActive("/account") ? "page" : undefined}
-                          className={`block px-5 py-4 text-base font-medium uppercase tracking-wide transition-colors ${
+                          className={`block px-5 py-3 text-sm font-medium uppercase tracking-wide transition-colors ${
                             isActive("/account")
                               ? "text-accent font-semibold bg-accent-soft/30"
                               : "text-ink hover:text-accent hover:bg-surface-subtle"
@@ -478,7 +478,7 @@ export function Header({
                           href="/account/orders"
                           onClick={() => setOpen(false)}
                           aria-current={isActive("/account/orders") ? "page" : undefined}
-                          className={`block px-5 py-4 text-base font-medium uppercase tracking-wide transition-colors ${
+                          className={`block px-5 py-3 text-sm font-medium uppercase tracking-wide transition-colors ${
                             isActive("/account/orders")
                               ? "text-accent font-semibold bg-accent-soft/30"
                               : "text-ink hover:text-accent hover:bg-surface-subtle"
@@ -491,7 +491,7 @@ export function Header({
                         <form action={logoutAction} onSubmit={() => handleUserLogout()}>
                           <button
                             type="submit"
-                            className="block w-full px-5 py-4 text-left text-base font-medium uppercase tracking-wide text-ink transition-colors hover:text-accent hover:bg-surface-subtle cursor-pointer"
+                            className="block w-full px-5 py-3 text-left text-sm font-medium uppercase tracking-wide text-ink transition-colors hover:text-accent hover:bg-surface-subtle cursor-pointer"
                           >
                             LOG OUT
                           </button>
@@ -504,7 +504,7 @@ export function Header({
                     <Link
                       href={signInHref}
                       onClick={() => setOpen(false)}
-                      className="block px-5 py-4 text-base font-medium uppercase tracking-wide text-ink hover:text-accent hover:bg-surface-subtle transition-colors"
+                      className="block px-5 py-3 text-sm font-medium uppercase tracking-wide text-ink hover:text-accent hover:bg-surface-subtle transition-colors"
                     >
                       SIGN IN / REGISTER
                     </Link>

@@ -77,53 +77,59 @@ export default async function OrdersPage() {
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4 px-5 py-5 sm:px-6">
-                  {/* Four thumbnails at most, then a count. A ten-line order
-                      would otherwise turn a summary row into a gallery. */}
-                  <ul className="flex shrink-0 items-center gap-2">
-                    {order.items.slice(0, 4).map((item) => (
-                      <li
-                        key={item.id}
-                        className="relative h-14 w-14 overflow-hidden border border-line bg-surface-subtle"
-                      >
-                        {item.imageUrl ? (
-                          <Image
-                            src={item.imageUrl}
-                            alt=""
-                            fill
-                            sizes="3.5rem"
-                            className="object-cover"
-                          />
-                        ) : (
-                          <span className="absolute inset-0 flex items-center justify-center text-muted">
-                            <PanelPlaceholder className="h-5 w-5" />
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                    {order.items.length > 4 && (
-                      <li className="flex h-14 w-14 items-center justify-center border border-line bg-surface-subtle text-xs font-semibold text-muted">
-                        +{order.items.length - 4}
-                      </li>
-                    )}
-                  </ul>
+                <div className="px-5 py-4 sm:px-6">
+                  {/* Top row: thumbnails + price + view button */}
+                  <div className="flex items-center gap-3">
+                    {/* Four thumbnails at most */}
+                    <ul className="flex shrink-0 items-center gap-1.5">
+                      {order.items.slice(0, 4).map((item) => (
+                        <li
+                          key={item.id}
+                          className="relative h-12 w-12 overflow-hidden border border-line bg-surface-subtle"
+                        >
+                          {item.imageUrl ? (
+                            <Image
+                              src={item.imageUrl}
+                              alt=""
+                              fill
+                              sizes="3rem"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <span className="absolute inset-0 flex items-center justify-center text-muted">
+                              <PanelPlaceholder className="h-4 w-4" />
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                      {order.items.length > 4 && (
+                        <li className="flex h-12 w-12 items-center justify-center border border-line bg-surface-subtle text-xs font-semibold text-muted">
+                          +{order.items.length - 4}
+                        </li>
+                      )}
+                    </ul>
 
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-body">
-                      {order.items.map((item) => item.name).join(", ")}
-                    </p>
-                    <p className="mt-1 text-lg font-bold text-accent tabular-nums">
-                      {formatPaise(order.total)}
-                    </p>
+                    {/* Spacer pushes price + button right */}
+                    <div className="min-w-0 flex-1" />
+
+                    <div className="flex shrink-0 items-center gap-3">
+                      <p className="text-base font-bold text-accent tabular-nums whitespace-nowrap">
+                        {formatPaise(order.total)}
+                      </p>
+                      <Link
+                        href={`/account/orders/${order.id}`}
+                        className="inline-flex h-9 shrink-0 items-center gap-1.5 border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+                      >
+                        View
+                        <ArrowRightIcon className="h-4 w-4" />
+                      </Link>
+                    </div>
                   </div>
 
-                  <Link
-                    href={`/account/orders/${order.id}`}
-                    className="inline-flex h-10 shrink-0 items-center gap-2 border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
-                  >
-                    View
-                    <ArrowRightIcon className="h-4 w-4" />
-                  </Link>
+                  {/* Product names below thumbnails */}
+                  <p className="mt-2.5 truncate text-sm text-body">
+                    {order.items.map((item) => item.name).join(", ")}
+                  </p>
                 </div>
               </li>
             ))}
