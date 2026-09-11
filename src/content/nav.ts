@@ -19,7 +19,6 @@ export const primaryNav: NavLink[] = [
 export const accountNav: NavLink[] = [
   { href: "/account", label: "My account" },
   { href: "/account/orders", label: "Order history" },
-  { href: "/account/addresses", label: "Addresses" },
 ];
 
 /**

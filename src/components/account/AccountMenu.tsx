@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   LogoutIcon,
   PackageIcon,
-  PinIcon,
   UserIcon,
 } from "@/components/icons/ui";
 import { logoutAction } from "@/app/(site)/account/actions";
@@ -125,10 +124,6 @@ export function AccountMenu({ customer }: { customer: HeaderCustomer | null }) {
             <MenuLink href="/account/orders" onNavigate={() => setOpen(false)}>
               <PackageIcon className="h-4 w-4" />
               Order history
-            </MenuLink>
-            <MenuLink href="/account/addresses" onNavigate={() => setOpen(false)}>
-              <PinIcon className="h-4 w-4" />
-              Addresses
             </MenuLink>
           </nav>
 

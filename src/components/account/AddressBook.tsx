@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PencilIcon, PinIcon, PlusIcon, TrashIcon } from "@/components/icons/ui";
 import { Button } from "@/components/ui/Button";
 import { AddressForm } from "@/components/account/AddressForm";
@@ -28,77 +28,111 @@ import type { Address } from "@/lib/types";
  * lives in `lib/db/addresses.ts`.
  */
 export function AddressBook({ addresses }: { addresses: Address[] }) {
-  const [adding, setAdding] = useState(addresses.length === 0);
-  const [editing, setEditing] = useState<string | null>(null);
+  const defaultAddress = addresses.find((a) => a.isDefault) ?? addresses[0];
+  const [selectedId, setSelectedId] = useState<string | null>(
+    defaultAddress?.id ?? null
+  );
+  const [activeId, setActiveId] = useState<string | null>(
+    addresses.length === 0 ? "new" : null
+  );
+
+  // If the active or selected address gets deleted, update state
+  useEffect(() => {
+    if (activeId && activeId !== "new" && !addresses.some((a) => a.id === activeId)) {
+      setActiveId(null);
+    }
+    if (selectedId && !addresses.some((a) => a.id === selectedId)) {
+      setSelectedId(addresses[0]?.id ?? null);
+    }
+  }, [addresses, activeId, selectedId]);
+
+  const editingAddress =
+    activeId && activeId !== "new"
+      ? addresses.find((a) => a.id === activeId)
+      : undefined;
+
+  const handleSelect = (id: string) => {
+    setSelectedId(id);
+    if (activeId !== null && activeId !== "new") {
+      setActiveId(id);
+    }
+  };
+
+  const handleEdit = (id: string) => {
+    setSelectedId(id);
+    setActiveId(activeId === id ? null : id);
+  };
 
   return (
     <div className="space-y-6">
       {addresses.length > 0 && (
-        <ul className="grid gap-5 sm:grid-cols-2">
-          {addresses.map((address) => (
-            <li
-              key={address.id}
-              className={`border bg-surface-raised p-5 shadow-card ${
-                address.isDefault ? "border-accent" : "border-line"
-              }`}
-            >
-              {editing === address.id ? (
-                <>
-                  <h3 className="mb-5 text-sm font-semibold uppercase tracking-wider text-ink">
-                    Edit address
-                  </h3>
-                  <AddressForm address={address} onDone={() => setEditing(null)} />
-                  <button
-                    type="button"
-                    onClick={() => setEditing(null)}
-                    className="mt-4 text-sm text-muted hover:text-ink"
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <>
-                  {address.isDefault && (
-                    <p className="label-tech mb-3 flex items-center gap-1.5 text-accent">
-                      <PinIcon className="h-3.5 w-3.5" />
-                      Default
-                    </p>
-                  )}
+        <ul className="grid gap-4 sm:grid-cols-2">
+          {addresses.map((address) => {
+            const isSelected = selectedId === address.id;
+            const isEditingThis = activeId === address.id;
+            return (
+              <li key={address.id} className="min-w-0">
+                <div
+                  className={`flex h-full flex-col border bg-surface-raised transition-colors ${
+                    isSelected || isEditingThis
+                      ? "border-accent ring-1 ring-accent"
+                      : address.isDefault
+                      ? "border-accent"
+                      : "border-line hover:border-line-strong"
+                  }`}
+                >
+                  <label className="flex flex-1 cursor-pointer gap-3 p-4 sm:p-5">
+                    <input
+                      type="radio"
+                      name="account-addresses"
+                      value={address.id}
+                      checked={isSelected}
+                      onChange={() => handleSelect(address.id)}
+                      className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+                    />
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-semibold text-ink">{address.name}</span>
+                        {address.isDefault && (
+                          <span className="label-tech flex items-center gap-1 text-accent">
+                            <PinIcon className="h-3 w-3" />
+                            Default
+                          </span>
+                        )}
+                      </span>
 
-                  <p className="font-semibold text-ink">{address.name}</p>
-                  <address className="mt-1.5 text-sm not-italic leading-relaxed text-body">
-                    {address.line1}
-                    {address.line2 && (
-                      <>
+                      <span className="mt-1 block text-sm leading-relaxed text-body">
+                        {address.line1}
+                        {address.line2 && (
+                          <>
+                            <br />
+                            {address.line2}
+                          </>
+                        )}
                         <br />
-                        {address.line2}
-                      </>
-                    )}
-                    <br />
-                    {address.city}, {address.state} {address.postalCode}
-                    <br />
-                    {address.phone}
-                  </address>
+                        {address.city}, {address.state} {address.postalCode}
+                        <br />
+                        {address.phone}
+                      </span>
 
-                  {/* Only when there is one. A "GSTIN —" row on the eight cards
-                      out of ten that have none is eight rows of nothing. */}
-                  {address.gstin && (
-                    <p className="label-tech mt-3 break-all text-muted">
-                      GSTIN {address.gstin}
-                    </p>
-                  )}
+                      {/* Only when there is one. A "GSTIN —" row on the eight cards
+                          out of ten that have none is eight rows of nothing. */}
+                      {address.gstin && (
+                        <span className="label-tech mt-3 block break-all text-muted">
+                          GSTIN {address.gstin}
+                        </span>
+                      )}
+                    </span>
+                  </label>
 
-                  <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                  <div className="flex items-center gap-4 border-t border-line px-4 py-2.5 text-sm">
                     <button
                       type="button"
-                      onClick={() => {
-                        setEditing(address.id);
-                        setAdding(false);
-                      }}
+                      onClick={() => handleEdit(address.id)}
                       className="flex items-center gap-1.5 text-accent hover:underline"
                     >
                       <PencilIcon className="h-3.5 w-3.5" />
-                      Edit
+                      {isEditingThis ? "Editing" : "Edit"}
                     </button>
 
                     {!address.isDefault && (
@@ -134,31 +168,35 @@ export function AddressBook({ addresses }: { addresses: Address[] }) {
                       </button>
                     </form>
                   </div>
-                </>
-              )}
-            </li>
-          ))}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
-      {adding ? (
-        <div className="border border-line bg-surface-raised p-6 shadow-card sm:p-8">
+      {activeId !== null ? (
+        <div className="border border-line-strong bg-surface-raised p-5 shadow-card sm:p-6">
           <h3 className="mb-6 text-sm font-semibold uppercase tracking-wider text-ink">
-            New address
+            {editingAddress ? "Edit address" : "New address"}
           </h3>
-          <AddressForm onDone={() => setAdding(false)} />
-          {addresses.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setAdding(false)}
-              className="mt-4 text-sm text-muted hover:text-ink"
-            >
-              Cancel
-            </button>
-          )}
+          <AddressForm
+            key={editingAddress?.id ?? "new"}
+            address={editingAddress}
+            onDone={() => setActiveId(null)}
+            onCancel={
+              addresses.length > 0 ? () => setActiveId(null) : undefined
+            }
+          />
         </div>
       ) : (
-        <Button type="button" variant="outline" onClick={() => setAdding(true)}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setActiveId("new");
+          }}
+        >
           <PlusIcon className="h-4 w-4" />
           Add an address
         </Button>

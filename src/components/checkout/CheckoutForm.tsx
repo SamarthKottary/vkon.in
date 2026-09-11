@@ -77,7 +77,6 @@ export function CheckoutForm({
    * sense if the second step is usually a formality.
    */
   const [sameAsBilling, setSameAsBilling] = useState(true);
-  const [notes, setNotes] = useState("");
 
   /** Which address panel is open, if any. One at a time: two open forms are
    *  two Save buttons and no way to tell which is which. */
@@ -185,6 +184,10 @@ export function CheckoutForm({
   const openEditor = (section: Section, addressId: string | null) => {
     if (addressId === null) awaiting.current = section;
     setEditor({ section, addressId });
+    if (addressId !== null) {
+      if (section === "billing") setBillingId(addressId);
+      if (section === "shipping") setShippingId(addressId);
+    }
   };
 
   const addressPanel = (section: Section) => {
@@ -198,23 +201,20 @@ export function CheckoutForm({
         {/* Its own `<form>` — see the note at the top of this file for why the
             order form cannot be an ancestor of this element. */}
         <AddressForm
+          key={editing?.id ?? "new"}
           address={editing}
           onDone={() => {
             setEditor(null);
           }}
+          onCancel={
+            addresses.length > 0
+              ? () => {
+                  awaiting.current = null;
+                  setEditor(null);
+                }
+              : undefined
+          }
         />
-        {addresses.length > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              awaiting.current = null;
-              setEditor(null);
-            }}
-            className="mt-4 text-sm text-muted hover:text-ink"
-          >
-            Cancel
-          </button>
-        )}
       </div>
     );
   };
@@ -250,7 +250,12 @@ export function CheckoutForm({
                     address={address}
                     group={`${uid}-billing`}
                     selected={billingId === address.id}
-                    onSelect={() => setBillingId(address.id)}
+                    onSelect={() => {
+                      setBillingId(address.id);
+                      if (editor?.section === "billing" && editor.addressId !== null) {
+                        setEditor({ section: "billing", addressId: address.id });
+                      }
+                    }}
                     onEdit={() => openEditor("billing", address.id)}
                     showGstin
                   />
@@ -304,7 +309,12 @@ export function CheckoutForm({
                         address={address}
                         group={`${uid}-shipping`}
                         selected={shippingId === address.id}
-                        onSelect={() => setShippingId(address.id)}
+                        onSelect={() => {
+                          setShippingId(address.id);
+                          if (editor?.section === "shipping" && editor.addressId !== null) {
+                            setEditor({ section: "shipping", addressId: address.id });
+                          }
+                        }}
                         onEdit={() => openEditor("shipping", address.id)}
                       />
                     </li>
@@ -368,29 +378,6 @@ export function CheckoutForm({
             .
           </p>
         </section>
-
-        {/* 4 — Anything else. */}
-        <section>
-          <StepHeading step={4} title="Anything we should know?" />
-          <div className="mt-6">
-            <Field
-              id={`${uid}-notes`}
-              label="Note for us"
-              hint="Pump rating, phase, a landmark for the delivery — anything that saves a phone call."
-              optional
-            >
-              <textarea
-                id={`${uid}-notes`}
-                rows={4}
-                maxLength={1000}
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="e.g. 7.5 HP submersible, 3-phase supply, deliver after 4 pm"
-                className={`${fieldInput()} resize-y leading-relaxed`}
-              />
-            </Field>
-          </div>
-        </section>
       </div>
 
       {/* The order form itself. Small on purpose: hidden fields carrying the
@@ -420,7 +407,7 @@ export function CheckoutForm({
         <input type="hidden" name="billingAddressId" value={billingId} />
         <input type="hidden" name="shippingAddressId" value={sameAsBilling ? "" : shippingId} />
         {sameAsBilling && <input type="hidden" name="sameAsBilling" value="on" />}
-        <input type="hidden" name="notes" value={notes} />
+        <input type="hidden" name="notes" value="" />
 
         <h2 className="border-b border-line pb-4 text-lg font-bold uppercase tracking-wider text-ink">
           Order total

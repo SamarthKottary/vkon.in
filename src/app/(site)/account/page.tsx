@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { CheckIcon, LockIcon, PackageIcon, PinIcon } from "@/components/icons/ui";
+import { CheckIcon, PackageIcon, PinIcon } from "@/components/icons/ui";
 import { ProfileForm } from "@/components/account/ProfileForm";
+import { AddressBook } from "@/components/account/AddressBook";
 import { AccountShell } from "@/components/account/AccountShell";
 import { requireSignIn } from "@/lib/account";
 import { listAddresses } from "@/lib/db/addresses";
@@ -60,14 +61,14 @@ export default async function AccountPage({
             }
           />
           <SummaryCard
-            href="/account/addresses"
+            href="#addresses"
             icon={<PinIcon className="h-5 w-5" />}
             label="Addresses"
             value={addresses.length === 0 ? "None saved" : `${addresses.length}`}
             detail={
               addresses.find((a) => a.isDefault)
                 ? `Default: ${addresses.find((a) => a.isDefault)?.city}`
-                : "Save one to make checkout quicker."
+                : "Save one below to make checkout quicker."
             }
           />
         </div>
@@ -78,68 +79,26 @@ export default async function AccountPage({
             The name and number we use when we call about an order.
           </p>
           <div className="mt-6 max-w-md">
-            <ProfileForm name={customer.name} phone={customer.phone} />
+            <ProfileForm
+              name={customer.name}
+              phone={customer.phone}
+              email={customer.email}
+              hasGoogle={customer.hasGoogle}
+            />
           </div>
         </section>
 
-        <section className="border border-line bg-surface-raised p-6 shadow-card sm:p-8">
-          <h2 className="flex items-center gap-2.5 text-lg font-semibold text-ink">
-            <LockIcon className="h-5 w-5 text-muted" />
-            Sign-in
-          </h2>
-
-          <dl className="mt-5 divide-y divide-line text-sm">
-            <Row label="Email">
-              <span className="text-ink">{customer.email}</span>{" "}
-              {customer.emailVerified ? (
-                <span className="ml-1 text-accent">confirmed</span>
-              ) : (
-                <span className="ml-1 text-muted">not yet confirmed</span>
-              )}
-            </Row>
-            <Row label="Password">
-              {customer.hasPassword ? (
-                <>
-                  <span className="text-ink">Set</span>
-                  {" · "}
-                  <Link href="/account/forgot" className="text-accent hover:underline">
-                    change it
-                  </Link>
-                </>
-              ) : (
-                /* A Google-only account. `/account/forgot` is the route to a
-                   password here as much as it is a recovery route: it mails a
-                   link, and the link sets one. Saying "set a password" rather
-                   than "forgot" is the honest label for what it does for them. */
-                <>
-                  <span className="text-muted">None — you sign in with Google</span>
-                  {" · "}
-                  <Link href="/account/forgot" className="text-accent hover:underline">
-                    set one
-                  </Link>
-                </>
-              )}
-            </Row>
-            <Row label="Google">
-              {customer.hasGoogle ? (
-                <span className="text-ink">Linked</span>
-              ) : (
-                <span className="text-muted">Not linked</span>
-              )}
-            </Row>
-          </dl>
+        <section id="addresses" className="border border-line bg-surface-raised p-6 shadow-card sm:p-8">
+          <h2 className="text-lg font-semibold text-ink">Delivery addresses</h2>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
+            Save the places you take delivery, and checkout becomes one tap.
+          </p>
+          <div className="mt-6">
+            <AddressBook addresses={addresses} />
+          </div>
         </section>
       </div>
     </AccountShell>
-  );
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-3.5">
-      <dt className="label-tech w-28 shrink-0 text-muted">{label}</dt>
-      <dd className="min-w-0 flex-1 text-body">{children}</dd>
-    </div>
   );
 }
 

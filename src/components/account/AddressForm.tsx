@@ -29,10 +29,13 @@ import type { Address } from "@/lib/types";
 export function AddressForm({
   address,
   onDone,
+  onCancel,
 }: {
   address?: Address;
   /** Called after a successful save, so the page can close the form. */
   onDone?: () => void;
+  /** Called when the user clicks Cancel. */
+  onCancel?: () => void;
 }) {
   const uid = useId();
   const [state, formAction] = useActionState<AccountState, FormData>(saveAddressAction, {
@@ -226,7 +229,10 @@ export function AddressForm({
         Use this as my default address
       </label>
 
-      <Save editing={Boolean(address)} />
+      <div className="flex flex-wrap items-center gap-3 pt-2">
+        <Save editing={Boolean(address)} />
+        {onCancel && <CancelButton onCancel={onCancel} />}
+      </div>
     </form>
   );
 }
@@ -238,6 +244,19 @@ function Save({ editing }: { editing: boolean }) {
       {pending && <SpinnerIcon className="h-4 w-4" />}
       {pending ? "Saving…" : editing ? "Save changes" : "Save address"}
     </Button>
+  );
+}
 
+function CancelButton({ onCancel }: { onCancel: () => void }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={onCancel}
+      disabled={pending}
+    >
+      Cancel
+    </Button>
   );
 }

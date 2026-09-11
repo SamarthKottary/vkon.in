@@ -2,7 +2,7 @@
 
 import { useActionState, useId } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
+import { AlertIcon, CheckIcon, GoogleIcon, SpinnerIcon } from "@/components/icons/ui";
 import { Button } from "@/components/ui/Button";
 import { Field, fieldInput } from "@/components/ui/Field";
 import {
@@ -11,9 +11,19 @@ import {
 } from "@/app/(site)/account/private-actions";
 
 /**
- * Edit name and phone number.
+ * Edit name and phone number, and display account credentials (email and Google connection).
  */
-export function ProfileForm({ name, phone }: { name: string; phone: string }) {
+export function ProfileForm({
+  name,
+  phone,
+  email,
+  hasGoogle,
+}: {
+  name: string;
+  phone: string;
+  email?: string;
+  hasGoogle?: boolean;
+}) {
   const uid = useId();
   const [state, formAction] = useActionState<AccountState, FormData>(saveProfileAction, {
     status: "idle",
@@ -57,6 +67,23 @@ export function ProfileForm({ name, phone }: { name: string; phone: string }) {
           className={fieldInput(error("phone"))}
         />
       </Field>
+
+      {email && (
+        <div className="border-t border-line pt-3">
+          <span className="label-tech block text-xs font-semibold uppercase tracking-wider text-muted">
+            Email address
+          </span>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-ink">{email}</span>
+            {hasGoogle && (
+              <span className="inline-flex items-center gap-1.5 border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink shadow-sm">
+                <GoogleIcon className="h-3.5 w-3.5" />
+                Google linked
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-4">
         <Save />

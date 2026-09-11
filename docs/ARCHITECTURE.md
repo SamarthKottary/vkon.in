@@ -5436,6 +5436,13 @@ admin UI, and the visual design was rebuilt.
   - Ongoing: authenticated cart edits are debounced and synced to PostgreSQL.
 - Fixed standalone startup (`scripts/start-standalone.mjs`) to load environment variables via `@next/env`.
 - Dynamically configured `secure` cookie attribute for plain HTTP over local LAN (`x-forwarded-proto` / host check) across session and Google OAuth handshake cookies (`vkon_oauth` and `vkon_session`), eliminating false HTTPS detection from external OAuth referers.
+- Consolidated Account & Checkout layout:
+  - Removed "Anything we should know?" order notes section from Checkout.
+  - Fixed Checkout address editing reactivity by keying `<AddressForm key={editing?.id ?? "new"} />` and synchronizing `editor` state on address selection so the form immediately updates to the toggled address.
+  - Merged Delivery Addresses directly into `/account` below "Your details", eliminating separate `/account/addresses` page from navigation.
+  - Aligned AddressBook address editing in `/account` with Checkout: added radio-based address selection toggle across cards, with edit/new form rendered in a dedicated panel below the grid that dynamically switches addresses when toggling cards.
+  - Positioned the "Cancel" button directly alongside the "Save changes" / "Save address" button inside `<AddressForm />` across both Checkout and My Account, removing stray exterior cancel links.
+  - Removed separate "Sign-in" password section from `/account`; displayed email and Google-linked status directly in "Your details", removing standalone password setup for Google-authenticated accounts.
 
 ### 2026-08-04 — Architecture doc added
 Created this file. No code change.
