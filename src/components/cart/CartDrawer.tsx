@@ -91,7 +91,7 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
         }`}
       >
         {/* Drawer Header */}
-        <div className="flex h-16 items-center justify-between border-b border-line px-6">
+        <div className="flex h-16 items-center justify-between border-b border-line px-4 sm:px-6">
           <h2 className="text-xl font-bold text-ink">Shopping cart</h2>
           <button
             type="button"
@@ -104,7 +104,7 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
         </div>
 
         {/* Drawer Content / Items list */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {resolved.length === 0 ? (
             <div className="py-16 text-center">
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-surface-subtle text-muted">
@@ -187,7 +187,7 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
 
         {/* Drawer Footer */}
         {resolved.length > 0 && (
-          <div className="border-t border-line bg-surface-raised p-6 space-y-4 shadow-lg">
+          <div className="border-t border-line bg-surface-raised p-4 sm:p-6 space-y-4 shadow-lg">
             <div className="flex items-center justify-between text-base font-bold text-ink">
               <span>Subtotal:</span>
               <span className="text-xl font-bold text-accent tabular-nums">
@@ -199,7 +199,7 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
               <Link
                 href="/cart"
                 onClick={() => setOpen(false)}
-                className="block w-full bg-[#f4f4f4] hover:bg-gray-200 dark:bg-surface-subtle dark:hover:bg-line text-ink font-bold text-xs uppercase tracking-wider py-3.5 text-center transition-colors border border-line"
+                className="block w-full bg-surface-subtle hover:bg-line/40 text-ink font-bold text-xs uppercase tracking-wider py-3.5 text-center transition-colors border border-line"
               >
                 VIEW CART
               </Link>

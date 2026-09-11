@@ -76,7 +76,73 @@ export function CartList({ products }: { products: Product[] }) {
     <div className="grid gap-10 lg:grid-cols-[1fr_22rem] lg:items-start lg:gap-12">
       {/* Left Column: Product Table + Actions */}
       <div className="space-y-6">
-        <div className="overflow-x-auto border border-line bg-surface shadow-card">
+        {/* Mobile View: Card List (< sm) */}
+        <div className="space-y-4 sm:hidden">
+          {resolved.map(({ line, product, sellingPrice, totalPrice }) => {
+            const image = product.images[0];
+            const skuCode = `ST${product.slug.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 10)}`;
+
+            return (
+              <div
+                key={product.slug}
+                className="border border-line bg-surface p-4 shadow-card"
+              >
+                <div className="flex gap-3.5">
+                  <Link
+                    href={`/products/${product.slug}`}
+                    className="relative h-20 w-20 shrink-0 overflow-hidden border border-line bg-surface-subtle"
+                  >
+                    {image ? (
+                      <Image
+                        src={image.url}
+                        alt={image.alt || product.name}
+                        fill
+                        sizes="5rem"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-muted">
+                        <PanelPlaceholder className="h-6 w-6" />
+                      </span>
+                    )}
+                  </Link>
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/products/${product.slug}`}
+                      className="font-semibold text-ink hover:text-accent transition-colors leading-snug line-clamp-2 text-sm"
+                    >
+                      {product.name}
+                    </Link>
+                    <p className="mt-1 text-xs text-muted font-mono uppercase tracking-wide">
+                      SKU: {skuCode}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      Unit: <span className="font-semibold text-ink">{formatRupees(sellingPrice)}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3.5 flex items-center justify-between border-t border-line pt-3">
+                  <QuantityStepper
+                    slug={product.slug}
+                    name={product.name}
+                    qty={line.qty}
+                    size="compact"
+                  />
+                  <div className="text-right">
+                    <span className="text-[11px] uppercase tracking-wider text-muted block">Subtotal</span>
+                    <span className="text-base font-bold text-accent tabular-nums">
+                      {formatRupees(totalPrice)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop / Tablet View: Full 4-Column Table (>= sm) */}
+        <div className="hidden sm:block overflow-x-auto border border-line bg-surface shadow-card">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-surface-subtle text-xs font-bold uppercase tracking-wider text-ink">
               <tr>
@@ -158,7 +224,7 @@ export function CartList({ products }: { products: Product[] }) {
       </div>
 
       {/* Right Column: CART TOTALS Summary Box */}
-      <aside className="border border-line bg-surface p-6 shadow-card lg:sticky lg:top-24">
+      <aside className="border border-line bg-surface p-5 sm:p-6 shadow-card lg:sticky lg:top-24">
         <h2 className="text-lg font-bold uppercase tracking-wider text-ink border-b border-line pb-4">
           CART TOTALS
         </h2>

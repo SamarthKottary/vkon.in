@@ -422,18 +422,18 @@ export function Header({
               </button>
             </div>
 
-            <nav aria-label="Mobile" className="flex-1 overflow-y-auto">
-              <ul>
+            <nav aria-label="Mobile" className="flex flex-1 flex-col justify-between overflow-y-auto">
+              <ul className="divide-y divide-line">
                 {primaryNav.map((link) => (
-                  <li key={link.href} className="border-b border-line">
+                  <li key={link.href}>
                     <Link
                       href={link.href}
                       onClick={() => setOpen(false)}
                       aria-current={isActive(link.href) ? "page" : undefined}
-                      className={`block px-5 py-4 text-base font-medium uppercase ${
+                      className={`block px-5 py-4 text-base font-medium uppercase tracking-wide transition-colors ${
                         isActive(link.href)
-                          ? "text-accent"
-                          : "text-ink hover:bg-surface-subtle"
+                          ? "text-accent font-semibold bg-accent-soft/30"
+                          : "text-ink hover:text-accent hover:bg-surface-subtle"
                       }`}
                     >
                       {link.label}
@@ -442,54 +442,75 @@ export function Header({
                 ))}
               </ul>
 
-              {/* The account block, below the site nav rather than inside it.
-                  `AccountMenu`'s dropdown is a poor fit on a phone, so the same
-                  destinations are laid out flat here instead. */}
-              <ul className="border-t-4 border-surface-subtle">
+              {/* Account block pinned to the bottom of the sidebar, matching primary nav typography */}
+              <div className="mt-auto border-t border-line bg-surface">
                 {customer ? (
                   <>
-                    <li className="border-b border-line px-5 py-3">
-                      <p className="truncate text-sm font-semibold text-ink">
-                        {customer.name || "My account"}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-muted">{customer.email}</p>
-                    </li>
-                    {accountNav.map((link) => (
-                      <li key={link.href} className="border-b border-line">
+                    <div className="flex items-center gap-3 border-b border-line px-5 py-3.5 bg-surface-subtle/50">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-surface text-sm font-bold">
+                        {(customer.name || customer.email || "U").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-ink leading-tight">
+                          {customer.name || "Customer"}
+                        </p>
+                        <p className="truncate text-xs text-muted mt-0.5 font-mono">{customer.email}</p>
+                      </div>
+                    </div>
+
+                    <ul className="divide-y divide-line">
+                      <li>
                         <Link
-                          href={link.href}
+                          href="/account"
                           onClick={() => setOpen(false)}
-                          className="block px-5 py-4 text-base font-medium uppercase text-ink hover:bg-surface-subtle"
+                          aria-current={isActive("/account") ? "page" : undefined}
+                          className={`block px-5 py-4 text-base font-medium uppercase tracking-wide transition-colors ${
+                            isActive("/account")
+                              ? "text-accent font-semibold bg-accent-soft/30"
+                              : "text-ink hover:text-accent hover:bg-surface-subtle"
+                          }`}
                         >
-                          {link.label}
+                          MY ACCOUNT
                         </Link>
                       </li>
-                    ))}
-                    <li className="border-b border-line">
-                      {/* A form, not a link: a GET that ends a session can be
-                          fired by any third-party image tag. */}
-                      <form action={logoutAction} onSubmit={() => handleUserLogout()}>
-                        <button
-                          type="submit"
-                          className="block w-full px-5 py-4 text-left text-base font-medium uppercase text-ink hover:bg-surface-subtle"
+                      <li>
+                        <Link
+                          href="/account/orders"
+                          onClick={() => setOpen(false)}
+                          aria-current={isActive("/account/orders") ? "page" : undefined}
+                          className={`block px-5 py-4 text-base font-medium uppercase tracking-wide transition-colors ${
+                            isActive("/account/orders")
+                              ? "text-accent font-semibold bg-accent-soft/30"
+                              : "text-ink hover:text-accent hover:bg-surface-subtle"
+                          }`}
                         >
-                          Log out
-                        </button>
-                      </form>
-                    </li>
+                          ORDER HISTORY
+                        </Link>
+                      </li>
+                      <li>
+                        <form action={logoutAction} onSubmit={() => handleUserLogout()}>
+                          <button
+                            type="submit"
+                            className="block w-full px-5 py-4 text-left text-base font-medium uppercase tracking-wide text-ink transition-colors hover:text-accent hover:bg-surface-subtle cursor-pointer"
+                          >
+                            LOG OUT
+                          </button>
+                        </form>
+                      </li>
+                    </ul>
                   </>
                 ) : (
-                  <li className="border-b border-line">
+                  <div>
                     <Link
                       href={signInHref}
                       onClick={() => setOpen(false)}
-                      className="block px-5 py-4 text-base font-medium uppercase text-accent hover:bg-surface-subtle"
+                      className="block px-5 py-4 text-base font-medium uppercase tracking-wide text-ink hover:text-accent hover:bg-surface-subtle transition-colors"
                     >
-                      Sign in / Register
+                      SIGN IN / REGISTER
                     </Link>
-                  </li>
+                  </div>
                 )}
-              </ul>
+              </div>
             </nav>
           </div>
         </div>
