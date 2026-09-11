@@ -38,18 +38,38 @@ type SortDir = "asc" | "desc";
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   return (
-    <span className={`inline-flex flex-col items-center justify-center leading-none ml-1.5 ${active ? "text-accent" : "text-muted/40"}`}>
+    <span className="inline-flex flex-col items-center justify-center ml-1.5 gap-[2px]">
       <svg
-        width="8" height="5" viewBox="0 0 8 5" fill="currentColor"
-        className={`block transition-opacity ${active && dir === "asc" ? "opacity-100" : "opacity-25"}`}
+        width="9"
+        height="6"
+        viewBox="0 0 9 6"
+        fill="currentColor"
+        className={`transition-colors ${
+          active && dir === "asc"
+            ? "text-accent"
+            : active
+            ? "text-muted/30"
+            : "text-muted group-hover:text-ink"
+        }`}
+        aria-hidden="true"
       >
-        <path d="M4 0L7.46 5H.54L4 0z" />
+        <path d="M4.5 0.5L8.5 5.5H0.5L4.5 0.5Z" />
       </svg>
       <svg
-        width="8" height="5" viewBox="0 0 8 5" fill="currentColor"
-        className={`mt-0.5 block transition-opacity ${active && dir === "desc" ? "opacity-100" : "opacity-25"}`}
+        width="9"
+        height="6"
+        viewBox="0 0 9 6"
+        fill="currentColor"
+        className={`transition-colors ${
+          active && dir === "desc"
+            ? "text-accent"
+            : active
+            ? "text-muted/30"
+            : "text-muted group-hover:text-ink"
+        }`}
+        aria-hidden="true"
       >
-        <path d="M4 5L.54 0H7.46L4 5z" />
+        <path d="M4.5 5.5L0.5 0.5H8.5L4.5 5.5Z" />
       </svg>
     </span>
   );
@@ -281,7 +301,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody>
                 {filtered.map((order) => {
                   const s = STATUS_STYLE[order.status] ?? STATUS_STYLE.pending;
                   const isActive = (ACTIVE_STATUSES as string[]).includes(order.status);
