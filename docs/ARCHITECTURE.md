@@ -125,12 +125,34 @@ src/
       contact/page.tsx      contact channels, enquiry form, address
       products/page.tsx     catalogue
       products/[slug]/      detail
+      cart/page.tsx         basket, from localStorage
+      checkout/page.tsx     the one route that requires an account
+      privacy/page.tsx      privacy policy (required by Google OAuth; §7a)
+      terms/page.tsx        terms of service
+      account/
+        layout.tsx          metadata + force-dynamic ONLY — no chrome, no guard (§9)
+        actions.ts          PUBLIC auth actions — register, sign in, forgot, reset
+        private-actions.ts  requireCustomer() actions — profile, addresses, orders
+        page.tsx            dashboard: summary, details, sign-in methods
+        login/              sign-in + register tabs, Google button
+        forgot/ reset/      password recovery
+        verify/             where the welcome mail's confirmation link lands
+        orders/             history, and orders/[id] detail
+        addresses/          the address book
+    api/
+      health/route.ts
+      auth/google/start/    builds the Google URL, sets the PKCE cookie
+      auth/google/callback/ verifies state, exchanges the code, starts a session
+      payment/create/       gateway order; amount read from the DB, never the request
+      payment/verify/       browser callback; checkout-signature check
+      payment/webhook/      Razorpay's servers; raw-body signature check, no session
     admin/
       layout.tsx            admin chrome, reads auth state
       page.tsx              login
       LoginForm.tsx
       actions.ts            ALL admin server actions — the security boundary
       products/             list, ProductForm, new/, [id]/
+      orders/               order inbox: read, advance status
       enquiries/            contact inbox: read, mark handled, remove
       subscribers/          mailing list: read, export, remove
     not-found.tsx           renders its own chrome (outside the (site) group)
@@ -138,22 +160,37 @@ src/
     sitemap.ts robots.ts opengraph-image.tsx icon.svg
 
   components/
+    account/   AccountShell, AccountNavLink (client), AccountMenu (client),
+               AddressBook (client), AddressForm (client), ProfileForm (client),
+               OrderStatusBadge
+    checkout/  CheckoutForm, PayNowButton — both client
     contact/   EnquiryForm (client)
     layout/    Header (client), Footer, MobileActionBar, PageHero,
                ProductsMenu (client), SubscribePanel (client)
     home/      Hero, HeroRotator (client), SectorBrowser (client),
                ContactStrip, RecentlyViewed (client)
-    product/   ProductCard, ProductRow (client), ProductMedia (client),
+    product/   ProductCard, ProductMedia (client),
                ProductCatalogue (client), SpecTable, ProtectionList,
                PanelPlaceholder, RecordView (client), ProductPrice
     icons/     protections.tsx (12-icon set), ui.tsx, Logo.tsx
     theme/     ThemeScript (pre-paint, inline), ThemeToggle (client)
-    ui/        Button, Container, Section, Badge, JsonLd
+    ui/        Button, Container, Section, Badge, JsonLd, Field,
+               PasswordField (client)
 
-  content/     taxonomy.ts (sectors + categories), segments.ts, site.ts, nav.ts
+  content/     taxonomy.ts (sectors + categories), segments.ts, site.ts, nav.ts,
+               states.ts (India, for the address form)
   lib/
-    db/          client.ts, products.ts, subscribers.ts, enquiries.ts, schema.sql
-    auth.ts      session + requireAdmin
+    db/          client.ts, products.ts, subscribers.ts, enquiries.ts,
+                 customers.ts, addresses.ts, orders.ts, cart.ts, schema.sql
+    auth.ts      ADMIN session + requireAdmin — one operator, no user table
+    account.ts   CUSTOMER sessions + requireCustomer/requireSignIn (§7a)
+    password.ts  scrypt hash/verify on node:crypto — SERVER ONLY
+    password-policy.ts  the rules; no `node:` imports, so the browser shares it
+    google.ts    OAuth 2.0 + PKCE, hand-written; no auth library
+    mail.ts      Resend over fetch; no nodemailer, no SMTP (§2)
+    razorpay.ts  order creation + the two signature verifiers; no SDK
+    pricing.ts   the ONE money calculation, shared by browser and server
+    cart.ts      the basket, in localStorage
     rate-limit.ts in-memory fixed window; guards the public sign-up
     recent.ts    recently-viewed slugs in localStorage
     storage.ts   blob upload/delete
@@ -182,7 +219,6 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `about/StatCounter` | Counts a figure up from zero on first entering the viewport |
 | `about/AboutGallery` | Endless photo belt (doubled list, seam reset); arrows, pause, dots |
 | `product/ProductCatalogue` | `useSearchParams` filter state |
-| `product/ProductRow` | Measured paging arrows over a scroll track |
 | `cart/CartLink` | Cart count from localStorage via `useSyncExternalStore` |
 | `cart/QuantityStepper` | − / count / + for one product, card and cart page |
 | `cart/CartList` | Cart contents, quantity and removal |
@@ -197,6 +233,16 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `admin/subscribers/SubscriberTools` + `DeleteSubscriberButton` | Clipboard, CSV, confirm step |
 | `admin/enquiries/EnquiryActions` | Mark handled, confirm-delete step |
 | `contact/EnquiryForm` | `useActionState`, per-field errors |
+| `account/AccountMenu` | Dropdown state, outside-click, Escape. Takes the customer as a prop — the layout reads it on the server |
+| `account/AccountNavLink` | `usePathname`, to mark the current page. The only client part of `AccountShell`, which is otherwise a server component |
+| `account/ProfileForm` · `AddressForm` | `useActionState`, per-field errors |
+| `account/AddressBook` | Which card is being edited; `confirm()` before delete |
+| `cart/CartDrawer` | Slide-over state, Escape, body scroll lock |
+| `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
+| `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection, with add/edit/delete inline |
+| `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, refreshes |
+| `ui/PasswordField` | Live requirement checklist and strength meter as you type |
+| `admin/orders/OrderStatusSelect` | Submits the status `<select>` on change |
 
 Everything else is a server component.
 
@@ -314,9 +360,201 @@ client `accept` attribute is a hint, not a control. Blob `pathname` is stored on
 each image so deleting a product also deletes its files instead of orphaning
 them.
 
-**Not implemented:** rate limiting on login. On serverless, in-memory counters
-are per-instance and near useless; doing it properly needs a shared store. With
-a strong password this is an accepted risk — see §11.
+**Not implemented:** rate limiting on the *admin* login. On serverless,
+in-memory counters are per-instance and near useless; doing it properly needs a
+shared store. With a strong password this is an accepted risk — see §11. The
+*customer* sign-in below is rate limited, because it deploys as one container
+and `lib/rate-limit.ts` is therefore sound.
+
+---
+
+## 7a. Customer accounts
+
+> Added 2026-09-06. Shop visitors, as distinct from the single operator §7
+> describes. Both exist; neither can do the other's job.
+
+### The two auth systems are separate, and must stay separate
+
+| | `/admin` (§7) | Customer accounts |
+|---|---|---|
+| Module | `lib/auth.ts` | `lib/account.ts` |
+| Who | one operator | many visitors |
+| Credential | `ADMIN_PASSWORD` env var | `customers.password_hash`, or Google |
+| Cookie | `vkon_admin` | `vkon_session` |
+| Session | self-contained signed token | **a row**, `customer_sessions` |
+| Guard | `requireAdmin()` | `requireCustomer()` |
+
+A customer cookie grants nothing under `/admin`, and an admin cookie grants
+nothing under `/account`: they are different names read by different modules,
+neither of which looks at the other's. Do not merge them "since both are auth".
+The operator has no row and no email; a customer has no `ADMIN_PASSWORD`.
+
+**The customer session is server-side, and that is the one real design
+difference.** The admin's cookie is valid on its own signature, which is fine
+for one person who can restart the process. A shop needs *Log out* on a shared
+phone to actually end the session, and only a deletable row does that — it is
+also what lets a password reset revoke every other session. The cookie holds
+`id.HMAC(id, AUTH_SECRET)`; the signature is not what makes the session valid
+(the row is), it is what lets a forged cookie be rejected without a query.
+
+`AUTH_SECRET` signs both. Rotating it signs every customer out and does not
+lose an account.
+
+### Passwords
+
+`lib/password.ts`, on `node:crypto` scrypt — no `bcrypt`, no `argon2`, both of
+which are native modules with a build step (§2). The stored format is
+`scrypt$N$r$p$salt$hash`: **the cost parameters travel inside each hash**, so
+raising them later re-hashes new passwords while every existing one still
+verifies. A module-level constant would invalidate the table.
+
+N is 2^15 (~32 MB, ~100 ms), not OWASP's 2^17 floor, which measured badly on
+the one small box that also serves the site. 2^15 is the documented acceptable
+alternative *when paired with a real rate limit on sign-in*, which there is.
+
+**`lib/password-policy.ts` holds the rules and must stay free of `node:`
+imports.** It is imported by `ui/PasswordField`, a client component, so that
+the checklist a person types against and the rule the server enforces are the
+same code. They were one file briefly and the login page went blank:
+`node:util`'s `promisify` is a stub in the browser, so `promisify(scryptCb)`
+threw at module evaluation before anything rendered. The error named the
+`promisify` line; the cause was two responsibilities in one file. **This
+recurred during the 2026-09-10 recovery**, which is how strongly the two want
+to be re-merged — see §9.
+
+**The policy is composition-based — length, upper, lower, digit, symbol — by
+client request** (2026-09-07), against NIST SP 800-63B's current advice, which
+is length plus a blocklist. That is a legitimate choice: it is what most sites
+do and what a payment review looks for. Two things keep the known downside in
+check. The blocklist is **kept and applied after** the composition rules, so
+`Password1!` — which satisfies all five and is in every cracking dictionary —
+is still refused. And the requirements are shown ticking as they are met,
+because composition rules are only hostile when invisible until submit. The
+strength meter deliberately rewards *length* past the minimum, which the rules
+do not measure; it returns 0–4 and the label array has exactly five entries, so
+a wider scale renders a blank label.
+
+**Sign-in never checks the policy.** A rule change must not lock out an account
+whose password predates it; the rules apply where a password is set.
+
+### Google
+
+`lib/google.ts` — authorization code flow with PKCE, written out rather than
+imported, for the same §2 reason. Two route handlers, not server actions,
+because this has to be a plain GET the browser follows off-site.
+
+- **`state`** is echoed by Google and compared to a cookie: without it, an
+  attacker's authorization code delivered to your browser signs you into
+  *their* account.
+- **PKCE** is not required for a confidential client but costs four lines.
+- **The id_token's signature is deliberately not verified.** It arrives as the
+  body of a direct server-to-server HTTPS response authenticated with the
+  client secret; there is no third party in that exchange to forge it. `iss`,
+  `aud` and `exp` are still checked.
+- **Accounts are keyed on Google's `sub`, never the email.** A Google user can
+  change their address; matching on it would hand the account to whoever holds
+  that address next. An address that matches an existing row *links* to it,
+  which is what makes "registered with a password, then pressed Continue with
+  Google" one account rather than a unique-index error.
+- Unconfigured is supported: no `GOOGLE_CLIENT_ID`, no button. The login page
+  says so **in development only** — `NODE_ENV` is inlined at build time, so the
+  note is eliminated from a production bundle.
+
+### Email
+
+`lib/mail.ts` — Resend over `fetch`. **This is the first thing in the codebase
+that sends mail**, and §11's note about the obligations that arrive with a
+sender is now half-discharged: everything sent is transactional (welcome,
+password reset, order placed, payment received), so none of it is bulk and none
+needs an unsubscribe footer. The *mailing list* still sends nothing and still
+has no double opt-in.
+
+SMTP would have meant `nodemailer`; SMTP is a socket protocol and cannot be
+spoken with `fetch`. That, not a preference, is why the provider is an HTTP API
+one. **Unconfigured is supported and is what local development uses**: the
+message is written to the server log — confirmation link included — and
+reported as sent. Nothing in that file may fail a user's action.
+
+### Not revealing who has an account
+
+Every public account action says the same thing whether or not an address is
+registered. A form that answers honestly is an enumeration oracle: it hands
+anybody a list of this business's customers, and a phisher a list of addresses
+worth a fake vkon.in mail.
+
+- A failed sign-in is one message for "no such address" and "wrong password",
+  and `verifyPassword` runs against a null hash in the no-account case so the
+  two do not differ by scrypt's ~100 ms either.
+- "Forgot password" reports the same thing always, including when the mail
+  provider is down.
+- **Registering with a taken address mails *that address* a reset link** and
+  tells the browser what a successful registration tells it. The owner is the
+  one person entitled to know, and if it was them who forgot, the mail is
+  exactly the help they needed. That branch is awaited, so it does not return
+  measurably faster than the success branch either.
+
+### Money
+
+`lib/pricing.ts` is the only place a total is computed, and **the browser and
+the server both call it** — the browser's answer is displayed, the server's is
+stored and charged. Before it, the cart page and the cart drawer each had their
+own copy of the arithmetic, which was survivable while it was only ever drawn.
+
+Amounts on `orders` are **integer paise**. `products.price` is whole rupees
+because a list price has none; a 9% tax line does, and floating-point rupees
+accumulate error through a sum. Paise is also what Razorpay's API takes, so the
+number on the row is the number sent to the gateway. Divide by 100 exactly
+once, in `formatPaise`, at render.
+
+**Checkout posts slugs and quantities, never prices.** The cart is in
+`localStorage` and the server cannot read it, so the lines must travel with the
+form; they are re-resolved against the live catalogue and re-priced regardless
+of what was sent. A form that posted its own subtotal is how a ₹40,000 panel
+gets bought for ₹1.
+
+### Payment
+
+Razorpay, added 2026-09-07, over `fetch` — no npm package, same §2 reasoning as
+Resend and Google. `lib/razorpay.ts` plus three route handlers under
+`app/api/payment/`. No schema change was needed: the columns were written when
+orders were.
+
+**The signature checks are the entire security model.** Two of them, using two
+different secrets, and confusing the two is the easiest mistake available here:
+
+| | Signed over | Secret |
+|---|---|---|
+| Checkout callback | `razorpay_order_id \| razorpay_payment_id` | `RAZORPAY_KEY_SECRET` |
+| Webhook | the **raw request body** | `RAZORPAY_WEBHOOK_SECRET` |
+
+They are separate functions rather than one with a parameter for that reason.
+
+**`create` never takes an amount from the request.** It takes an order id,
+loads the order *scoped to the signed-in customer*, and reads `order.total`
+from the row.
+
+**`verify` and `webhook` do the same job on purpose.** The browser callback is
+fast and tells the customer immediately; it only fires if their browser
+survives the payment, and on rural mobile data a phone dropping mid-UPI is
+routine. The webhook is authoritative and arrives regardless. Both call the
+same idempotent `markOrderPaid`, which reports whether *this* call moved the
+row — that boolean is what sends the receipt exactly once instead of once per
+delivery, since Razorpay redelivers webhooks by design.
+
+**The webhook has no session and must not acquire one.** Razorpay's servers are
+the caller; the signature is the authentication. It also reads
+`await request.text()`, never `.json()` — parsing and re-serialising changes
+whitespace and key order, and the signature then never matches, a failure that
+looks exactly like a wrong secret.
+
+**A webhook for an order we do not recognise gets a 200**, not a 404: a 4xx
+makes Razorpay retry for hours over something that will never resolve. An
+amount that does not match `order.total` is logged and refused rather than
+marked paid.
+
+Unconfigured is supported: no keys, no "Pay now" button, no SDK fetched, and
+orders settle by phone exactly as before. See
+**[PAYMENTS.md](PAYMENTS.md)** and **[SETUP-GUIDE.md](SETUP-GUIDE.md) §4**.
 
 ---
 
@@ -344,13 +582,49 @@ is a code change whichever way it is stored.
 
 ### Tables
 
-**Four**, all in `src/lib/db/schema.sql`, which is applied idempotently on every
+**Eleven**, all in `src/lib/db/schema.sql`, which is applied idempotently on every
 deploy — new columns arrive as `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so the
 file is safe to re-run and there is no migration tool.
 
-**There are no foreign keys.** Each entity is independent: a product has no rows
-pointing at it, and an enquiry names no product. Ids are application-generated
-`TEXT` (`crypto.randomUUID()`), not database sequences.
+The first four are the catalogue and the two inboxes: `products`, `page_seo`,
+`subscribers`, `enquiries`. The six added on 2026-09-06 are the account system
+(§7a): `customers`, `customer_sessions`, `customer_tokens`, `addresses`,
+`orders`, `order_items`. **`customer_carts`, added 2026-09-11**, is the
+signed-in cart: one row per customer, `items` holding the same
+`{slug, qty}[]` shape `lib/cart.ts` keeps in `localStorage` for a stranger, so
+a cart survives a switch of device once somebody has signed in. `lib/db/cart.ts`
+is the only module that touches it; `saveCustomerCart`'s
+`INSERT ... ON CONFLICT (customer_id) DO UPDATE` is why `customer_id` is the
+primary key rather than a separate id column — there is at most one row per
+customer, so nothing else needs to distinguish rows.
+
+**Foreign keys exist only inside the account cluster**, and each one's
+`ON DELETE` is a decision rather than a default:
+
+| From | To | On delete | Why |
+|---|---|---|---|
+| `customer_sessions` | `customers` | CASCADE | a session without an account is nothing |
+| `customer_tokens` | `customers` | CASCADE | same |
+| `customer_carts` | `customers` | CASCADE | same |
+| `addresses` | `customers` | CASCADE | same |
+| `orders` | `customers` | **RESTRICT** | deleting a customer must not silently delete the record of what they bought and were charged |
+| `order_items` | `orders` | CASCADE | a line without its order is unreadable |
+| `order_items` | `products` | **none** | deliberately not a key: a deleted product must not delete the line saying it was once sold, nor block the delete |
+
+The catalogue and the inboxes still have none — a product has no rows pointing
+at it, and an enquiry names no product. Ids are application-generated `TEXT`
+(`crypto.randomUUID()`), not database sequences.
+
+**Two tables snapshot rather than reference, and that is load-bearing.**
+`orders.ship_to` is a copy of the address as it was, not a key into
+`addresses`; `order_items` copies the name, image and unit price rather than
+joining `products`. Editing a saved address must not rewrite where last
+month's order went, and renaming a product must not change what an invoice
+from today says was bought. The cart does the opposite — it stores slugs and
+resolves them live — and that is right for a list you are still building and
+wrong for a receipt.
+
+**Every amount in `orders` and `order_items` is integer paise.** See §7a.
 
 **`products`.** `src/lib/db/products.ts` is the
 only module that touches it, and `mapProductRow` is the single snake_case →
@@ -453,9 +727,11 @@ by number from source files (`content/taxonomy.ts` and `layout/SubscribePanel`
 both cite §9, `icons/ui.tsx` cites §2, `lib/rate-limit.ts` cites §11) — the same
 reason §10a exists. Renumbering would break those.
 
-**Almost nothing here is an HTTP endpoint.** There are exactly two route
-handlers; every other write is a server action, and every read happens inside a
-server component. There is no REST or GraphQL layer to call from the client.
+**Almost nothing here is an HTTP endpoint.** There are seven route handlers —
+five of them only because an OAuth redirect and a payment gateway's callbacks
+cannot be server actions. Every other write is a server action, and every read
+happens inside a server component. There is no REST or GraphQL layer to call
+from the client.
 
 ### Route handlers
 
@@ -463,6 +739,11 @@ server component. There is no REST or GraphQL layer to call from the client.
 |---|---|---|
 | `GET` | `/api/health` | `200 {status:"ok", database:"ok", products:number, latencyMs:number}` · `503 {status:"error", database:"unconfigured"}`. `force-dynamic`, `Cache-Control: no-store`. |
 | `GET` | `/media/[...path]` | Streams one uploaded file from `UPLOAD_DIR` with a mapped content type (jpeg/png/webp/avif). |
+| `GET` | `/api/auth/google/start` | 302 to accounts.google.com; sets the short-lived `vkon_oauth` cookie (state + PKCE verifier + return path). |
+| `GET` | `/api/auth/google/callback` | Verifies `state` against the cookie, exchanges the code, finds-or-creates-or-links the customer, sets `vkon_session`, 302 to the return path. Every failure is a 302 to `/account/login?error=…`, never a 500. |
+| `POST` | `/api/payment/create` | Signed-in only. Takes an order id; reads the amount from the row. 401/404/409/503 rather than trusting the caller. |
+| `POST` | `/api/payment/verify` | Signed-in only. Checks the checkout signature, then `markOrderPaid`. |
+| `POST` | `/api/payment/webhook` | **No session** — the raw-body signature is the auth. 401 unsigned, 200 for unknown orders so Razorpay stops retrying. |
 
 `/api/health` exists because **`GET /` proves nothing** — public reads fail soft,
 so the home page returns 200 with the database down, and a deploy verified on
@@ -473,6 +754,16 @@ healthcheck and `cicd/verify.sh` probe.
 That is the path-traversal defence in full — it rejects rather than filters, so
 `..`, encoded separators and absolute paths are all covered by one rule. Do not
 "improve" it into a sanitiser.
+
+**The OAuth handlers are route handlers, not server actions**, because a server
+action is a POST whose response is a React payload — the browser will not follow
+one off-site to Google. The callback sets its session cookie **on the
+`NextResponse` it returns**, not through `cookies()`: whether a cookie written
+that way survives onto a redirect the handler constructed itself is framework
+behaviour that has been unreliable across versions, and the failure is silent —
+the redirect works, the cookie is missing, and the customer lands back on the
+sign-in form. `lib/account.ts` exposes `issueSession()` for exactly this,
+alongside `startSession()` for actions.
 
 Also generated: `/sitemap.xml`, `/robots.txt`, `/opengraph-image`, `/icon.png`.
 
@@ -488,6 +779,40 @@ POST. Each carries all three guards named in §9.
 
 `app/(site)/search-action.ts` → `fuzzySearchAction(q: string) → FuzzySearchResult[]`,
 rate-limited, returning `[]` for an empty or >200-character query.
+
+### Public account actions — `app/(site)/account/actions.ts`
+
+**The second unauthenticated write path**, added 2026-09-06. Same rule as the
+file above and the same three guards. See §7a for why every response here is
+deliberately uninformative about whether an address has an account.
+
+| Action | Signature | Limit |
+|---|---|---|
+| `registerAction` | `(prev: AuthState, formData) → AuthState` · redirects on success | 5 / 30 min |
+| `loginAction` | `(prev: AuthState, formData) → AuthState` · redirects on success | 10 / 10 min |
+| `logoutAction` | `() → void` — unguarded, like the admin's | — |
+| `forgotPasswordAction` | `(prev: AuthState, formData) → AuthState` | 4 / 30 min |
+| `resetPasswordAction` | `(prev: AuthState, formData) → AuthState` · redirects on success | 10 / 30 min |
+| `confirmEmail` | `(token: string) → VerifyOutcome` — called from the `/account/verify` page, not a form |
+
+`AuthState = { status, message?, fieldErrors?, form?, values? }`. **`values` is
+not cosmetic:** React 19 resets an uncontrolled form once its action resolves,
+so without echoing the typed values back, a mistyped password also wipes the
+email address — and the retry then silently never submits, because `required`
+on the emptied field blocks it in the browser before anything reaches the
+server. A password is never among the echoed values.
+
+### Customer actions — `app/(site)/account/private-actions.ts`
+
+**Every export calls `await requireCustomer()` as its first statement**, and
+uses the id it returns — never one from the form. §9.
+
+| Action | Signature |
+|---|---|
+| `saveProfileAction` | `(prev: AccountState, formData) → AccountState` |
+| `saveAddressAction` | `(prev: AccountState, formData) → AccountState` — create or update |
+| `deleteAddressAction` / `setDefaultAddressAction` | `(formData) → void` |
+| `placeOrderAction` | `(prev: CheckoutState, formData) → CheckoutState` · billing address first, shipping second (defaults to billing); redirects to the order on success |
 
 ### Admin server actions — `app/admin/actions.ts`
 
@@ -506,6 +831,7 @@ privileged.
 | `uploadImageAction` | `(prev: UploadState, formData) → UploadState` — `{uploaded?: {url, pathname, alt}}` |
 | `deleteSubscriberAction` | `(formData) → void` |
 | `setEnquiryHandledAction` / `deleteEnquiryAction` | `(formData) → void` |
+| `setOrderStatusAction` | `(formData) → void` — status re-validated against a fixed list, never trusted from the `<select>`; cannot set `payment_status` |
 
 `ActionState = { error?, fieldErrors?: Record<string,string>, ok? }`, consumed by
 `useActionState` in the forms.
@@ -526,6 +852,21 @@ privileged.
 | `subscribers.ts` | `normaliseEmail`, `addSubscriber`, `listSubscribers`, `deleteSubscriber` |
 | `enquiries.ts` | `createEnquiry`, `listEnquiries`, `setEnquiryHandled`, `deleteEnquiry` |
 | `pageSeo.ts` | `getPageSeo`, `listPageSeo`, `upsertPageSeo`, `resolvePageMetadata` |
+| `customers.ts` | `findCustomerByEmail/ById/ByGoogleSub`, `createCustomer`, `getPasswordHash`, `updateCustomerProfile`, `setCustomerPassword`, `markEmailVerified`, `linkGoogleAccount`, `createSession`, `customerForSession`, `deleteSession(sForCustomer)`, `sweepExpiredSessions`, `createToken`, `consumeToken`, `invalidateTokens` |
+| `addresses.ts` | `listAddresses`, `getAddress`, `createAddress`, `updateAddress`, `deleteAddress`, `setDefaultAddress` |
+| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listAllOrders`, `setOrderStatus`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
+
+**`customers.ts` is the exception to "reads fail soft."** Everywhere else an
+empty list beats a 500 for a visitor; during a sign-in it would mean a database
+failure reads as "no such account". Its callers catch and turn that into a
+message instead. `getCurrentCustomer` in `lib/account.ts` does fail soft, and
+safely — its failure direction is "nobody is signed in".
+
+**Every `addresses.ts` and `orders.ts` function takes a `customerId` and puts
+it in the WHERE clause.** That is the authorisation boundary, not habit: an
+address or order id arrives from a form or a URL and is guessable-shaped, so
+`WHERE id = $1` alone lets anybody read or edit anybody's. "Fetch then compare"
+is the version people forget to write the second half of.
 
 ### How data reaches the UI
 
@@ -558,13 +899,123 @@ Each encodes a real bug. Breaking one reintroduces it.
 **`requireAdmin()` must be the first statement of every mutating server action
 in `app/admin/actions.ts`.** See §7.
 
-**`app/(site)/actions.ts` is the only unauthenticated write path, and every
-action in it carries the same three guards.** Anything added there is reachable
-by anyone on the internet as a bare POST. Both actions there — the sign-up and
-the contact enquiry — have a honeypot that returns the ordinary success message
-so a bot learns nothing, a rate limit keyed on the client address, and bounded,
+**There are exactly two unauthenticated write paths, and every action in both
+carries the same three guards.** They are `app/(site)/actions.ts` (sign-up,
+contact enquiry) and `app/(site)/account/actions.ts` (register, sign in, forgot,
+reset). Anything added to either is reachable by anyone on the internet as a
+bare POST. The three: a honeypot that returns the ordinary success message so a
+bot learns nothing; a rate limit keyed on the client address; and bounded,
 validated values reaching Postgres through parameterised queries only. A new
-public action must carry all three, or belong in the admin file instead.
+public action must carry all three, or belong in one of the two guarded files
+instead — `app/admin/actions.ts` or `app/(site)/account/private-actions.ts`.
+
+*(Sign-in has no honeypot, deliberately: a bot that fills it still has to know
+a real password, and returning a silent success there would be
+indistinguishable from a real sign-in to a confused human.)*
+
+**`requireCustomer()` must be the first statement of every export in
+`app/(site)/account/private-actions.ts`, and the id it returns must be the one
+used** — never an id from the form. Same reasoning as `requireAdmin()` above:
+the page guard protects a render, not a POST. `requireSignIn()` in
+`lib/account.ts` is the page-level convenience and is *not* the boundary.
+
+**`app/(site)/account/layout.tsx` must not draw chrome and must not guard.**
+Four of the routes under it — `login`, `forgot`, `reset`, `verify` — are
+self-contained centred pages with their own `<h1>`, reached precisely when
+somebody is *not* signed in, or (for `verify` and `forgot`) when they are and
+have followed a link from a mail or their own account page. A layout that drew
+the signed-in sidebar around those gave them **two `<h1>`s**, breaking the
+heading-order rule below; one that redirected when signed out would make
+signing in impossible, the form being under `/account` itself. The shell is
+applied by the four pages that want it.
+
+**A price is computed in `lib/pricing.ts` and nowhere else, and the browser and
+the server both call it.** The displayed total and the charged total must be
+one function over one set of inputs. Relatedly: **checkout may post slugs and
+quantities, never prices**, and **`/api/payment/create` accepts an order id and
+nothing else** — the amount is read from the row.
+
+**Order rows snapshot; the cart resolves live.** `orders.ship_to` and
+`order_items`' name/image/price are copies taken at purchase. Turning either
+into a join makes a renamed product rewrite last year's invoice.
+
+**A password is never echoed back into a form.** React 19 resets an
+uncontrolled form when its action resolves, and the fix for that (§8a,
+`AuthState.values`) restores the email, name and phone. Adding the password to
+that list would put it in the response HTML and the browser's back-forward
+cache to save one field of retyping.
+
+**A Google account is matched on `sub`, never on the email address.** §7a.
+
+**Anything a client component imports must be free of `node:` builtins,
+transitively.** `ui/PasswordField` needs the password rules, so those live in
+`lib/password-policy.ts` and the scrypt hashing stays in `lib/password.ts`.
+Merging them puts `node:crypto` and `node:util` in the browser bundle, where
+`promisify` is a stub — `promisify(scryptCb)` then throws at module evaluation
+and **the entire login page renders blank**, before any component runs. The
+stack names the `promisify` line and not the import that caused it. This has
+now happened twice: once when written, once when a partial restore during the
+2026-09-10 recovery reinstated the pre-fix import.
+
+**The two Razorpay signatures use two different secrets and must not be
+merged.** Checkout signs `order_id|payment_id` with `RAZORPAY_KEY_SECRET`; the
+webhook signs the raw body with `RAZORPAY_WEBHOOK_SECRET`.
+
+**The payment webhook must read `request.text()`, not `request.json()`, and
+must not require a session.** The signature covers the exact bytes, so
+re-serialising breaks it; and Razorpay's servers carry no cookie, so the
+signature *is* the authentication.
+
+**`markOrderPaid` must stay idempotent and must keep returning whether it
+changed the row.** A gateway redelivers webhooks by design and the browser
+callback can arrive alongside one; that boolean is the only thing stopping a
+customer getting a receipt per delivery.
+
+**`payment_status` is not editable by hand.** `setOrderStatusAction` moves an
+order through `pending → confirmed → shipped → delivered → cancelled` and
+deliberately cannot mark one paid: that is the gateway's to set, and a human
+toggling it records that money arrived without anything having checked.
+
+**The header's right-hand control row is full at `md` and below.** It carries
+search, cart, theme and the menu trigger, and that is the most that fits: the
+account control was added as a fifth and took `document.scrollWidth` to 362 on
+a 360px viewport — the most common Android width and precisely this site's
+audience — giving *every page on the site* a horizontal scrollbar. It is
+`hidden md:block` for that reason, with the same destinations laid out flat in
+the mobile drawer. Measure before adding a sixth: without it a 360px viewport
+is clean at exactly 360, so the slack was about 34px and is now nil.
+
+*(320px does scroll, on every page including ones that predate all of this —
+the menu trigger's `-mr-2` overhangs the container. Pre-existing, unfixed, and
+the reason the baseline to compare against is 360 rather than 320.)*
+
+**`CheckoutForm`'s address forms must render outside the order `<form>`.**
+Added 2026-09-10, when checkout grew a billing address, a shipping address,
+and inline add/edit/delete for both. `AddressForm` is its own `<form>` posting
+to `saveAddressAction`; the order itself posts to `placeOrderAction`. A
+`<form>` inside a `<form>` is invalid HTML and the browser drops the inner tag
+— its Save button would submit the *outer* form instead, silently placing an
+order rather than saving an address. The billing and shipping sections live in
+the left-hand column, the order form is the summary panel on the right, and
+everything chosen on the left reaches the order form through hidden inputs
+(`billingAddressId`, `shippingAddressId`, `sameAsBilling`) rather than through
+DOM nesting.
+
+**`orders.bill_to` defaulting to `orders.ship_to` is reading history
+correctly, not covering a bug.** Every order placed before this date has
+`bill_to = '{}'`, because the column did not exist — on those orders the one
+address on file *was* both the bill-to and the ship-to. `lib/db/orders.ts`'s
+`mapOrder` falls back that way, and `OrderAddress`/`sameOrderAddress` render
+one merged panel rather than two identical ones whenever the two match, old
+order or new.
+
+**A component's parent state must not be set during that component's render.**
+`AddressForm` called its parent's `onDone()` from the render body and React
+rejected it outright: "Cannot update a component while rendering a different
+component". Setting one's *own* state during render is the legal pattern that
+shape borrows from; reaching up to somebody else's is not — it belongs in an
+effect keyed on the action's status. This also recurred in the 2026-09-10
+recovery.
 
 **A sector is derived from a category, never stored on a product.** §8.
 
@@ -686,11 +1137,35 @@ paints grey rectangles wherever the item count is not a multiple of the column
 count — visible as broken blocks with one product. Cards carry their own border
 and the grid uses a normal gap.
 
+**A card's invisible sizing clone must be sized to its own content, never
+`h-full`.** `FeaturedCard`'s real `<article>` is `absolute`, so the clone
+beside it is what actually sets the `<li>`'s height in flow — `h-full` on the
+clone just mirrors back whatever height the row's `align-items: stretch`
+already produced, which hides a real mismatch instead of reporting it.
+
+**`FeaturedCard`'s two branches (with and without a photo) must produce the
+same natural height, not just the same-shaped clone.** They disagreed by 88px
+until 2026-09-10 — 447px against 535px — because the no-image branch put
+category/title/CTA in a block *below* the image instead of overlaid *on* it
+the way the photographed branch does. A row that mixed a photoless featured
+product in with photographed ones stretched every card to the taller one
+(`align-items: stretch`), showing as a solid `bg-band` gap under the shorter
+cards' price rows. Fixed by rewriting the no-image branch to the same overlay
+shape — plain theme tokens on `bg-surface-subtle` rather than the photographed
+branch's scrim gradients and hardcoded colours, since there is no photograph
+here for those to protect legibility against. Both branches are now 447px
+(1280px; 404px at 768px, 340px at 390px) regardless of which one renders.
+Keep it that way: a change to either branch's overlay padding, image aspect
+ratio, or footer row height has to be made to both, or this returns.
+
 **Category presentation must not be a wrapping card grid**, for the same
 reason: five categories in a three-column grid leaves a visible hole. It was a
 ruled directory until 2026-08-10 and is now a single horizontal track
-everywhere it appears — `SectorBrowser` on the home page, `ProductRow` per
-category on the catalogue, fixed-width columns in the header dropdown. A
+everywhere it appears — `SectorBrowser` on the home page and fixed-width
+columns in the header dropdown. (The catalogue itself stopped being per-category
+tracks on 2026-08-31, when `ProductCatalogue` took over with its own responsive
+grid; that grid has no empty-cell problem because cards carry their own border
+and it uses a normal gap.) A
 one-line track cannot produce an empty cell. On the catalogue a category with
 no products is dropped, never rendered as an empty row.
 
@@ -867,21 +1342,59 @@ probe `/api/health`.
 - **Company details are placeholder.** `grep -rn "TODO(vkon)" src/`.
 - **The demo product is fake.** `npm run db:seed` creates `ec-dol-demo` with
   drawn placeholder images and a public-domain video. Delete it from `/admin`.
-- **No login rate limiting.** §7. Note that the *sign-up* is limited, by
-  `lib/rate-limit.ts` — that limiter is sound only because this deploys as a
-  single container, and applying it to login would be worth doing for the same
-  reason.
-- **The mailing list has no unsubscribe and no confirmation.** Removing an
-  address means asking the operator, who deletes it at `/admin/subscribers`.
-  There is also no double opt-in, so anybody can put anybody else's address on
-  the list. Neither matters while nothing sends mail. Both become real the day
-  something does, and the sender is the right place to fix them — an unsubscribe
-  link in every message, and a confirmation mail before the row is written.
+- **No rate limiting on the *admin* login.** §7. The customer sign-in is
+  limited (§7a), by the same `lib/rate-limit.ts` that already guards the
+  sign-up; applying it to `/admin` too is now a two-line change and worth doing.
+- **The mailing list has no unsubscribe and no double opt-in.** Removing an
+  address means asking the operator, who deletes it at `/admin/subscribers`;
+  anybody can put anybody else's address on the list. This mattered less while
+  *nothing* sent mail. **`lib/mail.ts` now does** — but only transactionally, to
+  people who just acted on the site, so the list itself still delivers nothing
+  and the gap is unchanged rather than newly urgent.
+- **Nobody is *told* when an order or an enquiry arrives.** `/admin/orders` and
+  `/admin/enquiries` both exist and both have to be looked at; the order
+  confirmation goes to the customer, not to the operator. Now that
+  `lib/mail.ts` exists, closing both is a `sendMail` call in `placeOrderAction`
+  and `sendEnquiryAction`. **Do the order one before payment goes live** — while
+  money is settled on a call a missed order is a missed sale; once a gateway
+  takes it automatically it is a customer who has paid and heard nothing.
+- **Payment is built but not live.** §7a. The code is done and tested; it needs
+  Razorpay KYC (in progress as an individual account) and the three env vars.
+- **The Razorpay account is an individual/freelancer one, not the company's.**
+  A deliberate interim choice while Vkon Automation is unregistered
+  (2026-09-07). Money settles to a personal bank account until then, and the
+  eventual switch is a *new* Razorpay account with fresh KYC and new keys — not
+  an upgrade. SETUP-GUIDE.md §4.8.
+- **GST is always CGST + SGST at 9% each.** Correct for a delivery inside the
+  seller's own state; an inter-state sale is one 18% IGST line instead, and the
+  buyer's state decides. Client's decision (2026-09-07) is to leave it. The
+  delivery state is stored on every order, so making it conditional needs no
+  migration. **A billing address can carry a GSTIN (2026-09-11)**, checked for
+  shape and checksum in `private-actions.ts` — that is invoice detail, not a
+  tax input, and does not touch this calculation.
+- **Delivery is not priced.** Checkout shows "Quoted on our call" and stores
+  `shipping = 0`. Honest while every order gets a phone call — and a real gap
+  the moment payment is automatic. Client's decision is to leave it until a
+  courier integration (India Post / DTDC / Delhivery).
+- **A customer cannot change their email address.** It would mean re-confirming
+  the new one, handling the case where it already belongs to somebody else, and
+  deciding what happens to a linked Google account. Left out rather than
+  half-built.
+- **Nothing is gated on `email_verified`.** The column is set and displayed; no
+  code checks it. Deliberate — the confirmation is an invitation, not a wall.
+- **Sessions are swept opportunistically, not on a schedule.**
+  `getCurrentCustomer` runs the sweep on ~2% of lookups because this deployment
+  has no cron. Adequate and slightly untidy.
 - **No image resizing on upload.** An 8 MB photo is stored as uploaded and
   served through `next/image`; resizing before upload is still worth doing.
-- **No database backup.** The Postgres volume is the only copy. A nightly
-  `pg_dump` to somewhere off the machine is the obvious next step — losing that
-  volume loses the whole catalogue.
+- **No database backup.** The Postgres volume is the only copy. This got
+  materially worse once accounts existed: losing the volume used to lose
+  recreatable content, and now loses other people's purchase records. A nightly
+  `pg_dump` off the machine is an hour of work.
+- **Four admin-uploaded product images are permanently lost** (2026-09-10). The
+  `/media/` files the database references exist in neither the recovery package
+  nor the server volume. Three belong to obvious test products; the fourth is
+  one of two images on `DEMO Wardrobe Auto Light`. Re-upload via `/admin`.
 - **No staging environment.** A deploy goes straight to production; the only
   safety net is that `verify.sh` fails loudly, and there is no auto-rollback.
 - **No audit trail.** Nothing records who changed what, and there is one
@@ -897,6 +1410,334 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-11 (checkout, accounts) — Billing and shipping addresses split, an optional GSTIN, addresses editable and deletable from within checkout; a sign-in password reveal to match registration
+
+**Client's request:** billing address first, shipping address second, a "ship
+to the billing address" checkbox, an optional GSTIN on the billing address,
+and addresses that can be edited and deleted from checkout itself rather than
+only at `/account/addresses`.
+
+**Schema:** two additions, both `ADD COLUMN IF NOT EXISTS` per §8's rule.
+`addresses.gstin TEXT NOT NULL DEFAULT ''` — optional everywhere, checked for
+shape and checksum (not just a regex: the GSTIN check-character algorithm is
+implemented and verified against real GSTINs) in
+`account/private-actions.ts`. `orders.bill_to JSONB NOT NULL DEFAULT '{}'` — a
+second snapshot alongside the existing `ship_to`, on the same reasoning: an
+edited address must not rewrite what an old invoice says it was billed to.
+`Address`/`ShipTo` in `lib/types.ts` both grew `gstin`.
+
+**`placeOrderAction` now takes a billing address and a shipping address**
+rather than one, defaulting the shipping id to the billing id when
+`sameAsBilling` is ticked — which is the common case and is what the box
+defaults to. Both are re-fetched scoped to the signed-in customer (§9), so a
+foreign address id in either field is a "please choose an address", never a
+delivery to someone else's door.
+
+**`CheckoutForm` rewritten**: numbered steps (billing → shipping → order →
+notes), each saved address rendered as a card with its own Edit and Delete —
+the same actions the address book at `/account/addresses` already had,
+reused rather than duplicated. New addresses added mid-checkout are tracked by
+id-diff against the previous `addresses` prop (`revalidatePath` brings a fresh
+list back after every save) and assigned to whichever section opened the
+form — see the new §9 entry on why the address forms cannot be nested inside
+the order form. A shared `account/OrderAddress` component now renders an
+order's address block on both the customer's order page and `/admin/orders`,
+showing one merged panel when billing and shipping match (including every
+order placed before this date — see the new §9 entry on the `bill_to`
+fallback) and two when they don't, with the GSTIN line only where one exists.
+
+**Sign-in gained the same "Show"/"Hide" password reveal `ui/PasswordField`
+already gives registration** — parity, not a new component: the strength
+meter and rule checklist describe a password being *chosen*, which sign-in
+is not, so this is a small local component in `AuthPanel.tsx` rather than a
+mode flag on the shared one.
+
+**Verified**: `tsc --noEmit` clean, `npm run build` clean (38 routes), and an
+end-to-end Playwright run — register, seed a cart, add a billing address with
+a GSTIN, uncheck "same as billing", add a different shipping address, edit
+the billing address back open and confirm the GSTIN round-trips, delete the
+shipping address and confirm it is gone (not just hidden), re-add one, place
+the order, and confirm the confirmation page and `/admin/orders` both show
+the billing/shipping split and the GSTIN — 14/14 checks passing, plus a manual
+screenshot pass across light/dark and desktop/mobile.
+
+*(Two things chased during that pass turned out not to be product bugs: this
+dev server only hydrates client JavaScript when reached as `localhost`, not
+`127.0.0.1` — Next's dev-only cross-origin guard on `/_next/*` blocks the
+client bundle for the second and every button silently stops working, with
+none of it visible in server-rendered HTML or `tsc`; and a `position: sticky`
+header appears to duplicate mid-page in a `--full-page` screenshot, which is a
+known Playwright/Chromium stitching artifact, confirmed absent from an
+unstitched, scrolled screenshot at the same position.)*
+
+### 2026-09-11 (schema) — `customer_carts` added to `schema.sql`, closing a gap the same-day cart-sync work below left open
+
+A separate agent session (Antigravity) built the signed-in cart the same day
+— `lib/db/cart.ts`, `syncCartAction`/`saveAccountCartAction` in
+`private-actions.ts`, `CartSync` mounted in `(site)/layout.tsx` — against a
+`customer_carts` table created directly against the local database rather
+than through `schema.sql`. That table therefore did not exist anywhere
+`schema.sql` gets applied: a fresh clone, `npm run db:setup`, or the server's
+own deploy. Found and closed before the day's work was pushed, so it never
+reached the server in the broken state — see the entry below for what the
+table holds and why `customer_id` is its primary key — see §8's Tables
+section — and the "Cart Synchronization" entry later in this log for the
+feature itself.
+
+### 2026-09-10 (home, featured products) — A black band under every featured card, and its actual cause: two differently-sized `FeaturedCard` layouts sharing one flex row. Both fixed same-day
+
+**Reported:** a solid black bar between a card's "Range" line and its price row, on every card in the Featured products carousel, in a `npm run build && npm run start` check right after the build fix above.
+
+**Two independent bugs, found in sequence — fixing the first was necessary to expose the second.**
+
+1. **The invisible sizing clone (§9's "empty grid cells" family of bugs) was
+   `h-full` instead of sized to its own two children.** `FeaturedCard`'s real
+   `<article>` is `position: absolute` — it does not participate in the
+   `<li>`'s layout height at all; the *invisible clone* beside it is what the
+   `<li>` actually sizes to in normal flow, and the absolutely-positioned
+   article then reads `h-full` back off that. With `h-full` on the clone, it
+   just mirrored whatever height the flex row's `align-items: stretch`
+   already produced — a number with no relationship to the clone's own two
+   children, so a real mismatch had no way to surface. Fixed by removing
+   `h-full`: the clone now reports its own true content height (image +
+   price row), which is what let the second bug be measured at all.
+
+2. **Once real, the numbers didn't agree: 447px for a product with a photo,
+   535px for one without.** The has-image and no-image branches of
+   `FeaturedCard` are genuinely different layouts — the has-image branch
+   overlays category/title directly on the photo and reserves only the price
+   row (60px) below it; the no-image branch puts category/title/CTA in a
+   `p-5` block *below* a `PanelPlaceholder`, which is 88px taller. Both are
+   correct for what they show. The bug was mixing them in one flex row with
+   default `align-items: stretch`, which forces every card to the row's
+   tallest — so one imageless product silently sets the floor for every card
+   next to it.
+
+**What made the second bug land right now:** the three `samarth kottary` test
+products had images until the image-reference cleanup two entries above
+this one, which correctly stripped their dead `/media/` pointers — and
+correctly routed them into the no-image branch as a side effect. They were
+also `featured: true`, so they sat in the same row as the real DEMO products
+and stretched all of them. **Deleted** (2026-09-10), by request, rather than
+kept and worked around — they were customer-visible test data regardless of
+this bug. Full backup of all three taken beforehand; `pg_dump --where` failed
+silently (0 rows) on the *second* backup attempt, so the actual recovery path
+is the products-table dump taken **before** the image-reference cleanup, which
+still holds their original rows in full.
+
+**Closed the same day, at the client's request ("fix it").** The durable fix —
+making the no-image branch match the has-image one's height rather than
+relying on every featured product having a photo — was the third change here:
+the no-image branch's category/title/tagline/range were moved from a `p-5`
+block below the image into the same `absolute inset-0` overlay-on-the-square
+treatment the has-image branch uses, on plain theme tokens rather than that
+branch's photograph-specific scrim gradients and hardcoded colours (there is
+no photograph here for those to protect legibility against, and ordinary
+tokens on a token background — `bg-surface-subtle` — are already proven to
+pass contrast elsewhere in this file). Both branches are now built from the
+same shape: image square, then a fixed-height footer row, nothing else — so
+their clones agree by construction rather than by two numbers happening to
+match. A missing HP range line in the no-image branch was fixed as part of the
+same rewrite, since it now reuses the has-image branch's own Range markup.
+
+Verified by re-adding a temporary featured product with zero images
+(`test-no-image-verify`, removed after): every card in the row, including the
+imageless one, measured 447px at 1280px, 404px at 768px, 340px at 390px — one
+number per width, not a range, with the previously-missing Range line present
+and correctly rendered in both themes. `tsc` clean, full
+account/checkout/order/admin suite still passing.
+
+### 2026-09-10 (build) — `npm run start` now runs the standalone server the container uses; the four dead image references cleared from the catalogue
+
+**`npm run start` was `next start`, which Next refuses to support under
+`output: "standalone"`** — the mode the Dockerfile requires. It printed a
+warning and then served pages anyway, which is the worst of both: an
+unsupported path that looks like it works, so a local check proves nothing
+about the container. `scripts/start-standalone.mjs` now does what the
+Dockerfile does — copy `public/` and `.next/static` beside the standalone
+`server.js`, which bundles neither, and point `UPLOAD_DIR` at the repo's
+`data/uploads`. Verified: no warning, CSS and static assets resolve.
+
+**The four `/media/` references to images lost on 2026-09-10 were cleared from
+`products.images`.** All four products were published, so `next/image` logged
+`The requested resource isn't a valid image … received null` on every catalogue
+view. Removing the dead pointers lets the designed fallback
+(`PanelPlaceholder`) render instead: `DEMO Wardrobe Auto Light` keeps its one
+surviving image, and the three test products fall back to the placeholder.
+Verified afterwards — zero failed requests and zero broken `<img>` elements
+across `/` and `/products`. The files themselves remain unrecoverable (§11);
+this only stops the site pointing at them.
+
+### 2026-09-10 (cleanup) — ~90 scratch files, 26 MB of superseded images and one dead component removed; `.gitignore` hardened so it cannot recur
+
+Immediately after the recovery above, because the recovery is what made the
+accumulation visible.
+
+**~90 scratch files.** 47 `verify-*.mjs`, a dozen `diag*`/`repro*`/`measure*`,
+a nested stray copy of the project at `./vkon.in/`, and — the part that
+mattered — **four scratch files that had actually been committed**
+(`.temp_be0de0d.tsx`, `.temp_product_card_head.tsx`,
+`.temp_product_card_old.tsx`, `temp1.png`; 272 KB). Nothing referenced any of
+them.
+
+**26 MB of superseded images.** `public/segments/` and `public/categories/`
+each held `.jpg` *and* `.png` versions of the same pictures; the code
+references only the `.jpg`. The names had even drifted (`cables.png` against
+`cable.jpg`), which is what confirmed the `.png` set as the older one. Five of
+the ten were committed. **`public/` went from 31 MB to 5.6 MB** — these were
+never downloaded by a visitor, since nothing linked them, but they were in
+every Docker image and every deploy, on a project whose stated constraint is
+low-end Android on rural connections.
+
+**One dead component.** A scan of all 148 files in `src/` found exactly one
+module nothing imports: `product/ProductRow.tsx`. It was the catalogue's
+per-category grid until 2026-08-31, when `ProductCatalogue` took over with its
+own responsive grid. **The docs still described it as live in three places** —
+the §5 file map, the client-components table, and §9's "category presentation
+must not be a wrapping card grid" rule, which named it as one of the surfaces
+that rule protects. All three corrected; the rule itself still holds, it just
+applies to `SectorBrowser` and the header dropdown now.
+
+Twenty-two exports are unused *outside their own file*, but most are internal
+helpers that are simply over-exported (`redirectUri`, `razorpayPublicKey`,
+`sellingPricePaise`). Left alone deliberately — the churn outweighs the gain.
+
+**`.gitignore` gained patterns for every category above**, which is the part
+that stops this recurring. It had none: not one of the ~90 files was ignored,
+which is why four of them ended up committed. The verification harness is
+deliberately not in the repo (HANDOFF.md §5), so anything matching
+`verify-*.mjs` belongs in a scratch directory by definition.
+
+**Checked and deliberately kept:** `README-SENIOR.md` and the root
+`database-dump.sql` (both intentional handoff artefacts), `scripts/seed-demo.sql`
+and `scripts/update-prices.mjs` (utilities referenced from docs rather than
+`package.json`), and `public/datasheets/`. `DEPLOYMENT.md` was audited for
+leaked infrastructure — no UUIDs, no internal hostnames, no secrets — and left
+tracked.
+
+### 2026-09-10 (recovery) — The project was deleted and rebuilt from three sources; two fixed bugs came back with it
+
+The working tree was overwritten by an older, partial copy of the project. It
+deleted 28 tracked files (`/contact`, `/protection`, `admin/enquiries`,
+`admin/seo`, `admin/subscribers`, `api/health`, `media/[...path]` and more),
+replaced 104 others with stripped versions (`icons/ui.tsx` lost 8 of 41 icons,
+`admin/actions.ts` 4 of 10 actions), and left ~40 scratch files from a
+pre-Postgres era of the site.
+
+**Git history was untouched**, which made `11e500b` the baseline. The account
+and payment work survived on disk as untracked files. Recovery was therefore:
+`git restore` every tracked path to `11e500b`, keep the untracked new work,
+re-apply the ~14 integration edits by hand, and rewrite 8 files that were
+missing outright (`account/layout`, `addresses`, `forgot`, `reset`, `verify`,
+`admin/orders/page`, and two truncated halves of `account/actions.ts`).
+
+The server was checked and was **two commits behind** local, so it was not a
+useful source. The recovery package turned out to contain **no source code** —
+only the database dump, `public/` assets and scripts.
+
+**Two bugs already fixed on 2026-09-07 came back**, because the surviving disk
+copy predated those fixes. Both are now §9 constraints rather than notes,
+because recurrence is the evidence that they are easy to reintroduce:
+
+1. `ui/PasswordField` importing `lib/password` (and so `node:crypto`) into the
+   browser — **the login page rendered blank**.
+2. `AddressForm` calling its parent's setState during render.
+
+A third was found by measurement: `node_modules` held Next 16.3.4 while
+`package.json` and the lockfile pin 16.2.12, so production (`npm ci`) would
+have built a different version than local development. `npm ci` re-synced it.
+
+**Also found:** an unfinished Antigravity feature — server-side cart sync
+(`lib/db/cart.ts`, a `CartSync` component, and two actions appended to
+`private-actions.ts`). Its `customer_carts` table exists in the local database
+but was never added to `schema.sql`, so a fresh deploy would break. Parked, not
+deleted, pending a decision.
+
+**Permanently lost:** four `/media/` product images (§11), and the gitignored
+`docs/Hosting.md`, `docs/cicd.md`, `docs/f2.pdf` and the `cicd/` directory —
+which git cannot restore by design, since they hold tunnel UUIDs and internal
+hostnames and this repository is public.
+
+### 2026-09-07 (payment, legal) — Razorpay behind the same config gate as Resend and Google; privacy and terms pages
+
+**`/privacy` and `/terms` came first, and not for their own sake.** Google's
+OAuth verification refused the app without a privacy policy link. Earlier
+advice that basic scopes would not need one was wrong for the current console.
+The pages are warranted anyway now that the site collects names, emails, phone
+numbers and addresses — and their content is read from the code (the three
+cookie names, the processors, the absence of any analytics) rather than being
+boilerplate, so a change that adds a tracker makes the page wrong until it is
+updated too.
+
+**Payment: zero new dependencies.** Razorpay's server API is Basic-auth HTTPS
+and its checkout is a `<script>` tag, so `lib/razorpay.ts` is `fetch` and two
+HMACs. **No schema change** — the columns and the idempotent `markOrderPaid`
+were written when orders were, which was the point of writing them then.
+
+**Verified without live keys**, which was most of the value: 25 checks against
+fake secrets, since `verify` and `webhook` do purely local HMAC work. Forged
+signatures rejected; **a valid signature replayed from a different gateway
+order rejected** (a signature proves "Razorpay saw this payment", not "this
+payment belongs to this order", so the recorded `payment_order_id` is checked
+too); repeat verify and repeat webhook both idempotent; an amount mismatch
+refused; another customer's order 404; signed-out 401. Then the same flows with
+the keys removed — no button, no SDK fetched, orders still placed.
+
+### 2026-09-07 (admin, accounts) — An order inbox at `/admin/orders`; password composition rules with a live checklist
+
+**`/admin/orders`** closes the gap §11 called the most valuable hour of work in
+the repo. `listAllOrders` and `setOrderStatus` were already written and unused;
+this is the page and the control for them. Modelled on `/admin/enquiries` —
+same card shape, same "nothing is emailed to you" warning, same fixed
+`en-IN`/`Asia/Kolkata` date formatting. The customer's phone is a tap-to-call
+link and the most prominent control, because while payment is settled by
+telephone that is the actual next action. `setOrderStatusAction` re-validates
+against a fixed list and deliberately **cannot** set `payment_status`.
+
+**Password composition rules**, by request and against NIST's current advice,
+which `lib/password-policy.ts` sets out in full. The mitigation is the
+presentation: five requirements ticking as they are met, with a strength meter
+that rewards *length* past the minimum. The blocklist is kept and applied
+*after* the rules, so `Password1!` is still refused.
+
+**The admin header now wraps.** Adding Orders as a fifth nav link made an
+existing overflow worse — measured at 638px of content in a 390px viewport
+*before* the link, 704 after. `flex-wrap` plus `min-h-14` in place of `h-14`
+(a fixed height turns wrapping into overlapping). Desktop is unchanged.
+
+### 2026-09-06 (accounts, checkout) — Customer accounts, Google sign-in, transactional email and an order history; the first thing here that sends mail
+
+**Requested.** "Lets implement login and register feature… During register or
+login have an option through google or gmail… under my account there should be
+order history, address and logout option as well."
+
+**Zero new runtime dependencies.** `next`, `react`, `react-dom`, `pg` — still.
+That constraint shaped four decisions, each recording what was given up:
+passwords on `node:crypto` scrypt rather than `bcrypt`/`argon2` (native modules
+with a build step); Google as hand-written OAuth 2.0 + PKCE rather than an auth
+library; email over Resend's HTTP API because SMTP cannot be spoken with
+`fetch`; sessions as a row rather than a self-contained token, because "Log
+out" on a shared phone must actually log out.
+
+**New §7a**, because folding customers into §7 would blur the one thing that
+must not blur: `/admin` is one operator with a password in an environment
+variable and no user table; these are many people with rows.
+
+**Six new tables** (§8) and the first foreign keys in the schema — two of them
+decisions rather than defaults (`orders → customers` is RESTRICT;
+`order_items → products` is not a key at all).
+
+**`lib/pricing.ts` — one money calculation, called by both sides.** The cart
+page and the cart drawer each had their own copy of the subtotal-and-tax
+arithmetic. Survivable while it was only ever drawn; not once a figure is
+stored and charged.
+
+**Three bugs found by driving it**, each now a §9 constraint: a failed sign-in
+wiped the email address (React 19 resets the form; the retry then silently
+never submitted); `account/layout.tsx` drew the signed-in sidebar around the
+sign-in/forgot/reset/verify pages, giving each two `<h1>`s; and `AddressForm`
+called its parent's setState during render.
 
 ### 2026-09-04 (about) — §04 arrives as a curtain over a held §03, §02 stops reappearing below the sign-up, and the scroll-reveal that washed the copy out is gone
 
@@ -4585,6 +5426,16 @@ admin UI, and the visual design was rebuilt.
 - Delete confirmation's accessible name did not start with its visible text.
 - Hero stat dividers used `divide-x`, which bordered the item starting the
   second row on mobile.
+
+### 2026-09-11 — Cart Synchronization, Guest Cart Merge & Device Isolation
+- Added `customer_carts` persistence in PostgreSQL via `src/lib/db/cart.ts`.
+- Implemented `syncCartAction`, `saveAccountCartAction`, and `getAccountCartAction` in `src/app/(site)/account/private-actions.ts`.
+- Added `<CartSync />` client component in `src/components/cart/CartSync.tsx` (mounted in `src/app/(site)/layout.tsx`):
+  - Scenario 1 (Guest Cart Merge on Login): Guest adds items, proceeds to checkout, logs in. Guest items are merged with existing user account cart in PostgreSQL, and device guest cart is cleared.
+  - Scenario 2 (Cart Isolation on Logout & Device ID Guest Restoration): On logout, active visible cart is immediately cleared. User account cart remains securely stored in PostgreSQL. Re-browsing as guest restores only unauthenticated items previously added on this device via `vkon_guest_cart`. Re-logging in restores and merges user account cart.
+  - Ongoing: authenticated cart edits are debounced and synced to PostgreSQL.
+- Fixed standalone startup (`scripts/start-standalone.mjs`) to load environment variables via `@next/env`.
+- Dynamically configured `secure` cookie attribute for plain HTTP over local LAN (`x-forwarded-proto` / host check) across session and Google OAuth handshake cookies (`vkon_oauth` and `vkon_session`), eliminating false HTTPS detection from external OAuth referers.
 
 ### 2026-08-04 — Architecture doc added
 Created this file. No code change.

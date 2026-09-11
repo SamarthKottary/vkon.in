@@ -119,7 +119,7 @@ export function Footer() {
           data-footer-social-row
           className="flex flex-col gap-6 border-t border-band-line py-6 sm:flex-row sm:items-center sm:justify-between"
         >
-          <div className="flex flex-col gap-1.5 text-xs sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
             <p>
               © {new Date().getFullYear()} {site.legalName}
             </p>
@@ -132,6 +132,21 @@ export function Footer() {
             <p className="label-tech text-band-muted">
               Protection for Indian agriculture
             </p>
+            {/* Privacy/Terms added 2026-09-07 — Google's OAuth consent screen
+                requires both, and the footer is where a visitor expects to
+                find them regardless of that. */}
+            <span aria-hidden className="text-band-muted">
+              ·
+            </span>
+            <Link href="/privacy" className="text-band-muted hover:text-band-ink">
+              Privacy Policy
+            </Link>
+            <span aria-hidden className="text-band-muted">
+              ·
+            </span>
+            <Link href="/terms" className="text-band-muted hover:text-band-ink">
+              Terms of Service
+            </Link>
           </div>
 
           <SocialLinks />

@@ -13,6 +13,7 @@ import {
   updateProduct,
 } from "@/lib/db/products";
 import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
+import { setOrderStatus } from "@/lib/db/orders";
 import { deleteSubscriber } from "@/lib/db/subscribers";
 import { upsertPageSeo } from "@/lib/db/pageSeo";
 import { deleteProductImages, uploadProductImage } from "@/lib/storage";
@@ -20,6 +21,7 @@ import { CATEGORY_KEYS, PROTECTION_KEYS } from "@/content/taxonomy";
 import { SEO_PAGES } from "@/lib/seo";
 import { parseVideoUrl } from "@/lib/video";
 import type {
+  OrderStatus,
   ProductCategory,
   ProductImage,
   ProductInput,
@@ -420,4 +422,56 @@ export async function deleteEnquiryAction(formData: FormData): Promise<void> {
   }
 
   redirect("/admin/enquiries?removed=1");
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+/**
+ * Moves an order along: pending → confirmed → shipped → delivered, or
+ * cancelled.
+ *
+ * `requireAdmin()` first, like everything else that writes here — `/admin` is
+ * `force-dynamic` and checks before rendering, and that protects the *page*,
+ * not this POST endpoint.
+ *
+ * **The status is validated against a fixed list, not trusted from the form.**
+ * It arrives from a `<select>`, and §7 is explicit that a select's value is a
+ * convenience and never a control.
+ *
+ * **Payment status is deliberately not editable here.** It is set by the
+ * gateway. A human toggling "paid" would be recording that money arrived
+ * without anything having checked that it did.
+ */
+const ORDER_STATUSES = [
+  "pending",
+  "confirmed",
+  "shipped",
+  "delivered",
+  "cancelled",
+] as const;
+
+export async function setOrderStatusAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim();
+
+  if (!id || !(ORDER_STATUSES as readonly string[]).includes(status)) {
+    redirect("/admin/orders?error=1");
+  }
+
+  try {
+    await setOrderStatus(id, status as OrderStatus);
+  } catch (error) {
+    console.error("[admin] order status failed:", error);
+    redirect("/admin/orders?error=1");
+  }
+
+  revalidatePath("/admin/orders");
+  /* The customer's own copy shows the same status, and both routes are
+     `force-dynamic` — but the client-side router cache is not. */
+  revalidatePath("/account/orders");
+  redirect("/admin/orders?updated=1");
 }

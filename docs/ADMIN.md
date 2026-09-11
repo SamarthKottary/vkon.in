@@ -17,13 +17,14 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
+| `/admin/orders` | Order inbox. Read, and move an order along its status. |
 | `/admin/enquiries` | Contact-form inbox. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Read, export, remove. |
 | `/admin/seo` | Static page SEO overrides. |
 
-One operator, one password, four things to manage: **products**, the
-**mailing list** those products get announced to, **enquiries** people
-send from the contact page, and **SEO** overrides. Nothing else on the site is
+One operator, one password, five things to manage: **products**, **orders**
+placed at checkout, the **mailing list** those products get announced to,
+**enquiries** people send from the contact page, and **SEO** overrides. Nothing else on the site is
 editable without a code change — not the hero copy, not the figures, not the
 category list, not the contact details.
 
@@ -37,6 +38,15 @@ The two are not symmetrical, and the difference matters:
 - **Enquiries** are also created by visitors, from `/contact`. The admin reads
   them, marks them handled and deletes them. Read §7.7 — this one has a gap with
   a business cost attached.
+- **Orders** are created by *visitors* at checkout, and are the only thing here
+  the admin can neither create nor delete — it can read one and move it along
+  its status. Deleting is deliberately absent: an order is a financial record,
+  and "cancelled" is the state that means it is not happening. §7.8.
+
+> `/admin` and customer accounts are **two separate auth systems** and must
+> stay separate: different cookies, different modules, neither reading the
+> other's. §2 below is about the operator's session; ARCHITECTURE.md §7a is
+> about customers'.
 
 Every admin route is `force-dynamic`. A cached admin page is a stale admin page.
 
@@ -357,9 +367,77 @@ Closing it properly is one of:
 Until one of those exists, **the inbox needs checking through the working day**,
 and the page says so in as many words.
 
+**This got cheaper on 2026-09-06.** `lib/mail.ts` now exists and sends through
+Resend over plain HTTPS with no new dependency, so the first option above —
+forward each enquiry on submit — is now a `sendMail` call in
+`sendEnquiryAction` rather than a provider decision. The mailing-list
+obligations in §7.6 are untouched by that: an enquiry forward is transactional
+and needs no unsubscribe; a newsletter is not and does.
+
+
+### 7.8 The order inbox — *built 2026-09-07; the notification half is not*
+
+`/admin/orders` exists. Newest first, with the line items as they were bought,
+the delivery address, the customer's note and their phone number as a
+tap-to-call link — while payment is settled by telephone, ringing them is the
+actual next action, so it is the most prominent control on the card.
+
+**Added 2026-09-11: a billing address, shown alongside the delivery one only
+when the two differ**, plus the GSTIN when the billing address carries one —
+both read through the shared `account/OrderAddress` component the customer's
+own order page also uses, so a display change to one cannot drift from the
+other. Most orders show one address, because most customers leave "ship to
+the billing address" ticked; the extra "Bill to" block only appears for the
+minority who untick it.
+
+The status control moves an order `pending → confirmed → shipped → delivered`,
+or `cancelled`. Three things about it are deliberate:
+
+1. **`setOrderStatusAction` re-validates against a fixed list.** It comes from
+   a `<select>`, and §2's rule is that a select's value is a convenience and
+   never a control.
+2. **It cannot set `payment_status`.** That belongs to the gateway; a human
+   toggling "paid" records that money arrived without anything having checked
+   that it did. When cash on delivery needs recording, give it its own named
+   action rather than widening this one.
+3. **There is no delete.** An order is a financial record. "Cancelled" is the
+   state that means it is not happening.
+
+**What is still missing is the notification.** Like the enquiry inbox, this
+page has to be *looked at* — the confirmation mail goes to the customer, not to
+you. Closing it is a `sendMail` call in `placeOrderAction`.
+
+**This became more urgent on 2026-09-07**, when payment was built
+([PAYMENTS.md](PAYMENTS.md)). It is not live yet — it waits on Razorpay KYC —
+but the day it is, a missed order stops being a missed sale and becomes a
+customer who has paid and heard nothing. Do the notification before the keys
+go in.
+
+Note also that a paid order arrives here already marked **Paid** and
+**Confirmed**: the gateway sets both, not a human.
+
 ---
 
 ## Change log
+
+**2026-09-11** — Checkout gained a billing address distinct from the shipping
+one, with an optional GSTIN. `/admin/orders` now shows a "Bill to" block
+(only when it differs from the delivery address) and the GSTIN, through the
+same `OrderAddress` component the customer-facing order page uses. See
+ARCHITECTURE.md's 2026-09-11 change log entry for the full account of it.
+
+**2026-09-07** — Payment built (not yet live; awaiting Razorpay KYC). Nothing
+in `/admin` changed, but §7.8's notification gap is now the thing standing
+between a paid customer and silence.
+
+**2026-09-07** — `/admin/orders` built, closing the gap the previous entry
+opened. §1 gains the route and now says five things to manage rather than four;
+§7.8 records what was built and the three deliberate limits on it — validated
+status, no `payment_status` by hand, no delete.
+
+**2026-09-06** — Customer accounts and orders arrived (ARCHITECTURE.md §7a).
+`/admin`'s single-operator auth and the new customer auth are separate systems
+by design and must stay so.
 
 **2026-09-03** — Product pricing. `discount_percent` joins the existing `price`
 column, and the two are entered as **M.R.P. + percent off** rather than two

@@ -159,3 +159,266 @@ CREATE TABLE IF NOT EXISTS enquiries (
 -- way it is ever read.
 CREATE INDEX IF NOT EXISTS enquiries_inbox_idx
   ON enquiries (handled, created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- Customer accounts.
+--
+-- Added 2026-09-06. Separate from the admin session in `lib/auth.ts`, which
+-- has no user table at all: there is one operator and their password is an
+-- environment variable. These are shop visitors, there are many of them, and
+-- they own data (addresses, orders) that has to survive a deploy.
+--
+-- **The two never mix.** A customer session cookie grants nothing in /admin
+-- and an admin cookie grants nothing here; they are different cookie names
+-- verified by different modules. See ARCHITECTURE.md §7a.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS customers (
+  id             TEXT PRIMARY KEY,
+
+  -- Lower-cased and trimmed by `normaliseEmail` before it ever gets here. The
+  -- UNIQUE constraint is only meaningful because of that: "A@b.com" and
+  -- "a@b.com " are one person to a human and two rows to Postgres.
+  email          TEXT NOT NULL UNIQUE,
+  name           TEXT NOT NULL DEFAULT '',
+  phone          TEXT NOT NULL DEFAULT '',
+
+  -- NULL for an account created through Google that has never set a password.
+  -- `lib/password.ts` writes `scrypt$N$r$p$salt$hash`; nothing else parses it.
+  password_hash  TEXT,
+
+  -- Google's `sub` claim — the stable, opaque account id. NOT the email, which
+  -- a Google account can change. NULL for a password-only account. Two rows
+  -- can both be NULL (Postgres treats NULLs as distinct in a UNIQUE index),
+  -- which is exactly what is wanted here.
+  google_sub     TEXT UNIQUE,
+
+  -- Set by the link in the welcome mail, or immediately on a Google sign-in
+  -- (Google has already verified it). Nothing is gated on this today; it is
+  -- recorded so that gating something later does not need a migration.
+  email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- Customer sessions.
+--
+-- Server-side rather than a self-contained signed cookie like the admin's,
+-- for one reason that matters to a shop: **"Log out" must actually log out.**
+-- A stateless token stays valid until it expires no matter what the server
+-- does with it. A row can be deleted, which is what makes logging out on a
+-- shared phone mean something.
+--
+-- The cookie holds `id.HMAC(id, AUTH_SECRET)`. The signature is not what makes
+-- the session valid (the row is) — it lets a forged or corrupted cookie be
+-- rejected without a database round trip.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS customer_sessions (
+  id          TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  -- Truncated to 200 chars on write. Shown nowhere yet; kept so a "signed-in
+  -- devices" list is possible without a migration.
+  user_agent  TEXT NOT NULL DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS customer_sessions_customer_idx
+  ON customer_sessions (customer_id);
+-- Expired rows are swept opportunistically on session lookup; this is the
+-- index that sweep uses.
+CREATE INDEX IF NOT EXISTS customer_sessions_expiry_idx
+  ON customer_sessions (expires_at);
+
+-- ---------------------------------------------------------------------------
+-- One-time tokens: email verification and password reset.
+--
+-- **The token itself is never stored** — only a SHA-256 of it, the same way a
+-- password is never stored. A leaked database backup therefore does not hand
+-- somebody a working password-reset link for every account in it.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS customer_tokens (
+  id          TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  -- 'verify' | 'reset'. Checked in the query, not by a constraint, so adding a
+  -- third kind later is a code change and not a migration.
+  kind        TEXT NOT NULL,
+  token_hash  TEXT NOT NULL UNIQUE,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  -- Stamped instead of deleted, so a second click on the same link can say
+  -- "already used" rather than "invalid".
+  used_at     TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS customer_tokens_lookup_idx
+  ON customer_tokens (customer_id, kind);
+
+-- ---------------------------------------------------------------------------
+-- The signed-in cart: one row per customer, holding the same
+-- `{slug, qty}[]` shape `lib/cart.ts` keeps in `localStorage` for a stranger.
+--
+-- **A row, not a join to anything** — `items` is slugs and quantities only,
+-- the same reasoning as the browser copy: caching a product's name or price
+-- here would go stale the moment that product changes. `lib/db/cart.ts`
+-- re-sanitises it against the same caps (`MAX_LINES`, `MAX_QTY`) every read
+-- and write, because a row written before those caps existed, or edited
+-- directly, is not assumed trustworthy either.
+--
+-- `customer_id` is the primary key, not a separate id column: a customer has
+-- at most one of these, so there is nothing else for a key to distinguish.
+-- `ON CONFLICT (customer_id) DO UPDATE` is how `saveCustomerCart` writes it,
+-- which is what makes the primary key being exactly the conflict target load-
+-- bearing rather than incidental.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS customer_carts (
+  customer_id TEXT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+  items       JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- Delivery addresses.
+--
+-- A customer may keep several; exactly one is the default, enforced in
+-- `lib/db/addresses.ts` by clearing the others inside the same transaction
+-- rather than by a constraint (a partial unique index would make the two-step
+-- "set the new one, clear the old" ordering fail on the first step).
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS addresses (
+  id           TEXT PRIMARY KEY,
+  customer_id  TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+
+  -- Who receives it, which is not always the account holder.
+  name         TEXT NOT NULL,
+  phone        TEXT NOT NULL,
+  line1        TEXT NOT NULL,
+  line2        TEXT NOT NULL DEFAULT '',
+  city         TEXT NOT NULL,
+  state        TEXT NOT NULL,
+  postal_code  TEXT NOT NULL,
+  country      TEXT NOT NULL DEFAULT 'India',
+
+  is_default   BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS addresses_customer_idx
+  ON addresses (customer_id, is_default DESC, created_at DESC);
+
+-- Added 2026-09-10: GSTIN, for customers who buy against a business's
+-- registration and need it printed on the invoice. It lives on the address
+-- rather than on the customer because it belongs to a registered place of
+-- business -- one buyer can have a GST-registered firm and a home address, and
+-- only the first is invoiced under it. Fifteen characters, optional, stored
+-- upper-cased and validated in `account/private-actions.ts`.
+--
+-- **This does not change what tax is charged.** CGST+SGST at 9% each is still
+-- computed in `lib/pricing.ts`; capturing a GSTIN is a record on the invoice,
+-- not an input to the calculation. See ARCHITECTURE.md §11.
+ALTER TABLE addresses ADD COLUMN IF NOT EXISTS gstin TEXT NOT NULL DEFAULT '';
+
+-- ---------------------------------------------------------------------------
+-- Orders.
+--
+-- **Every money column is in paise, as an INTEGER.** `products.price` is in
+-- whole rupees because a list price never has paise; a tax line does — 9% of
+-- ₹818 is ₹73.62 — and floating point cannot hold that reliably through a sum.
+-- Paise also happens to be the unit Razorpay's API takes, so the number that
+-- goes to the gateway is the number in the row, with no conversion to get
+-- wrong. Divide by 100 exactly once, at render time (`formatPaise`).
+--
+-- **Line items snapshot the product.** The cart stores slugs and resolves them
+-- live, deliberately (see `lib/cart.ts`); an order must not. A product renamed,
+-- repriced or deleted next year cannot be allowed to change what an invoice
+-- from today says.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS orders (
+  id            TEXT PRIMARY KEY,
+
+  -- Human-facing reference, e.g. "VK-2609-4F7A". What a customer reads out on
+  -- the phone; `id` is a UUID and nobody is reading that aloud.
+  order_number  TEXT NOT NULL UNIQUE,
+
+  -- ON DELETE RESTRICT, not CASCADE: deleting a customer must not silently
+  -- delete the record of what they bought and what was charged for it.
+  customer_id   TEXT NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
+
+  -- 'pending' -> 'confirmed' -> 'shipped' -> 'delivered', or 'cancelled'.
+  status        TEXT NOT NULL DEFAULT 'pending',
+  -- 'unpaid' | 'paid' | 'failed' | 'refunded'.
+  payment_status TEXT NOT NULL DEFAULT 'unpaid',
+
+  subtotal      INTEGER NOT NULL DEFAULT 0,
+  cgst          INTEGER NOT NULL DEFAULT 0,
+  sgst          INTEGER NOT NULL DEFAULT 0,
+  shipping      INTEGER NOT NULL DEFAULT 0,
+  total         INTEGER NOT NULL DEFAULT 0,
+  currency      TEXT NOT NULL DEFAULT 'INR',
+
+  -- A copy of the address as it was when the order was placed, not a foreign
+  -- key. Editing a saved address must not rewrite where last month's order
+  -- was sent. Same reasoning as the line-item snapshot above.
+  ship_to       JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+  -- Filled by the payment step.
+  payment_provider    TEXT,
+  payment_order_id    TEXT,
+  payment_id          TEXT,
+  payment_signature   TEXT,
+  paid_at             TIMESTAMPTZ,
+
+  -- Free text from the customer at checkout, bounded in the action.
+  notes         TEXT NOT NULL DEFAULT '',
+
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Added 2026-09-10: the billing address, snapshotted on the same reasoning as
+-- `ship_to` above. Checkout asks for billing first and shipping second, and a
+-- ticked "ship to the billing address" writes the same object into both --
+-- which is why this is a second snapshot and not a nullable one. A row written
+-- before this column existed has `{}`, and `lib/db/orders.ts` reads that as
+-- "the one address on this order was both", which is what it was.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS bill_to JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Order history is read newest-first for one customer, and that is the only
+-- way a customer ever reads it.
+CREATE INDEX IF NOT EXISTS orders_customer_idx
+  ON orders (customer_id, created_at DESC);
+-- The admin inbox reads it newest-first across everyone.
+CREATE INDEX IF NOT EXISTS orders_recent_idx
+  ON orders (created_at DESC);
+-- The payment webhook/verify step looks an order up by the gateway's own id.
+CREATE INDEX IF NOT EXISTS orders_payment_order_idx
+  ON orders (payment_order_id);
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id          TEXT PRIMARY KEY,
+  order_id    TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+
+  -- The product it came from, kept for "buy it again" links. Deliberately not
+  -- a foreign key: a deleted product must not delete the line that says it was
+  -- once sold, and must not block the delete either.
+  product_id  TEXT NOT NULL DEFAULT '',
+  slug        TEXT NOT NULL DEFAULT '',
+
+  -- The snapshot. See the note on `orders`.
+  name        TEXT NOT NULL,
+  image_url   TEXT NOT NULL DEFAULT '',
+  unit_price  INTEGER NOT NULL,
+  qty         INTEGER NOT NULL,
+  line_total  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS order_items_order_idx
+  ON order_items (order_id);

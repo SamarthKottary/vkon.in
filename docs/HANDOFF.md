@@ -31,11 +31,34 @@ default. Several features here are shaped by that constraint — see §4.
 Working and verified:
 
 - Home, `/products`, `/products/[slug]`, `/about`, `/protection`, `/contact`
-- `/admin` — products CMS, mailing list, enquiry inbox
+- `/admin` — products CMS, order inbox, mailing list, enquiry inbox
 - Rotating hero over photography, sector browser, catalogue with three filters
 - Mailing list sign-up (home page only) and contact enquiries, both storing to
   Postgres
+- **Customer accounts** (2026-09-06) — register, sign in, Continue with Google,
+  password reset, `/account` with order history and an address book, and a
+  `/checkout` that turns the cart into an order. ARCHITECTURE.md §7a.
+- **Live integrations** — Resend sends the welcome, reset and order mails
+  (domain verified 2026-09-07); Google sign-in is configured and published.
+- **Payment** (2026-09-07) — Razorpay, built and tested, **waiting on KYC and
+  three env vars**. Until those are set the "Pay now" button does not render
+  and orders settle by phone.
+- `/privacy` and `/terms` — added because Google's OAuth verification requires
+  a privacy policy link, and warranted anyway now that the site collects
+  personal data.
 - CI/CD: push to `main` on GitHub triggers the self-hosted deploy console
+
+**[PAYMENTS.md](PAYMENTS.md)** covers what was built and what is still open;
+the click-by-click account setup for Resend, Google and Razorpay is in
+**[SETUP-GUIDE.md](SETUP-GUIDE.md)**.
+
+> **The project was deleted and rebuilt on 2026-09-10.** Git history was
+> intact and the account work survived on disk, so the recovery was a
+> `git restore` to `11e500b` plus re-applying integration edits by hand. Two
+> bugs fixed on 2026-09-07 came back with the partial restore and are now §9
+> constraints. Four `/media/` product images and the gitignored
+> `docs/Hosting.md`, `docs/cicd.md`, `docs/f2.pdf` and `cicd/` are permanently
+> lost — git cannot restore them by design. See the change log.
 
 The catalogue currently holds **8 DEMO products** with drawn placeholder
 artwork (`scripts/seed-demo.sql`). Every name starts with `DEMO`. Delete them
@@ -74,8 +97,26 @@ npm run db:setup              # local only — see §6 for the server
 npm run dev                   # http://localhost:3000
 ```
 
-`.env.local` holds `DATABASE_URL`, `ADMIN_PASSWORD`, `AUTH_SECRET`. It is not in
-git and never should be. `.env.example` is the template.
+`.env.local` holds `DATABASE_URL`, `ADMIN_PASSWORD`, `AUTH_SECRET`, and
+optionally the Resend, Google and Razorpay values. It is not in git and never
+should be. `.env.example` is the template.
+
+**Accounts work locally with none of the optional keys set**, which is the
+point of how they are wired. With no `RESEND_API_KEY` the welcome and reset
+mails are printed to the terminal running `npm run dev` — confirmation link
+included, and clickable from there. With no `GOOGLE_CLIENT_ID` the "Continue
+with Google" button does not render, and the login page says so in development.
+With no `RAZORPAY_*` the "Pay now" button does not render. None of those
+absences breaks anything.
+
+**Setting those keys up is [SETUP-GUIDE.md](SETUP-GUIDE.md)** — click by click,
+including the two traps that waste an afternoon each: a Cloudflare DNS record
+left *proxied* (orange cloud) makes Resend's domain verification fail forever
+with no useful error, and a redirect URI differing from Google's console by one
+character fails with `redirect_uri_mismatch`.
+
+**Next.js reads env files once, at startup.** Changing `.env.local` and
+reloading the page does nothing; restart the dev server.
 
 To load the demo catalogue:
 
@@ -83,7 +124,25 @@ To load the demo catalogue:
 docker exec -i vkon-pg psql -v ON_ERROR_STOP=1 -U postgres -d vkon < scripts/seed-demo.sql
 ```
 
-### Two traps that cost real time
+### Running the production build locally
+
+`npm run build && npm run start`. **`start` is not `next start`** — it runs
+`scripts/start-standalone.mjs`, because `next.config.ts` sets
+`output: "standalone"` for the Dockerfile and `next start` prints
+
+```
+⚠ "next start" does not work with "output: standalone" configuration.
+```
+
+It *appears* to work — pages render — so the temptation is to ignore it, and
+then "it worked locally" proves nothing about the container. The script does
+what the Dockerfile does at lines 33-35 instead: copy `public/` and
+`.next/static` beside the standalone `server.js` (which bundles neither), point
+`UPLOAD_DIR` at the repo's own `data/uploads`, and run it. Skip that copy and
+the site comes up with no CSS and no images, which reads as a broken build
+rather than a missing step.
+
+### Three traps that cost real time
 
 **`/admin` silently fails to sign in over anything but `localhost` or https.**
 The session cookie is `Secure`, so a browser drops it on plain HTTP to any other
@@ -97,15 +156,28 @@ Replacing an image in place and rebuilding serves the *old* rendering. Run
 `rm -rf .next/cache/images` after any artwork change, or the change appears not
 to have happened. A Docker deploy builds fresh, so production is unaffected.
 
+**`pg_dump -t <table> --where="…"` can silently return zero rows.** Used to
+back up three product rows before deleting them (2026-09-10); the command
+exited clean but wrote an empty file, and it was not caught until after the
+delete. Confirm a targeted dump actually has content (`wc -l`, or grep for a
+value you expect) before trusting it as your only copy — an unconditional
+`pg_dump -t <table> --data-only` with no `--where` is the safer default when
+the row count is small enough not to matter.
+
 ---
 
 ## 4. Decisions that look odd until you know why
 
-**Nothing in this codebase sends email.** The mailing list and the enquiry inbox
-both store and display. That is not an oversight — it is the dependency policy
-meeting the absence of a mail provider. It has a cost, recorded in ADMIN.md
-§7.6–7.7: **an enquiry sits unseen until somebody opens `/admin/enquiries`.**
-The contact page's channel ordering is the mitigation.
+**Email arrived on 2026-09-06, and only for accounts.** `lib/mail.ts` sends the
+welcome, password-reset, order-placed and payment-received messages through
+Resend — over plain HTTPS, because SMTP is a socket protocol and would have
+meant `nodemailer`, the first new runtime dependency since `pg`.
+
+**The mailing list and the enquiry inbox still send nothing**, and the cost is
+unchanged: ADMIN.md §7.6–7.7 — **an enquiry sits unseen until somebody opens
+`/admin/enquiries`.** **Orders have the same problem**, and it gets worse the
+day payment goes live: `/admin/orders` exists but nothing emails the operator,
+so a paid customer could hear nothing. ADMIN.md §7.8.
 
 **Product-driven routes are `force-dynamic`, never ISR.** `revalidatePath`
 marks a page stale but Next still serves the stale copy to the next request, so
@@ -178,7 +250,31 @@ DOM contrast:        3020 runs, 7 routes x 3 widths x 2 themes, 0 findings
 hero over artwork:   0 of 342, tightest 1.05x
 sign-up panel:       0 of 30,  tightest 1.36x
 contact page:        0 of 108, tightest 1.34x
+account + checkout:  8 routes x 3 widths x 2 themes, 0 contrast, 0 h-scroll
+admin orders +       2 widths x 2 themes, 0 contrast, 0 h-scroll
+password checklist
+privacy + terms:     2 widths x 2 themes, 0 contrast, 0 h-scroll
+payment:             25 checks against FAKE secrets — no Razorpay account needed
 ```
+
+**Payment is testable without a Razorpay account**, and that is worth knowing
+before assuming otherwise: `verify` and `webhook` do purely local HMAC work, so
+setting fake `RAZORPAY_*` values in `.env.local` and computing the signatures
+yourself exercises every security path end to end. Only
+`/api/payment/create` actually calls out to Razorpay. PAYMENTS.md §6.
+
+**Three harness traps, beyond the five below.** First: the account run reports
+"overflow" on 21 elements on every page, and it is the harness — they are the
+closed cart drawer, parked off-screen by `justify-end` on a `fixed` parent, and
+the same 21 appear on pages that predate all of it. `document.scrollWidth` is
+the assertion that matters. Second: **`colorScheme` in the Playwright context
+does nothing here** — `ThemeScript` reads `localStorage` and defaults to light
+regardless of `prefers-color-scheme`, so a dark run must seed
+`localStorage['vkon-theme']`. A whole set of "dark" screenshots came back
+byte-identical to the light ones before that was spotted. Third: the DOM
+auditor's colour parser understood only `rgb(1, 2, 3)`; a modern
+`rgb(1 2 3 / .5)` returned `null` and threw inside alpha-compositing, killing
+an entire run with no findings reported.
 
 **The hero's tightest margin is 1.05× and it is pinned by one slide** — the
 commercial stairwell at 390px, where the body copy crosses the lit staircase.
@@ -229,19 +325,34 @@ reason. Check `git add -A --dry-run` before committing; that list exists because
 Ordered by how much it would hurt to leave.
 
 1. **No database backup.** The Postgres volume is the only copy of the
-   catalogue, the mailing list and every enquiry. A nightly `pg_dump` off the
-   machine is an hour of work. ADMIN.md §7.4.
-2. **Nobody is told when an enquiry arrives.** ADMIN.md §7.7.
-3. **Company details are placeholder.** `grep -rn "TODO(vkon)" src/` — the
+   catalogue, the mailing list, every enquiry — and now every customer account
+   and order. This got materially worse once accounts existed: losing the
+   volume used to lose recreatable content, and now loses other people's
+   purchase records. A nightly `pg_dump` off the machine is an hour of work.
+   ADMIN.md §7.4.
+2. **Nobody is *told* when an order or an enquiry arrives.** Both inboxes exist
+   and both must be looked at. Now that `lib/mail.ts` exists, closing either is
+   a `sendMail` call. **Do the order one before payment goes live** — a missed
+   order stops being a missed sale and becomes a customer who has paid and
+   heard nothing. ADMIN.md §7.7–7.8.
+3. **`docs/Hosting.md`, `docs/cicd.md`, `docs/f2.pdf` and `cicd/` are missing**
+   after the 2026-09-10 deletion. All four are gitignored by design — they hold
+   Cloudflare tunnel UUIDs, internal hostnames and the client's business plan —
+   so git cannot restore them. `cicd/` is a security control, not housekeeping.
+   Recover them from the server.
+4. **Company details are placeholder.** `grep -rn "TODO(vkon)" src/` — the
    address, the founding year (`2010`, conflicts with the plan), the `280–440 V`
    supply band, and the solar/cables/accessories category copy.
-4. **The map pin is a town, not the works**, and follows the address above.
-5. **8 DEMO products** still in the catalogue.
-6. **The favicon is still the old circular badge.** A wordmark does not survive
+5. **The map pin is a town, not the works**, and follows the address above.
+6. **8 DEMO products** still in the catalogue.
+7. **The favicon is still the old circular badge.** A wordmark does not survive
    32px; it needs its own mark, probably just the red "o".
-7. **No login rate limiting**, though `lib/rate-limit.ts` now exists and makes
-   it a four-line change. ADMIN.md §7.3.
-8. **No staging environment, no audit trail, English only, no automated tests.**
+8. **No rate limiting on the *admin* login.** The customer sign-in is limited;
+   `/admin` still is not, and it is now a copy of four lines. ADMIN.md §7.3.
+9. **GST is always CGST+SGST, and delivery is not priced.** Both fine while
+   payment is settled on a call; both must be settled before it is not.
+   PAYMENTS.md §7.
+10. **No staging environment, no audit trail, English only, no automated tests.**
 
 ---
 

@@ -8,6 +8,21 @@ export const primaryNav: NavLink[] = [
 ];
 
 /**
+ * The signed-in account destinations.
+ *
+ * One list, used by the header's dropdown, the mobile drawer and the sidebar
+ * on the account pages themselves — so a fourth destination is added once
+ * rather than in three places that then drift. "Log out" is deliberately not
+ * in it: it is a form submission, not a link, and every one of those three
+ * renders it as a button of its own.
+ */
+export const accountNav: NavLink[] = [
+  { href: "/account", label: "My account" },
+  { href: "/account/orders", label: "Order history" },
+  { href: "/account/addresses", label: "Addresses" },
+];
+
+/**
  * Two link lists in the footer: the top-level categories, then the agriculture
  * range beneath it.
  *

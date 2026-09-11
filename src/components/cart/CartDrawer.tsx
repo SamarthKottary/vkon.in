@@ -204,7 +204,7 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
                 VIEW CART
               </Link>
               <Link
-                href="/cart"
+                href="/checkout"
                 onClick={() => setOpen(false)}
                 className="block w-full bg-accent hover:bg-accent-strong text-surface font-bold text-xs uppercase tracking-wider py-3.5 text-center transition-colors shadow-sm"
               >

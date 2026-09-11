@@ -336,7 +336,7 @@ export function ProductCard({
 
   return (
     <div ref={cardRef} className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-2.5 hover:scale-[1.04] hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-2.5 data-[popped=true]:scale-[1.04] data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group relative z-10 flex h-full flex-col border border-line bg-surface-raised shadow-card will-change-transform transition-all duration-[350ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:z-20 hover:scale-[1.02] hover:-translate-y-1 hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:scale-[1.02] data-[popped=true]:-translate-y-1 data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
       {/* `z-20` here, not only on the arrows/Quick View button nested
           inside it — found missing the same way as the dot row's own fix
           below: a real swipe on the image itself, not just an arrow
@@ -556,7 +556,7 @@ export function ProductCard({
           {categoryLabel(product.category)}
         </p>
 
-        <Heading className="mt-2.5 text-lg leading-snug">
+        <Heading className="mt-2.5 min-h-[3.25rem] text-lg leading-snug line-clamp-2">
           {/* Stretched link — whole card is the target, one tab stop. */}
           <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
             {product.name}
@@ -569,14 +569,17 @@ export function ProductCard({
             instead lets place price there"). Moving it rather than adding a
             second copy is also what keeps the card the same height. */}
 
-        {product.hpRanges.length > 0 && (
-          <dl className="mt-4 flex gap-2 text-sm">
-            <dt className="label-tech pt-1 text-muted">Range</dt>
-            <dd className="font-mono text-[0.8125rem] text-ink">
-              {product.hpRanges.join(" · ")}
-            </dd>
-          </dl>
-        )}
+        {/* Reserved slot so cards with or without Range maintain the exact same height */}
+        <div className="mt-4 min-h-[1.625rem]">
+          {product.hpRanges.length > 0 && (
+            <dl className="flex gap-2 text-sm">
+              <dt className="label-tech pt-1 text-muted">Range</dt>
+              <dd className="font-mono text-[0.8125rem] text-ink">
+                {product.hpRanges.join(" · ")}
+              </dd>
+            </dl>
+          )}
+        </div>
 
         {/* "View details" stays a `<span>`, not a second link: the card is
             already one stretched link and adding another would give it two tab
@@ -628,16 +631,6 @@ export function ProductCard({
       </div>
 
     </article>
-
-    {/* INVISIBLE CLONE */}
-    <div className="invisible flex h-full flex-col pointer-events-none aria-hidden" aria-hidden="true">
-      <div className="aspect-square" />
-      <div className="flex flex-1 flex-col p-5">
-        <p className="label-tech">{categoryLabel(product.category)}</p>
-        <Heading className="mt-2.5 text-lg leading-snug">{product.name}</Heading>
-        <div className="mt-auto pt-6"><div className="h-9" /></div>
-      </div>
-    </div>
 
     {isQuickViewOpen && (
       <QuickViewModal product={product} onClose={() => {
@@ -1116,10 +1109,27 @@ function FeaturedCard({
   if (!image) {
     return (
       <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col border border-line bg-surface-raised shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-3 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-3 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
-        <div className="relative flex aspect-square items-center justify-center overflow-hidden border-b border-line bg-surface-subtle">
-          <PanelPlaceholder className="h-20 w-20" />
-          
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-surface-raised shadow-card transition-all duration-300 ease-out will-change-transform hover:z-20 hover:-inset-x-1 hover:scale-[1.02] hover:-translate-y-[calc(50%+4px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:-inset-x-1 data-[popped=true]:scale-[1.02] data-[popped=true]:-translate-y-[calc(50%+4px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+        {/* **Structurally mirrors the photographed branch below**: image
+            square with category/title/tagline/range overlaid on it, then a
+            fixed-height footer row — not, as this used to be, a plain image
+            followed by a taller `p-5` block of the same fields stacked below
+            it. The two shapes disagreed by 88px (535 against 447), and mixing
+            a card of either kind into one flex row (`align-items: stretch`,
+            the default) silently stretched every card to the taller one —
+            found 2026-09-10 as a black `bg-band` gap under every shorter
+            card once three products lost their photos and fell into this
+            branch. Overlaying here, on a plain `bg-surface-subtle` square
+            with no photograph to protect legibility against, needs none of
+            that branch's scrim gradients or hardcoded theme-invariant
+            colours — ordinary tokens on a token background are already
+            proven to pass contrast, being the same pairing the vertical/
+            horizontal cards below use for text on their own plain surface. */}
+        <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden bg-surface-subtle">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <PanelPlaceholder className="h-20 w-20 text-muted" />
+          </div>
+
           <div
             data-quickview-wrapper
             data-featured-quickview
@@ -1137,8 +1147,8 @@ function FeaturedCard({
                `data-popped` only flips at the exact crossed-over instant,
                so it pinned the *outgoing* card's Quick View at a flat `1`
                for almost the entire drag instead of letting
-               `--pop-progress` fade it down, then jumped the incoming card
-               straight to `1` rather than letting it rise smoothly —
+               `--pop-progress` fade it down, then jumped the incoming
+               card straight to `1` rather than letting it rise smoothly —
                confirmed directly, sampling opacity through a slow drag
                showed the outgoing card sitting at `1.00` unmoving until
                the very last step. Removed here; still exactly what drives
@@ -1186,40 +1196,86 @@ function FeaturedCard({
               Quick view
             </button>
           </div>
-        </div>
-        <div className="flex flex-1 flex-col p-5">
-          <p className="label-tech text-muted">{categoryLabel(product.category)}</p>
-          <Heading className="mt-2.5 text-lg leading-snug">
-            <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
-              {product.name}
-            </Link>
-          </Heading>
-          {product.tagline && (
-            <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-2">
-              <p className="overflow-hidden text-sm leading-relaxed text-muted">
-                {product.tagline}
-              </p>
+
+          <div className="absolute inset-0 flex flex-col justify-between p-3">
+            <div>
+              <p className="label-tech text-muted">{categoryLabel(product.category)}</p>
+              <Heading className="mt-1 text-base leading-snug">
+                <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
+                  {product.name}
+                </Link>
+              </Heading>
             </div>
+
+            <div>
+              {product.tagline && (
+                <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover:grid-rows-[1fr] group-hover:opacity-100 group-hover:mt-1.5">
+                  <p className="overflow-hidden line-clamp-2 text-[0.8125rem] leading-relaxed text-muted">
+                    {product.tagline}
+                  </p>
+                </div>
+              )}
+              {/* Was missing entirely before this rewrite — the old below-image
+                  block never showed a no-photo featured card's HP range at
+                  all, so it carried less information than its photographed
+                  sibling. Restructuring to mirror that branch closed both
+                  gaps at once: the height, and this. */}
+              {product.hpRanges.length > 0 && (
+                <dl className="mt-1.5 flex gap-2 text-[0.8125rem]">
+                  <dt className="label-tech pt-0.5 text-muted">Range</dt>
+                  <dd className="font-mono text-[0.75rem] text-ink">
+                    {product.hpRanges.join(" · ")}
+                  </dd>
+                </dl>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Identical markup to the photographed branch's footer row —
+            deliberately, not just similarly styled — so the two kinds of
+            card are pixel-identical below the image and `data-featured-footer`
+            keeps pausing autoplay the same way regardless of which one a
+            visitor's cursor happens to be over. */}
+        <div
+          data-featured-footer
+          className="mt-auto flex items-center justify-between gap-3 bg-surface-raised/90 p-3 backdrop-blur-sm"
+        >
+          {product.price != null ? (
+            <ProductPrice product={product} variant="inline-desktop" className="shrink-0" />
+          ) : (
+            <Link
+              href={`/products/${product.slug}`}
+              className="group/details relative flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-ink transition-colors hover:text-accent"
+            >
+              <span className="relative">
+                View details
+                <span
+                  aria-hidden
+                  className="absolute inset-x-0 -bottom-0.5 h-px origin-left bg-accent [transform:scaleX(0)] transition-transform duration-200 ease-out group-hover/details:[transform:scaleX(1)]"
+                />
+              </span>
+              <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover/details:translate-x-1" />
+            </Link>
           )}
-          <div className="mt-auto flex items-center justify-between gap-3 pt-6">
-            <span className="flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-accent">
-              View details
-              <ArrowRightIcon className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-1" />
-            </span>
+          <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
             <AddToCartButton slug={product.slug} name={product.name} size="compact" />
           </div>
         </div>
 
       </article>
 
-      {/* INVISIBLE CLONE */}
-      <div className="invisible flex h-full flex-col pointer-events-none aria-hidden" aria-hidden="true">
-        <div className="aspect-square" />
-        <div className="flex flex-1 flex-col p-5">
-          <p className="label-tech">{categoryLabel(product.category)}</p>
-          <Heading className="mt-2.5 text-lg leading-snug">{product.name}</Heading>
-          <div className="mt-auto pt-6"><div className="h-9" /></div>
-        </div>
+      {/* INVISIBLE CLONE — now structurally identical to the photographed
+          branch's own clone below (image square + fixed-height footer row
+          only), because the visible content above now matches that shape
+          too. Both report the same 447px natural height, so neither can
+          stretch the other in a row that mixes the two. No `h-full`: that
+          would stretch this to match the flex row's cross-axis height
+          instead of its own two children, which is the bug this rewrite
+          fixes — see the note on the other clone for the full history. */}
+      <div className="invisible flex flex-col pointer-events-none aria-hidden" aria-hidden="true">
+        <div className="aspect-square w-full" />
+        <div className="p-3"><div className="h-9" /></div>
       </div>
 
       {isQuickViewOpen && (
@@ -1234,7 +1290,7 @@ function FeaturedCard({
 
   return (
     <div className="relative h-full w-full">
-      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 hover:z-20 hover:h-fit hover:-inset-x-3 hover:-translate-y-[calc(50%+6px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:h-fit data-[popped=true]:-inset-x-3 data-[popped=true]:-translate-y-[calc(50%+6px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
+      <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 ease-out will-change-transform hover:z-20 hover:-inset-x-1 hover:scale-[1.02] hover:-translate-y-[calc(50%+4px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:-inset-x-1 data-[popped=true]:scale-[1.02] data-[popped=true]:-translate-y-[calc(50%+4px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
       <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden">
         <Image
           src={image.url}
@@ -1582,8 +1638,16 @@ function FeaturedCard({
 
     </article>
 
-    {/* INVISIBLE CLONE */}
-    <div className="invisible flex h-full flex-col pointer-events-none aria-hidden" aria-hidden="true">
+    {/* INVISIBLE CLONE — sets the `<li>`'s real height in the flex row, since
+        the article above is `absolute` and does not participate in flow. It
+        must size to its own two children (image + price row, ~447px), never
+        `h-full`: `h-full` would stretch it to match the row's cross-axis
+        height instead, which is a different number whenever a sibling card
+        wraps to a second line of text — and that taller number then becomes
+        this card's height too, leaving a gap of solid `bg-band` below its
+        real content. Found 2026-09-10 rendering as a black band under every
+        featured card. */}
+    <div className="invisible flex flex-col pointer-events-none aria-hidden" aria-hidden="true">
       <div className="aspect-square w-full" />
       <div className="p-3"><div className="h-9" /></div>
     </div>

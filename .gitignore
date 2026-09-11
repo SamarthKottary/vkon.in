@@ -88,3 +88,33 @@ public/segments/*.png
 # Same for the category artwork: the delivered files are PNG-named JPEGs (plus
 # one real PNG), kept locally for re-export. The committed asset is the .jpg.
 public/categories/*.png
+
+# ---------------------------------------------------------------------------
+# Scratch files from verification runs and IDE sessions.
+#
+# Added 2026-09-10. The repo had accumulated ~90 of these — 47 `verify-*.mjs`,
+# a dozen `diag*`/`repro*`/`measure*`, and four `.temp_*`/`temp*` files that
+# had actually been COMMITTED. The verification harness is deliberately not in
+# the repo (HANDOFF.md §5: "rebuild them from this section if you need them"),
+# so anything matching these belongs in a scratch directory, not here.
+# ---------------------------------------------------------------------------
+verify-*.mjs
+test-*.mjs
+diag*.mjs
+repro*.mjs
+measure*.mjs
+final-check.mjs
+.scratch-*
+.temp_*
+temp[0-9]*.png
+
+# Recovery/handoff packages. `vkon-project-package.zip` was 31 MB and its
+# extracted twin another 32 MB; neither belongs in git.
+vkon-project-package/
+vkon-project-package.*
+*.zip
+
+# A stray nested copy of the project appeared at ./vkon.in during the
+# 2026-09-10 recovery — the same hazard the "nested repos" note below warns
+# about, so it is named explicitly.
+/vkon.in/

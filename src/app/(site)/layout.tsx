@@ -4,10 +4,12 @@ import { Header } from "@/components/layout/Header";
 import { IntroSplash } from "@/components/layout/IntroSplash";
 import { MobileActionBar } from "@/components/layout/MobileActionBar";
 import { CartDrawer } from "@/components/cart/CartDrawer";
+import { CartSync } from "@/components/cart/CartSync";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { categories, categoriesInSector, sectors, categoryLabel, sectorLabel, sectorOf } from "@/content/taxonomy";
 import { protectionMeta } from "@/components/icons/protections";
 import { listProducts } from "@/lib/db/products";
+import { getCurrentCustomer } from "@/lib/account";
 import { organizationJsonLd } from "@/lib/seo";
 
 /**
@@ -32,7 +34,14 @@ export default async function SiteLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const products = await listProducts();
+  /* Two independent reads, so the session lookup does not sit behind the
+     catalogue query on every page in the group. `getCurrentCustomer` fails
+     soft — an unreachable database renders the header signed-out rather than
+     500-ing the whole site — so `Promise.all` is safe here. */
+  const [products, customer] = await Promise.all([
+    listProducts(),
+    getCurrentCustomer(),
+  ]);
   /* One column per market, listing its categories with a product count each.
      The counts are computed here rather than in the menu so the client
      component is handed numbers instead of the whole catalogue — it does not
@@ -116,7 +125,14 @@ export default async function SiteLayout({
         Skip to content
       </a>
 
-      <Header menu={menu} searchProducts={searchProducts} suggestionTerms={suggestionTerms} />
+      <Header
+        menu={menu}
+        searchProducts={searchProducts}
+        suggestionTerms={suggestionTerms}
+        /* Only what the menu draws. The session, the id and everything else on
+           the row stay on the server. */
+        customer={customer ? { name: customer.name, email: customer.email } : null}
+      />
       {/* `bg-surface` is load-bearing, not decoration: it is what hides
           the footer behind this while the footer is pinned (see below).
           `body` carries the same colour, but a background set on `body`
@@ -159,6 +175,7 @@ export default async function SiteLayout({
       <FloatingContact />
       <MobileActionBar />
       <CartDrawer products={products} />
+      <CartSync customerId={customer?.id ?? null} />
 
       <JsonLd data={organizationJsonLd()} />
     </>

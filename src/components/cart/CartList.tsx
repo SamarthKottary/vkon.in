@@ -193,7 +193,7 @@ export function CartList({ products }: { products: Product[] }) {
         </div>
 
         <Link
-          href="/contact"
+          href="/checkout"
           className="mt-6 block w-full bg-accent hover:bg-accent-strong py-3.5 text-center text-sm font-bold uppercase tracking-wider text-surface transition-colors shadow-sm"
         >
           PROCEED TO CHECKOUT

@@ -407,3 +407,58 @@ export function LinkedInIcon({ className = "h-5 w-5" }: IconProps) {
     </svg>
   );
 }
+
+/**
+ * Account icons, added 2026-09-06 with the customer accounts feature.
+ *
+ * `GoogleIcon` is the exception to everything in the header comment above: it
+ * is a filled four-colour mark, not a 1.5-stroke `currentColor` glyph, because
+ * Google's brand guidelines for "Sign in with Google" require their "G" in its
+ * own colours and forbid recolouring or restyling it.
+ */
+export function UserIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="8" r="3.75" />
+      <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
+    </svg>
+  );
+}
+
+export function PackageIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 3.5l7.5 4v9L12 20.5 4.5 16.5v-9z" />
+      <path d="M4.5 7.5L12 11.5l7.5-4M12 11.5V20.5" />
+    </svg>
+  );
+}
+
+export function PinIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M12 21s6.5-5.8 6.5-10.5a6.5 6.5 0 1 0-13 0C5.5 15.2 12 21 12 21z" />
+      <circle cx="12" cy="10.5" r="2.5" />
+    </svg>
+  );
+}
+
+export function LockIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="4.75" y="10.5" width="14.5" height="9.75" rx="1.5" />
+      <path d="M8.25 10.5V7.5a3.75 3.75 0 0 1 7.5 0v3" />
+    </svg>
+  );
+}
+
+export function GoogleIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.63h6.46a5.52 5.52 0 0 1-2.4 3.62v3h3.87c2.26-2.08 3.57-5.15 3.57-8.8z" />
+      <path fill="#34A853" d="M12 24c3.24 0 5.96-1.08 7.94-2.91l-3.87-3a7.2 7.2 0 0 1-10.72-3.78H1.35v3.09A12 12 0 0 0 12 24z" />
+      <path fill="#FBBC05" d="M5.35 14.31a7.19 7.19 0 0 1 0-4.6V6.62H1.35a12 12 0 0 0 0 10.78l4-3.09z" />
+      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.35 6.62l4 3.09A7.15 7.15 0 0 1 12 4.75z" />
+    </svg>
+  );
+}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AccountMenu, type HeaderCustomer } from "@/components/account/AccountMenu";
 import { CartLink } from "@/components/cart/CartLink";
 import { Logo } from "@/components/icons/Logo";
 import { CloseIcon, MenuIcon } from "@/components/icons/ui";
@@ -10,7 +11,9 @@ import { Container } from "@/components/ui/Container";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { HeaderSearch, type SearchEntry } from "@/components/layout/HeaderSearch";
 import { ProductsMenu, type MenuSector } from "@/components/layout/ProductsMenu";
-import { primaryNav } from "@/content/nav";
+import { accountNav, primaryNav } from "@/content/nav";
+import { logoutAction } from "@/app/(site)/account/actions";
+import { handleUserLogout } from "@/lib/cart";
 
 /**
  * Flat header on a hairline rule. No blur, no shadow, no colour change on
@@ -55,10 +58,15 @@ export function Header({
   menu = [],
   searchProducts = [],
   suggestionTerms = [],
+  customer = null,
 }: {
   menu?: MenuSector[];
   searchProducts?: SearchEntry[];
   suggestionTerms?: string[];
+  /* Read on the server in `(site)/layout`, for the reason `menu` is: this is
+     a client component and cannot query anything itself. Null when signed
+     out. See `account/AccountMenu`. */
+  customer?: HeaderCustomer | null;
 }) {
   const [open, setOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
@@ -232,6 +240,14 @@ export function Header({
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  /* Mirrors `AccountMenu`'s own link — sending the visitor back where they
+     were after signing in. Re-checked server-side by `safeNext`, so a crafted
+     value cannot make this an off-site redirect. */
+  const signInHref =
+    pathname && pathname.startsWith("/account")
+      ? "/account/login"
+      : `/account/login?next=${encodeURIComponent(pathname || "/")}`;
+
   return (
     <>
       <header
@@ -348,6 +364,16 @@ export function Header({
                 onClose={closeSearch}
               />
               <CartLink />
+              {/* **Desktop only, and that is a measured constraint.** This row
+                  already carries search, cart, theme and the menu trigger;
+                  a fifth control took the header 2px past a 360px viewport —
+                  the most common Android width and precisely this site's
+                  audience — giving every page a horizontal scrollbar. Verified
+                  by removing it and re-measuring: 360px clean without it, 362
+                  with. The drawer below carries the same destinations. */}
+              <div className="hidden md:block">
+                <AccountMenu customer={customer} />
+              </div>
               <ThemeToggle />
               <button
                 ref={triggerRef}
@@ -414,6 +440,55 @@ export function Header({
                     </Link>
                   </li>
                 ))}
+              </ul>
+
+              {/* The account block, below the site nav rather than inside it.
+                  `AccountMenu`'s dropdown is a poor fit on a phone, so the same
+                  destinations are laid out flat here instead. */}
+              <ul className="border-t-4 border-surface-subtle">
+                {customer ? (
+                  <>
+                    <li className="border-b border-line px-5 py-3">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {customer.name || "My account"}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted">{customer.email}</p>
+                    </li>
+                    {accountNav.map((link) => (
+                      <li key={link.href} className="border-b border-line">
+                        <Link
+                          href={link.href}
+                          onClick={() => setOpen(false)}
+                          className="block px-5 py-4 text-base font-medium uppercase text-ink hover:bg-surface-subtle"
+                        >
+                          {link.label}
+                        </Link>
+                      </li>
+                    ))}
+                    <li className="border-b border-line">
+                      {/* A form, not a link: a GET that ends a session can be
+                          fired by any third-party image tag. */}
+                      <form action={logoutAction} onSubmit={() => handleUserLogout()}>
+                        <button
+                          type="submit"
+                          className="block w-full px-5 py-4 text-left text-base font-medium uppercase text-ink hover:bg-surface-subtle"
+                        >
+                          Log out
+                        </button>
+                      </form>
+                    </li>
+                  </>
+                ) : (
+                  <li className="border-b border-line">
+                    <Link
+                      href={signInHref}
+                      onClick={() => setOpen(false)}
+                      className="block px-5 py-4 text-base font-medium uppercase text-accent hover:bg-surface-subtle"
+                    >
+                      Sign in / Register
+                    </Link>
+                  </li>
+                )}
               </ul>
             </nav>
           </div>

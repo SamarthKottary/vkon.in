@@ -182,3 +182,96 @@ export type Enquiry = {
   handled: boolean;
   createdAt: string;
 };
+
+// ---------------------------------------------------------------------------
+// Customer accounts, addresses and orders.
+//
+// Added 2026-09-06. Same convention as the product types above: snake_case in
+// SQL, camelCase here, bridged in exactly one place per table inside
+// `lib/db/`.
+// ---------------------------------------------------------------------------
+
+export type Customer = {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  /** True once the welcome-mail link has been followed, or immediately for a
+   *  Google sign-in. Nothing is gated on it yet — see ARCHITECTURE.md §7a. */
+  emailVerified: boolean;
+  /** Whether a password is set at all. The hash itself never leaves `lib/db`. */
+  hasPassword: boolean;
+  /** Whether this account is linked to Google. The `sub` itself is not exposed. */
+  hasGoogle: boolean;
+  createdAt: string;
+};
+
+export type Address = {
+  id: string;
+  name: string;
+  phone: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  /**
+   * GST registration number, or "" for the overwhelming majority who have
+   * none. Optional everywhere, upper-cased on save, and never an input to what
+   * is charged -- see the note on the column in schema.sql.
+   */
+  gstin: string;
+  isDefault: boolean;
+};
+
+/** The address as it was when the order was placed. See the `ship_to` note in
+ *  schema.sql: an order snapshots, it does not reference. */
+export type ShipTo = Omit<Address, "id" | "isDefault">;
+
+export type OrderStatus =
+  | "pending"
+  | "confirmed"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+
+export type PaymentStatus = "unpaid" | "paid" | "failed" | "refunded";
+
+export type OrderItem = {
+  id: string;
+  productId: string;
+  slug: string;
+  name: string;
+  imageUrl: string;
+  /** Paise. Divide by 100 exactly once, at render time. */
+  unitPrice: number;
+  qty: number;
+  lineTotal: number;
+};
+
+export type Order = {
+  id: string;
+  orderNumber: string;
+  customerId: string;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  /** Every one of these is paise. See the note on `orders` in schema.sql. */
+  subtotal: number;
+  cgst: number;
+  sgst: number;
+  shipping: number;
+  total: number;
+  currency: string;
+  shipTo: ShipTo;
+  /** Whom it is invoiced to. Equal to `shipTo` when checkout's "ship to the
+   *  billing address" box was left ticked, which is the common case. */
+  billTo: ShipTo;
+  notes: string;
+  paymentProvider: string | null;
+  paymentOrderId: string | null;
+  paymentId: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  items: OrderItem[];
+};

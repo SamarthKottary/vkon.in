@@ -25,6 +25,9 @@
  */
 
 const KEY = "vkon-cart";
+const GUEST_KEY = "vkon_guest_cart";
+const DEVICE_KEY = "vkon_device_id";
+const AUTH_KEY = "vkon_auth_status";
 
 /** Same-tab change signal. See the note above on why `storage` is not enough. */
 const EVENT = "vkon-cart-change";
@@ -39,6 +42,100 @@ export type CartLine = {
   slug: string;
   qty: number;
 };
+
+/**
+ * Returns a stable unique ID for this browser/device.
+ */
+export function getDeviceId(): string {
+  if (typeof window === "undefined") return "server";
+  try {
+    let id = window.localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = "dev_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      window.localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch {
+    return "ephemeral";
+  }
+}
+
+/**
+ * Marks whether the current client is authenticated.
+ */
+export function setClientAuthStatus(authenticated: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (authenticated) {
+      window.localStorage.setItem(AUTH_KEY, "true");
+    } else {
+      window.localStorage.removeItem(AUTH_KEY);
+    }
+  } catch {}
+}
+
+export function isClientAuthenticated(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(AUTH_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Reads unauthenticated guest items persisted specifically for this device.
+ */
+export function readGuestCart(): CartLine[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(GUEST_KEY);
+    return parseCart(raw ?? "");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Writes guest items for this device.
+ */
+export function writeGuestCart(lines: CartLine[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(GUEST_KEY, JSON.stringify(lines.slice(0, MAX_LINES)));
+  } catch {}
+}
+
+/**
+ * Clears guest items for this device (called once guest items have merged into a user account).
+ */
+export function clearGuestCart(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(GUEST_KEY);
+  } catch {}
+}
+
+/**
+ * Handles user login: sets the active cart to the merged lines and clears the device guest cart.
+ */
+export function handleUserLogin(mergedLines: CartLine[]): void {
+  setClientAuthStatus(true);
+  clearGuestCart();
+  writeCart(mergedLines);
+}
+
+/**
+ * Handles user logout:
+ * 1. Immediately wipes active visible cart so no user items leak.
+ * 2. Restores only the items added as an unauthenticated guest on this device.
+ */
+export function handleUserLogout(): void {
+  setClientAuthStatus(false);
+  const guestLines = readGuestCart();
+  // Overwrite visible cart with only guest lines (or empty)
+  writeCart(guestLines);
+}
 
 /**
  * Raw stored value, for `useSyncExternalStore`.
@@ -110,10 +207,14 @@ export function readCart(): CartLine[] {
 }
 
 /** Writes, then tells this tab. Storage failing must never break a page. */
-function writeCart(lines: CartLine[]): void {
+export function writeCart(lines: CartLine[]): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(KEY, JSON.stringify(lines.slice(0, MAX_LINES)));
+    // If not authenticated, keep device guest cart in sync
+    if (!isClientAuthenticated()) {
+      window.localStorage.setItem(GUEST_KEY, JSON.stringify(lines.slice(0, MAX_LINES)));
+    }
   } catch {
     // Private mode, a full quota, or someone else's key holding junk. The
     // dispatch below still runs so the UI reflects the attempt consistently

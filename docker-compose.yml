@@ -23,6 +23,18 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       UPLOAD_DIR: /app/data/uploads
       SITE_URL: ${SITE_URL:-https://vkon.in}
+      # Customer accounts and payment. Every one is optional and the app
+      # degrades rather than failing: no RESEND_API_KEY logs mail instead of
+      # sending, no GOOGLE_CLIENT_ID hides the Google button, no RAZORPAY_*
+      # hides the Pay button. `:-` keeps Compose from warning when unset.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
     volumes:
       # Uploads must outlive the container; the image is rebuilt every deploy.
       - vkon-uploads:/app/data/uploads

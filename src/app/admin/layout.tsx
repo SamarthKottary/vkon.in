@@ -25,8 +25,12 @@ export default async function AdminLayout({
     <div className="flex min-h-full flex-col bg-surface-subtle">
       <header className="border-b border-line bg-surface">
         <Container size="wide">
-          <div className="flex h-14 items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
+          {/* `flex-wrap` and `min-h-14` rather than `h-14`: this row has never
+              fitted a phone — it overflowed at 390px with four nav links long
+              before Orders was a fifth — and a fixed height turns wrapping
+              into overlapping. Nothing changes above `sm`. */}
+          <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2 sm:py-0">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
               <Link href="/admin/products" className="flex items-baseline gap-2.5">
                 <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
                   Vkon
@@ -35,12 +39,20 @@ export default async function AdminLayout({
               </Link>
 
               {authed && (
-                <nav aria-label="Admin" className="flex items-center gap-5">
+                <nav aria-label="Admin" className="flex flex-wrap items-center gap-x-5 gap-y-1">
                   <Link
                     href="/admin/products"
                     className="text-sm text-muted hover:text-ink"
                   >
                     Products
+                  </Link>
+                  {/* Orders before Enquiries: an order is a commitment
+                      somebody is waiting on, an enquiry is a question. */}
+                  <Link
+                    href="/admin/orders"
+                    className="text-sm text-muted hover:text-ink"
+                  >
+                    Orders
                   </Link>
                   <Link
                     href="/admin/enquiries"
