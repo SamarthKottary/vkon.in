@@ -49,14 +49,13 @@ function mapRow(row: AddressRow): Address {
 
 export type AddressInput = Omit<Address, "id" | "isDefault">;
 
-/** Default first, then newest. Reads fail soft — an account page with no
- *  addresses beats a 500 — but a write never does. */
+/** Newest first — stable order that does not jump when the default changes. */
 export async function listAddresses(customerId: string): Promise<Address[]> {
   try {
     const rows = await query<AddressRow>(
       `SELECT ${SELECT} FROM addresses
         WHERE customer_id = $1
-        ORDER BY is_default DESC, created_at DESC`,
+        ORDER BY created_at DESC`,
       [customerId],
     );
     return rows.map(mapRow);

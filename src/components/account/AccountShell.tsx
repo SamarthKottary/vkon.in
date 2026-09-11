@@ -46,9 +46,6 @@ export function AccountShell({
         <h1 className="mt-6 text-[1.625rem] leading-tight sm:mt-8 sm:text-[2rem] lg:text-[2.5rem]">
           {first ? `Hello, ${first}` : "My account"}
         </h1>
-        <p className="mt-2 break-all text-sm text-muted sm:mt-3 sm:text-base sm:text-body">
-          {customer.email}
-        </p>
 
         <div className="mt-8 grid gap-8 lg:mt-10 lg:grid-cols-[15rem_1fr] lg:gap-12">
           {/* **`min-w-0` is load-bearing.** A grid item defaults to

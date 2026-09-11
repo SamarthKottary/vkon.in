@@ -454,17 +454,16 @@ export function Header({
                 ))}
               </ul>
 
-              {/* Account block, pinned to the bottom of the drawer.
-                  **Its links are the same size as the four above them.** They
-                  were `text-sm` against the nav's `text-base`, which read as a
-                  footnote rather than as the other half of the menu — and made
-                  the two rows a customer uses most the hardest to hit. Same
-                  type, same 52px minimum target, same active treatment; only
-                  the group label above distinguishes them. */}
+              {/* Account block, pinned to the bottom of the drawer */}
               <div className="mt-auto border-t border-line bg-surface">
                 {customer ? (
                   <>
-                    <div className="flex items-center gap-3 bg-surface-subtle/60 px-5 py-3.5">
+                    {/* Profile card — tapping opens /account */}
+                    <Link
+                      href="/account"
+                      onClick={() => setOpen(false)}
+                      className="flex items-center gap-3 bg-surface-subtle/60 px-5 py-4 transition-colors hover:bg-surface-subtle"
+                    >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-base font-bold text-surface">
                         {(customer.name || customer.email || "U").charAt(0).toUpperCase()}
                       </div>
@@ -472,47 +471,21 @@ export function Header({
                         <p className="truncate text-sm font-bold leading-tight text-ink">
                           {customer.name || "Customer"}
                         </p>
-                        {/* Not `font-mono`: an address is the one thing here
-                            likely to be long enough to truncate, and a
-                            monospace face makes it wider for no gain. */}
-                        <p className="mt-0.5 truncate text-xs leading-tight text-muted">
-                          {customer.email}
-                        </p>
+                        <p className="mt-0.5 text-xs text-accent font-medium">View account →</p>
                       </div>
-                    </div>
+                    </Link>
 
-                    <ul className="divide-y divide-line border-t border-line">
-                      {/* `accountNav`, not a list written out here: the
-                          account sidebar renders the same two links from it,
-                          and two copies drift the moment a third is added. */}
-                      {accountNav.map((item) => (
-                        <li key={item.href}>
-                          <Link
-                            href={item.href}
-                            onClick={() => setOpen(false)}
-                            aria-current={isActive(item.href) ? "page" : undefined}
-                            className={`flex min-h-[3.25rem] items-center border-l-2 px-5 py-3.5 text-base font-semibold uppercase tracking-wide transition-colors ${
-                              isActive(item.href)
-                                ? "border-accent bg-accent-soft/40 text-accent"
-                                : "border-transparent text-ink hover:bg-surface-subtle hover:text-accent"
-                            }`}
-                          >
-                            {item.label}
-                          </Link>
-                        </li>
-                      ))}
-                      <li>
-                        <form action={logoutAction} onSubmit={() => handleUserLogout()}>
-                          <button
-                            type="submit"
-                            className="flex min-h-[3.25rem] w-full cursor-pointer items-center gap-2.5 border-l-2 border-transparent px-5 py-3.5 text-left text-base font-semibold uppercase tracking-wide text-muted transition-colors hover:bg-surface-subtle hover:text-ink"
-                          >
-                            <LogoutIcon className="h-4 w-4 shrink-0" />
-                            Log out
-                          </button>
-                        </form>
-                      </li>
-                    </ul>
+                    <div className="border-t border-line">
+                      <form action={logoutAction} onSubmit={() => handleUserLogout()}>
+                        <button
+                          type="submit"
+                          className="flex w-full cursor-pointer items-center gap-2.5 px-5 py-3.5 text-left text-sm font-semibold uppercase tracking-wide text-muted transition-colors hover:bg-surface-subtle hover:text-ink"
+                        >
+                          <LogoutIcon className="h-4 w-4 shrink-0" />
+                          Log out
+                        </button>
+                      </form>
+                    </div>
                   </>
                 ) : (
                   <Link
