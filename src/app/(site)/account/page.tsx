@@ -48,7 +48,11 @@ export default async function AccountPage({
           </p>
         )}
 
-        <div className="grid gap-5 sm:grid-cols-2">
+        {/* Two up at every width, including 390px. Stacked, these two cards
+            were most of a phone screen between the greeting and "Your
+            details" — a lot of scroll for two numbers. Side by side they read
+            as the summary strip they are. */}
+        <div className="grid grid-cols-2 gap-3 sm:gap-5">
           <SummaryCard
             href="/account/orders"
             icon={<PackageIcon className="h-5 w-5" />}
@@ -73,8 +77,8 @@ export default async function AccountPage({
           />
         </div>
 
-        <section className="border border-line bg-surface-raised p-6 shadow-card sm:p-8">
-          <h2 className="text-lg font-semibold text-ink">Your details</h2>
+        <section className="border border-line bg-surface-raised p-5 shadow-card sm:p-8">
+          <h2 className="text-lg font-semibold text-ink sm:text-xl">Your details</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             The name and number we use when we call about an order.
           </p>
@@ -88,8 +92,8 @@ export default async function AccountPage({
           </div>
         </section>
 
-        <section id="addresses" className="border border-line bg-surface-raised p-6 shadow-card sm:p-8">
-          <h2 className="text-lg font-semibold text-ink">Delivery addresses</h2>
+        <section id="addresses" className="border border-line bg-surface-raised p-5 shadow-card sm:p-8">
+          <h2 className="text-lg font-semibold text-ink sm:text-xl">Delivery addresses</h2>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
             Save the places you take delivery, and checkout becomes one tap.
           </p>
@@ -118,14 +122,18 @@ function SummaryCard({
   return (
     <Link
       href={href}
-      className="group border border-line bg-surface-raised p-6 shadow-card transition-colors hover:border-ink"
+      className="group flex flex-col border border-line bg-surface-raised p-4 shadow-card transition-colors hover:border-ink sm:p-6"
     >
-      <span className="flex items-center gap-2.5 text-muted transition-colors group-hover:text-accent">
-        {icon}
-        <span className="label-tech">{label}</span>
+      <span className="flex items-center gap-2 text-muted transition-colors group-hover:text-accent sm:gap-2.5">
+        <span className="shrink-0">{icon}</span>
+        <span className="label-tech truncate">{label}</span>
       </span>
-      <p className="mt-4 text-2xl font-semibold text-ink">{value}</p>
-      <p className="mt-1.5 text-sm text-muted">{detail}</p>
+      <p className="mt-3 text-xl font-semibold text-ink sm:mt-4 sm:text-2xl">{value}</p>
+      {/* `break-words`: at two-up on a 390px phone each card is ~175px, and an
+          order number plus a total is longer than that. */}
+      <p className="mt-1.5 break-words text-xs leading-relaxed text-muted sm:text-sm">
+        {detail}
+      </p>
     </Link>
   );
 }

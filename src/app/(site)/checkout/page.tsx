@@ -67,13 +67,22 @@ export default async function CheckoutPage() {
           </ol>
         </nav>
 
-        <h1 className="mt-8 text-[2rem] leading-tight sm:text-[2.5rem]">Checkout</h1>
-        <p className="mt-3 max-w-xl leading-relaxed text-body">
-          Signed in as {customer.email}. Confirm who this is billed to, where it
-          goes, and what is in it — we will call you to settle delivery.
+        <h1 className="mt-6 text-[1.75rem] leading-tight sm:mt-8 sm:text-[2rem] lg:text-[2.5rem]">
+          Checkout
+        </h1>
+        {/* The address is its own line and quieter than the sentence. Run
+            together at body size it was four lines on a 390px phone before the
+            first thing the customer has to *do*, and most of it was an email
+            address they already know. */}
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-body sm:text-base">
+          Confirm who this is billed to, where it goes, and what is in it — we
+          will call you to settle delivery.
+        </p>
+        <p className="mt-1.5 break-all text-xs text-muted sm:text-sm">
+          Signed in as {customer.email}
         </p>
 
-        <div className="mt-10">
+        <div className="mt-8 sm:mt-10">
           <CheckoutForm products={products} addresses={addresses} />
         </div>
       </Container>

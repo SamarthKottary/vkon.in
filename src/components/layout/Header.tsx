@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AccountMenu, type HeaderCustomer } from "@/components/account/AccountMenu";
 import { CartLink } from "@/components/cart/CartLink";
 import { Logo } from "@/components/icons/Logo";
-import { CloseIcon, MenuIcon } from "@/components/icons/ui";
+import { CloseIcon, LogoutIcon, MenuIcon, UserIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { HeaderSearch, type SearchEntry } from "@/components/layout/HeaderSearch";
@@ -405,6 +405,12 @@ export function Header({
             role="dialog"
             aria-modal="true"
             aria-label="Site menu"
+            /* The bottom inset matters here specifically: the account block is
+               pinned to the foot of this panel, so on a 568px-tall phone "Log
+               out" lands exactly on the edge — which is where the home
+               indicator and the gesture bar sit. Same `env()` padding
+               `layout/MobileActionBar` already uses for the same reason. */
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
             className="absolute inset-y-0 right-0 flex w-full max-w-xs flex-col bg-surface"
           >
             <div className="flex h-16 items-center justify-between border-b border-line px-5">
@@ -430,10 +436,16 @@ export function Header({
                       href={link.href}
                       onClick={() => setOpen(false)}
                       aria-current={isActive(link.href) ? "page" : undefined}
-                      className={`block px-5 py-4 text-base font-medium uppercase tracking-wide transition-colors ${
+                      /* `border-l-2` rather than colour alone marks the current
+                         page: against `accent-soft` the green text is a subtle
+                         shift, and a visitor scanning a list of four wants the
+                         current one to be obvious at a glance. The transparent
+                         border on the inactive state reserves the space, so
+                         nothing shifts sideways when it becomes active. */
+                      className={`flex min-h-[3.25rem] items-center border-l-2 px-5 py-3.5 text-base font-semibold uppercase tracking-wide transition-colors ${
                         isActive(link.href)
-                          ? "text-accent font-semibold bg-accent-soft/30"
-                          : "text-ink hover:text-accent hover:bg-surface-subtle"
+                          ? "border-accent bg-accent-soft/40 text-accent"
+                          : "border-transparent text-ink hover:bg-surface-subtle hover:text-accent"
                       }`}
                     >
                       {link.label}
@@ -442,73 +454,75 @@ export function Header({
                 ))}
               </ul>
 
-              {/* Account block pinned to the bottom of the sidebar, matching primary nav typography */}
+              {/* Account block, pinned to the bottom of the drawer.
+                  **Its links are the same size as the four above them.** They
+                  were `text-sm` against the nav's `text-base`, which read as a
+                  footnote rather than as the other half of the menu — and made
+                  the two rows a customer uses most the hardest to hit. Same
+                  type, same 52px minimum target, same active treatment; only
+                  the group label above distinguishes them. */}
               <div className="mt-auto border-t border-line bg-surface">
                 {customer ? (
                   <>
-                    <div className="flex items-center gap-3 border-b border-line px-5 py-3.5 bg-surface-subtle/50">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-surface text-sm font-bold">
+                    <div className="flex items-center gap-3 bg-surface-subtle/60 px-5 py-3.5">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-base font-bold text-surface">
                         {(customer.name || customer.email || "U").charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-ink leading-tight">
+                        <p className="truncate text-sm font-bold leading-tight text-ink">
                           {customer.name || "Customer"}
                         </p>
-                        <p className="truncate text-xs text-muted mt-0.5 font-mono">{customer.email}</p>
+                        {/* Not `font-mono`: an address is the one thing here
+                            likely to be long enough to truncate, and a
+                            monospace face makes it wider for no gain. */}
+                        <p className="mt-0.5 truncate text-xs leading-tight text-muted">
+                          {customer.email}
+                        </p>
                       </div>
                     </div>
 
-                    <ul className="divide-y divide-line">
-                      <li>
-                        <Link
-                          href="/account"
-                          onClick={() => setOpen(false)}
-                          aria-current={isActive("/account") ? "page" : undefined}
-                          className={`block px-5 py-3 text-sm font-medium uppercase tracking-wide transition-colors ${
-                            isActive("/account")
-                              ? "text-accent font-semibold bg-accent-soft/30"
-                              : "text-ink hover:text-accent hover:bg-surface-subtle"
-                          }`}
-                        >
-                          MY ACCOUNT
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/account/orders"
-                          onClick={() => setOpen(false)}
-                          aria-current={isActive("/account/orders") ? "page" : undefined}
-                          className={`block px-5 py-3 text-sm font-medium uppercase tracking-wide transition-colors ${
-                            isActive("/account/orders")
-                              ? "text-accent font-semibold bg-accent-soft/30"
-                              : "text-ink hover:text-accent hover:bg-surface-subtle"
-                          }`}
-                        >
-                          ORDER HISTORY
-                        </Link>
-                      </li>
+                    <ul className="divide-y divide-line border-t border-line">
+                      {/* `accountNav`, not a list written out here: the
+                          account sidebar renders the same two links from it,
+                          and two copies drift the moment a third is added. */}
+                      {accountNav.map((item) => (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            onClick={() => setOpen(false)}
+                            aria-current={isActive(item.href) ? "page" : undefined}
+                            className={`flex min-h-[3.25rem] items-center border-l-2 px-5 py-3.5 text-base font-semibold uppercase tracking-wide transition-colors ${
+                              isActive(item.href)
+                                ? "border-accent bg-accent-soft/40 text-accent"
+                                : "border-transparent text-ink hover:bg-surface-subtle hover:text-accent"
+                            }`}
+                          >
+                            {item.label}
+                          </Link>
+                        </li>
+                      ))}
                       <li>
                         <form action={logoutAction} onSubmit={() => handleUserLogout()}>
                           <button
                             type="submit"
-                            className="block w-full px-5 py-3 text-left text-sm font-medium uppercase tracking-wide text-ink transition-colors hover:text-accent hover:bg-surface-subtle cursor-pointer"
+                            className="flex min-h-[3.25rem] w-full cursor-pointer items-center gap-2.5 border-l-2 border-transparent px-5 py-3.5 text-left text-base font-semibold uppercase tracking-wide text-muted transition-colors hover:bg-surface-subtle hover:text-ink"
                           >
-                            LOG OUT
+                            <LogoutIcon className="h-4 w-4 shrink-0" />
+                            Log out
                           </button>
                         </form>
                       </li>
                     </ul>
                   </>
                 ) : (
-                  <div>
-                    <Link
-                      href={signInHref}
-                      onClick={() => setOpen(false)}
-                      className="block px-5 py-3 text-sm font-medium uppercase tracking-wide text-ink hover:text-accent hover:bg-surface-subtle transition-colors"
-                    >
-                      SIGN IN / REGISTER
-                    </Link>
-                  </div>
+                  <Link
+                    href={signInHref}
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-[3.25rem] items-center gap-2.5 border-l-2 border-transparent px-5 py-3.5 text-base font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-surface-subtle hover:text-accent"
+                  >
+                    <UserIcon className="h-4 w-4 shrink-0" />
+                    Sign in / Register
+                  </Link>
                 )}
               </div>
             </nav>

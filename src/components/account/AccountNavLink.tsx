@@ -27,10 +27,12 @@ export function AccountNavLink({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`flex h-11 items-center whitespace-nowrap border px-4 text-sm font-medium transition-colors lg:h-auto lg:border-0 lg:px-0 lg:py-3.5 ${
+      /* `h-12` below `lg`: these are the section's only navigation on a phone
+         and 44px was the floor for a thumb, not a comfortable target. */
+      className={`flex h-12 items-center whitespace-nowrap border px-4 text-sm font-medium transition-colors lg:h-auto lg:border-0 lg:px-0 lg:py-3.5 ${
         active
-          ? "border-accent bg-accent-soft text-ink lg:bg-transparent lg:text-accent"
-          : "border-line text-muted hover:text-ink"
+          ? "border-accent bg-accent-soft font-semibold text-ink lg:bg-transparent lg:text-accent"
+          : "border-line text-muted hover:border-line-strong hover:text-ink"
       }`}
     >
       {children}

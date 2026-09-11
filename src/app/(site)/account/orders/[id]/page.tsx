@@ -89,9 +89,9 @@ export default async function OrderPage({
           </Link>
         </nav>
 
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="font-mono text-xl font-semibold tracking-wide text-ink">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+          <div className="min-w-0">
+            <h2 className="font-mono text-lg font-semibold tracking-wide text-ink sm:text-xl">
               {order.orderNumber}
             </h2>
             <p className="mt-1.5 text-sm text-muted">
@@ -101,11 +101,15 @@ export default async function OrderPage({
           <OrderStatusBadge status={order.status} paymentStatus={order.paymentStatus} />
         </div>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start">
+        <div className="mt-6 grid gap-6 sm:mt-8 lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-8">
           <div className="border border-line bg-surface-raised shadow-card">
             <ul className="divide-y divide-line">
               {order.items.map((item) => (
-                <li key={item.id} className="flex items-center gap-4 p-5">
+                /* Same shape as the checkout line for the same reason: at
+                   390px the thumbnail plus a wrapped product name leaves no
+                   room for a third column, so the total moves under the unit
+                   price rather than colliding with the name. */
+                <li key={item.id} className="flex items-start gap-3 p-4 sm:items-center sm:gap-4 sm:p-5">
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden border border-line bg-surface-subtle">
                     {item.imageUrl ? (
                       <Image
@@ -133,19 +137,26 @@ export default async function OrderPage({
                     {item.slug ? (
                       <Link
                         href={`/products/${item.slug}`}
-                        className="font-semibold leading-snug text-ink transition-colors hover:text-accent"
+                        className="text-sm font-semibold leading-snug text-ink transition-colors hover:text-accent sm:text-base"
                       >
                         {item.name}
                       </Link>
                     ) : (
-                      <span className="font-semibold leading-snug text-ink">{item.name}</span>
+                      <span className="text-sm font-semibold leading-snug text-ink sm:text-base">
+                        {item.name}
+                      </span>
                     )}
-                    <p className="mt-1 text-sm text-muted">
-                      {formatPaise(item.unitPrice)} × {item.qty}
-                    </p>
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <p className="text-sm text-muted">
+                        {formatPaise(item.unitPrice)} × {item.qty}
+                      </p>
+                      <p className="font-bold tabular-nums text-ink sm:hidden">
+                        {formatPaise(item.lineTotal)}
+                      </p>
+                    </div>
                   </div>
 
-                  <p className="shrink-0 font-bold text-ink tabular-nums">
+                  <p className="hidden shrink-0 font-bold tabular-nums text-ink sm:block">
                     {formatPaise(item.lineTotal)}
                   </p>
                 </li>

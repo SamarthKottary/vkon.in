@@ -1411,6 +1411,54 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-11 (checkout, account, mobile nav) — Type scale and alignment pass across checkout, the account section and the mobile drawer; one horizontal-overflow bug found and fixed in the making
+
+**Mobile drawer.** The account links — *My account*, *Order history*, *Log
+out* — were `text-sm` against the four primary nav links' `text-base`, which
+read as a footnote rather than as the other half of the menu, and made the two
+rows a signed-in customer uses most the hardest to hit. Everything in the
+drawer is now one size, one 52px minimum target, one active treatment: a
+2px accent left border plus a tint, since colour alone against `accent-soft`
+was a subtle shift to scan for. The drawer's own link list now renders from
+`content/nav.ts`'s `accountNav` rather than a second copy written out inline.
+The panel carries `env(safe-area-inset-bottom)` — the account block is pinned
+to its foot, so on a 568px-tall phone *Log out* landed exactly on the home
+indicator.
+
+**Account section.** The greeting steps down below `sm` (it held `2rem` on a
+390px phone and pushed the actual content most of a screen down, on every page
+in the section), and `/account`'s two summary cards now sit two-up at every
+width instead of stacking into most of a screen for two numbers.
+
+**Order history.** The card's names moved beside the thumbnails rather than
+under them — that gutter was the full width of the card — and the total and
+*View order* moved to their own row under a rule, where they were previously
+pinched into whatever was left at 390px with the price touching the button.
+
+**Checkout and the order page.** Both line-item rows drop the line total under
+the unit price below `sm`: once a thumbnail and a wrapped product name have
+taken their width there is no room for a third column, and the two ran
+together. Step numerals are filled rather than outlined — as muted text in a
+bordered box they read as disabled inputs, not as step one of three.
+
+**One real bug, introduced and caught in the same pass.** Giving the account
+nav's chip row negative margins so it could scroll flush to the page gutter
+gave *every page in the section* 13px of horizontal scroll at 390px. The row
+is a grid item, and a grid item defaults to `min-width: auto` — it refuses to
+shrink below its content, so the overflow container never engaged and the item
+stretched the document instead. `min-w-0` on it is the fix, and is now
+commented as such. Verified by measuring `scrollWidth` against `clientWidth` on
+all four pages at 360, 390, 414, 768, 1024 and 1280 — 24 combinations, all
+clean — which is the check ARCHITECTURE already wanted after the header's own
+362-on-360 overflow (§9).
+
+**Verified:** `tsc --noEmit`, `eslint` and `npm run build` clean, and the
+14-check end-to-end checkout suite still passes end to end.
+
+*(The pre-existing `react-hooks/set-state-in-effect` error in
+`account/AddressBook.tsx` is untouched and predates this work — confirmed by
+re-running the linter against a clean tree.)*
+
 ### 2026-09-11 (checkout, accounts) — Billing and shipping addresses split, an optional GSTIN, addresses editable and deletable from within checkout; a sign-in password reveal to match registration
 
 **Client's request:** billing address first, shipping address second, a "ship

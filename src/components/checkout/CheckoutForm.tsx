@@ -15,7 +15,6 @@ import {
 import { AddressForm } from "@/components/account/AddressForm";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { Button } from "@/components/ui/Button";
-import { Field, fieldInput } from "@/components/ui/Field";
 import { clearCart } from "@/lib/cart";
 import { useCartLines } from "@/components/cart/useCart";
 import { formatPaise, priceLines, totals } from "@/lib/pricing";
@@ -340,7 +339,12 @@ export function CheckoutForm({
               const product = bySlug.get(line.slug);
               const image = product?.images[0];
               return (
-                <li key={line.slug} className="flex items-center gap-4 p-4 sm:p-5">
+                /* The line total drops under the unit price below `sm`
+                   instead of sitting in a third column. At 390px, once the
+                   thumbnail and a two-line product name have taken their
+                   width, there is not enough left for a rupee figure beside
+                   them — the two ran into each other. */
+                <li key={line.slug} className="flex items-start gap-3 p-4 sm:items-center sm:gap-4 sm:p-5">
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden border border-line bg-surface-subtle">
                     {image ? (
                       <Image
@@ -357,12 +361,19 @@ export function CheckoutForm({
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold leading-snug text-ink">{line.name}</p>
-                    <p className="mt-1 text-sm text-muted">
-                      {formatPaise(line.unitPrice)} × {line.qty}
+                    <p className="text-sm font-semibold leading-snug text-ink sm:text-base">
+                      {line.name}
                     </p>
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <p className="text-sm text-muted">
+                        {formatPaise(line.unitPrice)} × {line.qty}
+                      </p>
+                      <p className="font-bold tabular-nums text-ink sm:hidden">
+                        {formatPaise(line.lineTotal)}
+                      </p>
+                    </div>
                   </div>
-                  <p className="shrink-0 font-bold text-ink tabular-nums">
+                  <p className="hidden shrink-0 font-bold tabular-nums text-ink sm:block">
                     {formatPaise(line.lineTotal)}
                   </p>
                 </li>
@@ -395,7 +406,7 @@ export function CheckoutForm({
             /* Private mode — see the effect. */
           }
         }}
-        className="border border-line bg-surface p-6 shadow-card lg:sticky lg:top-24"
+        className="border border-line bg-surface p-5 shadow-card sm:p-6 lg:sticky lg:top-24"
       >
         {/* What the server re-resolves. Prices are deliberately absent: the
             browser has no say in what anything costs. */}
@@ -426,9 +437,9 @@ export function CheckoutForm({
               where it is going, and the business quotes it on the call. */}
           <Row label="Delivery" value="Quoted on our call" />
 
-          <div className="flex items-center justify-between py-4 text-base font-bold">
+          <div className="flex items-center justify-between gap-3 py-4 text-base font-bold">
             <span className="text-ink">Total</span>
-            <span className="text-xl font-bold text-accent tabular-nums">
+            <span className="text-xl font-bold tabular-nums text-accent sm:text-2xl">
               {formatPaise(money.total)}
             </span>
           </div>
@@ -474,18 +485,23 @@ function StepHeading({
 }) {
   return (
     <div>
-      <h2 className="flex items-center gap-3 text-lg font-semibold text-ink">
+      <h2 className="flex items-center gap-3 text-lg font-semibold text-ink sm:text-xl">
         {/* Decorative — the heading text already reads in order, and a screen
-            reader announcing "one billing address" helps nobody. */}
+            reader announcing "one billing address" helps nobody.
+            Filled rather than outlined: as a 7px-bordered box holding muted
+            text it read as a disabled input at a glance, not as step one of
+            three. */}
         <span
           aria-hidden
-          className="flex h-7 w-7 shrink-0 items-center justify-center border border-line-strong text-sm font-bold text-muted"
+          className="flex h-8 w-8 shrink-0 items-center justify-center bg-ink text-sm font-bold text-surface"
         >
           {step}
         </span>
         {title}
       </h2>
-      {hint && <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">{hint}</p>}
+      {hint && (
+        <p className="mt-2 max-w-xl pl-11 text-sm leading-relaxed text-muted">{hint}</p>
+      )}
     </div>
   );
 }
@@ -611,8 +627,10 @@ function Row({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-3.5">
-      <span className={strong ? "font-semibold text-ink" : "text-muted"}>{label}</span>
+    <div className="flex items-baseline justify-between gap-3 py-3">
+      <span className={`min-w-0 ${strong ? "font-semibold text-ink" : "text-muted"}`}>
+        {label}
+      </span>
       <span
         className={`shrink-0 tabular-nums ${strong ? "font-semibold text-ink" : "font-medium text-ink"}`}
       >
