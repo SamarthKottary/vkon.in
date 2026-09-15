@@ -169,7 +169,7 @@ export default async function SiteLayout({
           it above the footer (`z-0`) while scrolling so the curtain reveal
           effect is preserved, while allowing the footer links to receive
           mouse hover and pointer events properly when revealed. */}
-      <div className="sticky bottom-[min(0px,calc(100svh_-_83rem))] z-0 md:bottom-[min(0px,calc(100svh_-_48rem))] lg:bottom-[min(0px,calc(100svh_-_34rem))]">
+      <div className="sticky bottom-[min(0px,calc(100svh_-_86rem))] z-0 md:bottom-[min(0px,calc(100svh_-_51rem))] lg:bottom-[min(0px,calc(100svh_-_37rem))]">
         <Footer />
       </div>
       <FloatingContact />

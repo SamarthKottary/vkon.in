@@ -45,7 +45,7 @@ export function FloatingContact() {
 
       observer = new IntersectionObserver(
         ([entry]) => setFooterRowVisible(entry.isIntersecting),
-        { threshold: 0.1 },
+        { threshold: 0 },
       );
       observer.observe(footerRow);
       return true;
@@ -67,9 +67,10 @@ export function FloatingContact() {
 
   return (
     <div
-      className={`pointer-events-none fixed bottom-6 right-6 z-40 hidden flex-col gap-3 transition-transform duration-500 ease-out md:flex ${
-        footerRowVisible ? "-translate-y-28" : "translate-y-0"
-      }`}
+      style={{
+        transform: footerRowVisible ? "translateY(-7rem)" : "translateY(0)",
+      }}
+      className="pointer-events-none fixed bottom-6 right-6 z-40 hidden flex-col gap-3 transition-transform duration-500 ease-out md:flex"
     >
       <FloatingButton
         href={whatsAppLink(generalEnquiryMessage)}
