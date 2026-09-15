@@ -1453,6 +1453,21 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-15 (cart) — Checkout no longer empties the next basket after an order
+
+Reported from the live site: after placing an order, adding items and opening
+checkout showed "Your cart is empty"; adding them a second time worked. Two
+things cleared the cart after a purchase. `cart/ClearCartOnPlaced` on the order
+page does it correctly. `CheckoutForm` *also* set a `sessionStorage` flag on
+submit and emptied the cart whenever it next mounted with the flag present —
+but it never mounts on the order page, so the flag outlived the order and
+wiped the following basket instead. A failed order left the flag behind too.
+Reproduced locally before the fix: the flag still read `1` on the order page,
+and checkout then showed an empty cart.
+
+Removed the flag, its effect and the `onSubmit` handler, so `ClearCartOnPlaced`
+really is the only post-purchase clear, as its comment already said.
+
 ### 2026-09-15 (delivery) — Standard/Express named by speed, not by air versus road
 
 Reported from the live site: a 25 kg order to Mangaluru showed one delivery

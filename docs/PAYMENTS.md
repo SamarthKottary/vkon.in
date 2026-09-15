@@ -227,18 +227,30 @@ Razorpay's test mode gives you working instruments, and you should use all
 three of these before going live:
 
 - **Success** — an **Indian** test card, Visa `4100 2800 0000 1007`, any
-  future expiry, any CVV, and an OTP of 4–10 digits; or UPI ID
-  `success@razorpay`. **Not `4111 1111 1111 1111`:** that is an international
+  future expiry, any CVV, and an OTP of 4–10 digits. Verified on the live
+  site 2026-09-15: payment captured, order `confirmed`/`paid`.
+  **Not `4111 1111 1111 1111`:** that is an international
   card, and an account that accepts domestic cards only refuses it with
   `international_transaction_not_allowed` — which is exactly what happened on
   the first live test, 2026-09-15.
-- **Failure** — UPI ID `failure@razorpay`, or the Indian card with an OTP
-  shorter than 4 digits. Confirm the order stays `unpaid` and the customer can
-  retry rather than being stuck.
-- **Abandonment** — open the widget and close it without choosing UPI (in test
-  mode Razorpay counts a cancelled UPI payment as a success). Confirm the order
-  is still there as `pending`/`unpaid`, because this is the case that justifies
+- **Failure** — the Indian card with an OTP shorter than 4 digits. The order
+  becomes `payment_status = 'failed'` (badge "Payment failed"); confirm
+  **Pay now** is still offered and that paying again marks it `paid`. Until
+  2026-09-15 the button was shown for `unpaid` only, so a declined customer was
+  stuck — `markOrderPaid` and `/api/payment/create` always accepted a retry, the
+  page just never offered one.
+- **Abandonment** — open the widget and close it. Confirm the order is still
+  there as `pending`/`unpaid`, because this is the case that justifies
   creating the order first.
+
+**UPI cannot be tested in test mode any more.** NPCI deprecated the UPI Collect
+flow (typing a UPI ID) effective 28 February 2026, so Checkout shows only a QR
+code on desktop and UPI app buttons on a phone — and a test-mode QR cannot be
+paid from a real app. Razorpay's test IDs `success@razorpay` and
+`failure@razorpay` belong to the retired flow and have nowhere to be entered.
+Nothing here depends on the method: the browser handler and the webhook receive
+the same order id, payment id and signature for a card as for UPI, so the card
+tests exercise the whole path. UPI's first real check is a small live payment.
 
 Test mode needs no funds and no website verification; Razorpay's "Verify now"
 card in the dashboard is for going live. Card numbers from

@@ -248,8 +248,20 @@ export default async function OrderPage({
                 </div>
               </dl>
 
-              {order.paymentStatus === "unpaid" && order.status !== "cancelled" && (
+              {/* `failed` as well as `unpaid`: a declined card is exactly when
+                  somebody needs to try again. The server always allowed it —
+                  `/api/payment/create` refuses only paid or cancelled orders,
+                  and `markOrderPaid` accepts anything not yet paid — but this
+                  used to test for `unpaid` alone, so the button vanished after
+                  the first failed attempt and the customer was stuck. */}
+              {(order.paymentStatus === "unpaid" || order.paymentStatus === "failed") &&
+                order.status !== "cancelled" && (
                 <div className="mt-4 border-t border-line pt-4">
+                  {order.paymentStatus === "failed" && (
+                    <p className="mb-3 text-sm leading-relaxed text-body">
+                      Your last payment attempt did not go through. You can try again.
+                    </p>
+                  )}
                   {/* The button only exists when a gateway is configured. With
                       no keys set this falls back to the phone-call wording the
                       order flow has always used — the site works either way,

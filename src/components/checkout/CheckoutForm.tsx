@@ -15,7 +15,6 @@ import {
 import { AddressForm } from "@/components/account/AddressForm";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { Button } from "@/components/ui/Button";
-import { clearCart } from "@/lib/cart";
 import { useCartLines } from "@/components/cart/useCart";
 import { formatPaise, priceLines, totals } from "@/lib/pricing";
 import {
@@ -51,9 +50,11 @@ import type { Address, Product } from "@/lib/types";
  * than left to the DOM: it lives in the left column and its value has to be
  * mirrored across.
  *
- * **The cart is cleared after the redirect, not before the submit.** Clearing
- * it first would empty somebody's basket on a failed order and leave them with
- * nothing to retry.
+ * **The cart is emptied on the order page, never here.** `ClearCartOnPlaced`
+ * does it once the order exists. This form used to leave a `sessionStorage`
+ * flag on submit and act on it the next time it mounted — but it never mounts
+ * on the order page, so the flag outlived the order and wiped the *next*
+ * basket the moment its owner opened checkout (fixed 2026-09-15).
  */
 export function CheckoutForm({
   products,
@@ -233,28 +234,6 @@ export function CheckoutForm({
         if (seq === quoteSeq.current) setQuoted({ key, value: { status: "unavailable" } });
       });
   }, [canQuote, quoteKey, destinationId, cartKey]);
-
-  /**
-   * Empties the basket once the order has actually been placed.
-   *
-   * The action redirects on success, so this component unmounts and never sees
-   * a success state to react to — which is why the clear is triggered by the
-   * *navigation away* rather than by a returned status. `sessionStorage` marks
-   * the attempt so a customer who lands back here by pressing Back does not
-   * have the cart cleared out from under a failed order.
-   */
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (window.sessionStorage.getItem("vkon-order-placed")) {
-        window.sessionStorage.removeItem("vkon-order-placed");
-        clearCart();
-      }
-    } catch {
-      /* Private mode. The cart keeps its contents, which is a nuisance and not
-         a fault — nothing is double-ordered by it. */
-    }
-  }, []);
 
   if (lines === null) {
     /* Storage has not been read yet. Rendering "your cart is empty" for this
@@ -502,16 +481,6 @@ export function CheckoutForm({
       <form
         id={formId}
         action={formAction}
-        onSubmit={() => {
-          /* Marked here, acted on by the effect above after the redirect has
-             landed. Doing the clear itself here would empty the basket even
-             when the order fails validation on the server. */
-          try {
-            window.sessionStorage.setItem("vkon-order-placed", "1");
-          } catch {
-            /* Private mode — see the effect. */
-          }
-        }}
         className="border border-line bg-surface p-5 shadow-card sm:p-6 lg:sticky lg:top-24"
       >
         {/* What the server re-resolves. Prices are deliberately absent: the
