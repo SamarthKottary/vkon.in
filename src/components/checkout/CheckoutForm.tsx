@@ -183,12 +183,22 @@ export function CheckoutForm({
    * `null` is "still asking" and renders as "Calculating…"; a settled
    * `unavailable` renders as the phone-call wording. Both are derived, so
    * nothing here writes state during a render or an effect.
+   *
+   * **`lines === null` is "not read yet", not "empty"** — the cart lives in
+   * `localStorage` and `useSyncExternalStore` returns the server snapshot
+   * (`null`) on the first render. Treating that as `unavailable` showed
+   * "Quoted on our call" for every visitor until hydration replaced it, which
+   * on a slow phone was long enough to read. Showing "Calculating…" instead
+   * is honest: the answer is coming, the cart just has not loaded yet.
    */
-  const quote: DeliveryQuoteState | null = !canQuote
-    ? { status: "unavailable" }
-    : quoted?.key === quoteKey
-      ? quoted.value
-      : null;
+  const quote: DeliveryQuoteState | null =
+    lines === null
+      ? null
+      : !canQuote
+        ? { status: "unavailable" }
+        : quoted?.key === quoteKey
+          ? quoted.value
+          : null;
 
   const options = quote?.status === "quoted" ? quote.options : [];
 
