@@ -11,7 +11,7 @@ import { Container } from "@/components/ui/Container";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { HeaderSearch, type SearchEntry } from "@/components/layout/HeaderSearch";
 import { ProductsMenu, type MenuSector } from "@/components/layout/ProductsMenu";
-import { accountNav, primaryNav } from "@/content/nav";
+import { primaryNav } from "@/content/nav";
 import { logoutAction } from "@/app/(site)/account/actions";
 import { handleUserLogout } from "@/lib/cart";
 

@@ -76,7 +76,7 @@ export default async function CheckoutPage() {
             address they already know. */}
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-body sm:text-base">
           Confirm who this is billed to, where it goes, and what is in it — we
-          will call you to settle delivery.
+          will call you to confirm before anything is dispatched.
         </p>
         <p className="mt-1.5 break-all text-xs text-muted sm:text-sm">
           Signed in as {customer.email}

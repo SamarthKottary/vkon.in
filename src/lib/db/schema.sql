@@ -88,6 +88,33 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS price           INTEGER;
 -- numbers can never disagree with the third.
 ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_percent INTEGER;
 
+-- Added 2026-09-12: shipped weight, for live delivery rates.
+--
+-- Grams, and the *packed* weight -- what the courier weighs, not what the
+-- product weighs on its own. A courier bills on whichever is greater of actual
+-- and volumetric weight, so under-declaring here does not save anyone money:
+-- Shiprocket re-weighs at pickup and bills the difference back to the seller
+-- *after* the customer has already been quoted. See `CATEGORY_PARCEL` in
+-- `lib/parcel.ts` for what a product with no weight yet is quoted as.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_grams INTEGER;
+
+-- Added 2026-09-12: packed dimensions in whole centimetres, for the same
+-- reason as the weight above and a more urgent one.
+--
+-- Couriers bill on the GREATER of actual and volumetric weight, where
+-- volumetric is L*B*H/5000. Measured against the live API the same day: one
+-- 2 kg parcel quoted Rs.128 in a 15 cm box and Rs.1,443 in a 60 cm box -- and
+-- the number of couriers willing to carry it fell from six to one, because
+-- size gates who will take it. Quoting without dimensions quotes the cheapest
+-- of those and gets billed one of the others.
+--
+-- All three or none: a measured length beside an estimated width is not a box
+-- anybody measured. `lib/parcel.ts` enforces that and holds the per-category
+-- estimates used until a product is measured.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS length_cm  INTEGER;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS breadth_cm INTEGER;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS height_cm  INTEGER;
+
 -- ---------------------------------------------------------------------------
 -- Per-page SEO overrides for the static routes, editable at /admin/seo.
 -- One row per path; a blank value falls back to the page's built-in metadata
@@ -390,6 +417,34 @@ CREATE TABLE IF NOT EXISTS orders (
 -- before this column existed has `{}`, and `lib/db/orders.ts` reads that as
 -- "the one address on this order was both", which is what it was.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS bill_to JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Added 2026-09-12: the shipment, once one is booked with a courier.
+--
+-- All nullable and all empty until somebody presses "Book shipment" in
+-- `/admin/orders`. An order with no shipment is the normal state for one that
+-- has just been placed, and for every order placed before this existed.
+--
+-- `shipment_provider` names who booked it ('shiprocket'), on the same
+-- reasoning as `payment_provider`: the column says which system the ids below
+-- belong to, so a later change of courier aggregator does not make old rows
+-- ambiguous. `awb` is the number the customer actually tracks with, and is the
+-- one field here a human reads out.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_provider  TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_order_id  TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_id        TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS awb                TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_name       TEXT;
+-- Which courier the customer chose at checkout, as Shiprocket's own id. Kept
+-- so booking assigns the AWB to the service that was quoted and paid for --
+-- picking a different one at booking time would charge for next-day and ship
+-- surface.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_id         INTEGER;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipped_at         TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at       TIMESTAMPTZ;
+
+-- The shipping webhook looks an order up by the courier's AWB, which is the
+-- only id it carries that we also store.
+CREATE INDEX IF NOT EXISTS orders_awb_idx ON orders (awb);
 
 -- Order history is read newest-first for one customer, and that is the only
 -- way a customer ever reads it.

@@ -929,6 +929,41 @@ heading-order rule below; one that redirected when signed out would make
 signing in impossible, the form being under `/account` itself. The shell is
 applied by the four pages that want it.
 
+**Every environment variable the app reads must also be listed under `app:` →
+`environment:` in `docker-compose.yml`.** That block is an allowlist: Compose
+passes the app only the names written there, so a key present in the server's
+`.env` but absent from the list never reaches the process. Every integration
+here treats a missing key as "unconfigured" and degrades quietly, so the
+failure has no error message — the feature is simply absent on the live site
+while working on a laptop, where `next dev` reads `.env.local` directly. The
+`SHIPROCKET_*` names were missed this way when Shiprocket was built, and caught
+on 2026-09-15 before any keys reached the server.
+
+**Dimensions are sent with every rate request, not just weight.** A courier
+bills the greater of actual and volumetric weight (`L×B×H/5000`), and size also
+decides which couriers will accept the parcel at all — measured against the
+live API, one 2 kg parcel went from ₹128 across six couriers to ₹1,443 across
+one as the declared box grew from 15 cm to 60 cm. Quoting on weight alone
+quotes the first figure and gets billed the second, after the customer has
+paid. `lib/parcel.ts` computes the box once and both the quote and the booking
+use that same one; declaring different sizes to the two is the same bug wearing
+a hat.
+
+**The browser names a delivery service by id; it never sends a delivery
+price.** `resolveChargedDelivery` looks that id up in a quote it fetches
+itself, so a tampered `courierId` can at worst select a different *real*
+service at its *real* cost. The chosen courier is then pinned at AWB
+assignment — letting the courier be re-picked at booking time would ship
+surface against an Express charge.
+
+**A delivery charge is quoted twice, and only the server's answer is
+charged.** Checkout's `quoteDeliveryAction` exists to put a figure on screen;
+`placeOrderAction` calls the same `resolveDeliveryQuote` again and stores *its*
+result in `orders.shipping`. This is the price rule below applied to freight,
+and it is not theoretical: the customer can edit the shipping address between
+seeing a quote and pressing the button, so even an untampered browser can hold
+a figure for the wrong place.
+
 **A price is computed in `lib/pricing.ts` and nowhere else, and the browser and
 the server both call it.** The displayed total and the charged total must be
 one function over one set of inputs. Relatedly: **checkout may post slugs and
@@ -1372,10 +1407,16 @@ probe `/api/health`.
   migration. **A billing address can carry a GSTIN (2026-09-11)**, checked for
   shape and checksum in `private-actions.ts` — that is invoice detail, not a
   tax input, and does not touch this calculation.
-- **Delivery is not priced.** Checkout shows "Quoted on our call" and stores
-  `shipping = 0`. Honest while every order gets a phone call — and a real gap
-  the moment payment is automatic. Client's decision is to leave it until a
-  courier integration (India Post / DTDC / Delhivery).
+- **Delivery is priced live through Shiprocket** (2026-09-12), closing the gap
+  this entry used to record. Checkout quotes the cheapest courier for the
+  shipping PIN code and `placeOrderAction` re-quotes server-side before storing
+  `orders.shipping`, and the customer chooses between Standard and Express
+  where the couriers offer both. Unconfigured still falls back to "Quoted on
+  our call" and `shipping = 0`. **Still open:** nothing in the catalogue has
+  been weighed or measured, so every quote uses the per-category estimates in
+  `lib/parcel.ts`. Those are plausible rather than accurate — a heavy or bulky
+  product in a light category is mis-quoted until somebody measures it. See
+  docs/SHIPPING.md §3.
 - **A customer cannot change their email address.** It would mean re-confirming
   the new one, handling the case where it already belongs to somebody else, and
   deciding what happens to a linked Google account. Left out rather than
@@ -1410,6 +1451,116 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-15 (deploy) — `SHIPROCKET_*` added to the compose allowlist; a new §9 constraint
+
+`docker-compose.yml` passes the app its environment by name, and the Shiprocket
+integration added six variables to `.env.example` but none to that list. On
+the server, keys in `.env` would therefore never have reached the container,
+and checkout would have kept saying "Quoted on our call" with nothing logged —
+exactly the unconfigured behaviour the integration is designed to fall back
+to, which is what made it invisible. Found while checking what the live site
+actually runs against the laptop, before any Shiprocket keys were put on the
+server. Recorded in §9 because it will recur with the next integration.
+
+### 2026-09-12 (delivery, second pass) — Per-category parcel estimates, dimensions in the rate request, and a Standard/Express choice. The first pass was under-quoting every panel
+
+**Found by measuring, not by reading.** With live credentials on the account,
+the same 2 kg parcel quoted **₹128.36** in a 15 cm box, **₹459.66** at 40 cm and
+**₹1,442.68** at 60 cm — and the number of couriers willing to carry it fell
+from six to one. The first pass sent weight only, so it quoted the ₹128 and the
+business would have been billed one of the others *after* the customer paid. On
+the site's own demo panel the gap was ₹128.36 quoted against ₹529.06 real.
+
+**`lib/parcel.ts`** is new and holds what a parcel *is*, separate from the
+integration: per-category packed estimates, per-product overrides, and the
+packing arithmetic for several items (stacked box — largest footprint, height
+grown to the total volume). Every estimate is set so actual weight exceeds
+volumetric, which is true of electrical goods, and all seven were checked
+against the live API: ₹59 for an accessory to ₹529 for an industrial panel.
+Weight and dimensions fall back **independently**, so weighing something
+without measuring it is still worth doing; dimensions themselves are
+all-three-or-none, because a measured length beside an estimated width
+describes a box nobody owns.
+
+**Schema:** `length_cm`, `breadth_cm`, `height_cm` on products; `courier_id` on
+orders. `weight_grams` gains an admin sibling rather than changing.
+
+**The customer now picks the service.** `quoteDelivery` returns every courier
+rather than the cheapest, and `shortlistDeliveryOptions` cuts that to the two or
+three that differ meaningfully — checkout renders them as Standard/Express with
+prices and ETAs. Verified live: Standard ₹87.67 ~7 days against Express ₹118.23
+~4 days, with the total moving by exactly the difference.
+
+**Two new §9 constraints**, both verified by attacking them:
+- choosing Express stored `courier_id 196` and `shipping ₹118.23` — the
+  customer's choice is what is charged;
+- overwriting the hidden `courierId` with `999999` fell back to the cheapest
+  *real* service (`courier_id 6`, ₹87.67) rather than erroring or inventing a
+  price. The browser can name a service; it cannot invent one, and it never
+  sends a price.
+
+The chosen courier is pinned at AWB assignment, so an Express charge cannot be
+shipped surface.
+
+**Verified:** `tsc`, `eslint`, `npm run build` clean; 14/14 checkout suite with
+Shiprocket configured *and* unconfigured; `npm run shiprocket:check` green
+against the live account.
+
+### 2026-09-12 (delivery) — Shiprocket: live rates at checkout, booking from the admin, and a tracking webhook. One silent-no-op bug found by firing real webhooks at it
+
+**Closes the gap §11 recorded** and PAYMENTS.md flagged: delivery being
+unpriced was survivable only while every order got a phone call, and stops
+being survivable the day online payment goes live.
+
+**`lib/shiprocket.ts`**, over `fetch` — no npm package, same §2 reasoning as
+Razorpay, Resend and Google. Three jobs that fail differently and are therefore
+separate: quoting returns `null` for every failure (a slow courier API must not
+stop a customer ordering); booking throws (a person is waiting on the button);
+the webhook logs and answers 200 (a 4xx makes the sender retry for hours). The
+login token is cached **as a promise**, so ten concurrent checkouts on a cold
+process produce one login rather than ten, and every call retries once on a 401
+because a token can be revoked at their end long before our nine-day clock
+expires.
+
+**Schema:** `products.weight_grams`, and seven nullable shipment columns on
+`orders` plus an index on `awb` (the webhook's only shared id). `orders.shipping`
+needed nothing — it has been integer paise inside `total` since orders existed,
+which is exactly what made this a pricing change rather than a structural one.
+
+**A new §9 constraint:** the delivery charge is quoted twice and only the
+server's answer is charged. Not theoretical — the customer can edit the
+shipping address between seeing a quote and pressing the button.
+
+**Weight is guessed, generously, and on purpose.** No product has one yet, so
+`DEFAULT_WEIGHT_GRAMS` (2 kg) applies. The asymmetry drives the direction: a
+courier re-weighs at pickup and bills the seller for a shortfall *after* the
+customer has paid, so guessing low quietly costs money while guessing high only
+over-quotes, which is visible. An admin field now exists to replace it.
+
+**Found by testing, not by reading:** `applyShipmentUpdate` failed with
+*"could not determine data type of parameter $2"* — Postgres cannot infer one
+type for a parameter used across `COALESCE`, `IN` and `IS NULL`. Because the
+route logs and returns 200 regardless, this would have shipped as a webhook
+that silently changed nothing. Fixed with explicit `::text` casts and commented
+in place. The webhook was then verified end to end locally — shipped,
+delivered, a repeated delivery (idempotent, `delivered_at` did not move),
+unmapped statuses, unknown AWBs, bad tokens, batch arrays and malformed bodies.
+
+**Verified:** `tsc`, `eslint` and `npm run build` clean; the 14-check checkout
+suite passes **unconfigured**, confirming the fallback to "Quoted on our call"
+is byte-for-byte the old behaviour.
+
+*(One check in that suite had to be corrected rather than the code: it clicked
+the first Edit button and assumed it was the billing address. `listAddresses`
+was deliberately changed to newest-first in an earlier commit — "stable order
+that does not jump when the default changes" — so position no longer implies
+which address a card is. The check now targets the card by name. Confirmed
+pre-existing by running the committed `CheckoutForm` against the same suite.)*
+
+**Not testable here:** live rates and a real booking need credentials and
+cleared KYC; Shiprocket actually reaching the webhook needs a public HTTPS URL,
+and the server is down — the same constraint that blocks the Razorpay webhook.
 
 ### 2026-09-11 (checkout, account, mobile nav) — Type scale and alignment pass across checkout, the account section and the mobile drawer; one horizontal-overflow bug found and fixed in the making
 

@@ -37,6 +37,10 @@ type ProductRow = {
   sort_order: number;
   price: number | null;
   discount_percent: number | null;
+  weight_grams: number | null;
+  length_cm: number | null;
+  breadth_cm: number | null;
+  height_cm: number | null;
   seo_title: string;
   seo_description: string;
   created_at: Date;
@@ -47,7 +51,7 @@ const SELECT_COLUMNS = `
   id, slug, name, category, tagline, description,
   hp_ranges, features, protections, spec, images,
   video_url, video_title, published, featured, sort_order, price, discount_percent,
-  seo_title, seo_description,
+  seo_title, seo_description, weight_grams, length_cm, breadth_cm, height_cm,
   created_at, updated_at
 `;
 
@@ -106,6 +110,10 @@ function mapProductRow(row: ProductRow): Product {
     sortOrder: row.sort_order,
     price: row.price,
     discountPercent: row.discount_percent,
+    weightGrams: row.weight_grams,
+    lengthCm: row.length_cm,
+    breadthCm: row.breadth_cm,
+    heightCm: row.height_cm,
     seoTitle: row.seo_title ?? "",
     seoDescription: row.seo_description ?? "",
     createdAt: row.created_at.toISOString(),
@@ -250,7 +258,8 @@ const WRITE_VALUES = `
   hp_ranges = $7, features = $8, protections = $9, spec = $10, images = $11,
   video_url = $12, video_title = $13, published = $14, featured = $15,
   sort_order = $16, price = $17, discount_percent = $18,
-  seo_title = $19, seo_description = $20, updated_at = now()
+  seo_title = $19, seo_description = $20, weight_grams = $21,
+  length_cm = $22, breadth_cm = $23, height_cm = $24, updated_at = now()
 `;
 
 function writeParams(input: ProductInput): unknown[] {
@@ -274,6 +283,10 @@ function writeParams(input: ProductInput): unknown[] {
     input.discountPercent,
     input.seoTitle,
     input.seoDescription,
+    input.weightGrams,
+    input.lengthCm,
+    input.breadthCm,
+    input.heightCm,
   ];
 }
 
@@ -284,8 +297,8 @@ export async function createProduct(input: ProductInput): Promise<Product> {
        id, slug, name, category, tagline, description,
        hp_ranges, features, protections, spec, images,
        video_url, video_title, published, featured, sort_order, price, discount_percent,
-       seo_title, seo_description
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       seo_title, seo_description, weight_grams, length_cm, breadth_cm, height_cm
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
      RETURNING ${SELECT_COLUMNS}`,
     [id, ...writeParams(input)],
   );

@@ -39,6 +39,14 @@ type OrderRow = {
   payment_order_id: string | null;
   payment_id: string | null;
   paid_at: Date | null;
+  shipment_provider: string | null;
+  shipment_order_id: string | null;
+  shipment_id: string | null;
+  awb: string | null;
+  courier_name: string | null;
+  courier_id: number | null;
+  shipped_at: Date | null;
+  delivered_at: Date | null;
   created_at: Date;
 };
 
@@ -56,7 +64,9 @@ type ItemRow = {
 
 const ORDER_SELECT = `id, order_number, customer_id, status, payment_status,
   subtotal, cgst, sgst, shipping, total, currency, ship_to, bill_to, notes,
-  payment_provider, payment_order_id, payment_id, paid_at, created_at`;
+  payment_provider, payment_order_id, payment_id, paid_at,
+  shipment_provider, shipment_order_id, shipment_id, awb, courier_name, courier_id,
+  shipped_at, delivered_at, created_at`;
 
 const ITEM_SELECT = `id, order_id, product_id, slug, name, image_url, unit_price, qty, line_total`;
 
@@ -101,6 +111,14 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
     paymentOrderId: row.payment_order_id,
     paymentId: row.payment_id,
     paidAt: row.paid_at ? row.paid_at.toISOString() : null,
+    shipmentProvider: row.shipment_provider,
+    shipmentOrderId: row.shipment_order_id,
+    shipmentId: row.shipment_id,
+    awb: row.awb,
+    courierName: row.courier_name,
+    courierId: row.courier_id === null ? null : Number(row.courier_id),
+    shippedAt: row.shipped_at ? row.shipped_at.toISOString() : null,
+    deliveredAt: row.delivered_at ? row.delivered_at.toISOString() : null,
     createdAt: row.created_at.toISOString(),
     items,
   };
@@ -133,6 +151,10 @@ export type NewOrder = {
   shipTo: ShipTo;
   billTo: ShipTo;
   notes: string;
+  /** The delivery service the customer chose and is being charged for. Null
+   *  when no quote was possible and delivery is settled on the call. */
+  courierId?: number | null;
+  courierName?: string | null;
   subtotal: number;
   cgst: number;
   sgst: number;
@@ -173,8 +195,8 @@ export async function createOrder(input: NewOrder): Promise<Order> {
         const id = randomUUID();
         const inserted = await client.query<OrderRow>(
           `INSERT INTO orders
-             (id, order_number, customer_id, subtotal, cgst, sgst, shipping, total, ship_to, bill_to, notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             (id, order_number, customer_id, subtotal, cgst, sgst, shipping, total, ship_to, bill_to, notes, courier_id, courier_name)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            RETURNING ${ORDER_SELECT}`,
           [
             id,
@@ -188,6 +210,8 @@ export async function createOrder(input: NewOrder): Promise<Order> {
             JSON.stringify(input.shipTo),
             JSON.stringify(input.billTo),
             input.notes,
+            input.courierId ?? null,
+            input.courierName ?? null,
           ],
         );
 
@@ -320,6 +344,111 @@ export async function listAllOrders(limit = 200): Promise<Order[]> {
     console.error("[db] order list failed:", error);
     return [];
   }
+}
+
+/**
+ * One order by id, unscoped.
+ *
+ * **Admin-only, and the name says so.** `getOrderForCustomer` exists precisely
+ * because a customer must never read an order by guessing an id; this is the
+ * version for the operator, who is entitled to every row, and it must only
+ * ever be called after `requireAdmin()`.
+ */
+export async function getOrderForAdmin(orderId: string): Promise<Order | null> {
+  try {
+    const orders = await query<OrderRow>(
+      `SELECT ${ORDER_SELECT} FROM orders WHERE id = $1`,
+      [orderId],
+    );
+    if (!orders[0]) return null;
+
+    const items = await query<ItemRow>(
+      `SELECT ${ITEM_SELECT} FROM order_items WHERE order_id = $1`,
+      [orderId],
+    );
+    return mapOrder(orders[0], items.map(mapItem));
+  } catch (error) {
+    console.error("[db] admin order fetch failed:", error);
+    return null;
+  }
+}
+
+/**
+ * Records a booked shipment against an order.
+ *
+ * Called only from the admin action, so it does not swallow — a booking that
+ * reached the courier but failed to save here is the worst outcome available
+ * (a parcel in the post that the site does not know about), and the operator
+ * has to be told rather than shown a success.
+ */
+export async function setOrderShipment(
+  orderId: string,
+  input: {
+    provider: string;
+    shipmentOrderId: string;
+    shipmentId: string;
+    awb: string | null;
+    courierName: string | null;
+  },
+): Promise<void> {
+  await query(
+    `UPDATE orders
+        SET shipment_provider = $2, shipment_order_id = $3, shipment_id = $4,
+            awb = $5, courier_name = $6, updated_at = now()
+      WHERE id = $1`,
+    [
+      orderId,
+      input.provider,
+      input.shipmentOrderId,
+      input.shipmentId,
+      input.awb,
+      input.courierName,
+    ],
+  );
+}
+
+/**
+ * Applies a courier's tracking update, found by AWB.
+ *
+ * **Idempotent, and it reports whether it changed anything** — the same
+ * contract `markOrderPaid` keeps, for the same reason: couriers redeliver
+ * webhooks, and a caller needs to be able to tell a real transition from a
+ * repeat so it does not act twice on one event.
+ *
+ * The timestamps are written once and never overwritten (`COALESCE`), so a
+ * duplicate "delivered" does not keep moving the delivery date forward.
+ * Reads fail soft, writes do not: this is a webhook, and returning false on a
+ * row that does not exist is how the route knows to answer 200 and stop
+ * Shiprocket retrying something that will never resolve.
+ */
+export async function applyShipmentUpdate(input: {
+  awb: string;
+  status: OrderStatus | null;
+  courierName?: string | null;
+}): Promise<boolean> {
+  /* **The `::text` casts are required, not stylistic.** `$2` appears inside
+     `COALESCE`, an `IN` list and an `IS NULL` test, and Postgres cannot infer
+     one type across all three — it answers "could not determine data type of
+     parameter $2" and the whole update fails. Caught only by firing a real
+     webhook at it: the route logs and returns 200 either way, so without the
+     cast this is a webhook that silently changes nothing. */
+  const rows = await query<{ id: string }>(
+    `UPDATE orders
+        SET status = COALESCE($2::text, status),
+            courier_name = COALESCE($3::text, courier_name),
+            shipped_at = CASE
+              WHEN $2::text IN ('shipped', 'delivered') THEN COALESCE(shipped_at, now())
+              ELSE shipped_at END,
+            delivered_at = CASE
+              WHEN $2::text = 'delivered' THEN COALESCE(delivered_at, now())
+              ELSE delivered_at END,
+            updated_at = now()
+      WHERE awb = $1
+        AND ($2::text IS NULL OR status IS DISTINCT FROM $2::text)
+      RETURNING id`,
+    [input.awb, input.status, input.courierName ?? null],
+  );
+  return rows.length > 0;
 }
 
 /** Called only from an authenticated admin action, so it does not swallow. */

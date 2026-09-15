@@ -13,12 +13,16 @@ import {
   updateProduct,
 } from "@/lib/db/products";
 import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
-import { setOrderStatus } from "@/lib/db/orders";
+import { getOrderForAdmin, setOrderShipment, setOrderStatus } from "@/lib/db/orders";
+import { listProducts } from "@/lib/db/products";
+import { bookShipment, isShiprocketConfigured } from "@/lib/shiprocket";
+import { packParcel } from "@/lib/parcel";
 import { deleteSubscriber } from "@/lib/db/subscribers";
 import { upsertPageSeo } from "@/lib/db/pageSeo";
 import { deleteProductImages, uploadProductImage } from "@/lib/storage";
 import { CATEGORY_KEYS, PROTECTION_KEYS } from "@/content/taxonomy";
 import { SEO_PAGES } from "@/lib/seo";
+import { site } from "@/content/site";
 import { parseVideoUrl } from "@/lib/video";
 import type {
   OrderStatus,
@@ -191,12 +195,53 @@ async function buildInput(formData: FormData): Promise<{
       ? null
       : Math.min(99, Math.max(0, parsedDiscount));
 
+  /* Grams, bounded here rather than trusted from the `number` input for the
+     same reason the discount is: this action is an addressable POST endpoint
+     and `min`/`max` are browser hints. The ceiling is 100 kg — past that it is
+     a freight consignment, not something a courier aggregator will carry, and
+     a mistyped `50000` would otherwise quote a customer for a tonne. Blank
+     stays null, which is what makes the category estimate apply. */
+  const weightRaw = String(formData.get("weightGrams") ?? "").trim();
+  const parsedWeight = weightRaw ? parseInt(weightRaw, 10) : null;
+  const weightGrams =
+    parsedWeight === null || Number.isNaN(parsedWeight) || parsedWeight <= 0
+      ? null
+      : Math.min(100_000, parsedWeight);
+
+  /* Whole centimetres, and **all three or none**. A measured length beside an
+     estimated width describes a box nobody owns, and its volume would be
+     wrong in a way that silently changes the freight quote — so a partial set
+     is discarded and the category estimate used instead. 300 cm is the
+     ceiling: past that no courier aggregator will carry it anyway. */
+  const dim = (field: string): number | null => {
+    const raw = String(formData.get(field) ?? "").trim();
+    if (!raw) return null;
+    const n = parseInt(raw, 10);
+    return Number.isNaN(n) || n <= 0 ? null : Math.min(300, n);
+  };
+  const rawLength = dim("lengthCm");
+  const rawBreadth = dim("breadthCm");
+  const rawHeight = dim("heightCm");
+  const complete = rawLength !== null && rawBreadth !== null && rawHeight !== null;
+  const lengthCm = complete ? rawLength : null;
+  const breadthCm = complete ? rawBreadth : null;
+  const heightCm = complete ? rawHeight : null;
+
+  if (!complete && (rawLength || rawBreadth || rawHeight)) {
+    fieldErrors.lengthCm =
+      "Enter all three dimensions, or leave all three blank to use the category estimate.";
+  }
+
   return {
     fieldErrors,
     input: {
       slug,
       name,
       category,
+      weightGrams,
+      lengthCm,
+      breadthCm,
+      heightCm,
       tagline: String(formData.get("tagline") ?? "").trim(),
       description: String(formData.get("description") ?? "").trim(),
       images: parseImages(formData),
@@ -474,4 +519,73 @@ export async function setOrderStatusAction(formData: FormData): Promise<void> {
      `force-dynamic` — but the client-side router cache is not. */
   revalidatePath("/account/orders");
   redirect("/admin/orders?updated=1");
+}
+
+/**
+ * Books the shipment for one order with the courier.
+ *
+ * **Guarded against being pressed twice**, which is the failure that matters
+ * here: Shiprocket rejects a duplicate `order_id`, so a second press would
+ * produce an error message rather than a second parcel — but it would also
+ * overwrite a perfectly good AWB with nothing. An order that already has a
+ * shipment id is left alone and says so.
+ *
+ * The weight sent is the one checkout quoted on, computed from the same
+ * function (`packParcel`) over the order's own lines — so the box the customer
+ * was charged for and the box the courier is told about are the same one.
+ * The order's saved item names are used rather than the live catalogue,
+ * because an order is a snapshot and a product renamed since must not change
+ * what is written on the parcel.
+ */
+export async function bookShipmentAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin/orders?error=1");
+
+  if (!isShiprocketConfigured()) redirect("/admin/orders?shipError=unconfigured");
+
+  const order = await getOrderForAdmin(id);
+  if (!order) redirect("/admin/orders?error=1");
+  if (order.shipmentId) redirect("/admin/orders?shipError=already");
+
+  try {
+    const products = await listProducts();
+    const booking = await bookShipment({
+      orderNumber: order.orderNumber,
+      createdAt: order.createdAt,
+      shipTo: order.shipTo,
+      billTo: order.billTo,
+      /* The address snapshot carries no email — it is the account's, and the
+         courier uses it only for their own delivery notifications. */
+      email: process.env.SHIPROCKET_NOTIFY_EMAIL || site.email,
+      items: order.items.map((item) => ({
+        name: item.name,
+        slug: item.slug,
+        qty: item.qty,
+        unitPrice: item.unitPrice,
+      })),
+      subtotal: order.subtotal,
+      parcel: packParcel(
+        order.items.map((item) => ({ slug: item.slug, qty: item.qty })),
+        products,
+      ),
+      courierId: order.courierId,
+    });
+
+    await setOrderShipment(order.id, {
+      provider: "shiprocket",
+      shipmentOrderId: booking.shipmentOrderId,
+      shipmentId: booking.shipmentId,
+      awb: booking.awb,
+      courierName: booking.courierName,
+    });
+  } catch (error) {
+    console.error("[admin] shipment booking failed:", error);
+    redirect("/admin/orders?shipError=failed");
+  }
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/account/orders");
+  redirect("/admin/orders?shipped=1");
 }

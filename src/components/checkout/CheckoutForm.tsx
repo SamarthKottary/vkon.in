@@ -21,8 +21,11 @@ import { formatPaise, priceLines, totals } from "@/lib/pricing";
 import {
   deleteAddressAction,
   placeOrderAction,
+  quoteDeliveryAction,
   type CheckoutState,
+  type DeliveryQuoteState,
 } from "@/app/(site)/account/private-actions";
+import type { DeliveryOption } from "@/lib/shiprocket";
 import type { Address, Product } from "@/lib/types";
 
 /**
@@ -84,7 +87,22 @@ export function CheckoutForm({
   );
 
   const priced = useMemo(() => priceLines(lines ?? [], products), [lines, products]);
-  const money = useMemo(() => totals(priced), [priced]);
+
+  /**
+   * The last delivery quote the server returned, tagged with what it was for.
+   *
+   * **Stored with its key, and "loading" is derived from that rather than
+   * stored.** The obvious shape — a `quote` state reset to `null` at the top
+   * of the effect — needs a synchronous `setState` inside that effect, which
+   * is what `react-hooks/set-state-in-effect` exists to stop and what this
+   * codebase has been bitten by twice (§9). Keeping the answer's key beside it
+   * means a result for a destination the customer has already moved off simply
+   * does not match, and reads as "still asking" with nothing written.
+   */
+  const [quoted, setQuoted] = useState<{ key: string; value: DeliveryQuoteState } | null>(
+    null,
+  );
+
   /* Units, not line count — "1 item" beside a subtotal for two of the same
      panel reads as a miscount, and a customer checking this figure is
      counting what they are paying for, not how many distinct products that
@@ -127,6 +145,94 @@ export function CheckoutForm({
     setBillingId((current) => (current && ids.has(current) ? current : fallback));
     setShippingId((current) => (current && ids.has(current) ? current : fallback));
   }, [addresses]);
+
+  /**
+   * Asks the server what delivery costs, whenever the destination changes.
+   *
+   * The destination is the shipping address, or the billing one while "ship to
+   * the billing address" is ticked — so changing *either* selection, or the
+   * checkbox, re-quotes.
+   *
+   * **The sequence number is what makes this correct.** Two quotes can be in
+   * flight at once (tick the box, untick it, pick another address), and they
+   * can come back in any order; without the guard a slow answer for the
+   * address the customer has already moved off would overwrite the right one,
+   * and the figure on screen would be for somewhere else. Only the newest
+   * request is allowed to write.
+   *
+   * `cartKey` rather than `lines`: the array is a fresh object on every render
+   * of the parent, and using it directly would re-quote on every keystroke
+   * elsewhere on the page.
+   */
+  const destinationId = sameAsBilling ? billingId : shippingId;
+  const cartKey = JSON.stringify(priced.map((line) => [line.slug, line.qty]));
+  const quoteKey = `${destinationId}|${cartKey}`;
+  const canQuote = Boolean(destinationId) && priced.length > 0;
+
+  /**
+   * What the Delivery row shows.
+   *
+   * `null` is "still asking" and renders as "Calculating…"; a settled
+   * `unavailable` renders as the phone-call wording. Both are derived, so
+   * nothing here writes state during a render or an effect.
+   */
+  const quote: DeliveryQuoteState | null = !canQuote
+    ? { status: "unavailable" }
+    : quoted?.key === quoteKey
+      ? quoted.value
+      : null;
+
+  const options = quote?.status === "quoted" ? quote.options : [];
+
+  /**
+   * Which delivery service is selected.
+   *
+   * Held as an id rather than an index, because the list is refetched whenever
+   * the address or the cart changes and an index would silently point at a
+   * different courier. An id that is no longer offered simply stops matching,
+   * and the cheapest — `options[0]`, since the list is price-sorted — takes
+   * over, which is also the default before anything is chosen.
+   */
+  const [courierId, setCourierId] = useState<number | null>(null);
+  const chosen =
+    options.find((o) => o.courierId === courierId) ?? options[0] ?? null;
+
+  const shippingPaise = chosen?.ratePaise ?? 0;
+
+  /* Declared after the quote because it depends on it: the delivery charge is
+     part of the total the moment the courier gives one. */
+  const money = useMemo(() => totals(priced, shippingPaise), [priced, shippingPaise]);
+
+  /**
+   * The sequence guard on top of the key.
+   *
+   * The key alone decides what is *displayed*; this decides what is allowed to
+   * be *written*. Two quotes can be in flight at once — tick the box, untick
+   * it, pick another address — and they can come back in any order. Without
+   * this, a slow answer for an address the customer has already moved off
+   * would land last and leave the panel showing "Calculating…" forever,
+   * because its key no longer matches.
+   */
+  const quoteSeq = useRef(0);
+  useEffect(() => {
+    if (!canQuote) return;
+
+    const seq = ++quoteSeq.current;
+    const key = quoteKey;
+
+    quoteDeliveryAction({
+      addressId: destinationId,
+      lines: JSON.parse(cartKey).map(([slug, qty]: [string, number]) => ({ slug, qty })),
+    })
+      .then((value) => {
+        if (seq === quoteSeq.current) setQuoted({ key, value });
+      })
+      .catch(() => {
+        /* A network failure is not the customer's problem: fall back to the
+           wording the site used before live rates existed. */
+        if (seq === quoteSeq.current) setQuoted({ key, value: { status: "unavailable" } });
+      });
+  }, [canQuote, quoteKey, destinationId, cartKey]);
 
   /**
    * Empties the basket once the order has actually been placed.
@@ -419,6 +525,10 @@ export function CheckoutForm({
         <input type="hidden" name="shippingAddressId" value={sameAsBilling ? "" : shippingId} />
         {sameAsBilling && <input type="hidden" name="sameAsBilling" value="on" />}
         <input type="hidden" name="notes" value="" />
+        {/* The *id* of the chosen service, never its price. The server looks it
+            up in a quote it fetches itself, so the worst this field can do is
+            pick a different real service at its real cost. */}
+        <input type="hidden" name="courierId" value={chosen?.courierId ?? ""} />
 
         <h2 className="border-b border-line pb-4 text-lg font-bold uppercase tracking-wider text-ink">
           Order total
@@ -432,10 +542,69 @@ export function CheckoutForm({
           />
           <Row label="CGST 9%" value={formatPaise(money.cgst)} />
           <Row label="SGST 9%" value={formatPaise(money.sgst)} />
-          {/* Honest rather than a "Calculate shipping" link that calculates
-              nothing. Delivery on a 30 kg control panel to a village depends on
-              where it is going, and the business quotes it on the call. */}
-          <Row label="Delivery" value="Quoted on our call" />
+          {/* Three states, and each is honest about what is known. A real
+              rate once the courier has given one; "Calculating…" while the
+              request is out; and the phone-call wording when there is no
+              number — an unserviceable PIN code, a courier API that timed out,
+              or no Shiprocket account configured at all. The last of those is
+              exactly what this row said before live rates existed, so an
+              unconfigured site is unchanged. */}
+          {quote === null ? (
+            <Row label="Delivery" value="Calculating…" />
+          ) : options.length === 0 ? (
+            <Row label="Delivery" value="Quoted on our call" />
+          ) : options.length === 1 ? (
+            /* One service on offer is not a choice — showing it as a radio
+               with nothing to compare against is a decision the customer
+               cannot make. */
+            <Row
+              label={deliveryLabel(options[0])}
+              value={formatPaise(options[0].ratePaise)}
+            />
+          ) : (
+            <div className="py-3">
+              <p className="mb-2 text-muted">Delivery</p>
+              <ul className="space-y-2">
+                {options.map((option) => {
+                  const selected = chosen?.courierId === option.courierId;
+                  return (
+                    <li key={option.courierId}>
+                      <label
+                        className={`flex cursor-pointer items-start gap-2.5 border p-2.5 transition-colors ${
+                          selected
+                            ? "border-accent bg-accent-soft/40"
+                            : "border-line hover:border-line-strong"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={`${uid}-courier`}
+                          checked={selected}
+                          onChange={() => setCourierId(option.courierId)}
+                          className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className="font-medium text-ink">
+                              {option.mode === "air" ? "Express" : "Standard"}
+                            </span>
+                            <span className="shrink-0 font-semibold tabular-nums text-ink">
+                              {formatPaise(option.ratePaise)}
+                            </span>
+                          </span>
+                          <span className="mt-0.5 block text-xs leading-snug text-muted">
+                            {option.estimatedDays
+                              ? `~${option.estimatedDays} days · ${option.courierName}`
+                              : option.courierName}
+                          </span>
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-3 py-4 text-base font-bold">
             <span className="text-ink">Total</span>
@@ -462,9 +631,15 @@ export function CheckoutForm({
           </p>
         )}
 
+        {/* The second sentence follows the quote. Promising to agree the
+            delivery charge on the call is true only while there is no charge
+            on screen — once a courier has priced it, saying so anyway reads as
+            though the figure above might still change. */}
         <p className="mt-4 text-xs leading-relaxed text-muted">
-          Placing the order does not take a payment. We call you to confirm the
-          details and the delivery charge first.
+          Placing the order does not take a payment.{" "}
+          {quote?.status === "quoted"
+            ? "Delivery is priced above. We call you to confirm the details before dispatch."
+            : "We call you to confirm the details and the delivery charge first."}
         </p>
       </form>
     </div>
@@ -473,6 +648,14 @@ export function CheckoutForm({
 
 type Section = "billing" | "shipping";
 type Editor = { section: Section; addressId: string | null };
+
+/** "Delivery · Express, ~3 days" — the single-option and order-page wording. */
+function deliveryLabel(option: DeliveryOption): string {
+  const kind = option.mode === "air" ? "Express" : "Standard";
+  return option.estimatedDays
+    ? `Delivery · ${kind}, ~${option.estimatedDays} days`
+    : `Delivery · ${kind}`;
+}
 
 function StepHeading({
   step,

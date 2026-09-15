@@ -26,7 +26,8 @@ services:
       # Customer accounts and payment. Every one is optional and the app
       # degrades rather than failing: no RESEND_API_KEY logs mail instead of
       # sending, no GOOGLE_CLIENT_ID hides the Google button, no RAZORPAY_*
-      # hides the Pay button. `:-` keeps Compose from warning when unset.
+      # hides the Pay button, no SHIPROCKET_* keeps delivery "quoted on our
+      # call". `:-` keeps Compose from warning when unset.
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -35,6 +36,17 @@ services:
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
       RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      # Shiprocket (delivery rates, booking, tracking). **This list is an
+      # allowlist** — a variable set in .env but missing here never reaches the
+      # container, and the app then behaves as unconfigured without any error.
+      # These were missing when Shiprocket was first built: keys in .env did
+      # nothing and checkout silently kept saying "Quoted on our call".
+      SHIPROCKET_EMAIL: ${SHIPROCKET_EMAIL:-}
+      SHIPROCKET_PASSWORD: ${SHIPROCKET_PASSWORD:-}
+      SHIPROCKET_PICKUP_PINCODE: ${SHIPROCKET_PICKUP_PINCODE:-}
+      SHIPROCKET_PICKUP_LOCATION: ${SHIPROCKET_PICKUP_LOCATION:-}
+      SHIPROCKET_WEBHOOK_TOKEN: ${SHIPROCKET_WEBHOOK_TOKEN:-}
+      SHIPROCKET_NOTIFY_EMAIL: ${SHIPROCKET_NOTIFY_EMAIL:-}
     volumes:
       # Uploads must outlive the container; the image is rebuilt every deploy.
       - vkon-uploads:/app/data/uploads

@@ -12,6 +12,7 @@ import { requireSignIn } from "@/lib/account";
 import { getOrderForCustomer } from "@/lib/db/orders";
 import { formatPaise } from "@/lib/pricing";
 import { isRazorpayConfigured } from "@/lib/razorpay";
+import { trackingUrl } from "@/lib/shiprocket";
 import { site } from "@/content/site";
 import { pageMetadata } from "@/lib/seo";
 
@@ -179,6 +180,36 @@ export default async function OrderPage({
                 stored — see the `bill_to` fallback in `lib/db/orders.ts`. Two
                 identical panels stacked on top of each other would read as a
                 mistake. */}
+            {/* Tracking, once the parcel is with a courier. Above the address
+                because once something is moving, "where is it" is the question
+                the customer opened this page to answer. */}
+            {order.awb && (
+              <section className="border border-accent bg-accent-soft p-5 shadow-card">
+                <h3 className="label-tech text-muted">On its way</h3>
+                <p className="mt-3 font-semibold text-ink">
+                  {order.courierName || "Courier"}
+                </p>
+                <p className="mt-1 break-all font-mono text-sm text-body">{order.awb}</p>
+                <a
+                  href={trackingUrl(order.awb)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex h-10 items-center gap-2 border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:border-ink"
+                >
+                  Track this parcel
+                </a>
+                {order.deliveredAt ? (
+                  <p className="mt-3 text-sm text-body">
+                    Delivered {formatDate(order.deliveredAt)}.
+                  </p>
+                ) : order.shippedAt ? (
+                  <p className="mt-3 text-sm text-body">
+                    Dispatched {formatDate(order.shippedAt)}.
+                  </p>
+                ) : null}
+              </section>
+            )}
+
             {sameAddress ? (
               <section className="border border-line bg-surface-raised p-5 shadow-card">
                 <h3 className="label-tech text-muted">Billing &amp; delivery address</h3>
@@ -205,7 +236,7 @@ export default async function OrderPage({
                 <Line label="CGST 9%" value={formatPaise(order.cgst)} muted />
                 <Line label="SGST 9%" value={formatPaise(order.sgst)} muted />
                 <Line
-                  label="Delivery"
+                  label={order.courierName ? `Delivery · ${order.courierName}` : "Delivery"}
                   value={order.shipping > 0 ? formatPaise(order.shipping) : "To be advised"}
                   muted
                 />

@@ -11,7 +11,8 @@
     "db:seed": "node scripts/db-seed.mjs",
     "db:export": "node scripts/db-export.mjs",
     "db:restore": "node scripts/db-restore.mjs",
-    "setup:local": "node scripts/setup-local.mjs"
+    "setup:local": "node scripts/setup-local.mjs",
+    "shiprocket:check": "node scripts/shiprocket-check.mjs"
   },
   "dependencies": {
     "next": "16.2.12",

@@ -114,6 +114,79 @@ export function ProductForm({ product }: { product?: Product }) {
           />
         </Field>
 
+        {/* **This is what checkout quotes delivery on.** Blank is allowed and
+            is the state the whole catalogue is in today, but it is not free:
+            `lib/shiprocket.ts` substitutes a deliberately generous default,
+            so a product left blank is quoted as heavier than it probably is.
+            The packed weight is the one to enter — box, padding and all —
+            because that is what the courier puts on the scale, and anything
+            under-declared is re-weighed at pickup and billed back to us after
+            the customer has already paid. */}
+        <Field
+          id={`${uid}-weightGrams`}
+          label="Shipping weight (grams)"
+          hint="Packed weight, including the box. Blank falls back to 2000 g, which is a guess — enter a real one."
+          error={fieldError("weightGrams")}
+        >
+          <input
+            id={`${uid}-weightGrams`}
+            name="weightGrams"
+            type="number"
+            min="0"
+            max="100000"
+            step="10"
+            defaultValue={product?.weightGrams ?? ""}
+            placeholder="3500"
+            className={input(fieldError("weightGrams"))}
+          />
+        </Field>
+
+        {/* **Dimensions change the price more than weight does.** A courier
+            bills the greater of actual and volumetric weight (L×B×H÷5000), so
+            a big light box is charged as a heavy one — measured against the
+            live API, the same 2 kg parcel went from ₹128 in a 15 cm box to
+            ₹1,443 in a 60 cm one, and from six willing couriers down to one.
+
+            All three or none: the action discards a partial set rather than
+            combining a measured length with an estimated width, which would
+            describe a box nobody owns. */}
+        <Field
+          id={`${uid}-lengthCm`}
+          label="Packed size (cm)"
+          hint="Length × breadth × height of the box. Leave all three blank to use the category estimate."
+          error={fieldError("lengthCm")}
+        >
+          <div className="flex items-center gap-2">
+            {(
+              [
+                ["lengthCm", "L", product?.lengthCm],
+                ["breadthCm", "B", product?.breadthCm],
+                ["heightCm", "H", product?.heightCm],
+              ] as const
+            ).map(([name, label, value], i) => (
+              <div key={name} className="flex items-center gap-2">
+                {i > 0 && <span aria-hidden className="text-muted">×</span>}
+                <input
+                  id={i === 0 ? `${uid}-lengthCm` : undefined}
+                  name={name}
+                  type="number"
+                  min="0"
+                  max="300"
+                  step="1"
+                  defaultValue={value ?? ""}
+                  placeholder={label}
+                  aria-label={
+                    name === "lengthCm" ? "Length in cm"
+                      : name === "breadthCm" ? "Breadth in cm"
+                        : "Height in cm"
+                  }
+                  className={`${input(fieldError("lengthCm"))} w-20`}
+                />
+              </div>
+            ))}
+          </div>
+        </Field>
+
         <Field
           id={`${uid}-slug`}
           label="URL"

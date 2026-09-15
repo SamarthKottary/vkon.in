@@ -99,6 +99,19 @@ export type Product = {
    * figure — and so the two can never drift apart.
    */
   discountPercent: number | null;
+  /**
+   * Packed weight in grams, or null when nobody has entered one.
+   *
+   * Null is not zero: `lib/parcel.ts` substitutes the estimate for this
+   * product's category, because a parcel of nothing would be quoted as free
+   * and then re-weighed and billed back to the business.
+   */
+  weightGrams: number | null;
+  /** Packed dimensions in whole centimetres. All three or none — see the note
+   *  on the columns in schema.sql, and `lib/parcel.ts`. */
+  lengthCm: number | null;
+  breadthCm: number | null;
+  heightCm: number | null;
   /** Optional meta-title override; blank falls back to the product name. */
   seoTitle: string;
   /** Optional meta-description override; blank falls back to the tagline. */
@@ -272,6 +285,17 @@ export type Order = {
   paymentOrderId: string | null;
   paymentId: string | null;
   paidAt: string | null;
+  /** All null until somebody books a shipment in `/admin/orders`. */
+  shipmentProvider: string | null;
+  shipmentOrderId: string | null;
+  shipmentId: string | null;
+  /** The tracking number the customer actually quotes to anybody. */
+  awb: string | null;
+  courierName: string | null;
+  /** Shiprocket's id for the service the customer chose and paid for. */
+  courierId: number | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
   createdAt: string;
   items: OrderItem[];
 };

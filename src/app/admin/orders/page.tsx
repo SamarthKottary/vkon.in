@@ -9,6 +9,8 @@ import { isDatabaseConfigured } from "@/lib/db/client";
 import { listAllOrders } from "@/lib/db/orders";
 import { formatPaise } from "@/lib/pricing";
 import type { Order } from "@/lib/types";
+import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
+import { bookShipmentAction } from "@/app/admin/actions";
 import { OrderStatusSelect } from "./OrderStatusSelect";
 
 export const dynamic = "force-dynamic";
@@ -29,12 +31,18 @@ export const dynamic = "force-dynamic";
 export default async function AdminOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ updated?: string; error?: string }>;
+  searchParams: Promise<{
+    updated?: string;
+    error?: string;
+    shipped?: string;
+    shipError?: string;
+  }>;
 }) {
   if (!(await isAuthenticated())) redirect("/admin");
 
-  const { updated, error } = await searchParams;
+  const { updated, error, shipped, shipError } = await searchParams;
   const orders = await listAllOrders();
+  const canShip = isShiprocketConfigured();
 
   /* "Needs action" is pending-or-confirmed, i.e. not yet out of the door and
      not cancelled. Deliberately not "unpaid" — while payment is settled on a
@@ -82,6 +90,27 @@ export default async function AdminOrdersPage({
         </p>
       )}
 
+      {/* Booking talks to somebody else's API, so its outcomes are spelled out
+          rather than folded into the generic "could not update": each of these
+          needs a different thing done about it, and "it failed" would send the
+          operator to the logs to find out which. */}
+      {(shipped || shipError) && (
+        <p
+          role="status"
+          className={`mt-6 border-l-2 bg-surface px-4 py-3 text-sm text-ink ${
+            shipError ? "border-signal-500" : "border-accent"
+          }`}
+        >
+          {shipError === "unconfigured"
+            ? "Shiprocket is not configured — set the SHIPROCKET_* variables in .env and restart. See docs/SHIPPING.md."
+            : shipError === "already"
+              ? "That order already has a shipment. Manage it in the Shiprocket dashboard."
+              : shipError
+                ? "Shiprocket refused the booking. The reason is in the server log — usually the pickup location nickname or a missing PIN code."
+                : "Shipment booked."}
+        </p>
+      )}
+
       <p className="mt-6 border-l-2 border-line-strong px-4 py-3 text-sm text-body">
         <span className="font-medium text-ink">Nothing is emailed to you.</span>{" "}
         An order appears here and nowhere else — the customer gets the
@@ -99,14 +128,14 @@ export default async function AdminOrdersPage({
             </p>
           </div>
         ) : (
-          orders.map((order) => <OrderCard key={order.id} order={order} />)
+          orders.map((order) => <OrderCard key={order.id} order={order} canShip={canShip} />)
         )}
       </div>
     </Container>
   );
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order, canShip }: { order: Order; canShip: boolean }) {
   const settled = order.status === "delivered" || order.status === "cancelled";
 
   return (
@@ -257,6 +286,57 @@ function OrderCard({ order }: { order: Order }) {
               value={order.shipping > 0 ? formatPaise(order.shipping) : "Not quoted"}
             />
           </dl>
+
+          {/* The shipment, once there is one — and the button to make one when
+              there is not. Cancelled orders get neither: booking a parcel for
+              an order that is not happening is the one mistake this button can
+              make that costs real money. */}
+          <div className="mt-5 border-t border-line pt-4">
+            <p className="label-tech text-muted">Shipment</p>
+
+            {order.awb ? (
+              <div className="mt-2.5 space-y-1.5 text-sm">
+                <p className="text-ink">
+                  {order.courierName || "Courier"} ·{" "}
+                  <span className="font-mono">{order.awb}</span>
+                </p>
+                <a
+                  href={trackingUrl(order.awb)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block text-accent hover:underline"
+                >
+                  Track this parcel
+                </a>
+              </div>
+            ) : order.shipmentId ? (
+              /* Created at Shiprocket but no AWB came back — recoverable from
+                 their dashboard, and re-pressing the button here would only
+                 try to create a duplicate order. Says so rather than offering
+                 a button that cannot help. */
+              <p className="mt-2.5 text-sm text-body">
+                Created at Shiprocket (shipment{" "}
+                <span className="font-mono">{order.shipmentId}</span>) but no AWB was
+                assigned. Assign a courier in their dashboard.
+              </p>
+            ) : order.status === "cancelled" ? (
+              <p className="mt-2.5 text-sm text-muted">Order cancelled — not shipping.</p>
+            ) : canShip ? (
+              <form action={bookShipmentAction} className="mt-2.5">
+                <input type="hidden" name="id" value={order.id} />
+                <button
+                  type="submit"
+                  className="inline-flex h-9 items-center border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+                >
+                  Book shipment
+                </button>
+              </form>
+            ) : (
+              <p className="mt-2.5 text-sm text-muted">
+                Shiprocket not configured — see docs/SHIPPING.md.
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </article>

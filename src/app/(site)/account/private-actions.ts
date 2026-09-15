@@ -14,6 +14,13 @@ import {
 import { updateCustomerProfile } from "@/lib/db/customers";
 import { createOrder } from "@/lib/db/orders";
 import { listProducts } from "@/lib/db/products";
+import {
+  isShiprocketConfigured,
+  quoteDelivery,
+  shortlistDeliveryOptions,
+  type DeliveryOption,
+} from "@/lib/shiprocket";
+import { packParcel } from "@/lib/parcel";
 import { sendOrderPlacedMail } from "@/lib/mail";
 import { formatPaise, priceLines, totals } from "@/lib/pricing";
 import { site } from "@/content/site";
@@ -290,6 +297,107 @@ export async function setDefaultAddressAction(formData: FormData): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
+// Delivery
+// ---------------------------------------------------------------------------
+
+export type DeliveryQuoteState =
+  /** No quote possible — checkout shows the phone-call wording. */
+  | { status: "unavailable" }
+  | { status: "quoted"; options: DeliveryOption[] };
+
+/**
+ * Prices delivery to one of the customer's saved addresses.
+ *
+ * **The single implementation, called from two places**, and that is the whole
+ * point of it being a separate function: checkout calls it to put figures on
+ * screen, and `placeOrderAction` calls it again to decide what is actually
+ * charged. If those were two pieces of code they would eventually disagree,
+ * which is the same failure `lib/pricing.ts` exists to prevent for the goods.
+ *
+ * Everything that can go wrong returns `unavailable` rather than throwing: an
+ * unserviceable PIN code, a slow courier API, no Shiprocket account at all.
+ * All three mean the same thing to a customer, and all three fall back to
+ * settling delivery on the phone.
+ */
+async function resolveDeliveryQuote(
+  customerId: string,
+  addressId: string,
+  lines: { slug: string; qty: number }[],
+): Promise<DeliveryQuoteState> {
+  if (!isShiprocketConfigured() || !addressId || lines.length === 0) {
+    return { status: "unavailable" };
+  }
+
+  /* Scoped to the signed-in customer, like every other read in this file: a
+     PIN code is not sensitive, but an address id arrives from a form and
+     quoting against somebody else's row would confirm it exists. */
+  const address = await getAddress(customerId, addressId);
+  if (!address || !PIN.test(address.postalCode)) return { status: "unavailable" };
+
+  const products = await listProducts();
+  const priced = priceLines(lines, products);
+  if (priced.length === 0) return { status: "unavailable" };
+
+  const options = await quoteDelivery({
+    deliveryPincode: address.postalCode,
+    /* Weight *and* dimensions — see `lib/parcel.ts` on why quoting without the
+       box is quoting the wrong parcel. */
+    parcel: packParcel(lines, products),
+    declaredValuePaise: priced.reduce((sum, line) => sum + line.lineTotal, 0),
+  });
+
+  const shortlist = shortlistDeliveryOptions(options);
+  return shortlist.length > 0
+    ? { status: "quoted", options: shortlist }
+    : { status: "unavailable" };
+}
+
+/**
+ * What checkout calls to show delivery options before the order is placed.
+ *
+ * **Display only.** Nothing here decides what is charged — `placeOrderAction`
+ * re-quotes on the server and stores its own answer, for exactly the reason
+ * the browser may not post prices. A tampered response to this call changes
+ * numbers on screen and nothing on the invoice.
+ */
+export async function quoteDeliveryAction(input: {
+  addressId: string;
+  lines: { slug: string; qty: number }[];
+}): Promise<DeliveryQuoteState> {
+  const customer = await requireCustomer();
+  const lines = Array.isArray(input?.lines) ? input.lines.slice(0, 50) : [];
+  return resolveDeliveryQuote(customer.id, String(input?.addressId ?? ""), lines);
+}
+
+/**
+ * The delivery the order is actually charged for.
+ *
+ * **The browser sends a courier id, never a price.** That id is looked up in a
+ * quote this function fetches itself; the rate charged is the one that came
+ * back just now, not the one the browser remembers. So a tampered `courierId`
+ * can at worst pick a *different real service at its real price*, which is a
+ * choice the customer could have made anyway — it cannot invent a cheaper one.
+ *
+ * A courier that has vanished between quoting and ordering falls back to the
+ * cheapest currently available rather than failing the order: the customer has
+ * already decided to buy, and the difference is a few rupees on a figure they
+ * are about to see on the confirmation page either way.
+ */
+async function resolveChargedDelivery(
+  customerId: string,
+  addressId: string,
+  lines: { slug: string; qty: number }[],
+  courierId: number | null,
+): Promise<DeliveryOption | null> {
+  const quote = await resolveDeliveryQuote(customerId, addressId, lines);
+  if (quote.status !== "quoted") return null;
+
+  const chosen =
+    courierId !== null ? quote.options.find((o) => o.courierId === courierId) : undefined;
+  return chosen ?? quote.options[0] ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // Placing an order
 // ---------------------------------------------------------------------------
 
@@ -328,6 +436,14 @@ export async function placeOrderAction(
   const shippingId = sameAsBilling
     ? billingId
     : String(formData.get("shippingAddressId") ?? "").trim();
+
+  /* The customer's chosen delivery service, as Shiprocket's own courier id.
+     Validated by `resolveChargedDelivery` against a fresh quote — the only
+     thing this number can do is select among services that really exist at
+     the prices they really cost. */
+  const rawCourier = String(formData.get("courierId") ?? "").trim();
+  const parsedCourier = rawCourier ? Number(rawCourier) : NaN;
+  const courierId = Number.isFinite(parsedCourier) ? parsedCourier : null;
 
   const billing = billingId ? await getAddress(customer.id, billingId) : null;
   if (!billing) {
@@ -385,7 +501,21 @@ export async function placeOrderAction(
       };
     }
 
-    const money = totals(priced);
+    /* **Re-quoted here, on the server, exactly like the prices above.** The
+       figure checkout showed came from `quoteDeliveryAction`, which is a
+       display call the browser could have tampered with or simply have stale
+       — the address can be edited between quoting and pressing the button.
+       This answer is the one that is stored and charged.
+
+       `shipping` stays 0 when no quote is possible, which is the behaviour the
+       site had before Shiprocket existed: delivery is settled on the call. */
+    const delivery = await resolveChargedDelivery(
+      customer.id,
+      shippingId,
+      lines,
+      courierId,
+    );
+    const money = totals(priced, delivery?.ratePaise ?? 0);
     const bySlug = new Map(products.map((p) => [p.slug, p]));
 
     const order = await createOrder({
@@ -394,6 +524,11 @@ export async function placeOrderAction(
       billTo: snapshot(billing),
       notes,
       ...money,
+      /* Recorded so booking assigns the AWB to the service that was quoted and
+         paid for. Booking the cheapest when the customer paid for next-day is
+         the one way this feature can take money for something not delivered. */
+      courierId: delivery?.courierId ?? null,
+      courierName: delivery?.courierName ?? null,
       items: priced.map((line) => {
         const product = bySlug.get(line.slug);
         return {

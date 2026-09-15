@@ -312,6 +312,35 @@ A forgotten migration is **quiet, not loud**: `subscribers` and `enquiries` both
 fail soft, so the forms say "unavailable, please call" and the admin lists come
 back empty rather than erroring. Check after deploying a schema change.
 
+**A key in the server's `.env` does nothing unless `docker-compose.yml` lists
+it.** The `app` service's `environment:` block is an allowlist, and every
+integration degrades silently when its key is missing, so a forgotten name
+shows up only as a feature that works on the laptop and is absent live. After
+editing `.env`, `docker compose up -d app` recreates the container with the new
+values. ARCHITECTURE §9.
+
+**The server's Docker must stay out of `172.16.0.0/12`.** The machine sits on a
+college network whose captive portal is `172.21.0.1`. When Docker gave vkon's
+compose network `172.21.0.0/16`, traffic for the portal was routed into the
+Docker bridge; the workaround used — flushing the bridge's IP — fixed the
+portal but broke the containers' gateway, and vkon.in returned 530 until
+2026-09-15.
+`/etc/docker/daemon.json` on the server now puts new networks in `10.200.0.0/16`
+and `docker0` on `10.201.0.1/24`. Three things follow:
+
+- **`ssh ptz` depends on it.** SSH rides the host `cloudflared.service` tunnel,
+  which needs the server's internet, which needs the portal. Reintroducing the
+  collision can lock you out of the machine.
+- **The file governs new networks only.** The other projects on the box —
+  `cadio-mqtt-dashboard` on `172.19`, `nivixsa-cicd` on `172.20` — kept their old
+  ranges. They don't collide with the portal today, but they are in the same
+  `/12` the college uses.
+- **Restarting dockerd restarts every project's containers**, not just vkon's.
+  To move a network, `docker compose down` (never `-v`) *before* the restart, so
+  there is no old network for Docker to restore.
+
+SETUP-GUIDE.md §0b has the full account and the recovery checks.
+
 **This GitHub repo is PUBLIC.** `docs/Hosting.md`, `docs/cicd.md`,
 `docs/f2.pdf` (the client's business plan — pricing, salaries, a named client's
 contract value), `cicd/`, `.env*` and `*.txt` are all gitignored for that
