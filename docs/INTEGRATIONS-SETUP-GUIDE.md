@@ -429,12 +429,16 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://vkon.in/api/payment/web
 ### 5.4  Test payments
 
 1. On **https://vkon.in**, place an order and open it from **My account → Orders**. A **Pay now** button should appear.
-2. **Success:** pay with test card `4111 1111 1111 1111`, any future expiry date, any CVV.
+   - Test mode needs **no wallet, no added funds and no website verification** — the money is fake. Website verification is for live payments (Step 6).
+
+2. **Success:** pay with an **Indian** test card — Visa `4100 2800 0000 1007`, any future expiry date, any CVV. When asked for an OTP, enter any **4 to 10 digits** (for example `1234`). Or choose **UPI** and type the UPI ID `success@razorpay`.
 
    - The order should become **Paid** and **Confirmed**, and a payment email should arrive.
 
-3. **Failure:** place another order and use one of the failure test methods listed in Razorpay's test documentation. The order must stay **unpaid**, and paying again must still be possible.
-4. **Abandon:** place an order, open the payment window, and close it. The order must still exist, unpaid.
+   > ⚠️ **Don't use `4111 1111 1111 1111`** or any other international test card. The account accepts Indian cards only, so Razorpay refuses it with "Your payment could not be completed as this business accepts domestic (Indian) card payments only". Don't scan the UPI QR with a real UPI app either — type the test UPI ID instead.
+
+3. **Failure:** place another order and choose **UPI** with the UPI ID `failure@razorpay` — or use the Indian test card with an OTP **shorter than 4 digits** (for example `12`). The order must stay **unpaid**, and paying again must still be possible.
+4. **Abandon:** place an order, open the payment window, and close it **without choosing UPI**. The order must still exist, unpaid. (In test mode Razorpay treats a *cancelled UPI* payment as a success, so UPI can't be used for this test.)
 
 ### 5.5  Test the webhook on its own
 

@@ -226,12 +226,24 @@ yourself — `HMAC_SHA256(order_id|payment_id, KEY_SECRET)` for the browser path
 Razorpay's test mode gives you working instruments, and you should use all
 three of these before going live:
 
-- **Success** — test card `4111 1111 1111 1111`, any future expiry, any CVV.
-- **Failure** — their documented failure card. Confirm the order stays
-  `unpaid` and the customer can retry rather than being stuck.
-- **Abandonment** — open the widget and close it. Confirm the order is still
-  there as `pending`/`unpaid`, because this is the case that justifies creating
-  the order first.
+- **Success** — an **Indian** test card, Visa `4100 2800 0000 1007`, any
+  future expiry, any CVV, and an OTP of 4–10 digits; or UPI ID
+  `success@razorpay`. **Not `4111 1111 1111 1111`:** that is an international
+  card, and an account that accepts domestic cards only refuses it with
+  `international_transaction_not_allowed` — which is exactly what happened on
+  the first live test, 2026-09-15.
+- **Failure** — UPI ID `failure@razorpay`, or the Indian card with an OTP
+  shorter than 4 digits. Confirm the order stays `unpaid` and the customer can
+  retry rather than being stuck.
+- **Abandonment** — open the widget and close it without choosing UPI (in test
+  mode Razorpay counts a cancelled UPI payment as a success). Confirm the order
+  is still there as `pending`/`unpaid`, because this is the case that justifies
+  creating the order first.
+
+Test mode needs no funds and no website verification; Razorpay's "Verify now"
+card in the dashboard is for going live. Card numbers from
+[Razorpay's test card list](https://razorpay.com/docs/payments/payments/test-card-details/),
+checked 2026-09-15.
 
 Then test the webhook independently of the browser: replay it from the
 dashboard's webhook log with the browser closed, and confirm the order still
