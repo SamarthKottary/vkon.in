@@ -1411,11 +1411,12 @@ probe `/api/health`.
   this entry used to record. Checkout quotes the cheapest courier for the
   shipping PIN code and `placeOrderAction` re-quotes server-side before storing
   `orders.shipping`, and the customer chooses between Standard and Express
-  where the couriers offer both. Unconfigured still falls back to "Quoted on
+  where a quicker courier exists for that parcel. Unconfigured still falls back to "Quoted on
   our call" and `shipping = 0`. **Still open:** nothing in the catalogue has
-  been weighed or measured, so every quote uses the per-category estimates in
-  `lib/parcel.ts`. Those are plausible rather than accurate — a heavy or bulky
-  product in a light category is mis-quoted until somebody measures it. See
+  been weighed or measured. Since 2026-09-15 each product carries its own
+  *estimated* weight and box, which the admin cannot tell apart from a real
+  measurement — a wrong estimate mis-quotes that product until somebody
+  measures it. See
   docs/SHIPPING.md §3.
 - **A customer cannot change their email address.** It would mean re-confirming
   the new one, handling the case where it already belongs to somebody else, and
@@ -1451,6 +1452,29 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-15 (delivery) — Standard/Express named by speed, not by air versus road
+
+Reported from the live site: a 25 kg order to Mangaluru showed one delivery
+line and no choice. That was correct — Shiprocket offered three road services
+at ~2 days for ₹637–697 and one air service at ₹2,408 for **~4 days**, so
+nothing was quicker than the cheapest. But probing other parcels showed the
+labels were wrong whenever a choice *did* appear. They came from Shiprocket's
+`is_surface` flag, and air is not reliably quicker: a 450 g order to the same
+PIN code would have offered "Express, ~2 days" for ₹49.72 above "Standard,
+~1 day" for ₹73.44 (Xpressbees by air, Blue Dart by road), and one to Delhi
+showed two different services both called "Standard".
+
+- `shortlistDeliveryOptions` now guarantees its result is cheapest first *and*
+  strictly quicker at each step, and `CheckoutForm`'s `serviceName` names by
+  position: Standard, Faster (only with three), Express. `DeliveryOption.mode`
+  is kept as data but no longer names anything.
+- Couriers at the same price sort quicker-first, so the quicker one is "the
+  cheapest".
+- A cheapest courier with no estimate gets no Express beside it; the old rule
+  offered one without knowing it was quicker.
+
+Measurements and the before/after for four parcels are in SHIPPING.md §3a.
 
 ### 2026-09-15 (deploy) — `SHIPROCKET_*` added to the compose allowlist; a new §9 constraint
 

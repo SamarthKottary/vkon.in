@@ -565,7 +565,7 @@ export function CheckoutForm({
             <div className="py-3">
               <p className="mb-2 text-muted">Delivery</p>
               <ul className="space-y-2">
-                {options.map((option) => {
+                {options.map((option, index) => {
                   const selected = chosen?.courierId === option.courierId;
                   return (
                     <li key={option.courierId}>
@@ -586,7 +586,7 @@ export function CheckoutForm({
                         <span className="min-w-0 flex-1">
                           <span className="flex items-baseline justify-between gap-2">
                             <span className="font-medium text-ink">
-                              {option.mode === "air" ? "Express" : "Standard"}
+                              {serviceName(index, options.length)}
                             </span>
                             <span className="shrink-0 font-semibold tabular-nums text-ink">
                               {formatPaise(option.ratePaise)}
@@ -649,12 +649,26 @@ export function CheckoutForm({
 type Section = "billing" | "shipping";
 type Editor = { section: Section; addressId: string | null };
 
-/** "Delivery · Express, ~3 days" — the single-option and order-page wording. */
+/**
+ * What a delivery service is called: by its place in the shortlist, never by
+ * whether it flies. `shortlistDeliveryOptions` returns them cheapest first and
+ * each strictly quicker than the one before, so position *is* speed.
+ *
+ * Shiprocket's air/surface flag is not. Labelled from it, a Mangaluru order
+ * offered "Express, ~2 days" for ₹49.72 above "Standard, ~1 day" for ₹73.44 —
+ * Xpressbees by air against Blue Dart by road — and a Delhi one showed two
+ * different services both called "Standard".
+ */
+function serviceName(index: number, count: number): string {
+  if (index === 0) return "Standard";
+  return index === count - 1 ? "Express" : "Faster";
+}
+
+/** "Delivery · Standard, ~3 days" — the wording when there is nothing to choose. */
 function deliveryLabel(option: DeliveryOption): string {
-  const kind = option.mode === "air" ? "Express" : "Standard";
   return option.estimatedDays
-    ? `Delivery · ${kind}, ~${option.estimatedDays} days`
-    : `Delivery · ${kind}`;
+    ? `Delivery · Standard, ~${option.estimatedDays} days`
+    : "Delivery · Standard";
 }
 
 function StepHeading({

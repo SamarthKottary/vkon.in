@@ -66,11 +66,14 @@ Checked on 15 September 2026 by comparing your laptop, GitHub, and the server di
    docker compose up -d app
    ```
 
-6. Confirm the names reached the site. This prints **names only, never values**:
+6. Confirm the values reached the site. This prints the **names** of settings that have a value — **never the values themselves**:
 
    ```bash
-   docker compose exec app printenv | cut -d= -f1 | grep -E 'RESEND|MAIL|GOOGLE|RAZORPAY|SHIPROCKET'
+   docker compose exec app printenv | grep -E '^(RESEND|MAIL|GOOGLE|RAZORPAY|SHIPROCKET)[A-Z_]*=.' | cut -d= -f1
    ```
+
+   - A name missing from the output has no value inside the site yet.
+   - Checking only that a name exists is not enough: the site's configuration declares every setting, so empty ones exist too.
 
 ### Recommended order
 
@@ -299,13 +302,13 @@ openssl rand -hex 32
 | `SHIPROCKET_WEBHOOK_TOKEN` | The value `openssl` just printed. **Save it** — you need it again in 4.3 |
 | `SHIPROCKET_NOTIFY_EMAIL` | Optional: where the courier sends its own delivery notices |
 
-Then `docker compose up -d app`, and confirm the site can see them — this should print **5** (or 6 with the notify email):
+Then `docker compose up -d app`, and confirm the site has **values** for them — this should print **5** (or 6 with the notify email):
 
 ```bash
-docker compose exec app printenv | grep -c '^SHIPROCKET_'
+docker compose exec app printenv | grep -cE '^SHIPROCKET_[A-Z_]*=.'
 ```
 
-> ⚠️ **If it prints 0,** Step 1 isn't live yet. The file that passes these names to the site is part of that commit.
+> ⚠️ **If it prints 0,** either Step 1 isn't live yet — the file that passes these settings to the site is part of that commit — or the lines aren't in `.env`, or the app wasn't recreated with `docker compose up -d app`.
 
 ### 4.2  Test live rates
 
@@ -344,7 +347,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://vkon.in/api/shipping/we
 
 ### 4.4  Measure your products
 
-Until you do, each product uses an estimate for its category. **The box size changes the price more than the weight** — couriers charge a large, light box as if it were heavy.
+Every product already has an **estimated** packed weight and box size, entered on 15 September so quotes are realistic. They are guesses, not measurements, and in the admin they look exactly like real values — replace them. **The box size changes the price more than the weight**: couriers charge a large, light box as if it were heavy.
 
 1. Open **https://vkon.in/admin** → **Products** → each product.
 2. **Shipping weight (grams):** the packed weight, box included (a 3.5 kg starter in foam is about `3800`).
@@ -471,7 +474,7 @@ Do this only when Razorpay has approved your KYC (you'll get an email, and the d
 | ☐ | Step 3 — Branding verification re-requested |
 | ☐ | Step 4 — Shiprocket keys on the server; delivery options show at live checkout |
 | ☐ | Step 4 — Tracking webhook created; token check returns 200 |
-| ☐ | Step 4 — Every product has a packed weight and box size |
+| ☐ | Step 4 — Every product measured: real packed weight and box size replacing the estimates |
 | ☐ | Step 5 — Razorpay test keys + webhook on the server; success, failure and abandon tested |
 | ☐ | Step 5 — Webhook replayed with the browser closed; order still paid, one email |
 | ☐ | Step 6 — KYC approved; live keys and live webhook in place; one real payment settled |

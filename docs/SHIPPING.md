@@ -125,12 +125,30 @@ parcel, mostly the same service at slightly different prices. That is not a
 choice anybody wants to make, so `shortlistDeliveryOptions` reduces it to at
 most three meaningfully different ones: the cheapest, the fastest if it really
 is sooner, and one middle option only if it beats the fastest on price *and*
-the cheapest on time.
+the cheapest on time. Of two couriers at the same price, the quicker counts as
+the cheaper.
 
-Checkout labels them **Standard** (surface) and **Express** (air) from
-Shiprocket's `is_surface` flag, with the estimate in days and the courier's own
-name beneath. One option renders as a plain line rather than a radio — a choice
-of one is not a choice.
+The result is cheapest first **and** each option strictly quicker than the one
+before, so checkout names them by position: **Standard**, then **Faster** (only
+when there are three), then **Express**. The estimate in days and the courier's
+own name sit beneath. One option renders as a plain "Delivery · Standard" line
+rather than a radio — a choice of one is not a choice.
+
+**The names are not taken from air versus road** (Shiprocket's `is_surface`),
+which is what the first version did. Air is not reliably quicker. Measured on
+2026-09-15 from the Mangaluru pickup:
+
+| Parcel → PIN | What Shiprocket returned | Labelled by air/road | Now |
+|---|---|---|---|
+| 450 g → 575002 (Mangaluru) | Xpressbees Air ₹49.72 ~2 d, Blue Dart Surface ₹73.44 ~1 d | "Express ~2 d" above "Standard ~1 d" | Standard ₹49.72 ~2 d / Express ₹73.44 ~1 d |
+| 450 g → 110001 (Delhi) | cheapest ₹69.72 ~5 d … Blue Dart Air ₹132.84 ~2 d | two different "Standard" rows | Standard ₹69.72 / Faster ₹93.96 ~4 d / Express ₹132.84 ~2 d |
+| 25 kg → 575002 (Mangaluru) | three road services ~2 d ₹637–697; Delhivery Air ₹2,408 **~4 d** | one line | one line |
+| 25 kg → 110001 (Delhi) | cheapest ₹1,049.92 ~5 d … DTDC Air ₹5,076.12 ~3 d | Standard / Express | Standard / Express |
+
+**Seeing one delivery line and no choice is usually correct.** It means no
+courier is quicker than the cheapest for that parcel and PIN code, as in the
+third row: the only air service was four times the price *and* slower. It is
+most common for heavy orders and for deliveries near the pickup.
 
 **The browser sends a courier id, never a price.** `resolveChargedDelivery`
 looks that id up in a quote it fetches itself and charges the rate that came
@@ -294,9 +312,12 @@ cannot invent one, and cannot set a price.
 
 ## 6. Known gaps
 
-- **Nothing is measured yet** (§3). Every product currently uses its category
-  estimate. The estimates are plausible, not accurate; a heavy or bulky product
-  in a light category will be mis-quoted until someone weighs it.
+- **Nothing is measured yet** (§3). Since 2026-09-15 every product has its own
+  *estimated* packed weight and box size stored in its row — more specific than
+  the category table, and identical on the laptop and the server, but still
+  guesses. They are indistinguishable from real measurements in the admin, and
+  the category fallback no longer applies to them. Replace them as products are
+  weighed and measured.
 - **No "your order has shipped" email.** `applyShipmentUpdate` returns the
   boolean that would gate it; nothing sends one. The customer finds out by
   looking at their order page.

@@ -45,7 +45,7 @@ in the relevant dashboard — that is a two-minute job and there is no other fix
 | **Google sign-in** (§3) | 🟡 **Working locally** | Branding verification failed **because the site was down** — re-request once it is back (§3.6); add both values to the server `.env` |
 | **Razorpay** (§4) | 🟡 **Account created (freelancer), code done** | Webhook (§4.4) is **unblocked** now the site is back up — put the keys in the server `.env` first |
 | **Shiprocket** (§5) | 🟡 **Working locally** | KYC done, wallet funded, pickup address verified, API user created, live rates confirmed with `npm run shiprocket:check`. Left: deploy the code and keys to the server, then the webhook (§5.8) |
-| **Product sizes** (§5.6) | ⬜ **None measured** | Every quote uses the per-category estimate in `lib/parcel.ts`. Enter packed weight **and** box size in `/admin/products` — the box moves the price more than the weight does |
+| **Product sizes** (§5.6) | 🟡 **Estimated, not measured** | Since 15 Sep every product has its own estimated packed weight and box size — identical on the laptop and the server. In `/admin/products` they look like real values but are guesses: replace them with packed measurements. The box moves the price more than the weight does |
 | **The server** | ✅ **Back up** (15 Sep) | Was down for days because Docker had taken the college captive portal's subnet. Fixed permanently — §0b. Both webhooks can now be set up against the live URL |
 
 ### Done so far
@@ -1037,7 +1037,8 @@ Ticked as of 15 September 2026.
       7 September "leave unpriced" decision
 - [ ] Shiprocket keys on the server; delivery options showing on vkon.in
 - [ ] Shiprocket tracking webhook created (§5.8)
-- [ ] Products measured — weight and box size (§5.6)
+- [x] Server products priced and matched to the laptop; test products removed (15 Sep)
+- [ ] Products measured — real weight and box size replacing the 15 Sep estimates (§5.6)
 - [ ] Read §4.8 so the eventual company switch holds no surprises
 - [ ] Razorpay test-mode payment put through end to end — [PAYMENTS.md §6](PAYMENTS.md)
 - [ ] One real ₹1 order in live mode before announcing payment

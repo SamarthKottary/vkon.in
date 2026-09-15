@@ -47,6 +47,9 @@ const TOKEN_TTL_MS = 9 * 24 * 60 * 60 * 1000;
  */
 const TIMEOUT_MS = 6000;
 
+/** Sorts a courier with no delivery estimate after any that has one. */
+const UNKNOWN_DAYS = 999;
+
 export function isShiprocketConfigured(): boolean {
   return Boolean(
     process.env.SHIPROCKET_EMAIL &&
@@ -185,8 +188,10 @@ export type DeliveryOption = {
   ratePaise: number;
   /** Working days, as Shiprocket estimates them. Null when they do not say. */
   estimatedDays: number | null;
-  /** Surface is the slow, cheap road option; air is the fast one. This is what
-   *  the checkout labels "Standard" and "Express". */
+  /** Road or air, as Shiprocket reports it. **Not** what checkout calls the
+   *  service: air is not reliably the faster one — within Karnataka a Blue Dart
+   *  van beats an Xpressbees flight — so "Standard" and "Express" come from
+   *  position in the shortlist instead (`serviceName` in `CheckoutForm`). */
   mode: "surface" | "air";
 };
 
@@ -275,13 +280,19 @@ export async function quoteDelivery(input: {
         ratePaise: Math.round(rate * 100),
         estimatedDays: Number.isFinite(days) && days > 0 ? Math.round(days) : null,
         /* `is_surface` is a real boolean in their payload; anything else is
-           treated as surface, which is the conservative label — calling a road
-           shipment "Express" is the mistake that matters. */
+           treated as surface. */
         mode: row.is_surface === false ? "air" : "surface",
       });
     }
 
-    options.sort((a, b) => a.ratePaise - b.ratePaise);
+    /* Equal prices happen — Xpressbees quoted air and surface at the same
+       ₹49.72 within Mangaluru — and the quicker of the two is then simply the
+       better service, so it sorts first and becomes "the cheapest". */
+    options.sort(
+      (a, b) =>
+        a.ratePaise - b.ratePaise ||
+        (a.estimatedDays ?? UNKNOWN_DAYS) - (b.estimatedDays ?? UNKNOWN_DAYS),
+    );
     return options;
   } catch (error) {
     console.error("[shiprocket] serviceability parse failed:", error);
@@ -302,37 +313,43 @@ export async function quoteDelivery(input: {
  *  - one **middle** option, only when it is both cheaper than the fastest and
  *    quicker than the cheapest.
  *
- * Deduplicated by courier id, and kept in price order so the list reads
- * cheapest-first regardless of which rule selected each one.
+ * **The result is ordered two ways at once: cheapest first, and each option
+ * strictly quicker than the one before.** Checkout names the services by that
+ * position, so it is a guarantee, not a coincidence. It holds because every
+ * option after the first is quicker than the cheapest, the fastest is the
+ * *cheapest* of the quickest (the scan runs in price order), and the middle is
+ * cheaper than the fastest — so it cannot be as quick, or it would have been
+ * the fastest.
+ *
+ * Often this is one option, and that is correct rather than a failure. A 25 kg
+ * order from Mangaluru to Mangaluru came back as three road services at ~2 days
+ * for ₹637–697 and Delhivery Air at ₹2,408 for ~4 days: nothing is quicker than
+ * the cheapest, so there is nothing to offer beside it.
  */
 export function shortlistDeliveryOptions(options: DeliveryOption[]): DeliveryOption[] {
   if (options.length <= 1) return options;
 
   const cheapest = options[0];
-  const withEta = options.filter((o) => o.estimatedDays !== null);
+  /* Without an estimate for the cheapest there is nothing to be quicker than,
+     and calling another service "Express" would be a guess. */
+  if (cheapest.estimatedDays === null) return [cheapest];
+  const cheapestDays = cheapest.estimatedDays;
 
-  /* No estimates at all: price is the only axis, so offer the two ends of it
-     rather than inventing a distinction. */
-  if (withEta.length === 0) return [cheapest];
+  const quicker = options.filter(
+    (o): o is DeliveryOption & { estimatedDays: number } =>
+      o.estimatedDays !== null && o.estimatedDays < cheapestDays,
+  );
+  if (quicker.length === 0) return [cheapest];
 
-  const fastest = withEta.reduce((best, o) =>
-    (o.estimatedDays as number) < (best.estimatedDays as number) ? o : best,
+  /* Strict `<` keeps the first of equally quick services, which — in price
+     order — is the cheapest of them. */
+  const fastest = quicker.reduce((best, o) =>
+    o.estimatedDays < best.estimatedDays ? o : best,
   );
 
-  const picked: DeliveryOption[] = [cheapest];
-  if (fastest.courierId !== cheapest.courierId && fastest.estimatedDays !== cheapest.estimatedDays) {
-    picked.push(fastest);
-  }
+  const middle = quicker.find((o) => o.ratePaise < fastest.ratePaise);
 
-  const middle = withEta.find(
-    (o) =>
-      !picked.some((p) => p.courierId === o.courierId) &&
-      o.ratePaise < fastest.ratePaise &&
-      (o.estimatedDays as number) < (cheapest.estimatedDays ?? Infinity),
-  );
-  if (middle) picked.push(middle);
-
-  return picked.sort((a, b) => a.ratePaise - b.ratePaise);
+  return middle ? [cheapest, middle, fastest] : [cheapest, fastest];
 }
 
 // ---------------------------------------------------------------------------
@@ -478,7 +495,8 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
   let courierName: string | null = null;
   try {
     /* Pinned to the courier the customer chose, where there is one. Letting
-       Shiprocket pick would quietly ship surface against an Express charge —
+       Shiprocket pick would quietly ship a slower service against an Express
+       charge —
        the one way this feature can take money for something not delivered. */
     const assigned = await api("/courier/assign/awb", {
       method: "POST",
