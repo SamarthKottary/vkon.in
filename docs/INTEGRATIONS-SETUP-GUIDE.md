@@ -431,7 +431,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://vkon.in/api/payment/web
 1. On **https://vkon.in**, place an order and open it from **My account → Orders**. A **Pay now** button should appear.
    - Test mode needs **no wallet, no added funds and no website verification** — the money is fake. Website verification is for live payments (Step 6).
 
-2. **Success:** pay with an **Indian** test card — Visa `4100 2800 0000 1007`, any future expiry date, any CVV. When asked for an OTP, enter any **4 to 10 digits** (for example `1234`).
+2. **Success:** pay with an **Indian** test card — Visa `4100 2800 0000 1007`, any future expiry date, any CVV — then press **Continue** (choose **Maybe later** if it offers to save the card). **There is no OTP.** A separate small window opens instead: *"Welcome to Razorpay Software Private Ltd Bank — This is just a demo bank page"*, with **Success** and **Failure** buttons. Press **Success**. If nothing seems to happen, that window may have opened behind your browser.
 
    - The order should become **Paid** and **Confirmed**, and a payment email should arrive.
 
@@ -439,7 +439,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://vkon.in/api/payment/web
 
    > 💡 **UPI can't be tested in test mode.** NPCI retired typing in a UPI ID ("UPI Collect") on 28 February 2026, so Razorpay's window shows only a QR code — and a test-mode QR can't be paid from a real UPI app. The old test IDs `success@razorpay` / `failure@razorpay` have nowhere to go. That's fine: the site handles a payment the same way whatever the method, so the card tests cover it. UPI gets its first real check in Step 6, with a small live payment.
 
-3. **Failure:** place another order and pay with the Indian test card, but enter an OTP **shorter than 4 digits** (for example `12`). Close the payment window. The order must show **Payment failed**, with **Pay now** still there — press it and pay with a normal OTP, and the order must become **Paid**.
+3. **Failure:** place another order, pay with the same card, and press **Failure** on the demo bank page. Razorpay's window says *"Payment could not be completed"* and offers to retry — close it. Reload the order page after a few seconds (Razorpay's webhook updates it): it must show **Payment failed**, with **Pay now** still there. Press **Pay now**, choose **Success** this time, and the order must become **Paid**.
 4. **Abandon:** place an order, open the payment window, and close it. The order must still exist, unpaid, with **Pay now** still available.
 
 ### 5.5  Test the webhook on its own

@@ -227,13 +227,18 @@ Razorpay's test mode gives you working instruments, and you should use all
 three of these before going live:
 
 - **Success** — an **Indian** test card, Visa `4100 2800 0000 1007`, any
-  future expiry, any CVV, and an OTP of 4–10 digits. Verified on the live
-  site 2026-09-15: payment captured, order `confirmed`/`paid`.
+  future expiry, any CVV. **There is no OTP step:** a separate window opens
+  on Razorpay's demo bank page (`api.razorpay.com/v1/gateway/mocksharp/…`)
+  with **Success** and **Failure** buttons. Razorpay's own test-card page still
+  describes entering an OTP, but that is not what test mode shows — checked by
+  driving Checkout end to end on 2026-09-15. Verified on the live site the
+  same day: payment captured, order `confirmed`/`paid`.
   **Not `4111 1111 1111 1111`:** that is an international
   card, and an account that accepts domestic cards only refuses it with
   `international_transaction_not_allowed` — which is exactly what happened on
   the first live test, 2026-09-15.
-- **Failure** — the Indian card with an OTP shorter than 4 digits. The order
+- **Failure** — the same card, then **Failure** on the demo bank page
+  (Razorpay records `payment_failed`; Checkout offers a retry). The order
   becomes `payment_status = 'failed'` (badge "Payment failed"); confirm
   **Pay now** is still offered and that paying again marks it `paid`. Until
   2026-09-15 the button was shown for `unpaid` only, so a declined customer was
