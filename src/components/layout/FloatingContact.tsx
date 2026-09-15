@@ -36,15 +36,33 @@ export function FloatingContact() {
   const [footerRowVisible, setFooterRowVisible] = useState(false);
 
   useEffect(() => {
-    const footerRow = document.querySelector("[data-footer-social-row]");
-    if (!footerRow) return;
+    let observer: IntersectionObserver;
+    let interval: ReturnType<typeof setInterval>;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => setFooterRowVisible(entry.isIntersecting),
-      { threshold: 0.1 },
-    );
-    observer.observe(footerRow);
-    return () => observer.disconnect();
+    const tryObserve = () => {
+      const footerRow = document.querySelector("[data-footer-social-row]");
+      if (!footerRow) return false;
+
+      observer = new IntersectionObserver(
+        ([entry]) => setFooterRowVisible(entry.isIntersecting),
+        { threshold: 0.1 },
+      );
+      observer.observe(footerRow);
+      return true;
+    };
+
+    if (!tryObserve()) {
+      interval = setInterval(() => {
+        if (tryObserve()) {
+          clearInterval(interval);
+        }
+      }, 500);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+      if (observer) observer.disconnect();
+    };
   }, []);
 
   return (
