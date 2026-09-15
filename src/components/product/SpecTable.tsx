@@ -1,4 +1,39 @@
-import type { SpecRow } from "@/lib/types";
+import type { Product, SpecRow } from "@/lib/types";
+
+/**
+ * Build spec rows for the product's physical attributes (weight and packed
+ * dimensions).  Returns an empty array when nothing is set, so callers can
+ * unconditionally spread the result into the rows prop.
+ *
+ * Weight is shown in kg (one decimal place); dimensions as L × B × H cm.
+ */
+export function physicalSpecRows(product: Product): SpecRow[] {
+  const rows: SpecRow[] = [];
+
+  if (product.weightGrams != null && product.weightGrams > 0) {
+    const kg = product.weightGrams / 1000;
+    rows.push({
+      label: "Weight",
+      value: kg % 1 === 0 ? `${kg} kg` : `${kg.toFixed(1)} kg`,
+    });
+  }
+
+  if (
+    product.lengthCm != null &&
+    product.breadthCm != null &&
+    product.heightCm != null &&
+    product.lengthCm > 0 &&
+    product.breadthCm > 0 &&
+    product.heightCm > 0
+  ) {
+    rows.push({
+      label: "Dimensions",
+      value: `${product.lengthCm} × ${product.breadthCm} × ${product.heightCm} cm`,
+    });
+  }
+
+  return rows;
+}
 
 /**
  * Specification table.

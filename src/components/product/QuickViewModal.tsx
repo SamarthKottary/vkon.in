@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ProductMedia } from "@/components/product/ProductMedia";
-import { SpecTable } from "@/components/product/SpecTable";
+import { physicalSpecRows, SpecTable } from "@/components/product/SpecTable";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { ProductPrice } from "@/components/product/ProductPrice";
 import { CloseIcon } from "@/components/icons/ui";
@@ -175,14 +175,17 @@ export function QuickViewModal({
                 (client, 2026-09-02: "also add Specification of the product in
                 the quick view card after RANGE"). Renders nothing when a
                 product has no spec rows. */}
-            {product.spec.length > 0 && (
-              <div className="mt-6 border-t border-line pt-4">
-                <p className="label-tech text-muted">Specification</p>
-                <div className="mt-2">
-                  <SpecTable rows={product.spec} />
+            {(() => {
+              const allSpec = [...product.spec, ...physicalSpecRows(product)];
+              return allSpec.length > 0 ? (
+                <div className="mt-6 border-t border-line pt-4">
+                  <p className="label-tech text-muted">Specification</p>
+                  <div className="mt-2">
+                    <SpecTable rows={allSpec} />
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : null;
+            })()}
 
             {/* "View full details" — after the Specification, right-aligned
                 (client, 2026-09-02: "move view full details in add to cart

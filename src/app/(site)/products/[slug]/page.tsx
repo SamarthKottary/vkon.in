@@ -8,7 +8,7 @@ import { ProductPrice } from "@/components/product/ProductPrice";
 import { RecordView } from "@/components/product/RecordView";
 import { RelatedProducts } from "@/components/product/RelatedProducts";
 import { ProtectionList } from "@/components/product/ProtectionList";
-import { SpecTable } from "@/components/product/SpecTable";
+import { physicalSpecRows, SpecTable } from "@/components/product/SpecTable";
 import { Container } from "@/components/ui/Container";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { categoryLabel } from "@/content/taxonomy";
@@ -166,12 +166,15 @@ export default async function ProductPage({
                 </div>
               </div>
 
-              {product.spec.length > 0 && (
-                <div className="mt-10">
-                  <p className="label-tech mb-2 text-muted">Specification</p>
-                  <SpecTable rows={product.spec} />
-                </div>
-              )}
+              {(() => {
+                const allSpec = [...product.spec, ...physicalSpecRows(product)];
+                return allSpec.length > 0 ? (
+                  <div className="mt-10">
+                    <p className="label-tech mb-2 text-muted">Specification</p>
+                    <SpecTable rows={allSpec} />
+                  </div>
+                ) : null;
+              })()}
             </div>
           </div>
         </Container>
