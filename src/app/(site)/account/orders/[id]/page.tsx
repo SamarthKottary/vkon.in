@@ -257,44 +257,48 @@ export default async function OrderPage({
               {(order.paymentStatus === "unpaid" || order.paymentStatus === "failed") &&
                 order.status !== "cancelled" && (
                 <div className="mt-4 border-t border-line pt-4">
-                  {order.paymentStatus === "failed" && (
-                    <p className="mb-3 text-sm leading-relaxed text-body">
-                      Your last payment attempt did not go through. You can try again.
-                    </p>
-                  )}
-                  {/* The button only exists when a gateway is configured. With
-                      no keys set this falls back to the phone-call wording the
-                      order flow has always used — the site works either way,
-                      the same as it does without Resend or Google. */}
-                  {payOnline ? (
-                    <>
-                      <PayNowButton
-                        orderId={order.id}
-                        amountLabel={formatPaise(order.total)}
-                      />
-                      <p className="mt-3 text-sm leading-relaxed text-muted">
-                        Pay by UPI, card or netbanking. Prefer to pay on a call?
-                        Ring us on{" "}
-                        <a
-                          href={`tel:${site.phone.href}`}
-                          className="text-accent hover:underline"
-                        >
-                          {site.phone.display}
-                        </a>
-                        .
-                      </p>
-                    </>
-                  ) : (
+                  {order.paymentProvider === "cod" ? (
                     <p className="text-sm leading-relaxed text-muted">
-                      Payment is arranged when we call. Questions in the meantime —{" "}
-                      <a
-                        href={`tel:${site.phone.href}`}
-                        className="text-accent hover:underline"
-                      >
-                        {site.phone.display}
-                      </a>
-                      .
+                      Payment to be collected on delivery.
                     </p>
+                  ) : (
+                    <>
+                      {order.paymentStatus === "failed" && (
+                        <p className="mb-3 text-sm leading-relaxed text-body">
+                          Your last payment attempt did not go through. You can try again.
+                        </p>
+                      )}
+                      {payOnline ? (
+                        <>
+                          <PayNowButton
+                            orderId={order.id}
+                            amountLabel={formatPaise(order.total)}
+                          />
+                          <p className="mt-3 text-sm leading-relaxed text-muted">
+                            Pay by UPI, card or netbanking. Prefer to pay on a call?
+                            Ring us on{" "}
+                            <a
+                              href={`tel:${site.phone.href}`}
+                              className="text-accent hover:underline"
+                            >
+                              {site.phone.display}
+                            </a>
+                            .
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm leading-relaxed text-muted">
+                          Payment is arranged when we call. Questions in the meantime —{" "}
+                          <a
+                            href={`tel:${site.phone.href}`}
+                            className="text-accent hover:underline"
+                          >
+                            {site.phone.display}
+                          </a>
+                          .
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               )}

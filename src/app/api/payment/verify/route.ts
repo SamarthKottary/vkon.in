@@ -5,7 +5,7 @@ import {
   markOrderPaid,
   markPaymentFailed,
 } from "@/lib/db/orders";
-import { sendPaymentReceivedMail } from "@/lib/mail";
+import { sendOrderPlacedMail, sendPaymentReceivedMail } from "@/lib/mail";
 import { formatPaise } from "@/lib/pricing";
 import { isRazorpayConfigured, verifyCheckoutSignature } from "@/lib/razorpay";
 import { site } from "@/content/site";
@@ -114,6 +114,23 @@ export async function POST(request: NextRequest) {
      whole reason `markOrderPaid` reports whether it was the call that moved
      the row. */
   if (changed) {
+    await sendOrderPlacedMail({
+      to: customer.email,
+      name: customer.name,
+      orderNumber: order.orderNumber,
+      subtotal: formatPaise(order.subtotal),
+      cgst: formatPaise(order.cgst),
+      sgst: formatPaise(order.sgst),
+      shipping: order.shipping ? formatPaise(order.shipping) : null,
+      total: formatPaise(order.total),
+      lines: order.items.map((item) => ({
+        name: item.name,
+        qty: item.qty,
+        amount: formatPaise(item.lineTotal),
+      })),
+      orderUrl: `${site.url.replace(/\/$/, "")}/account/orders/${order.id}`,
+    });
+
     await sendPaymentReceivedMail({
       to: customer.email,
       name: customer.name,

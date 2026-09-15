@@ -571,6 +571,7 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
         products,
       ),
       courierId: order.courierId,
+      isCOD: order.paymentProvider === "cod",
     });
 
     await setOrderShipment(order.id, {

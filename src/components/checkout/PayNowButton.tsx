@@ -59,7 +59,7 @@ const SCRIPT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
 
 /** Loads the widget once and resolves on every later call. Two presses of the
  *  button must not inject two copies of the script. */
-function loadRazorpay(): Promise<boolean> {
+export function loadRazorpay(): Promise<boolean> {
   if (typeof window === "undefined") return Promise.resolve(false);
   if (window.Razorpay) return Promise.resolve(true);
 

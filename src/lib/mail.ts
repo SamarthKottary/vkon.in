@@ -276,6 +276,10 @@ export async function sendOrderPlacedMail(input: {
   to: string;
   name: string;
   orderNumber: string;
+  subtotal: string;
+  cgst: string;
+  sgst: string;
+  shipping: string | null;
   total: string;
   lines: { name: string; qty: number; amount: string }[];
   orderUrl: string;
@@ -288,13 +292,26 @@ export async function sendOrderPlacedMail(input: {
     )
     .join("");
 
+  const subtotalRow = `<tr><td style="padding:9px 0;border-bottom:1px solid ${LINE};font:400 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${BODY};">Subtotal</td>
+<td align="right" style="padding:9px 0;border-bottom:1px solid ${LINE};font:500 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${INK};white-space:nowrap;">${esc(input.subtotal)}</td></tr>`;
+  const cgstRow = `<tr><td style="padding:9px 0;border-bottom:1px solid ${LINE};font:400 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${BODY};">CGST 9%</td>
+<td align="right" style="padding:9px 0;border-bottom:1px solid ${LINE};font:500 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${INK};white-space:nowrap;">${esc(input.cgst)}</td></tr>`;
+  const sgstRow = `<tr><td style="padding:9px 0;border-bottom:1px solid ${LINE};font:400 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${BODY};">SGST 9%</td>
+<td align="right" style="padding:9px 0;border-bottom:1px solid ${LINE};font:500 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${INK};white-space:nowrap;">${esc(input.sgst)}</td></tr>`;
+  
+  const shippingRow = input.shipping
+    ? `<tr><td style="padding:9px 0;border-bottom:1px solid ${LINE};font:400 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${BODY};">Delivery</td>
+<td align="right" style="padding:9px 0;border-bottom:1px solid ${LINE};font:500 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${INK};white-space:nowrap;">${esc(input.shipping)}</td></tr>`
+    : `<tr><td style="padding:9px 0;border-bottom:1px solid ${LINE};font:400 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${BODY};">Delivery</td>
+<td align="right" style="padding:9px 0;border-bottom:1px solid ${LINE};font:500 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${INK};white-space:nowrap;">Quoted on our call</td></tr>`;
+
   const html = shell(
     `Order ${input.orderNumber} received`,
     paragraph(hello(input.name)) +
       paragraph(
         "We have your order. Our team will call you to confirm the details and arrange delivery.",
       ) +
-      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">${rows}
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">${rows}${subtotalRow}${cgstRow}${sgstRow}${shippingRow}
 <tr><td style="padding:12px 0;font:600 15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${INK};">Total</td>
 <td align="right" style="padding:12px 0;font:600 16px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${ACCENT};white-space:nowrap;">${esc(input.total)}</td></tr></table>` +
       button(input.orderUrl, "View this order"),
@@ -306,6 +323,10 @@ export async function sendOrderPlacedMail(input: {
     `We have your order ${input.orderNumber}. Our team will call you to confirm the details and arrange delivery.`,
     "",
     ...input.lines.map((line) => `  ${line.name} x ${line.qty}   ${line.amount}`),
+    `  Subtotal: ${input.subtotal}`,
+    `  CGST 9%: ${input.cgst}`,
+    `  SGST 9%: ${input.sgst}`,
+    `  Delivery: ${input.shipping || "Quoted on our call"}`,
     `  Total: ${input.total}`,
     "",
     input.orderUrl,

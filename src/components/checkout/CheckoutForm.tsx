@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import {
   AlertIcon,
@@ -24,6 +25,7 @@ import {
   type CheckoutState,
   type DeliveryQuoteState,
 } from "@/app/(site)/account/private-actions";
+import { loadRazorpay } from "@/components/checkout/PayNowButton";
 import type { DeliveryOption } from "@/lib/shiprocket";
 import type { Address, Product } from "@/lib/types";
 
@@ -66,9 +68,13 @@ export function CheckoutForm({
   const uid = useId();
   const formId = `${uid}-order`;
   const lines = useCartLines();
+  const router = useRouter();
   const [state, formAction] = useActionState<CheckoutState, FormData>(placeOrderAction, {
     status: "idle",
   });
+  const [paymentMode, setPaymentMode] = useState<"online" | "cod">("online");
+  const [payError, setPayError] = useState<string | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
 
   const preferred = () => addresses.find((a) => a.isDefault)?.id ?? addresses[0]?.id ?? "";
 
@@ -166,8 +172,9 @@ export function CheckoutForm({
    * elsewhere on the page.
    */
   const destinationId = sameAsBilling ? billingId : shippingId;
+  const destination = addresses.find((a) => a.id === destinationId);
   const cartKey = JSON.stringify(priced.map((line) => [line.slug, line.qty]));
-  const quoteKey = `${destinationId}|${cartKey}`;
+  const quoteKey = `${destinationId}|${destination?.postalCode}|${destination?.state}|${destination?.city}|${paymentMode}|${cartKey}`;
   const canQuote = Boolean(destinationId) && priced.length > 0;
 
   /**
@@ -223,6 +230,7 @@ export function CheckoutForm({
 
     quoteDeliveryAction({
       addressId: destinationId,
+      paymentMode,
       lines: JSON.parse(cartKey).map(([slug, qty]: [string, number]) => ({ slug, qty })),
     })
       .then((value) => {
@@ -234,6 +242,94 @@ export function CheckoutForm({
         if (seq === quoteSeq.current) setQuoted({ key, value: { status: "unavailable" } });
       });
   }, [canQuote, quoteKey, destinationId, cartKey]);
+
+  useEffect(() => {
+    if (state.status === "requires_payment" && state.orderId) {
+      let active = true;
+      (async () => {
+        setPayBusy(true);
+        setPayError(null);
+        try {
+          const ready = await loadRazorpay();
+          if (!ready) {
+            if (active) {
+              setPayError("Could not load the payment window. Check your connection and try again.");
+              setPayBusy(false);
+            }
+            return;
+          }
+
+          const response = await fetch("/api/payment/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: state.orderId }),
+          });
+
+          if (!response.ok) {
+            if (active) {
+              setPayError("Could not start the payment. Please try again.");
+              setPayBusy(false);
+            }
+            return;
+          }
+
+          const config = await response.json();
+          const razorpay = new window.Razorpay!({
+            key: config.key,
+            amount: config.amount,
+            currency: config.currency,
+            name: config.name,
+            description: config.description,
+            order_id: config.orderId,
+            prefill: config.prefill,
+            theme: { color: "#23703d" },
+            handler: async (result: any) => {
+              try {
+                const verify = await fetch("/api/payment/verify", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    orderId: state.orderId,
+                    razorpayOrderId: result.razorpay_order_id,
+                    razorpayPaymentId: result.razorpay_payment_id,
+                    signature: result.razorpay_signature,
+                  }),
+                });
+
+                if (!verify.ok) {
+                  setPayError("Your payment went through, but we could not confirm it here. It will update shortly.");
+                  setPayBusy(false);
+                  return;
+                }
+                router.push(`/account/orders/${state.orderId}?placed=${encodeURIComponent(config.orderNumber)}`);
+              } catch {
+                setPayError("Your payment went through, but we could not confirm it here. It will update shortly.");
+                setPayBusy(false);
+              }
+            },
+            modal: {
+              ondismiss: () => {
+                if (active) {
+                  setPayBusy(false);
+                  router.push(`/account/orders/${state.orderId}`);
+                }
+              },
+            },
+          });
+          razorpay.open();
+        } catch (err) {
+          console.error("[pay] failed:", err);
+          if (active) {
+            setPayError("Could not start the payment. Please try again.");
+            setPayBusy(false);
+          }
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }
+  }, [state, router]);
 
   if (lines === null) {
     /* Storage has not been read yet. Rendering "your cart is empty" for this
@@ -306,13 +402,13 @@ export function CheckoutForm({
   return (
     <div className="grid gap-10 lg:grid-cols-[1fr_22rem] lg:items-start lg:gap-12">
       <div className="min-w-0 space-y-10">
-        {state.status === "error" && state.message && (
+        {(state.status === "error" || payError) && (
           <p
             role="alert"
             className="flex items-start gap-2 border-l-2 border-red-600 bg-surface-subtle px-4 py-3 text-sm text-red-700"
           >
             <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
-            {state.message}
+            {payError || state.message}
           </p>
         )}
 
@@ -583,6 +679,57 @@ export function CheckoutForm({
           </div>
         </div>
 
+        <h2 className="border-b border-line pb-4 pt-4 text-lg font-bold uppercase tracking-wider text-ink mt-2">
+          Payment Method
+        </h2>
+        <div className="py-4 space-y-3">
+          <label
+            className={`flex cursor-pointer items-start gap-3 border p-4 transition-colors ${
+              paymentMode === "online"
+                ? "border-accent bg-accent-soft/40"
+                : "border-line hover:border-line-strong"
+            }`}
+          >
+            <input
+              type="radio"
+              name="paymentMode"
+              value="online"
+              checked={paymentMode === "online"}
+              onChange={() => setPaymentMode("online")}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+            />
+            <div>
+              <div className="font-semibold text-ink">Online Payment</div>
+              <div className="mt-1 text-sm text-muted">
+                Pay securely with UPI, Credit/Debit Cards, or Netbanking.
+              </div>
+            </div>
+          </label>
+
+          <label
+            className={`flex cursor-pointer items-start gap-3 border p-4 transition-colors ${
+              paymentMode === "cod"
+                ? "border-accent bg-accent-soft/40"
+                : "border-line hover:border-line-strong"
+            }`}
+          >
+            <input
+              type="radio"
+              name="paymentMode"
+              value="cod"
+              checked={paymentMode === "cod"}
+              onChange={() => setPaymentMode("cod")}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+            />
+            <div>
+              <div className="font-semibold text-ink">Cash on Delivery (COD)</div>
+              <div className="mt-1 text-sm text-muted">
+                Pay with cash when your order is delivered.
+              </div>
+            </div>
+          </label>
+        </div>
+
         {billing?.gstin && (
           <p className="border-t border-line pt-4 text-xs leading-relaxed text-muted">
             Invoiced to{" "}
@@ -590,7 +737,7 @@ export function CheckoutForm({
           </p>
         )}
 
-        <PlaceOrder disabled={!ready} />
+        <PlaceOrder disabled={!ready || payBusy} paymentMode={paymentMode} />
 
         {!ready && (
           <p className="mt-3 text-center text-sm text-muted">
@@ -806,18 +953,19 @@ function Row({
   );
 }
 
-function PlaceOrder({ disabled }: { disabled: boolean }) {
+function PlaceOrder({ disabled, paymentMode }: { disabled: boolean; paymentMode: "online" | "cod" }) {
   const { pending } = useFormStatus();
+  const busy = pending || disabled;
   return (
     <Button
       type="submit"
-      disabled={pending || disabled}
+      disabled={busy}
       size="lg"
       variant="accent"
       className="mt-6 w-full"
     >
-      {pending && <SpinnerIcon className="h-4 w-4" />}
-      {pending ? "Placing your order…" : "Place order"}
+      {busy && <SpinnerIcon className="h-4 w-4" />}
+      {pending ? "Processing…" : paymentMode === "online" ? "Pay Now" : "Place order"}
     </Button>
   );
 }

@@ -323,6 +323,7 @@ async function resolveDeliveryQuote(
   customerId: string,
   addressId: string,
   lines: { slug: string; qty: number }[],
+  isCOD: boolean = false,
 ): Promise<DeliveryQuoteState> {
   if (!isShiprocketConfigured() || !addressId || lines.length === 0) {
     return { status: "unavailable" };
@@ -344,6 +345,7 @@ async function resolveDeliveryQuote(
        box is quoting the wrong parcel. */
     parcel: packParcel(lines, products),
     declaredValuePaise: priced.reduce((sum, line) => sum + line.lineTotal, 0),
+    isCOD,
   });
 
   const shortlist = shortlistDeliveryOptions(options);
@@ -362,11 +364,12 @@ async function resolveDeliveryQuote(
  */
 export async function quoteDeliveryAction(input: {
   addressId: string;
+  paymentMode?: string;
   lines: { slug: string; qty: number }[];
 }): Promise<DeliveryQuoteState> {
   const customer = await requireCustomer();
   const lines = Array.isArray(input?.lines) ? input.lines.slice(0, 50) : [];
-  return resolveDeliveryQuote(customer.id, String(input?.addressId ?? ""), lines);
+  return resolveDeliveryQuote(customer.id, String(input?.addressId ?? ""), lines, input?.paymentMode === "cod");
 }
 
 /**
@@ -388,8 +391,9 @@ async function resolveChargedDelivery(
   addressId: string,
   lines: { slug: string; qty: number }[],
   courierId: number | null,
+  isCOD: boolean = false,
 ): Promise<DeliveryOption | null> {
-  const quote = await resolveDeliveryQuote(customerId, addressId, lines);
+  const quote = await resolveDeliveryQuote(customerId, addressId, lines, isCOD);
   if (quote.status !== "quoted") return null;
 
   const chosen =
@@ -402,8 +406,9 @@ async function resolveChargedDelivery(
 // ---------------------------------------------------------------------------
 
 export type CheckoutState = {
-  status: "idle" | "error";
+  status: "idle" | "error" | "requires_payment";
   message?: string;
+  orderId?: string;
 };
 
 /**
@@ -427,6 +432,7 @@ export async function placeOrderAction(
   const customer = await requireCustomer();
 
   const notes = String(formData.get("notes") ?? "").trim().slice(0, MAX.notes);
+  const paymentMode = String(formData.get("paymentMode") ?? "online");
 
   /* Billing first, shipping second -- the order the form asks in, and the
      order these are read in, so a half-filled submission fails on the field
@@ -514,6 +520,7 @@ export async function placeOrderAction(
       shippingId,
       lines,
       courierId,
+      paymentMode === "cod"
     );
     const money = totals(priced, delivery?.ratePaise ?? 0);
     const bySlug = new Map(products.map((p) => [p.slug, p]));
@@ -529,6 +536,7 @@ export async function placeOrderAction(
          the one way this feature can take money for something not delivered. */
       courierId: delivery?.courierId ?? null,
       courierName: delivery?.courierName ?? null,
+      paymentProvider: paymentMode === "cod" ? "cod" : null,
       items: priced.map((line) => {
         const product = bySlug.get(line.slug);
         return {
@@ -546,10 +554,18 @@ export async function placeOrderAction(
     orderId = order.id;
     orderNumber = order.orderNumber;
 
+    if (paymentMode === "online") {
+      return { status: "requires_payment", orderId };
+    }
+
     await sendOrderPlacedMail({
       to: customer.email,
       name: customer.name,
       orderNumber: order.orderNumber,
+      subtotal: formatPaise(order.subtotal),
+      cgst: formatPaise(order.cgst),
+      sgst: formatPaise(order.sgst),
+      shipping: order.shipping ? formatPaise(order.shipping) : null,
       total: formatPaise(order.total),
       lines: order.items.map((item) => ({
         name: item.name,

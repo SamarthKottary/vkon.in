@@ -151,6 +151,7 @@ export type NewOrder = {
   shipTo: ShipTo;
   billTo: ShipTo;
   notes: string;
+  paymentProvider?: string | null;
   /** The delivery service the customer chose and is being charged for. Null
    *  when no quote was possible and delivery is settled on the call. */
   courierId?: number | null;
@@ -195,8 +196,8 @@ export async function createOrder(input: NewOrder): Promise<Order> {
         const id = randomUUID();
         const inserted = await client.query<OrderRow>(
           `INSERT INTO orders
-             (id, order_number, customer_id, subtotal, cgst, sgst, shipping, total, ship_to, bill_to, notes, courier_id, courier_name)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             (id, order_number, customer_id, subtotal, cgst, sgst, shipping, total, ship_to, bill_to, notes, courier_id, courier_name, payment_provider)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            RETURNING ${ORDER_SELECT}`,
           [
             id,
@@ -212,6 +213,7 @@ export async function createOrder(input: NewOrder): Promise<Order> {
             input.notes,
             input.courierId ?? null,
             input.courierName ?? null,
+            input.paymentProvider ?? null,
           ],
         );
 

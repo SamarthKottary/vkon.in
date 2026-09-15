@@ -225,6 +225,7 @@ export async function quoteDelivery(input: {
   /** Paise. Shiprocket calls it `declared_value` and uses it for insurance
    *  banding, so it changes the rate on higher-value parcels. */
   declaredValuePaise: number;
+  isCOD?: boolean;
 }): Promise<DeliveryOption[]> {
   if (!isShiprocketConfigured()) return [];
 
@@ -240,10 +241,8 @@ export async function quoteDelivery(input: {
     length: String(Math.max(1, Math.round(input.parcel.lengthCm))),
     breadth: String(Math.max(1, Math.round(input.parcel.breadthCm))),
     height: String(Math.max(1, Math.round(input.parcel.heightCm))),
-    /* Prepaid, always. This site takes payment online or settles on a call;
-       there is no cash-on-delivery flow, and asking for COD rates would return
-       couriers that cannot be booked. */
-    cod: "0",
+    /* COD rates are typically different, so pass 1 if the user chose Cash on Delivery */
+    cod: input.isCOD ? "1" : "0",
     declared_value: Math.round(input.declaredValuePaise / 100).toString(),
   });
 
@@ -377,6 +376,7 @@ export type BookingInput = {
   parcel: { weightGrams: number; lengthCm: number; breadthCm: number; heightCm: number };
   /** The service the customer chose and paid for, if any. */
   courierId?: number | null;
+  isCOD?: boolean;
 };
 
 export type Booking = {
@@ -460,7 +460,7 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
       selling_price: Math.round(item.unitPrice / 100),
     })),
 
-    payment_method: "Prepaid",
+    payment_method: input.isCOD ? "COD" : "Prepaid",
     sub_total: Math.round(input.subtotal / 100),
 
     /* The same box the rate was quoted on — `lib/parcel.ts` computes it once
