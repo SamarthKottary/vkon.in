@@ -36,32 +36,40 @@ export function FloatingContact() {
   const [footerRowVisible, setFooterRowVisible] = useState(false);
 
   useEffect(() => {
-    let observer: IntersectionObserver;
-    let interval: ReturnType<typeof setInterval>;
+    let animationFrameId: number;
 
-    const tryObserve = () => {
+    const checkFooter = () => {
       const footerRow = document.querySelector("[data-footer-social-row]");
-      if (!footerRow) return false;
-
-      observer = new IntersectionObserver(
-        ([entry]) => setFooterRowVisible(entry.isIntersecting),
-        { threshold: 0 },
-      );
-      observer.observe(footerRow);
-      return true;
+      const main = document.getElementById("main");
+      
+      if (footerRow && main) {
+        const rowRect = footerRow.getBoundingClientRect();
+        const mainRect = main.getBoundingClientRect();
+        
+        // Because of the "curtain reveal" layout, the footer is always physically in the viewport,
+        // but hidden behind `main`. It only becomes visually exposed when the bottom of `main` 
+        // scrolls UP past it. We trigger the move when main no longer fully covers the row.
+        setFooterRowVisible(mainRect.bottom <= rowRect.bottom);
+      }
     };
 
-    if (!tryObserve()) {
-      interval = setInterval(() => {
-        if (tryObserve()) {
-          clearInterval(interval);
-        }
-      }, 500);
-    }
+    const handleScroll = () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(checkFooter);
+    };
+
+    // Initial check (in case it's already in view on load)
+    checkFooter();
+    // Sometimes fonts/images load and shift layout, so check a bit later too
+    setTimeout(checkFooter, 500);
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll, { passive: true });
 
     return () => {
-      if (interval) clearInterval(interval);
-      if (observer) observer.disconnect();
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
