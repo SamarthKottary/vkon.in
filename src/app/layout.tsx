@@ -84,6 +84,7 @@ export default function RootLayout({
     <html
       lang="en-IN"
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
       className={`${inter.variable} ${plexMono.variable} h-full antialiased`}
     >
       <head>

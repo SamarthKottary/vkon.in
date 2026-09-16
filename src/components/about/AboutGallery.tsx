@@ -240,6 +240,13 @@ export function AboutGallery({
   const advance = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
+
+    /* Safety guard: Never call scrollBy when the gallery is not physically
+       visible inside the viewport. Off-screen scrollBy triggers browser
+       scroll-into-view anchoring and scrolls the entire page. */
+    const rect = el.getBoundingClientRect();
+    if (rect.top >= window.innerHeight || rect.bottom <= 0) return;
+
     const step = stride();
 
     /* Pre-corrects rather than waiting for the settle timer, so autoplay
@@ -271,10 +278,7 @@ export function AboutGallery({
 
   /* A background *tab* still fires timers (throttled, not stopped), so
      without this the belt keeps stepping unseen and a visitor returning to
-     the tab lands mid-image rather than where they left it. Not the same
-     thing as the scroll-visibility gate this replaced — see the note on the
-     component for why that one is gone and this one is not. Same pattern as
-     `home/FeaturedProducts`. */
+     the tab lands mid-image rather than where they left it. */
   const [tabHidden, setTabHidden] = useState(false);
   useEffect(() => {
     const onVisibility = () => setTabHidden(document.hidden);
@@ -282,7 +286,25 @@ export function AboutGallery({
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
-  const running = !reduced && !tabHidden && images.length > 1;
+  /* Only run autoplay while the gallery is in view. Running scrollBy on an
+     off-screen element causes browsers to scroll the entire window down to
+     bring the animated element into view on page load. */
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        setInView(Boolean(entry?.isIntersecting));
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const running = !reduced && !tabHidden && inView && images.length > 1;
 
   useEffect(() => {
     if (!running) return;

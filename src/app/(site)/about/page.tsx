@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { AboutGallery, type GalleryImage } from "@/components/about/AboutGallery";
+import { AboutScrollReset } from "@/components/about/AboutScrollReset";
 import {
   SocialProfileCard,
   type SocialProfile,
@@ -166,6 +167,7 @@ const PROFILES: SocialProfile[] = PROFILE_ORDER.flatMap((key) => {
 export default function AboutPage() {
   return (
     <>
+      <AboutScrollReset />
       {/* The masthead pins and everything under it rises over it as one
           sheet — the same curtain the home page's hero carries (client:
           "Lets have curtain going up feature for about us and contact us
@@ -189,14 +191,16 @@ export default function AboutPage() {
           same heights as /contact, so the two mastheads read as a pair. */}
       {/* Masthead pins at z-0 */}
       <section className="sticky top-0 z-0 isolate overflow-hidden">
-        <Image
-          src="/aboutus-background.jpg"
-          alt=""
-          fill
-          sizes="100vw"
-          priority
-          className="-z-10 object-cover"
-        />
+        <div className="absolute inset-0 -z-10">
+          <Image
+            src="/aboutus-background.jpg"
+            alt=""
+            fill
+            sizes="100vw"
+            priority
+            className="object-cover"
+          />
+        </div>
 
         <div aria-hidden className="absolute inset-0 -z-10 bg-scrim/45 lg:bg-transparent" />
         <div
