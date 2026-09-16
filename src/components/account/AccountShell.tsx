@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { LogoutIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
+import { PageHero, SECTION_BACKGROUND } from "@/components/layout/PageHero";
 import { accountNav } from "@/content/nav";
 import { logoutAction } from "@/app/(site)/account/actions";
 import type { Customer } from "@/lib/types";
@@ -25,29 +25,27 @@ export function AccountShell({
   const first = customer.name.trim().split(/\s+/)[0];
 
   return (
-    <section className="py-10 sm:py-12 lg:py-16">
+    <>
+      {/* One band for every page in this section — My account, Order history,
+          Addresses and a single order all render through this shell, so they
+          cannot end up with two different headings (client, 2026-09-16).
+
+          The greeting stays the title rather than a generic "My account": it
+          is what was here before, and it is the one line on these pages that
+          is about the person rather than the paperwork. */}
+      <PageHero
+        compact
+        background={SECTION_BACKGROUND}
+        priority
+        breadcrumb={[{ label: "Home", href: "/" }]}
+        title={first ? `Hello, ${first}` : "My account"}
+        description="Your orders, addresses and details."
+      />
+
+      {/* Pushes the header up once the band is past — see `Header`. */}
+      <section data-curtain className="relative bg-surface py-10 sm:py-12 lg:py-16">
       <Container size="wide">
-        <nav aria-label="Breadcrumb">
-          <ol className="label-tech flex flex-wrap items-center gap-2 text-muted">
-            <li>
-              <Link href="/" className="hover:text-ink">
-                Home
-              </Link>
-            </li>
-            <li aria-hidden>/</li>
-            <li aria-current="page">My account</li>
-          </ol>
-        </nav>
-
-        {/* The greeting steps down on small screens rather than holding the
-            page's `2rem`. On a 390px phone that heading plus the address below
-            it pushed the actual content — an order, an address form — most of
-            a screen down, on every page in this section. */}
-        <h1 className="mt-6 text-[1.625rem] leading-tight sm:mt-8 sm:text-[2rem] lg:text-[2.5rem]">
-          {first ? `Hello, ${first}` : "My account"}
-        </h1>
-
-        <div className="mt-8 grid gap-8 lg:mt-10 lg:grid-cols-[15rem_1fr] lg:gap-12">
+        <div className="grid gap-8 lg:grid-cols-[15rem_1fr] lg:gap-12">
           {/* **`min-w-0` is load-bearing.** A grid item defaults to
               `min-width: auto`, which means it refuses to shrink below its
               content's intrinsic width — so the scrolling chip row inside
@@ -82,6 +80,7 @@ export function AccountShell({
           <div className="min-w-0">{children}</div>
         </div>
       </Container>
-    </section>
+      </section>
+    </>
   );
 }

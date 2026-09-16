@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckoutForm } from "@/components/checkout/CheckoutForm";
 import { Container } from "@/components/ui/Container";
+import { PageHero, SECTION_BACKGROUND } from "@/components/layout/PageHero";
 import { getCurrentCustomer } from "@/lib/account";
 import { listAddresses } from "@/lib/db/addresses";
 import { listProducts } from "@/lib/db/products";
@@ -47,37 +47,24 @@ export default async function CheckoutPage() {
   ]);
 
   return (
-    <section className="py-12 sm:py-14 lg:py-16">
-      <Container size="wide">
-        <nav aria-label="Breadcrumb">
-          <ol className="label-tech flex flex-wrap items-center gap-2 text-muted">
-            <li>
-              <Link href="/" className="hover:text-ink">
-                Home
-              </Link>
-            </li>
-            <li aria-hidden>/</li>
-            <li>
-              <Link href="/cart" className="hover:text-ink">
-                Cart
-              </Link>
-            </li>
-            <li aria-hidden>/</li>
-            <li aria-current="page">Checkout</li>
-          </ol>
-        </nav>
+    <>
+      <PageHero
+        compact
+        background={SECTION_BACKGROUND}
+        priority
+        breadcrumb={[
+          { label: "Home", href: "/" },
+          { label: "Cart", href: "/cart" },
+        ]}
+        title="Checkout"
+        description="Confirm the addresses and what is in your order — we call before dispatch."
+      />
 
-        <h1 className="mt-6 text-[1.75rem] leading-tight sm:mt-8 sm:text-[2rem] lg:text-[2.5rem]">
-          Checkout
-        </h1>
-        {/* The address is its own line and quieter than the sentence. Run
-            together at body size it was four lines on a 390px phone before the
-            first thing the customer has to *do*, and most of it was an email
-            address they already know. */}
-        <p className="mt-3 max-w-xl text-sm leading-relaxed text-body sm:text-base">
-          Confirm who this is billed to, where it goes, and what is in it — we
-          will call you to confirm before anything is dispatched.
-        </p>
+      {/* `data-curtain` is what pushes the header up once the band has
+          scrolled by — see the note in `Header`. It marks the sheet of content
+          below the image, not the image itself. */}
+      <section data-curtain className="relative bg-surface py-12 sm:py-14 lg:py-16">
+        <Container size="wide">
         <p className="mt-1.5 break-all text-xs text-muted sm:text-sm">
           Signed in as {customer.email}
         </p>
@@ -85,7 +72,8 @@ export default async function CheckoutPage() {
         <div className="mt-8 sm:mt-10">
           <CheckoutForm products={products} addresses={addresses} />
         </div>
-      </Container>
-    </section>
+        </Container>
+      </section>
+    </>
   );
 }

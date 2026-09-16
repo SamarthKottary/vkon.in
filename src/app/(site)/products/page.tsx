@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ContactStrip } from "@/components/home/ContactStrip";
-import { PageHero } from "@/components/layout/PageHero";
+import { PageHero, SECTION_BACKGROUND } from "@/components/layout/PageHero";
 import { PageTop } from "@/components/layout/PageTop";
 import { ProductCatalogue } from "@/components/product/ProductCatalogue";
 import { Container } from "@/components/ui/Container";
@@ -36,28 +36,26 @@ export default async function ProductsPage() {
           "Every panel we build" was the title until the same date and it
           undersold the range: cables, accessories, auto-start units and the
           home-automation lighting are not panels. */}
-      {/* Pinned so the catalogue below rises over it as a curtain — the
-          same treatment as the home hero and the about/contact mastheads
-          (client: "the same moving up curtain on all products page, where
-          it moves over everything we build section").
+      {/* **Static, not pinned** (client, 2026-09-16: "remove the curtain
+          feature in all product page where the product cards section moves up,
+          keep the all products page static"). The masthead was `sticky top-0`
+          with the catalogue rising over it; it now scrolls away like any other
+          heading, which is also what cart, checkout and the account pages do
+          with the same band. */}
+      <PageHero
+        compact
+        background={SECTION_BACKGROUND}
+        priority
+        eyebrow="Catalogue"
+        title="Everything we build"
+        description="Motor starters, industrial panels, solar, cables and home automation — filter by category, sub-category or motor rating."
+      />
 
-          Plain `top-0`, no negative-offset arithmetic: this masthead is
-          `compact` and measures 201–227px across every width tested, so it
-          never approaches even a short phone's viewport height the way the
-          full-height hero does. `PageHero` itself is untouched — this is an
-          external wrapper, same approach as the home page's `Hero`. */}
-      <div className="sticky top-0 z-0">
-        <PageHero
-          compact
-          eyebrow="Catalogue"
-          title="Everything we build"
-          description="Motor starters, industrial panels, solar, cables and home automation — filter by category, sub-category or motor rating."
-        />
-      </div>
-
-      {/* The curtain sheet — opaque `bg-surface` over the pinned masthead,
-          `z-10` above its `z-0`. */}
-      <div data-curtain className="relative z-10 bg-surface">
+      {/* `data-curtain` stays, and it is no longer about the curtain effect:
+          it is the element whose leading edge pushes the header up, which the
+          client asked to keep. `Header` only needs this marker and its
+          position — it never required the masthead to be pinned. */}
+      <div data-curtain className="relative bg-surface">
         <div className="py-10 sm:py-12">
           <Container size="wide">
             {products.length === 0 ? (

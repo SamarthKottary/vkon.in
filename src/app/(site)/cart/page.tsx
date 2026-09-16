@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { CartList } from "@/components/cart/CartList";
 import { Container } from "@/components/ui/Container";
+import { PageHero, SECTION_BACKGROUND } from "@/components/layout/PageHero";
 import { listProducts } from "@/lib/db/products";
 import { pageMetadata } from "@/lib/seo";
 
@@ -22,30 +22,24 @@ export default async function CartPage() {
   const products = await listProducts();
 
   return (
-    <section className="py-12 sm:py-14 lg:py-16">
-      <Container size="wide">
-        <nav aria-label="Breadcrumb">
-          <ol className="label-tech flex flex-wrap items-center gap-2 text-muted">
-            <li>
-              <Link href="/" className="hover:text-ink">
-                Home
-              </Link>
-            </li>
-            <li aria-hidden>/</li>
-            <li aria-current="page">Cart</li>
-          </ol>
-        </nav>
+    <>
+      <PageHero
+        compact
+        background={SECTION_BACKGROUND}
+        priority
+        breadcrumb={[{ label: "Home", href: "/" }]}
+        title="Cart"
+        description="Kept on this device only — nothing is sent to us until you ask for a quote."
+      />
 
-        <h1 className="mt-8 text-[2rem] leading-tight sm:text-[2.5rem]">Cart</h1>
-        <p className="mt-3 max-w-xl leading-relaxed text-body">
-          Kept on this device only — nothing is sent to us until you ask for a
-          quote.
-        </p>
-
-        <div className="mt-10">
+      {/* Pushes the header up once the band is past — see `Header`. */}
+      <section data-curtain className="relative bg-surface py-12 sm:py-14 lg:py-16">
+        <Container size="wide">
+        <div>
           <CartList products={products} />
         </div>
-      </Container>
-    </section>
+        </Container>
+      </section>
+    </>
   );
 }

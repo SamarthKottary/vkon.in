@@ -118,3 +118,17 @@ vkon-project-package.*
 # 2026-09-10 recovery — the same hazard the "nested repos" note below warns
 # about, so it is named explicitly.
 /vkon.in/
+
+# Stock artwork as delivered. Each of these folders is an EPS plus a
+# multi-megabyte JPEG — 19 MB and 14 MB respectively — and this repo is PUBLIC,
+# so `git add -A` would push 33 MB of licensed source art to GitHub. They stay
+# local so a background can be re-exported at a different size; what ships is
+# the resized JPEG in `public/` beside the other backgrounds.
+#
+# Put any future stock download in `art-source/` and it is ignored automatically.
+abstract-round-particles-dark-background-with-mesh-structures/
+point-wave-diagonal-texture-abstract-dot-background-technological-cyberspace-background/
+art-source/
+
+# The same, for stock art that arrives as a loose file rather than a folder.
+artistic-background-wallpaper-with-color-halftone-effect.jpg

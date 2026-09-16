@@ -939,7 +939,10 @@ the viewport; `clip` creates no scrollport. `overflow-y` stays `visible`,
 which the featured cards need in order to pop above their row.
 
 **Every page whose first element is `sticky` must render `<PageTop />` above
-it.** That is all four curtain pages — `/`, `/about`, `/contact`, `/products`.
+it.** That is `/`, `/about` and `/contact`. `/products` keeps it too, harmlessly:
+its masthead stopped pinning on 2026-09-16, so Next would now find a correct
+target either way, and leaving the marker in place costs nothing and survives
+the masthead being pinned again.
 On each navigation Next picks one element and scrolls it into view, and
 `shouldSkipElement` deliberately skips `sticky` and `fixed` ones as "likely to
 pass the in-viewport check". Here the curtain *is* the top of the page, so Next
@@ -1107,8 +1110,12 @@ recovery.
 **A curtain sheet must carry `data-curtain`, and a page must have at most one.**
 `layout/Header` finds it with a single `document.querySelector` per navigation
 and reads its leading edge on every scroll frame; that edge is what pushes the
-header off the top, so the sheet on `/`, `/products`, `/about` and `/contact`
-each carry the attribute. Drop it and that page silently reverts to the plain
+header off the top. `/`, `/about` and `/contact` carry it on the sheet that
+rises over their pinned hero; `/products`, `/cart`, `/checkout` and the account
+shell carry it on the block of content below their heading band, which does not
+pin (2026-09-16). **The attribute is about the header, not about the curtain
+effect** — a page can push the header without anything sliding over anything.
+Drop it and that page silently reverts to the plain
 hide-on-scroll-down behaviour — no error, just a header that leaves while the
 hero is still on screen, which is the thing the client asked to stop. Add a
 second one on the same page and the header follows whichever the query returns
@@ -1502,6 +1509,66 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-16 (design) — One dark masthead band across products, cart, checkout and the account pages
+
+Client supplied a particle-mesh artwork and asked for it behind the heading on
+the catalogue, and for cart, checkout, My account and Order history to gain the
+same kind of headed section that `/products`, `/about` and `/contact` already
+have.
+
+- `PageHero` grew `background` and `priority`. With a background it becomes a
+  dark band — image, flat scrim, a left-deepening gradient, the rule grid, and
+  band tokens for the type — which is the recipe `/about` and `/contact` were
+  already using inline. One component now, so five pages cannot drift, and the
+  scrim that makes white text readable over a mesh with bright nodes lives in
+  one place.
+- It also closes the breadcrumb with the page's own title, taken from `title`
+  rather than passed twice. `/protection`, the only previous user of the
+  breadcrumb, gains that crumb too.
+- `/cart`, `/checkout` and `AccountShell` lost their hand-rolled
+  breadcrumb-and-`h1` blocks in favour of it. The account band is in the shell,
+  so My account, Order history, Addresses and a single order all share it
+  rather than two of the four looking different.
+- **Behind the heading only, not behind the whole catalogue** — asked and
+  answered before building. Cards keep the ordinary page surface, so product
+  photos, prices and the Add button keep their contrast.
+
+**Two artworks were tried and the green one kept.** A particle mesh went in
+first; the client asked to compare it against a colour-halftone wallpaper and
+chose that one, so `public/section-background-halftone.jpg` ships and the
+particle export was deleted. The deciding difference was the phone: the mesh's
+detail sits on the right of the frame and is cropped away at 390px, leaving a
+plain black band on the device most of these customers use, while the halftone
+pattern fills the frame at every width. It costs 1.3 MB against the mesh's
+460 KB — halftone dots are fine detail and compress badly — which is in line
+with the heaviest existing background and worth revisiting if it shows.
+
+**No artwork is committed as delivered.** The sources are a 14.5 MB EPS, a
+5.1 MB 7801×4001 JPEG and a 5.3 MB 6016×4016 JPEG, and this repo is public;
+what ships is a 2400px re-export. Both stock folders and the loose JPEG are
+gitignored, along with a new `art-source/` for future ones. A site built for
+rural phones cannot ship a 5 MB masthead.
+
+**Follow-up the same day, all four from the client:**
+
+- **The band has a floor** (`min-h-[13rem]`, contents centred). Checkout's
+  description ran to a second line, so its band stood 26px taller than cart and
+  52px taller than the account pages on a phone. All five now measure 209px at
+  both 1280px and 390px, and checkout's description was shortened to earn it.
+- **`/products` no longer pins.** The masthead was `sticky top-0` with the
+  catalogue rising over it as a curtain; it now scrolls away like any other
+  heading. The `data-curtain` marker stays, because the client wanted to keep
+  the header push — and that only ever needed the marker and its position, not
+  a pinned masthead.
+- **`/cart`, `/checkout` and the account shell gained the same marker**, so the
+  header is pushed up as their content reaches it, which is what the pinned
+  pages already did.
+
+Verified in a browser at 1280px and 390px, light and dark: the image renders on
+all five pages, no horizontal overflow anywhere, the type stays legible, every
+band measures the same, `/products` scrolls away rather than pinning, and the
+header is still pushed up on all four.
 
 ### 2026-09-16 (accounts) — A sign-in code on unrecognised browsers, a password for Google-only accounts, and no auto sign-in after a reset
 
