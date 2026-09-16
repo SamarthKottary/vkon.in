@@ -1187,6 +1187,12 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
   const advance = () => {
     const el = trackRef.current;
     if (!el) return;
+    /* Safety guard: Do not scroll when the carousel is not visible in the
+       viewport. Off-screen scrollBy triggers browser scroll-into-view anchoring
+       and automatically scrolls the whole page down to this section. */
+    const rect = el.getBoundingClientRect();
+    if (rect.top >= window.innerHeight || rect.bottom <= 0) return;
+
     runPopProgressLoop();
     schedulePopProgressStop(700);
     correctSeam();
