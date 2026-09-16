@@ -104,6 +104,9 @@ export function PasswordCard({ hasGoogle, hasPassword }: { hasGoogle: boolean; h
           <PasswordField
             label={hasPassword ? "New password" : "Password"}
             error={state.fieldErrors?.password}
+            confirm
+            confirmLabel={hasPassword ? "Confirm new password" : "Confirm password"}
+            confirmError={state.fieldErrors?.confirmPassword}
           />
 
           <div className="flex flex-wrap items-center gap-3">

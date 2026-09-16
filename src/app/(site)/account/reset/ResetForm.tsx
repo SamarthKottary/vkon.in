@@ -39,7 +39,14 @@ export function ResetForm({ token }: { token: string }) {
         </p>
       )}
 
-      <PasswordField label="New password" error={error} autoFocus />
+      <PasswordField
+        label="New password"
+        error={error}
+        autoFocus
+        confirm
+        confirmLabel="Confirm new password"
+        confirmError={state.fieldErrors?.confirmPassword}
+      />
 
       <Save />
 

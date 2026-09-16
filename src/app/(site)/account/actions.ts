@@ -21,6 +21,7 @@ import {
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { normaliseEmail } from "@/lib/db/subscribers";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
+import { confirmationProblem } from "@/lib/password-policy";
 import { isMailConfigured, sendPasswordResetMail, sendSignInCodeMail, sendWelcomeMail } from "@/lib/mail";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { safeNext } from "@/lib/google";
@@ -167,6 +168,12 @@ export async function registerAction(
   if (!email) fieldErrors.email = "That does not look like an email address.";
   const passwordIssue = passwordProblem(password);
   if (passwordIssue) fieldErrors.password = passwordIssue;
+
+  /* Checked here and not only in the browser: the second box is an ordinary
+     form field, and a request that simply omits it would otherwise set a
+     password nobody has confirmed. */
+  const confirmIssue = confirmationProblem(password, String(formData.get("confirmPassword") ?? ""));
+  if (!passwordIssue && confirmIssue) fieldErrors.confirmPassword = confirmIssue;
 
   /* Echoed back on every error return below. See the note on `AuthState`. */
   const typed = { name, phone, email: email ?? String(formData.get("email") ?? "").trim() };
@@ -612,6 +619,16 @@ export async function resetPasswordAction(
       form: "reset",
       message: issue,
       fieldErrors: { password: issue },
+    };
+  }
+
+  const mismatch = confirmationProblem(password, String(formData.get("confirmPassword") ?? ""));
+  if (mismatch) {
+    return {
+      status: "error",
+      form: "reset",
+      message: mismatch,
+      fieldErrors: { confirmPassword: mismatch },
     };
   }
 

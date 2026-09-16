@@ -17,6 +17,7 @@ import {
   updateCustomerProfile,
 } from "@/lib/db/customers";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
+import { confirmationProblem } from "@/lib/password-policy";
 import { trustThisDevice } from "@/lib/signin-challenge";
 import { createOrder } from "@/lib/db/orders";
 import { listProducts } from "@/lib/db/products";
@@ -195,6 +196,17 @@ export async function setPasswordAction(
       status: "error",
       message: issue,
       fieldErrors: { password: issue },
+    };
+  }
+
+  /* The same check the other two password forms make — see
+     `confirmationProblem`. The browser's live hint is help, not the gate. */
+  const mismatch = confirmationProblem(password, String(formData.get("confirmPassword") ?? ""));
+  if (mismatch) {
+    return {
+      status: "error",
+      message: mismatch,
+      fieldErrors: { confirmPassword: mismatch },
     };
   }
 

@@ -1527,6 +1527,13 @@ Four client requests in one pass.
 - The code is hashed into `customer_tokens` salted with the customer id, which
   is what keeps a million possible codes from colliding on a UNIQUE column, and
   makes a code worthless against any other account.
+- **Every form that *chooses* a password now asks for it twice** — register,
+  reset, and set-or-change on the account page. `PasswordField` grew a
+  `confirm` prop posting `confirmPassword`; `confirmationProblem` in
+  `lib/password-policy.ts` is the one rule all three actions call, so they
+  cannot drift, and it is checked server-side because the second box is an
+  ordinary form field a request can simply omit. Sign-in is deliberately left
+  alone: there is nothing to mistype against there.
 
 Verified end to end against a real browser and the database, 21 checks:
 registration issues no code and trusts its own browser; that browser signs in
@@ -1540,6 +1547,12 @@ and clears trusted devices.
 **Caught during the work, and now a §9 constraint:** `export const CODE_PAGE`
 in a `"use server"` file made Next drop every action in the module, reported as
 a missing `registerAction`.
+
+**A second bug the flow tests caught:** the confirm box first showed the
+server's rejection until the *next* submit, so somebody who fixed the mismatch
+still read "Both entries must be the same" over two boxes that now matched.
+What is typed now outranks the last response; the colour still comes from the
+server's verdict, so a corrected field reads as a correction.
 
 ### 2026-09-16 (layout) — Horizontal scrollbar on every page: `main` gains `overflow-x-clip`
 

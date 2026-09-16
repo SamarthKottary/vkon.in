@@ -283,7 +283,7 @@ function RegisterForm({ next }: { next: string }) {
           after a failed submit — see the note on `PasswordField`. It reads the
           rules from `lib/password.ts`, which is what the action validates
           with, so the two cannot disagree. */}
-      <PasswordField error={error("password")} />
+      <PasswordField error={error("password")} confirm confirmError={error("confirmPassword")} />
 
       <Honeypot />
 

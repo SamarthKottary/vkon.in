@@ -104,3 +104,23 @@ export function passwordStrength(password: string): 0 | 1 | 2 | 3 | 4 {
   if (password.length >= 12 && distinct >= 8) return 3;
   return 2;
 }
+
+/**
+ * Whether the two boxes agree, for the forms that ask for a password twice —
+ * register, reset, and set-or-change on the account page.
+ *
+ * Lives here rather than in each action so all three say the same thing, and
+ * here rather than in `lib/password.ts` because it is pure string comparison:
+ * that module pulls in `node:crypto` and cannot be imported by a client
+ * component. `PasswordField` shows its own live hint while typing; this is the
+ * check that actually decides, because the second box is a plain form field
+ * and a request can simply omit it.
+ */
+export const PASSWORD_MISMATCH = "Both entries must be the same.";
+
+export function confirmationProblem(
+  password: string,
+  confirmation: string,
+): string | null {
+  return password === confirmation ? null : PASSWORD_MISMATCH;
+}

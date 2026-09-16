@@ -42,6 +42,9 @@ export function PasswordField({
   error,
   required = true,
   autoFocus = false,
+  confirm = false,
+  confirmLabel = "Confirm password",
+  confirmError,
 }: {
   name?: string;
   label?: string;
@@ -49,9 +52,16 @@ export function PasswordField({
   error?: string;
   required?: boolean;
   autoFocus?: boolean;
+  /** Adds a second box that has to match, posted as `confirmPassword`. On by
+   *  request wherever a password is *chosen* (client, 2026-09-16); never on
+   *  sign-in, where there is nothing to mistype against. */
+  confirm?: boolean;
+  confirmLabel?: string;
+  confirmError?: string;
 }) {
   const uid = useId();
   const [value, setValue] = useState("");
+  const [again, setAgain] = useState("");
   const [revealed, setRevealed] = useState(false);
   /** The checklist appears once they start, not on a pristine form — five
    *  unticked requirements under an empty box reads as five errors. */
@@ -119,6 +129,76 @@ export function PasswordField({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {confirm && (
+        <div className="mt-5">
+          <label
+            htmlFor={`${uid}-again`}
+            className="label-tech block text-xs font-semibold uppercase tracking-wider text-muted"
+          >
+            {confirmLabel}
+            {required && <span className="ml-1 text-accent">*</span>}
+          </label>
+
+          <input
+            id={`${uid}-again`}
+            name="confirmPassword"
+            /* Follows the reveal above rather than having its own: two
+               independent Show buttons on one pair of boxes is a puzzle, and
+               the point of revealing is to compare them. */
+            type={revealed ? "text" : "password"}
+            autoComplete={autoComplete}
+            required={required}
+            maxLength={PASSWORD_MAX}
+            value={again}
+            onChange={(e) => setAgain(e.target.value)}
+            aria-describedby={again ? `${uid}-match` : undefined}
+            aria-invalid={(again.length > 0 ? again !== value : Boolean(confirmError)) || undefined}
+            className={`${fieldInput(confirmError)} mt-2`}
+          />
+
+          {/* Said as soon as there is something to say, so a mistype is caught
+              at the keyboard rather than by a round trip. The server checks it
+              again regardless — this is help, not the gate.
+
+              **What is typed now outranks what the server last said.** Holding
+              on to a rejected submit's error while somebody fixes the box
+              leaves them staring at "must be the same" over two boxes that now
+              do match, with no way to tell whether it worked — found by a flow
+              test doing exactly that. The colour still comes from the server's
+              verdict, so a corrected field reads as a correction rather than
+              as fresh praise. */}
+          {(confirmError || again.length > 0) && (
+            <p
+              id={`${uid}-match`}
+              className={`mt-2 flex items-center gap-2 text-sm ${
+                again.length === 0 || again !== value
+                  ? confirmError
+                    ? "text-red-700"
+                    : "text-muted"
+                  : "text-accent"
+              }`}
+            >
+              {again.length > 0 && again === value ? (
+                <>
+                  <CheckIcon className="h-4 w-4 shrink-0" />
+                  Both entries match.
+                </>
+              ) : again.length > 0 ? (
+                <>
+                  <CloseIcon className={`h-4 w-4 shrink-0 ${confirmError ? "" : "opacity-50"}`} />
+                  These do not match yet.
+                </>
+              ) : (
+                <>
+                  <CloseIcon className="h-4 w-4 shrink-0" />
+                  {confirmError}
+                </>
+              )}
+            </p>
+          )}
         </div>
       )}
     </Field>
