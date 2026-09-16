@@ -459,7 +459,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
             — see the component note. No more `lg:grid` column split to sit
             inside: with the rail gone, this results block is the only
             column there is. */}
-        <div className="mb-8 flex items-center gap-3">
+        <div className="sticky top-16 z-30 -mx-1 mb-8 flex items-center gap-3 bg-surface px-1 py-3">
           <div className="relative z-20 flex-1">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 [transform:translateY(-50%)] text-muted" />
             <input
