@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
 import { SearchIcon, SpinnerIcon } from "@/components/icons/ui";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -459,7 +460,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
             — see the component note. No more `lg:grid` column split to sit
             inside: with the rail gone, this results block is the only
             column there is. */}
-        <div className="sticky top-16 z-30 -mx-1 mb-8 flex items-center gap-3 bg-surface px-1 py-3">
+        <div className="mb-8 flex items-center gap-3">
           <div className="relative z-20 flex-1">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 [transform:translateY(-50%)] text-muted" />
             <input
@@ -593,7 +594,7 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
           backdrop still close it; body scroll is locked while it is
           mounted for the same reason a background that keeps scrolling
           behind a panel reads as broken. */}
-      {panelMounted && (
+      {panelMounted && createPortal(
         <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Filters">
           {/* Real, clickable space at every width — closes on a click on
               the dimmed area either past the mobile sheet's top edge or the
@@ -688,7 +689,8 @@ export function ProductCatalogue({ products }: { products: Product[] }) {
               <FilterPanel {...panelProps} />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
