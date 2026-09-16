@@ -236,6 +236,8 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `account/AccountMenu` | Dropdown state, outside-click, Escape. Takes the customer as a prop — the layout reads it on the server |
 | `account/AccountNavLink` | `usePathname`, to mark the current page. The only client part of `AccountShell`, which is otherwise a server component |
 | `account/ProfileForm` · `AddressForm` | `useActionState`, per-field errors |
+| `account/PasswordCard` | Sets a first password or changes one; collapsed until asked for |
+| `account/verify-code/CodeForm` | The sign-in code, with its own resend and cancel actions |
 | `account/AddressBook` | Which card is being edited; `confirm()` before delete |
 | `cart/CartDrawer` | Slide-over state, Escape, body scroll lock |
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
@@ -598,6 +600,13 @@ is the only module that touches it; `saveCustomerCart`'s
 primary key rather than a separate id column — there is at most one row per
 customer, so nothing else needs to distinguish rows.
 
+**`customer_trusted_devices`, added 2026-09-16**, is the browsers an account
+has already answered a sign-in code on. The cookie holds the token, this holds
+its hash salted with the customer id, and both have to agree — so trust can be
+revoked centrally, which is the same reason sessions are rows. Salted because
+one browser can be used by two accounts and `token_hash` is UNIQUE: hashing the
+token alone would let the second account's row take over the first's.
+
 **Foreign keys exist only inside the account cluster**, and each one's
 `ON DELETE` is a decision rather than a default:
 
@@ -606,6 +615,7 @@ customer, so nothing else needs to distinguish rows.
 | `customer_sessions` | `customers` | CASCADE | a session without an account is nothing |
 | `customer_tokens` | `customers` | CASCADE | same |
 | `customer_carts` | `customers` | CASCADE | same |
+| `customer_trusted_devices` | `customers` | CASCADE | same |
 | `addresses` | `customers` | CASCADE | same |
 | `orders` | `customers` | **RESTRICT** | deleting a customer must not silently delete the record of what they bought and were charged |
 | `order_items` | `orders` | CASCADE | a line without its order is unreadable |
@@ -898,6 +908,22 @@ Each encodes a real bug. Breaking one reintroduces it.
 
 **`requireAdmin()` must be the first statement of every mutating server action
 in `app/admin/actions.ts`.** See §7.
+
+**Every export of a `"use server"` file must be an async function.** A `const`
+exported beside the actions makes Next discard the entire module, and the error
+names something else entirely — adding `export const CODE_PAGE` to
+`account/actions.ts` on 2026-09-16 produced "The export registerAction was not
+found in module ... The module has no exports at all", and a 500 on the sign-in
+page. `tsc` and ESLint both pass, so only loading the page catches it. Keep
+constants unexported.
+
+**Sign-in's second factor may only be skipped where `skipTheCode` says.** A
+code is emailed on any browser an account has not been seen on
+(`lib/signin-challenge.ts`), and the three deliberate exemptions are: a
+brand-new registration, a brand-new Google account, and a deployment with no
+`RESEND_API_KEY`. That last one is not a loophole to close casually — with no
+mail provider there is no way to deliver a code, and challenging anyway would
+lock every customer out of a working shop.
 
 **`<main>` keeps `overflow-x-clip`, and it must be `clip` rather than
 `hidden`.** `FeaturedProducts` and `RecentlyViewed` bleed out of the centred
@@ -1476,6 +1502,44 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-16 (accounts) — A sign-in code on unrecognised browsers, a password for Google-only accounts, and no auto sign-in after a reset
+
+Four client requests in one pass.
+
+- **A password can be set from "Your details"** (`setPasswordAction`,
+  `account/PasswordCard`). A Google-only row has `password_hash IS NULL` and
+  could not be signed into with a password at all; the only previous route to
+  one was the forgotten-password email, which is an odd thing to ask of
+  somebody who never had a password. An account that *has* one must retype it
+  to change it — that is what stops a borrowed signed-in browser being turned
+  into a lasting way back in — and one that has none must not, since there is
+  nothing to retype. Saving ends every other session.
+- **Resetting a password no longer signs you in.** `resetPasswordAction` now
+  redirects to `/account/login?reset=1`. Reading the inbox proves you can
+  receive mail, not that you know the password just set, and it means the reset
+  link cannot itself be used as a way in. It also drops every trusted device.
+- **A six-digit code on a browser the account has not been seen on**, for both
+  password and Google sign-in. New table `customer_trusted_devices`, new module
+  `lib/signin-challenge.ts`, new page `/account/verify-code`. Not every sign-in
+  — client's choice — because a code per visit turns a slow inbox into a locked
+  account for exactly the rural customers this site is built for.
+- The code is hashed into `customer_tokens` salted with the customer id, which
+  is what keeps a million possible codes from colliding on a UNIQUE column, and
+  makes a code worthless against any other account.
+
+Verified end to end against a real browser and the database, 21 checks:
+registration issues no code and trusts its own browser; that browser signs in
+again without one; a second browser is sent to the code page with no session
+until the code is right; a wrong code is refused; the code is spent once used;
+the second browser is then trusted; a Google-shaped account is offered "Set a
+password" with no current-password box; changing an existing one demands it and
+refuses a wrong one; and a reset lands on the sign-in page, does not sign in,
+and clears trusted devices.
+
+**Caught during the work, and now a §9 constraint:** `export const CODE_PAGE`
+in a `"use server"` file made Next drop every action in the module, reported as
+a missing `registerAction`.
 
 ### 2026-09-16 (layout) — Horizontal scrollbar on every page: `main` gains `overflow-x-clip`
 

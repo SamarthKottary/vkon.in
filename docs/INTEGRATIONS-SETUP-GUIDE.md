@@ -31,7 +31,7 @@ Checked on 15 September 2026 by comparing your laptop, GitHub, and the server di
 | Site `https://vkon.in` | Live | Back up after the server's Docker network fix. |
 | Committed code | Matches (commit `81caa29`) | Laptop, GitHub and the server are on the same commit, and the running build includes it. |
 | Laptop's uncommitted work | **Not live** | The Shiprocket integration, Standard/Express delivery, product sizes, and a deploy fix exist only on your laptop. Step 1 puts them live. |
-| Resend (email) | Laptop only | The live site sends **no email** — not even password-reset links. |
+| Resend (email) | Laptop only | The live site sends **no email** — not even password-reset links, and the sign-in code is skipped because there is nothing to send it with. |
 | Google sign-in | Laptop only | No "Continue with Google" button on the live site. |
 | Shiprocket | Laptop only | Live checkout still says "Quoted on our call". |
 | Razorpay | Account created, no keys | No "Pay now" button on the live site. |

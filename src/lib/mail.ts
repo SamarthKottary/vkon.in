@@ -42,6 +42,14 @@ function isConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
 }
 
+/** Whether mail can actually go out. Exported because the sign-in code is the
+ *  one message the site cannot carry on without: with no provider there is no
+ *  way to deliver a code, so `loginAction` skips the challenge rather than
+ *  locking every customer out of an otherwise working shop. */
+export function isMailConfigured(): boolean {
+  return isConfigured();
+}
+
 /**
  * The From address.
  *
@@ -267,6 +275,56 @@ export async function sendPasswordResetMail(input: {
   return sendMail({
     to: input.to,
     subject: `Reset your ${site.legalName} password`,
+    html,
+    text,
+  });
+}
+
+/**
+ * The six-digit code that finishes a sign-in on a browser we have not seen
+ * this account on before.
+ *
+ * No link and no button, deliberately: a sign-in code is the one mail where a
+ * clickable action would train exactly the habit that phishing depends on. The
+ * code is the whole message, big enough to read off a phone at arm's length.
+ */
+export async function sendSignInCodeMail(input: {
+  to: string;
+  name: string;
+  code: string;
+  minutes: number;
+}): Promise<MailResult> {
+  const html = shell(
+    "Your sign-in code",
+    paragraph(hello(input.name)) +
+      paragraph("Use this code to finish signing in:") +
+      `<p style="margin:24px 0;text-align:center;"><span style="display:inline-block;padding:14px 26px;border:1px solid ${LINE};background:#f6f8f9;font:700 32px/1.1 'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;letter-spacing:8px;color:${INK};">${esc(input.code)}</span></p>` +
+      paragraph(
+        `<span style="color:#5a636c;font-size:13px;">The code is good for ${input.minutes} minutes and can be used once. We will never ask you for it on the phone or by email.</span>`,
+      ) +
+      paragraph(
+        "If you did not just try to sign in, somebody has your password. Change it from your account page, or reply to this email and we will help.",
+      ),
+  );
+
+  const text = [
+    hello(input.name).replace(/<[^>]+>/g, ""),
+    "",
+    "Use this code to finish signing in:",
+    "",
+    `    ${input.code}`,
+    "",
+    `The code is good for ${input.minutes} minutes and can be used once.`,
+    "We will never ask you for it on the phone or by email.",
+    "",
+    "If you did not just try to sign in, somebody has your password.",
+    "",
+    `${site.legalName} \u00b7 ${site.url}`,
+  ].join("\n");
+
+  return sendMail({
+    to: input.to,
+    subject: `${input.code} is your ${site.legalName} sign-in code`,
     html,
     text,
   });

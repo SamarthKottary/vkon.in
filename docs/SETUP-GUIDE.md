@@ -24,7 +24,7 @@ in the relevant dashboard — that is a two-minute job and there is no other fix
 
 | Set up | Switches on | Skip it and… |
 |---|---|---|
-| **Resend** (§2) | Welcome email, password-reset link, order confirmation | Accounts still work, but nobody can reset a forgotten password. **Do this one.** |
+| **Resend** (§2) | Welcome email, password-reset link, order confirmation, **the sign-in code** | Accounts still work, but nobody can reset a forgotten password — and since 16 Sep the sign-in code is **skipped entirely**, because there is no way to deliver one. **Do this one.** |
 | **Google** (§3) | The "Continue with Google" button | The button is hidden; email + password still works |
 | **Razorpay** (§4) | Online payment | Orders are placed and settled on a phone call |
 | **Shiprocket** (§5) | Live delivery rates at checkout, shipping labels, tracking | Delivery stays ₹0 and is agreed on the phone |

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CheckIcon, PackageIcon, PinIcon } from "@/components/icons/ui";
+import { PasswordCard } from "@/components/account/PasswordCard";
 import { ProfileForm } from "@/components/account/ProfileForm";
 import { AddressBook } from "@/components/account/AddressBook";
 import { AccountShell } from "@/components/account/AccountShell";
@@ -88,6 +89,16 @@ export default async function AccountPage({
               phone={customer.phone}
               email={customer.email}
               hasGoogle={customer.hasGoogle}
+            />
+          </div>
+
+          {/* Its own form, a sibling rather than a child of the one above:
+              nesting them would make Save submit whichever the browser kept,
+              the same trap CheckoutForm records at length. */}
+          <div className="mt-8">
+            <PasswordCard
+              hasGoogle={customer.hasGoogle}
+              hasPassword={customer.hasPassword}
             />
           </div>
         </section>

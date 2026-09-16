@@ -2,12 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSafeRedirectBase, issueSession, isRequestHttps, type SessionCookie } from "@/lib/account";
 import {
   createCustomer,
+  createSignInCode,
   findCustomerByEmail,
   findCustomerByGoogleSub,
   linkGoogleAccount,
 } from "@/lib/db/customers";
 import { isDatabaseConfigured } from "@/lib/db/client";
-import { sendWelcomeMail } from "@/lib/mail";
+import { isMailConfigured, sendSignInCodeMail, sendWelcomeMail } from "@/lib/mail";
 import {
   OAUTH_COOKIE,
   completeGoogleSignIn,
@@ -15,6 +16,13 @@ import {
   parseOauthCookie,
   safeNext,
 } from "@/lib/google";
+import {
+  CHALLENGE_TTL_MS,
+  DEVICE_COOKIE,
+  buildChallengeCookie,
+  buildTrustCookie,
+  isTrustedDevice,
+} from "@/lib/signin-challenge";
 
 /**
  * Step two of "Continue with Google": Google sends the browser back here.
@@ -127,6 +135,46 @@ export async function GET(request: NextRequest) {
     return fail(request, "google");
   }
 
+  const isHttps = isRequestHttps(request.headers, request.nextUrl);
+  const deviceCookie = request.cookies.get(DEVICE_COOKIE)?.value;
+  const destination = safeNext(handshake.next);
+
+  /**
+   * Google has proved who this is; the code proves it is happening on a
+   * browser the account has used before.
+   *
+   * Skipped for an account being created right now — there is nothing behind
+   * it yet, and the person has just proved control of the address Google
+   * gave us — and skipped when no mail provider is configured, for the reason
+   * `skipTheCode` records in `account/actions.ts`.
+   */
+  try {
+    const needsCode =
+      !isNew && isMailConfigured() && !(await isTrustedDevice(customerId, deviceCookie));
+
+    if (needsCode) {
+      const code = await createSignInCode({ customerId, ttlMs: CHALLENGE_TTL_MS });
+      const sent = await sendSignInCodeMail({
+        to: profile.email,
+        name: profile.name,
+        code,
+        minutes: Math.round(CHALLENGE_TTL_MS / 60000),
+      });
+      if (!sent.ok) console.error("[google] sign-in code email failed:", sent.error);
+
+      const pending = buildChallengeCookie(customerId, destination, isHttps);
+      const response = NextResponse.redirect(
+        new URL("/account/verify-code", getSafeRedirectBase(request.headers, request.nextUrl)),
+      );
+      response.cookies.set(pending.name, pending.value, pending.options);
+      response.cookies.delete(OAUTH_COOKIE);
+      return response;
+    }
+  } catch (error) {
+    console.error("[google] sign-in challenge failed:", error);
+    return fail(request, "google");
+  }
+
   let session: SessionCookie;
   try {
     /* The cookie is set on the response below rather than through
@@ -134,7 +182,6 @@ export async function GET(request: NextRequest) {
        way may or may not survive onto a redirect this handler constructed,
        and when it does not, the failure is a silent bounce back to the
        sign-in form. */
-    const isHttps = isRequestHttps(request.headers, request.nextUrl);
     session = await issueSession(customerId, isHttps);
   } catch (error) {
     console.error("[google] session failed:", error);
@@ -155,8 +202,25 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.redirect(new URL(safeNext(handshake.next), getSafeRedirectBase(request.headers, request.nextUrl)));
+  const response = NextResponse.redirect(new URL(destination, getSafeRedirectBase(request.headers, request.nextUrl)));
   response.cookies.set(session.name, session.value, session.options);
   response.cookies.delete(OAUTH_COOKIE);
+
+  /* Remember this browser, so the next Google sign-in on it is not challenged
+     — and so the trust is refreshed rather than expiring under somebody who
+     uses the site regularly. A failure here is not worth losing the session
+     over: the cost is one extra code next time. */
+  try {
+    const trust = await buildTrustCookie(
+      customerId,
+      isHttps,
+      deviceCookie,
+      request.headers.get("user-agent") ?? "",
+    );
+    response.cookies.set(trust.name, trust.value, trust.options);
+  } catch (error) {
+    console.error("[google] could not record the trusted device:", error);
+  }
+
   return response;
 }

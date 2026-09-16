@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireCustomer } from "@/lib/account";
+import { endAllSessions, requireCustomer, startSession } from "@/lib/account";
 import {
   createAddress,
   deleteAddress,
@@ -11,7 +11,13 @@ import {
   updateAddress,
   type AddressInput,
 } from "@/lib/db/addresses";
-import { updateCustomerProfile } from "@/lib/db/customers";
+import {
+  getPasswordHash,
+  setCustomerPassword,
+  updateCustomerProfile,
+} from "@/lib/db/customers";
+import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
+import { trustThisDevice } from "@/lib/signin-challenge";
 import { createOrder } from "@/lib/db/orders";
 import { listProducts } from "@/lib/db/products";
 import {
@@ -152,6 +158,77 @@ export async function saveProfileAction(
   revalidatePath("/account");
   revalidatePath("/", "layout");
   return { status: "ok", message: "Saved." };
+}
+
+// ---------------------------------------------------------------------------
+// Password
+// ---------------------------------------------------------------------------
+
+/**
+ * Sets a password, or changes an existing one, from the account page.
+ *
+ * **This is the way in for a Google-only account.** Such a row has
+ * `password_hash IS NULL`, so it cannot be signed into with a password at all
+ * until this runs — until now the only route to one was the forgotten-password
+ * email, which is a strange thing to ask of somebody who has never had a
+ * password to forget (client, 2026-09-16).
+ *
+ * **An existing password must be retyped to change it; a first one must not.**
+ * Requiring the current password is what stops a borrowed, still-signed-in
+ * browser from being turned into a permanent way back in. There is nothing to
+ * retype when the account has never had one, and demanding it would lock the
+ * Google customer out of the feature entirely — their proof is the live
+ * session, which Google itself issued minutes ago.
+ */
+export async function setPasswordAction(
+  _prev: AccountState,
+  formData: FormData,
+): Promise<AccountState> {
+  const customer = await requireCustomer();
+
+  const current = String(formData.get("currentPassword") ?? "");
+  const password = String(formData.get("password") ?? "");
+
+  const issue = passwordProblem(password);
+  if (issue) {
+    return {
+      status: "error",
+      message: issue,
+      fieldErrors: { password: issue },
+    };
+  }
+
+  try {
+    if (customer.hasPassword) {
+      const hash = await getPasswordHash(customer.id);
+      if (!(await verifyPassword(current, hash))) {
+        const wrong = "That is not your current password.";
+        return { status: "error", message: wrong, fieldErrors: { currentPassword: wrong } };
+      }
+    }
+
+    await setCustomerPassword(customer.id, await hashPassword(password));
+
+    /* Every other session goes, the same as a reset — a password change is
+       often somebody shutting another person out, and leaving that person's
+       session alive would make the change cosmetic. This browser is signed
+       back in immediately, because the person doing it is right here. */
+    await endAllSessions(customer.id);
+    await startSession(customer.id);
+    await trustThisDevice(customer.id);
+  } catch (error) {
+    console.error("[account] setting a password failed:", error);
+    return { status: "error", message: "Could not save that just now. Please try again." };
+  }
+
+  revalidatePath("/account");
+  revalidatePath("/", "layout");
+  return {
+    status: "ok",
+    message: customer.hasPassword
+      ? "Password changed. Any other device you were signed in on has been signed out."
+      : "Password set. You can now sign in with your email address as well as Google.",
+  };
 }
 
 // ---------------------------------------------------------------------------

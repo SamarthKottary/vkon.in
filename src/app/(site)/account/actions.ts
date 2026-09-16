@@ -5,21 +5,33 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { endAllSessions, endSession, startSession } from "@/lib/account";
 import {
+  consumeSignInCode,
   consumeToken,
   createCustomer,
+  createSignInCode,
   createToken,
   findCustomerByEmail,
+  findCustomerById,
   getPasswordHash,
   invalidateTokens,
   markEmailVerified,
   setCustomerPassword,
+  untrustAllDevices,
 } from "@/lib/db/customers";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { normaliseEmail } from "@/lib/db/subscribers";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
-import { sendPasswordResetMail, sendWelcomeMail } from "@/lib/mail";
+import { isMailConfigured, sendPasswordResetMail, sendSignInCodeMail, sendWelcomeMail } from "@/lib/mail";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { safeNext } from "@/lib/google";
+import {
+  CHALLENGE_TTL_MS,
+  clearChallenge,
+  isTrustedDevice,
+  readChallenge,
+  startChallenge,
+  trustThisDevice,
+} from "@/lib/signin-challenge";
 import { site } from "@/content/site";
 
 /**
@@ -65,7 +77,7 @@ export type AuthState = {
   fieldErrors?: Record<string, string>;
   /** Which form the message belongs to, so one page can host both and show
    *  the error under the form that produced it. */
-  form?: "login" | "register" | "forgot" | "reset";
+  form?: "login" | "register" | "forgot" | "reset" | "code";
   /**
    * What was typed, echoed back so the form can restore it.
    *
@@ -92,6 +104,12 @@ const LOGIN_LIMIT = { limit: 10, windowMs: 10 * 60 * 1000 };
 const REGISTER_LIMIT = { limit: 5, windowMs: 30 * 60 * 1000 };
 const FORGOT_LIMIT = { limit: 4, windowMs: 30 * 60 * 1000 };
 const RESET_LIMIT = { limit: 10, windowMs: 30 * 60 * 1000 };
+/* Six digits is a million possibilities; ten tries per ten minutes makes
+   guessing hopeless while leaving room for somebody mistyping a code off a
+   phone screen. Asking for a fresh code is limited harder, because each one
+   sends an email and that is the part an abuser would aim at. */
+const CODE_LIMIT = { limit: 10, windowMs: 10 * 60 * 1000 };
+const RESEND_CODE_LIMIT = { limit: 4, windowMs: 15 * 60 * 1000 };
 
 const MAX = { name: 120, phone: 40, email: 254 };
 
@@ -237,6 +255,12 @@ export async function registerAction(
     });
 
     await startSession(customerId);
+
+    /* The browser that created the account is trusted from the start. There
+       is nothing for a code to prove here — this person chose the password a
+       second ago — and challenging them would put an inbox round trip between
+       registering and the checkout they were heading for. */
+    await trustThisDevice(customerId);
   } catch (error) {
     console.error("[account] registration failed:", error);
     return { ...unavailable("register"), values: typed };
@@ -253,6 +277,58 @@ export async function registerAction(
 // ---------------------------------------------------------------------------
 // Sign in
 // ---------------------------------------------------------------------------
+
+/* Not exported: every export of a `"use server"` module must be an async
+   function, and a stray string constant makes Next drop the whole module —
+   which shows up as "registerAction was not found", nowhere near the cause. */
+const CODE_PAGE = "/account/verify-code";
+
+/**
+ * Whether this browser may skip the emailed code.
+ *
+ * **Also true when there is no mail provider**, and that is a deliberate
+ * operational choice rather than an oversight: with `RESEND_API_KEY` unset
+ * there is no way to deliver a code, so challenging would lock every customer
+ * out of a shop that otherwise works. Every other integration here degrades
+ * the same way — no keys, no feature. The cost is that the second factor is
+ * only as present as the mail setup is, which is why the setup guide treats
+ * Resend as the one integration to do first.
+ */
+async function skipTheCode(customerId: string): Promise<boolean> {
+  if (!isMailConfigured()) return true;
+  return isTrustedDevice(customerId);
+}
+
+/**
+ * Issues a code, emails it, and marks this browser as waiting for it.
+ *
+ * No session is started here — that is the whole point. The pending cookie
+ * names the account and nothing else; only the code, which exists solely in
+ * the customer's inbox, turns it into a session.
+ */
+async function beginSignInChallenge(
+  customer: { id: string; email: string; name: string },
+  next: string,
+): Promise<void> {
+  const code = await createSignInCode({
+    customerId: customer.id,
+    ttlMs: CHALLENGE_TTL_MS,
+  });
+
+  await startChallenge(customer.id, next);
+
+  /* `sendMail` never throws and reports its result instead. A failure is
+     logged and the customer still lands on the code page, where "Send a new
+     code" is the way out — better than a dead end on the sign-in form with a
+     session we have already decided not to grant. */
+  const sent = await sendSignInCodeMail({
+    to: customer.email,
+    name: customer.name,
+    code,
+    minutes: Math.round(CHALLENGE_TTL_MS / 60000),
+  });
+  if (!sent.ok) console.error("[account] sign-in code email failed:", sent.error);
+}
 
 export async function loginAction(
   _prev: AuthState,
@@ -280,6 +356,7 @@ export async function loginAction(
   }
 
   let customerId: string;
+  let needsCode = false;
 
   try {
     const customer = await findCustomerByEmail(email);
@@ -301,14 +378,26 @@ export async function loginAction(
     }
 
     customerId = customer.id;
-    await startSession(customerId);
+
+    /* The password was right. Whether that is enough depends on the browser:
+       one this account has already answered a code on goes straight through,
+       anything else is challenged. See `lib/signin-challenge.ts`. */
+    if (await skipTheCode(customerId)) {
+      await startSession(customerId);
+    } else {
+      await beginSignInChallenge(
+        { id: customerId, email: customer.email, name: customer.name },
+        next,
+      );
+      needsCode = true;
+    }
   } catch (error) {
     console.error("[account] sign-in failed:", error);
     return { ...unavailable("login"), values: typed };
   }
 
   revalidatePath("/", "layout");
-  redirect(next);
+  redirect(needsCode ? CODE_PAGE : next);
 }
 
 // ---------------------------------------------------------------------------
@@ -320,6 +409,121 @@ export async function loginAction(
  * own session is not a privileged operation, and requiring a valid session to
  * clear a session is a way to get stuck with a broken one.
  */
+// ---------------------------------------------------------------------------
+// The sign-in code
+// ---------------------------------------------------------------------------
+
+const CODE_WRONG = "That code is not right, or it has expired. Check the email, or send a new code.";
+
+/**
+ * Turns a pending challenge into a session.
+ *
+ * Reads *who* from the signed pending cookie and *whether* from the code, so
+ * neither alone is enough: a stolen cookie has no code in it, and a code is
+ * hashed against the account it was issued for and works for no other.
+ *
+ * On success the browser is recorded as trusted, which is what stops this
+ * becoming a code on every visit.
+ */
+export async function verifySignInCodeAction(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  /* Digits only, and bounded before anything else touches it. */
+  const code = String(formData.get("code") ?? "").replace(/\D/g, "").slice(0, 6);
+
+  const challenge = await readChallenge();
+  if (!challenge) {
+    return {
+      status: "error",
+      form: "code",
+      message: "That sign-in timed out. Please enter your email and password again.",
+    };
+  }
+
+  if (code.length !== 6) {
+    return { status: "error", form: "code", message: CODE_WRONG };
+  }
+
+  if (!isDatabaseConfigured()) return unavailable("code");
+  if (await limited("code", CODE_LIMIT)) {
+    return {
+      status: "error",
+      form: "code",
+      message: "Too many attempts. Please wait a few minutes and try again.",
+    };
+  }
+
+  try {
+    const ok = await consumeSignInCode(challenge.customerId, code);
+    if (!ok) return { status: "error", form: "code", message: CODE_WRONG };
+
+    await startSession(challenge.customerId);
+    await trustThisDevice(challenge.customerId);
+    await clearChallenge();
+  } catch (error) {
+    console.error("[account] code verification failed:", error);
+    return unavailable("code");
+  }
+
+  revalidatePath("/", "layout");
+  redirect(safeNext(challenge.next));
+}
+
+/** Issues a fresh code for the pending challenge, retiring the previous one.
+ *  The old code stops working the moment this succeeds — `createSignInCode`
+ *  invalidates it — so a forwarded email cannot be used after asking again. */
+/* No parameters: `useActionState` passes the previous state and the form data,
+   and this needs neither — the account comes from the pending cookie. A
+   function that declares fewer arguments is still assignable to the hook. */
+export async function resendSignInCodeAction(): Promise<AuthState> {
+  const challenge = await readChallenge();
+  if (!challenge) {
+    return {
+      status: "error",
+      form: "code",
+      message: "That sign-in timed out. Please enter your email and password again.",
+    };
+  }
+
+  if (!isDatabaseConfigured()) return unavailable("code");
+  if (await limited("code-resend", RESEND_CODE_LIMIT)) {
+    return {
+      status: "error",
+      form: "code",
+      message: "That is a lot of codes. Please wait a few minutes before asking for another.",
+    };
+  }
+
+  try {
+    const customer = await findCustomerById(challenge.customerId);
+    if (!customer) {
+      return {
+        status: "error",
+        form: "code",
+        message: "That sign-in timed out. Please enter your email and password again.",
+      };
+    }
+
+    await beginSignInChallenge(
+      { id: customer.id, email: customer.email, name: customer.name },
+      challenge.next,
+    );
+  } catch (error) {
+    console.error("[account] resending the sign-in code failed:", error);
+    return unavailable("code");
+  }
+
+  return { status: "ok", form: "code", message: "A new code is on its way." };
+}
+
+/** Abandons a pending sign-in — the "use a different account" way out of the
+ *  code page. Clears only the pending cookie; no session ever existed. */
+export async function cancelSignInAction(): Promise<void> {
+  await clearChallenge();
+  redirect("/account/login");
+}
+
 export async function logoutAction(): Promise<void> {
   await endSession();
   revalidatePath("/", "layout");
@@ -444,18 +648,28 @@ export async function resetPasswordAction(
     /* Every existing session ends, including this browser's. Somebody
        resetting a password is often doing it *because* they think another
        person has access; leaving that person's session alive would defeat the
-       whole exercise. The new session below is issued immediately after, so
-       the customer is not thrown back to the sign-in page for it. */
+       whole exercise. */
     await endAllSessions(customerId);
+
+    /* And every trusted browser, for the same reason: a device an intruder
+       had already answered a code on would otherwise sail past the new
+       password's protection on their next visit. */
+    await untrustAllDevices(customerId);
     await markEmailVerified(customerId);
-    await startSession(customerId);
   } catch (error) {
     console.error("[account] password reset failed:", error);
     return unavailable("reset");
   }
 
+  /* **No session is issued here** (client, 2026-09-16: choosing a new
+     password should not sign you in). Whoever opened the link proved they can
+     read the inbox, which is not the same as proving they know the password
+     that was just set — and the person who actually owns the account is the
+     one who should type it. It also means the reset link cannot be used as a
+     way in: following it now costs an intruder the account's sessions and
+     gains them nothing. */
   revalidatePath("/", "layout");
-  redirect("/account?reset=1");
+  redirect("/account/login?reset=1");
 }
 
 // ---------------------------------------------------------------------------

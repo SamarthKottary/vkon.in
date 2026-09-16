@@ -286,6 +286,38 @@ CREATE INDEX IF NOT EXISTS customer_tokens_lookup_idx
   ON customer_tokens (customer_id, kind);
 
 -- ---------------------------------------------------------------------------
+-- Devices a customer has already proved themselves on.
+--
+-- Sign-in asks for a six-digit code emailed to the account, but only the first
+-- time a browser is seen. A row here is what "seen before" means: the browser
+-- holds `id.HMAC(id, AUTH_SECRET)` in `vkon_device`, this holds the SHA-256 of
+-- that id, and both have to agree. Deleting the row re-challenges that browser,
+-- which is what makes "sign out everywhere" able to mean something later.
+--
+-- **The hash, not the id**, for the same reason `customer_tokens` stores one: a
+-- leaked backup should not contain a working skip-the-code cookie for every
+-- account in it.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS customer_trusted_devices (
+  id           TEXT PRIMARY KEY,
+  customer_id  TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  token_hash   TEXT NOT NULL UNIQUE,
+  -- Truncated on write, and shown nowhere yet. Recorded so a "devices you have
+  -- signed in on" list is possible without a migration.
+  user_agent   TEXT NOT NULL DEFAULT '',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at   TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS customer_trusted_devices_customer_idx
+  ON customer_trusted_devices (customer_id);
+-- Expired rows are swept opportunistically, the same way sessions are.
+CREATE INDEX IF NOT EXISTS customer_trusted_devices_expiry_idx
+  ON customer_trusted_devices (expires_at);
+
+-- ---------------------------------------------------------------------------
 -- The signed-in cart: one row per customer, holding the same
 -- `{slug, qty}[]` shape `lib/cart.ts` keeps in `localStorage` for a stranger.
 --

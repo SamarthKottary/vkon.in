@@ -28,10 +28,16 @@ const NOTICES: Record<string, string> = {
   checkout: "Please sign in or register to finish your order.",
 };
 
+/** Shown after a successful password reset. Separate from `NOTICES` because it
+ *  is good news, not a failure, and `resetPasswordAction` sends people here
+ *  rather than signing them in — see the note there. */
+const RESET_DONE =
+  "Your password is set. Please sign in with it.";
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string; tab?: string }>;
+  searchParams: Promise<{ next?: string; error?: string; tab?: string; reset?: string }>;
 }) {
   const params = await searchParams;
   const next = safeNext(params.next ?? "/account");
@@ -57,7 +63,7 @@ export default async function LoginPage({
             next={next}
             googleEnabled={isGoogleConfigured()}
             initialTab={params.tab === "register" ? "register" : "login"}
-            notice={params.error ? NOTICES[params.error] : undefined}
+            notice={params.reset ? RESET_DONE : params.error ? NOTICES[params.error] : undefined}
           />
         </div>
       </Container>

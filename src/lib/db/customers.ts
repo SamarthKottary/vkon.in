@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import { query } from "./client";
 import type { Customer } from "@/lib/types";
 
@@ -226,7 +226,7 @@ export async function sweepExpiredSessions(): Promise<void> {
 // One-time tokens
 // ---------------------------------------------------------------------------
 
-export type TokenKind = "verify" | "reset";
+export type TokenKind = "verify" | "reset" | "signin";
 
 /** SHA-256 is right here and wrong for passwords: the input is 32 bytes of
  *  CSPRNG output, so there is no dictionary to run against it and no reason to
@@ -314,4 +314,149 @@ export async function invalidateTokens(
       WHERE customer_id = $1 AND kind = $2 AND used_at IS NULL`,
     [customerId, kind],
   );
+}
+
+// ---------------------------------------------------------------------------
+// Sign-in codes
+// ---------------------------------------------------------------------------
+
+/** Six digits: long enough that guessing is hopeless against the attempt limit
+ *  in `verifySignInCodeAction`, short enough to retype from a phone. */
+const CODE_DIGITS = 6;
+
+/**
+ * The stored hash of a sign-in code is salted with the customer id.
+ *
+ * **Not decoration — it is what makes the column usable.** `token_hash` is
+ * UNIQUE, and there are only a million six-digit codes, so two customers
+ * signing in at once would collide often enough to matter and the second
+ * INSERT would fail. Mixing the id in makes the value unique per account, and
+ * has the side effect that a code is worthless against any other account.
+ */
+function hashCode(customerId: string, code: string): string {
+  return hashToken(`${customerId}:${code}`);
+}
+
+/**
+ * Issues a sign-in code, retiring any earlier one for this account, and
+ * returns the plaintext — the only moment it exists outside the email.
+ */
+export async function createSignInCode(input: {
+  customerId: string;
+  ttlMs: number;
+}): Promise<string> {
+  await invalidateTokens(input.customerId, "signin");
+
+  /* `randomInt` over the whole range rather than six independent digits: the
+     modulo bias of `randomBytes % 10` is small but there is no reason to
+     accept it when the unbiased call is the same length. */
+  const code = String(randomInt(0, 10 ** CODE_DIGITS)).padStart(CODE_DIGITS, "0");
+
+  await query(
+    `INSERT INTO customer_tokens (id, customer_id, kind, token_hash, expires_at)
+     VALUES ($1, $2, 'signin', $3, $4)`,
+    [
+      randomUUID(),
+      input.customerId,
+      hashCode(input.customerId, code),
+      new Date(Date.now() + input.ttlMs),
+    ],
+  );
+
+  return code;
+}
+
+/**
+ * Checks and spends a sign-in code in one statement, for the reason
+ * `consumeToken` does: two submissions racing must not both succeed.
+ *
+ * Scoped to the customer the pending challenge names, so a code is only ever
+ * valid for the account it was sent to.
+ */
+export async function consumeSignInCode(
+  customerId: string,
+  code: string,
+): Promise<boolean> {
+  const claimed = await query<{ id: string }>(
+    `UPDATE customer_tokens
+        SET used_at = now()
+      WHERE customer_id = $1 AND kind = 'signin' AND token_hash = $2
+        AND used_at IS NULL AND expires_at > now()
+      RETURNING id`,
+    [customerId, hashCode(customerId, code)],
+  );
+  return claimed.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Trusted devices
+// ---------------------------------------------------------------------------
+
+/**
+ * The device hash is salted with the customer id, for a reason beyond secrecy.
+ *
+ * One browser can be used by two people, and `token_hash` is UNIQUE. Hashing
+ * the cookie's token alone would let the second account's row collide with the
+ * first's and quietly take it over, so the household's other account would be
+ * re-challenged every time. Salted, one cookie value maps to one row per
+ * account and both stay trusted.
+ */
+function hashDevice(customerId: string, token: string): string {
+  return hashToken(`device:${customerId}:${token}`);
+}
+
+/** Records this browser as one the customer has already proved themselves on.
+ *  Takes the plaintext id and stores only its hash — see schema.sql. */
+export async function trustDevice(input: {
+  customerId: string;
+  token: string;
+  userAgent: string;
+  expiresAt: Date;
+}): Promise<void> {
+  await query(
+    `INSERT INTO customer_trusted_devices (id, customer_id, token_hash, user_agent, expires_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (token_hash) DO UPDATE
+        SET last_used_at = now(), expires_at = EXCLUDED.expires_at`,
+    [
+      randomUUID(),
+      input.customerId,
+      hashDevice(input.customerId, input.token),
+      input.userAgent.slice(0, 200),
+      input.expiresAt,
+    ],
+  );
+}
+
+/**
+ * Whether this browser has been trusted for this account, stamping
+ * `last_used_at` if it has.
+ *
+ * The UPDATE is the check: a row that has expired matches nothing, so an old
+ * cookie is indistinguishable from never having been here.
+ */
+export async function touchTrustedDevice(
+  customerId: string,
+  token: string,
+): Promise<boolean> {
+  const rows = await query<{ id: string }>(
+    `UPDATE customer_trusted_devices
+        SET last_used_at = now()
+      WHERE customer_id = $1 AND token_hash = $2 AND expires_at > now()
+      RETURNING id`,
+    [customerId, hashDevice(customerId, token)],
+  );
+  return rows.length > 0;
+}
+
+/** Drops every trusted device for an account, so each browser is challenged
+ *  again. Called on a password reset, which is the moment somebody is most
+ *  likely to be shutting an intruder out. */
+export async function untrustAllDevices(customerId: string): Promise<void> {
+  await query(`DELETE FROM customer_trusted_devices WHERE customer_id = $1`, [customerId]);
+}
+
+/** Swept opportunistically, the same way expired sessions are. */
+export async function sweepExpiredTrustedDevices(): Promise<void> {
+  await query(`DELETE FROM customer_trusted_devices WHERE expires_at < now()`);
 }
