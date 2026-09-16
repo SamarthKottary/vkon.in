@@ -4,7 +4,7 @@
 
 **Google sign-in  ·  Resend email  ·  Shiprocket delivery  ·  Razorpay payments**
 
-Prepared 15 September 2026, for the live site `https://vkon.in`. Follow the steps in order — each one says exactly what to click, what to paste, and how to check it worked.
+Prepared 15 September 2026, **updated 16 September**, for the live site `https://vkon.in`. Follow the steps in order — each one says exactly what to click, what to paste, and how to check it worked.
 
 > ⚠️ **This file is in a public repository.** Every key and password below is a placeholder — never replace one with a real value here, and never commit `.env` or `.env.local`. The same guide exists as a Word document outside the repo.
 
@@ -24,17 +24,19 @@ Prepared 15 September 2026, for the live site `https://vkon.in`. Follow the step
 
 ## Where things stand today
 
-Checked on 15 September 2026 by comparing your laptop, GitHub, and the server directly.
+Checked on **16 September 2026** against the running server, not from memory — every key below was confirmed present inside the live container, and Razorpay was asked directly which webhooks it holds.
 
 | Item | Status | What it means |
 |---|---|---|
-| Site `https://vkon.in` | Live | Back up after the server's Docker network fix. |
-| Committed code | Matches (commit `81caa29`) | Laptop, GitHub and the server are on the same commit, and the running build includes it. |
-| Laptop's uncommitted work | **Not live** | The Shiprocket integration, Standard/Express delivery, product sizes, and a deploy fix exist only on your laptop. Step 1 puts them live. |
-| Resend (email) | Laptop only | The live site sends **no email** — not even password-reset links, and the sign-in code is skipped because there is nothing to send it with. |
-| Google sign-in | Laptop only | No "Continue with Google" button on the live site. |
-| Shiprocket | Laptop only | Live checkout still says "Quoted on our call". |
-| Razorpay | Account created, no keys | No "Pay now" button on the live site. |
+| Site `https://vkon.in` | Live | Back up since the server's Docker network fix on 15 Sep. |
+| Resend (email) | **Done** | Key and `MAIL_FROM` are on the server. Email works — and the new sign-in code depends on it. |
+| Google sign-in | **Done** | Both keys on the server. Branding verification is the only piece left (Step 3.6). |
+| Shiprocket | **Done** | All six values on the server; live delivery rates show at checkout. |
+| Razorpay — test mode | **Done and proved** | Test keys and a test webhook are live. Order `VK-0915-T5TQ` was marked paid **by the webhook**, so delivery and the signature check both work. |
+| Razorpay — live mode | **Not started** | Needs website verification, then live keys and a **separate** live webhook. Step 6. |
+| Product weights and sizes | Estimated | Every product has a plausible guess, not a measurement. Replace them (Step 4.4). |
+
+> 💡 **The only thing standing between you and real payments** is Step 6 — Razorpay's website verification, then live keys and a live webhook. Everything else on this page is finished.
 
 ## Before you start: how keys reach the live site
 
@@ -429,44 +431,139 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://vkon.in/api/payment/web
 ### 5.4  Test payments
 
 1. On **https://vkon.in**, place an order and open it from **My account → Orders**. A **Pay now** button should appear.
+
    - Test mode needs **no wallet, no added funds and no website verification** — the money is fake. Website verification is for live payments (Step 6).
 
-2. **Success:** pay with an **Indian** test card — Visa `4100 2800 0000 1007`, any future expiry date, any CVV — then press **Continue** (choose **Maybe later** if it offers to save the card). **There is no OTP.** A separate small window opens instead: *"Welcome to Razorpay Software Private Ltd Bank — This is just a demo bank page"*, with **Success** and **Failure** buttons. Press **Success**. If nothing seems to happen, that window may have opened behind your browser.
+2. **Success:** pay with an **Indian** test card — Visa `4100 2800 0000 1007`, any future expiry date, any CVV — then press **Continue** (choose **Maybe later** if it offers to save the card). **There is no OTP.** A separate small window opens instead: "Welcome to Razorpay Software Private Ltd Bank — This is just a demo bank page", with **Success** and **Failure** buttons. Press **Success**. If nothing seems to happen, that window may have opened behind your browser.
 
    - The order should become **Paid** and **Confirmed**, and a payment email should arrive.
+   - **Don't use `4111 1111 1111 1111`** or any other international test card — the account accepts Indian cards only, and Razorpay refuses it with "this business accepts domestic (Indian) card payments only".
+   - **UPI can't be tested in test mode.** NPCI retired typing in a UPI ID ("UPI Collect") on 28 February 2026, so Razorpay shows only a QR code, and a test-mode QR can't be paid from a real UPI app. The card tests cover the site's side — a payment is handled the same way whatever the method. UPI gets its first real check in Step 6, with a small live payment.
 
-   > ⚠️ **Don't use `4111 1111 1111 1111`** or any other international test card. The account accepts Indian cards only, so Razorpay refuses it with "Your payment could not be completed as this business accepts domestic (Indian) card payments only".
-
-   > 💡 **UPI can't be tested in test mode.** NPCI retired typing in a UPI ID ("UPI Collect") on 28 February 2026, so Razorpay's window shows only a QR code — and a test-mode QR can't be paid from a real UPI app. The old test IDs `success@razorpay` / `failure@razorpay` have nowhere to go. That's fine: the site handles a payment the same way whatever the method, so the card tests cover it. UPI gets its first real check in Step 6, with a small live payment.
-
-3. **Failure:** place another order, pay with the same card, and press **Failure** on the demo bank page. Razorpay's window says *"Payment could not be completed"* and offers to retry — close it. Reload the order page after a few seconds (Razorpay's webhook updates it): it must show **Payment failed**, with **Pay now** still there. Press **Pay now**, choose **Success** this time, and the order must become **Paid**.
+3. **Failure:** place another order, pay with the same card, and press **Failure** on the demo bank page. Razorpay's window says "Payment could not be completed" and offers to retry — close it. Reload the order page after a few seconds (Razorpay's webhook updates it): it must show **Payment failed**, with **Pay now** still there. Press **Pay now**, choose **Success** this time, and the order must become **Paid**.
 4. **Abandon:** place an order, open the payment window, and close it. The order must still exist, unpaid, with **Pay now** still available.
 
-### 5.5  Test the webhook on its own
+### 5.5  Check the webhook is really being delivered
 
-1. Dashboard → **Webhooks** → your webhook → the delivery log. The payments from 5.4 should show response **200**.
-2. Resend a `payment.captured` event from that log **with the site closed in your browser**. The order must still be paid, and the email must not arrive a second time.
+> ⚠️ **There is no delivery log to look at.** Razorpay does not give merchants a per-webhook delivery history — the Webhooks screen lists the webhook and nothing else. An earlier version of this guide told you to open one; that was wrong, and it is why you could not find it. The proof has to come from the site instead.
 
-> ⚠️ **Don't skip 5.5.** The browser path working says nothing about the webhook path — and the webhook is what saves you when a customer's phone drops during a UPI payment.
+**And a webhook that works writes nothing to the site's log.** Only failures are logged, so an empty log is what success looks like. Do not read it as "the webhook never arrived".
+
+**The site records which path settled each order**, which is the evidence you actually want. When the webhook marks an order paid it writes the word `webhook` where the browser would have written a signature:
+
+1. On the server, ask which orders were settled by which path:
+
+   ```bash
+   ssh ptz
+   cd ~/project2/vkon.in
+   docker compose exec -T db psql -U vkon -d vkon -c "select order_number, payment_status, case when payment_signature = 'webhook' then 'webhook' else 'browser' end as settled_by, paid_at from orders where payment_status = 'paid' order by created_at desc limit 5"
+   ```
+
+2. To prove the webhook can do it **alone**, place an order, press Success on the demo bank page, and **close the tab immediately** — before the page returns to the site. The browser then never reports back, so only the webhook can mark it paid.
+
+   - Wait about ten seconds, reopen the order from **My account → Orders**, and it must read **Paid**.
+   - Run the query above: that order should say `webhook`.
+
+**Already confirmed on this account.** Order `VK-0915-T5TQ`, paid on 15 September, was marked paid by the webhook rather than the browser — so delivery, the signature check and the database write are all working in test mode.
+
+You can also confirm the webhook exists and which events it sends without the dashboard, using your own keys:
+
+1. From the server (prints the URL and events, never a secret):
+
+   ```bash
+   cd ~/project2/vkon.in
+   docker compose exec -T app node -e "const e=process.env,a='Basic '+Buffer.from(e.RAZORPAY_KEY_ID+':'+e.RAZORPAY_KEY_SECRET).toString('base64');fetch('https://api.razorpay.com/v1/webhooks',{headers:{Authorization:a}}).then(r=>r.json()).then(b=>b.items.forEach(w=>console.log(w.url,'|',w.service,'|active:',w.disabled_at===0,'|',Object.keys(w.events).filter(k=>w.events[k]).join(','))))"
+   ```
+
+It should print your `https://vkon.in/api/payment/webhook`, `api-test`, `active: true`, and `payment.captured,payment.failed`.
 
 | Problem | Cause and fix |
 |---|---|
 | No Pay now button | Keys didn't reach the site — use the printenv check. |
-| Webhook log shows 401 | `RAZORPAY_WEBHOOK_SECRET` doesn't match the secret typed into the dashboard webhook. |
+| Order paid, but `settled_by` always says `browser` | Not a fault on its own — the browser usually wins the race. Use the close-the-tab test above to isolate the webhook. |
+| Site logs `[webhook] signature rejected` | `RAZORPAY_WEBHOOK_SECRET` on the server doesn't match the secret typed into the dashboard webhook. Retype both. |
 | Endpoint returns 503 | Keys missing on the server, or the app wasn't recreated. |
-| Payment succeeded but order stays unpaid | Check the webhook's delivery log in Razorpay, then the site log: `docker compose logs --tail=100 app` |
+| Payment succeeded but the order stays unpaid | Check the site log for a `[webhook]` line: `docker compose logs --tail=100 app`. No line at all means nothing arrived — confirm the webhook's URL with the command above. |
 
 ---
 
-## Step 6 — Razorpay live payments (after KYC approval)
+## Step 6 — Razorpay live payments
 
-Do this only when Razorpay has approved your KYC (you'll get an email, and the dashboard shows it).
+Everything so far has been play money. This is the switch to real payments, and it is four separate things: getting Razorpay to approve you, generating **live** keys, creating a **live** webhook, and putting all three on the server.
 
-1. Switch the dashboard to **Live Mode** and generate **live** keys (the ID starts `rzp_live_`). The secret is shown once.
-2. Create a **new** webhook in Live Mode, exactly as in 5.2, with a **new** secret. **Test-mode webhooks don't carry over.**
-3. On the server, replace all three `RAZORPAY_` values with the live ones, then `docker compose up -d app`.
-4. Put **one real low-value payment** through yourself before telling anyone — for example a temporary ₹1 product (GST and delivery will be added), which you delete straight afterwards.
-5. Confirm the payment appears in the Razorpay dashboard and later settles to your bank account.
+> ⚠️ **Never run half-switched.** Test keys with a live webhook, or live keys with the test webhook secret, both look like they work. Razorpay's own warning for leaving test keys in place: customers see a payment success screen but no payment is captured or settled. Change all three values together, in one edit.
+
+### 6.1  Website verification and KYC
+
+Live keys are gated. Razorpay: **"To generate API keys in Live Mode, you must provide the website details where you will collect payments."** This is the **Verify Now** card you have already seen on the dashboard — the one that says *Verification required*. Test mode never needed it; live mode does.
+
+1. On the dashboard, open the **Accept payments on Website** card and press **Verify Now**, or go to **Account & Settings → Website and app settings**.
+2. Give them `https://vkon.in` and the pages they ask to see. The site already has everything they check for:
+
+   - Contact details — `https://vkon.in/contact`
+   - Privacy policy — `https://vkon.in/privacy`
+   - Terms — `https://vkon.in/terms`
+   - Refund and shipping policy — say plainly how delivery is charged and how a refund is handled; add it to the Terms page if they ask for a separate link.
+
+3. Complete KYC if it is still open: PAN, bank account, and address proof for the individual/freelancer account.
+4. Wait. Razorpay quote **three working days** for the website check. You get an email, and the dashboard stops showing *Verification required*.
+
+### 6.2  Generate the live keys
+
+1. Switch the dashboard from **Test Mode** to **Live Mode** using the toggle at the top.
+2. **Account & Settings → API Keys → Generate Key**.
+3. Copy both values now. The Key Id starts `rzp_live_`.
+
+   - **The secret is shown once.** Razorpay only ever displays the Key Id again — if you lose the secret you must regenerate the pair, which invalidates the old one.
+   - Put them somewhere safe before leaving the page. Not in this document, not in a chat.
+
+### 6.3  Create the live webhook
+
+**Webhooks do not carry over between modes.** Razorpay keeps separate webhooks for Test and Live, so the one from 5.2 does nothing for real payments. Create a second one while the dashboard is still in Live Mode.
+
+1. **Account & Settings → Webhooks → Add New Webhook** (with the dashboard in **Live Mode**).
+2. Fill it in exactly as in 5.2:
+
+   - **Webhook URL** — `https://vkon.in/api/payment/webhook`
+   - **Secret** — make a fresh one with `openssl rand -hex 32`. It may be the same string as the test one, but it must be typed in here as well.
+   - **Active events** — tick `payment.captured` and `payment.failed`, and nothing else.
+
+### 6.4  Put the three live values on the server
+
+1. Edit the server `.env` (the same way as every other step) and replace all three at once:
+
+   ```bash
+   ssh ptz
+   cd ~/project2/vkon.in
+   nano .env
+   
+   # RAZORPAY_KEY_ID=rzp_live_...
+   # RAZORPAY_KEY_SECRET=...
+   # RAZORPAY_WEBHOOK_SECRET=...   <- the LIVE webhook's secret
+   ```
+
+2. Recreate the app and confirm the site is on live keys:
+
+   ```bash
+   docker compose up -d app
+   docker compose exec app printenv | grep -c '^RAZORPAY_[A-Z_]*=.'
+   docker compose exec app sh -c 'echo $RAZORPAY_KEY_ID | cut -c1-9'
+   ```
+
+3. The count must be **3**, and the last command must print `rzp_live_`. If it prints `rzp_test_`, the edit did not take.
+
+### 6.5  One real payment, then a refund
+
+1. Add a temporary low-value product in `/admin/products` — ₹1 plus GST and delivery — and publish it.
+2. Buy it yourself, with a real card or UPI. **UPI gets its first genuine test here**, since test mode cannot exercise it (5.4).
+3. Check it end to end:
+
+   - The order shows **Paid** and **Confirmed**, and the receipt email arrives.
+   - The payment appears in the Razorpay dashboard under **Transactions**.
+   - Run the `settled_by` query from 5.5 — it proves the **live** webhook is delivering, not just the browser.
+
+4. **Refund it** from the Razorpay dashboard, and unpublish or delete the temporary product.
+5. Settlement of real payments reaches your bank account on Razorpay's own cycle — typically T+2 working days for a new account. Check **Settlements** a couple of days later.
 
 > 💡 **When the company is registered:** a Private Limited or LLP needs a **new** Razorpay account with fresh KYC — the individual account can't be converted. The website side is just swapping these three values and recreating the webhook. For Shiprocket, ask their support in writing whether the KYC can be updated in place.
 
@@ -482,8 +579,10 @@ Do this only when Razorpay has approved your KYC (you'll get an email, and the d
 | ☐ | Step 4 — Tracking webhook created; token check returns 200 |
 | ☐ | Step 4 — Every product measured: real packed weight and box size replacing the estimates |
 | ☐ | Step 5 — Razorpay test keys + webhook on the server; success, failure and abandon tested |
-| ☐ | Step 5 — Webhook replayed with the browser closed; order still paid, one email |
-| ☐ | Step 6 — KYC approved; live keys and live webhook in place; one real payment settled |
+| ☐ | Step 5 — Webhook proved on its own with the close-the-tab test; `settled_by` reads `webhook` |
+| ☐ | Step 6 — Website verification passed and KYC approved |
+| ☐ | Step 6 — Live keys generated; server prints `rzp_live_`; live webhook created with its own secret |
+| ☐ | Step 6 — One real payment taken, proved by `settled_by`, then refunded |
 
 ---
 

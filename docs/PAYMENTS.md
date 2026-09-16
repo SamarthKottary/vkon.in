@@ -262,17 +262,43 @@ card in the dashboard is for going live. Card numbers from
 [Razorpay's test card list](https://razorpay.com/docs/payments/payments/test-card-details/),
 checked 2026-09-15.
 
-Then test the webhook independently of the browser: replay it from the
-dashboard's webhook log with the browser closed, and confirm the order still
-becomes `paid` and the email still goes out exactly once.
+Then test the webhook independently of the browser. **There is no delivery log
+to replay it from** — Razorpay gives merchants no per-webhook history, only the
+list of webhooks; an earlier version of this section said otherwise and was
+wrong. Two things stand in for it:
 
-**Do not skip the last one.** The browser path working is not evidence the
-webhook path works, and the webhook is the one that saves you when a customer's
-phone drops the connection during a UPI intent — which, for this audience on
-rural mobile data, is not an edge case.
+- **`orders.payment_signature` records which path settled the row.** The
+  webhook writes the literal string `webhook` there; the browser writes
+  Razorpay's checkout signature. So every paid order carries its own evidence,
+  and `select payment_signature from orders where payment_status = 'paid'`
+  answers "is the webhook actually working?" without any dashboard at all.
+- **Pay, then close the tab before the widget returns.** The browser then never
+  calls `verify`, so only the webhook can mark the order paid.
 
-Go live by swapping `rzp_test_` for `rzp_live_` and pointing the webhook at the
-production URL. Put one real ₹1 order through it before announcing anything.
+Confirmed in test mode on 2026-09-15: order `VK-0915-T5TQ` was settled by the
+webhook, not the browser.
+
+**A working webhook logs nothing.** Only the failures are logged
+(`[webhook] signature rejected`, amount mismatch, unknown order), so an empty
+log is what success looks like — it is not evidence that nothing arrived.
+
+**Do not skip this.** The browser path working is not evidence the webhook path
+works, and the webhook is the one that saves you when a customer's phone drops
+the connection during a UPI intent — which, for this audience on rural mobile
+data, is not an edge case.
+
+**Going live is four things, not one.** Live keys are gated on Razorpay's
+website verification ("To generate API keys in Live Mode, you must provide the
+website details where you will collect payments" — quoted three working days),
+which is the "Verify now" card above. Then: generate live keys in Live Mode
+(the secret is shown once and never again), create a **separate live webhook**
+with its own secret — Razorpay keeps test and live webhooks apart, so the test
+one does nothing for real payments — and replace all three `RAZORPAY_` values
+on the server together. Half-switched is the dangerous state: Razorpay's own
+warning for leaving test keys in place is that customers see a success screen
+while nothing is captured or settled. Put one real low-value order through,
+check `payment_signature` says `webhook`, and refund it. Full steps in
+[INTEGRATIONS-SETUP-GUIDE.md](INTEGRATIONS-SETUP-GUIDE.md) Step 6.
 
 ---
 
