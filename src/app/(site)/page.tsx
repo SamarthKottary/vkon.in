@@ -2,6 +2,7 @@ import { ContactStrip } from "@/components/home/ContactStrip";
 import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { Hero } from "@/components/home/Hero";
 import { SectorBrowser } from "@/components/home/SectorBrowser";
+import { PageTop } from "@/components/layout/PageTop";
 import { SubscribePanel } from "@/components/layout/SubscribePanel";
 import { RecentlyViewed } from "@/components/home/RecentlyViewed";
 import { Section, SectionHeading } from "@/components/ui/Section";
@@ -60,6 +61,10 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Must stay first — it is what makes arriving here start at the top
+          rather than at "What we make" below. See the component. */}
+      <PageTop />
+
       {/* The hero pins itself and everything below rises over it as one
           sheet (client: "The what we make section should move up like a
           curtain over the slide show and ranges at the bottom").

@@ -899,6 +899,17 @@ Each encodes a real bug. Breaking one reintroduces it.
 **`requireAdmin()` must be the first statement of every mutating server action
 in `app/admin/actions.ts`.** See §7.
 
+**Every page whose first element is `sticky` must render `<PageTop />` above
+it.** That is all four curtain pages — `/`, `/about`, `/contact`, `/products`.
+On each navigation Next picks one element and scrolls it into view, and
+`shouldSkipElement` deliberately skips `sticky` and `fixed` ones as "likely to
+pass the in-viewport check". Here the curtain *is* the top of the page, so Next
+skips past it and scrolls to the first ordinary element further down: measured
+2026-09-16, Home opened at the "What we make" curtain 451px down and `/about`
+at its *last* section, 3243px down. `PageTop` is an empty, zero-height,
+non-sticky div that gives Next the right target. It must stay the first element
+— a component returning `null` above it is fine, a real element is not.
+
 **There are exactly two unauthenticated write paths, and every action in both
 carries the same three guards.** They are `app/(site)/actions.ts` (sign-up,
 contact enquiry) and `app/(site)/account/actions.ts` (register, sign in, forgot,
@@ -1452,6 +1463,35 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-16 (navigation) — Pages open at the top again: `PageTop`, and `AboutScrollReset` deleted
+
+Reported: clicking Home from another page "scrolls by itself and stops at what
+we make", on every one of Home, Products, About and Contact.
+
+Next scrolls one element of the new page into view and, via `shouldSkipElement`,
+skips `sticky`/`fixed` ones on the reasoning that a pinned box would wrongly
+satisfy its "already in view" test. Every page here opens with the curtain, so
+that reasoning inverts: Next walked past the whole curtain to the first ordinary
+element below it. Measured from the foot of `/contact` — Home landed at 451px,
+the "What we make" curtain; `/about` at 3243px, its last section, every section
+above being sticky. Confirmed against the live site, and confirmed as the cause
+by tracing `scrollIntoView`/`focus` calls: Next targeted `SECTION.relative z-40`
+on `/about`.
+
+- `components/layout/PageTop.tsx` (new) is an empty non-sticky div rendered
+  first on all four pages, giving Next a correct target. Recorded in §9.
+- `components/about/AboutScrollReset.tsx` deleted. It was the per-page patch for
+  this on `/about` only; mounted inside the page, it could only fire *after* the
+  wrong scroll had been painted, which is why that page bounced to 3243px and
+  slammed back to 0.
+
+Verified: 10 route pairs on desktop plus 2 at 390px all land at 0; the curtain
+still pins; no console errors. **Not fixed, and pre-existing:** Back does not
+restore the position you left (it returns to the same wrong offset on the live
+site today), and the old page drifts ~900px upward during the ~1.5s a
+`force-dynamic` navigation takes — no script causes it, and it is unchanged by
+`scroll-behavior` or `overflow-anchor`.
 
 ### 2026-09-15 (cart) — Checkout no longer empties the next basket after an order
 

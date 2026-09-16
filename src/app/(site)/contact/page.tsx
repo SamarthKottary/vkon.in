@@ -2,6 +2,7 @@ import Image from "next/image";
 import { TiltCard } from "@/components/about/TiltCard";
 import { EnquiryForm } from "@/components/contact/EnquiryForm";
 import { ArrowRightIcon } from "@/components/icons/ui";
+import { PageTop } from "@/components/layout/PageTop";
 import { SubscribePanel } from "@/components/layout/SubscribePanel";
 import { Container } from "@/components/ui/Container";
 import { JsonLd } from "@/components/ui/JsonLd";
@@ -66,6 +67,9 @@ export default function ContactPage() {
 
   return (
     <>
+      {/* Must stay first — every section below is sticky. See the component. */}
+      <PageTop />
+
       {/* The masthead pins and everything under it rises over it as one
           sheet — the same curtain the home page's hero carries (client:
           "Lets have curtain going up feature for about us and contact us

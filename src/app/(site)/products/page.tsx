@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { PageHero } from "@/components/layout/PageHero";
+import { PageTop } from "@/components/layout/PageTop";
 import { ProductCatalogue } from "@/components/product/ProductCatalogue";
 import { Container } from "@/components/ui/Container";
 import { site } from "@/content/site";
@@ -23,6 +24,10 @@ export default async function ProductsPage() {
 
   return (
     <>
+      {/* Must stay first — the header band below is sticky. See the
+          component. */}
+      <PageTop />
+
       {/* No breadcrumb here (client, 2026-08-23). "Home /" above a page
           reachable from the header's own Products link told a visitor nothing
           they did not have, and cost a line of vertical space at the top of
