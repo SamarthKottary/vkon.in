@@ -138,7 +138,23 @@ export default async function SiteLayout({
           `body` carries the same colour, but a background set on `body`
           propagates to the canvas and leaves the element itself
           transparent, so it cannot do this job. */}
-      <main id="main" className="relative z-10 flex-1 bg-surface">
+      {/* `overflow-x-clip` pays for the full-bleed tracks. `FeaturedProducts`
+          and `RecentlyViewed` break out of the centred container with
+          `mx-[calc(50%-50vw)]`, which makes them exactly `100vw` wide — and
+          `vw` counts the vertical scrollbar, while the space they actually
+          have does not. On a browser with a classic scrollbar that is ~15px of
+          real page overflow and a horizontal scrollbar along the bottom of
+          every page; measured in Chrome on 2026-09-16, `clientWidth` 1469
+          against a `scrollWidth` of 1477. Headless Chromium hides it, because
+          its overlay scrollbar has no width.
+
+          **`clip`, never `hidden`.** `hidden` would make this a scroll
+          container, and the curtain on every page — the sticky heroes,
+          mastheads and the pinned footer — is positioned against the viewport.
+          `clip` trims the few pixels of overshoot and creates no scrollport,
+          so sticky is untouched. `overflow-y` stays visible, which the
+          featured cards need to pop above their row. */}
+      <main id="main" className="relative z-10 flex-1 overflow-x-clip bg-surface">
         {children}
       </main>
 

@@ -899,6 +899,19 @@ Each encodes a real bug. Breaking one reintroduces it.
 **`requireAdmin()` must be the first statement of every mutating server action
 in `app/admin/actions.ts`.** See §7.
 
+**`<main>` keeps `overflow-x-clip`, and it must be `clip` rather than
+`hidden`.** `FeaturedProducts` and `RecentlyViewed` bleed out of the centred
+container with `mx-[calc(50%-50vw)]`, which sizes them to exactly `100vw` —
+and `vw` counts the vertical scrollbar while the width they actually have does
+not. Without the clip that is real page overflow and a horizontal scrollbar
+along the bottom of every page on any browser with a classic scrollbar;
+measured in Chrome on 2026-09-16, `clientWidth` 1469 against `scrollWidth`
+1477. It is invisible in headless Chromium, whose overlay scrollbar has no
+width, so test this one in a real browser. `hidden` would make `main` a scroll
+container and reposition every sticky curtain on the site against it instead of
+the viewport; `clip` creates no scrollport. `overflow-y` stays `visible`,
+which the featured cards need in order to pop above their row.
+
 **Every page whose first element is `sticky` must render `<PageTop />` above
 it.** That is all four curtain pages — `/`, `/about`, `/contact`, `/products`.
 On each navigation Next picks one element and scrolls it into view, and
@@ -1463,6 +1476,27 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-16 (layout) — Horizontal scrollbar on every page: `main` gains `overflow-x-clip`
+
+Reported from a real browser, with a screenshot of the bar along the bottom of
+the home page. Not reproducible in headless Chromium at any width from 320 to
+1920, in dark mode, signed in, with a full cart or with recently-viewed items,
+because its overlay scrollbar has no width. Reproduced immediately in real
+Chrome: `innerWidth` 1484, `clientWidth` 1469, `scrollWidth` 1477 — 8px of
+overflow, and the offender named in one line.
+
+`FeaturedProducts` and `RecentlyViewed` bleed full width with
+`mx-[calc(50%-50vw)]`. That resolves to exactly `100vw`, and `vw` includes the
+vertical scrollbar while the page's usable width does not, so each track is
+~15px wider than the room it has. `main` now carries `overflow-x-clip`, which
+trims the overshoot. It must not become `hidden`: that would turn `main` into a
+scroll container and re-base every sticky curtain on the site against it.
+Recorded in §9.
+
+Verified in real Chrome on all four pages at every scroll offset: no overflow
+anywhere, the hero still pins, the featured track still scrolls sideways
+(6213px of content in 1484), and the footer curtain still reveals.
 
 ### 2026-09-16 (navigation) — Pages open at the top again: `PageTop`, and `AboutScrollReset` deleted
 
