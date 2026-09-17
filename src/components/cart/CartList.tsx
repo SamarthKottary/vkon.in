@@ -264,7 +264,10 @@ export function CartList({ products }: { products: Product[] }) {
 
           <div className="flex items-center justify-between py-3.5">
             <span className="font-semibold text-ink">Shipping</span>
-            <span className="text-xs font-medium text-accent hover:underline cursor-pointer">
+            {/* Static text (client, 2026-09-17: "keep it static no motion"). It
+                had a hover underline and a pointer cursor, so it looked like a
+                link — but it does nothing; delivery is priced at checkout. */}
+            <span className="text-xs font-medium text-accent">
               Calculate shipping
             </span>
           </div>
