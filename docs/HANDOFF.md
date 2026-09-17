@@ -370,9 +370,11 @@ Ordered by how much it would hurt to leave.
    so git cannot restore them. `cicd/` is a security control, not housekeeping.
    Recover them from the server.
 4. **Company details are placeholder.** `grep -rn "TODO(vkon)" src/` — the
-   address, the founding year (`2010`, conflicts with the plan), the `280–440 V`
-   supply band, and the solar/cables/accessories category copy.
-5. **The map pin is a town, not the works**, and follows the address above.
+   founding year (`2010`, conflicts with the plan), the `280–440 V` supply
+   band, and the solar/cables/accessories category copy. The address and map
+   pin are real since 2026-09-17 (the Razorpay KYC address, near Sahyadri
+   College, Mangaluru 575007).
+5. *(Done 2026-09-17: the map pin is the works, from the plus code.)*
 6. **8 DEMO products** still in the catalogue.
 7. **The favicon is still the old circular badge.** A wordmark does not survive
    32px; it needs its own mark, probably just the red "o".

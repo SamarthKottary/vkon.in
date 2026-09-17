@@ -1542,6 +1542,21 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-17 (contact) — The real business address, and a map pin on it
+
+The placeholder "Industrial Area, Kolar Gold Fields 563122" was on the contact
+page, the footer, the contact page's description and the LocalBusiness
+JSON-LD. Razorpay's website verification compares those against the KYC, so it
+is now the registered address: `VW8F+FVP, near Sahyadri College Mechanical and
+Civil Block, Mangaluru, Karnataka 575007`.
+
+- `site.address` gained `geo`, the plus code decoded (12.866212, 74.924703).
+  The contact map and "Open in Google Maps" use it instead of the address text,
+  because Google resolves a short plus code near the searcher. Razorpay's own
+  preview of this address showed a pin in California.
+- The About page's social card fell back to a hard-coded "Kolar Gold Fields";
+  it reads `site.address.locality` now.
+
 ### 2026-09-17 (admin) — `/admin/users`, and review accounts that skip the sign-in code
 
 Client: a Users section in the admin, and a test login for Razorpay's website

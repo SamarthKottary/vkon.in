@@ -36,14 +36,26 @@ export const site = {
 
   email: "vkonautomation@gmail.com",
 
+  /**
+   * The business address as registered with Razorpay (client, 2026-09-17).
+   * Razorpay's website verification compares what the site shows against the
+   * KYC, so change the two together.
+   *
+   * `VW8F+FVP` is a Google plus code, which is how the registered address
+   * gives the building. On its own it is ambiguous — Google resolves a short
+   * code near whoever is searching, which is why Razorpay's own preview put
+   * the pin in California — so it is always shown with the town. The contact
+   * page's map uses the decoded coordinates, `geo` below, instead.
+   */
   address: {
-    // TODO(vkon): replace with the real address.
-    street: "Industrial Area",
-    locality: "Kolar Gold Fields",
+    street: "VW8F+FVP, near Sahyadri College Mechanical and Civil Block",
+    locality: "Mangaluru",
     region: "Karnataka",
-    postalCode: "563122",
+    postalCode: "575007",
     country: "IN",
     countryName: "India",
+    /** `7J4PVW8F+FVP` decoded: the centre of that plus-code square. */
+    geo: { lat: 12.866212, lon: 74.924703 },
   },
 
   hours: "Monday – Saturday, 9:30 am – 6:30 pm IST",

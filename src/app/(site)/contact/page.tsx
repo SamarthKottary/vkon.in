@@ -21,15 +21,11 @@ export async function generateMetadata() {
 export const dynamic = "force-dynamic";
 
 /**
- * Approximate coordinates for the map pin.
- *
- * TODO(vkon): these are the centre of Kolar Gold Fields, not the works. The
- * address in `site.ts` is still a placeholder, so this is deliberately a town
- * rather than a building — a pin dropped on a specific street we have not
- * confirmed would be confidently wrong, which is worse than approximately
- * right. Replace both together.
+ * The map pin: the business's own plus code, decoded (see `site.address`).
+ * Until 2026-09-17 this was the centre of Kolar Gold Fields, standing in for a
+ * placeholder address.
  */
-const MAP = { lat: 12.9558, lon: 78.2739, span: 0.04 };
+const MAP = site.address.geo;
 
 /**
  * Contact page.
@@ -55,15 +51,10 @@ const MAP = { lat: 12.9558, lon: 78.2739, span: 0.04 };
  * dependency, so a deploy still does not rely on a billing account.
  */
 export default function ContactPage() {
-  const mapsQuery = encodeURIComponent(
-    [
-      site.address.street,
-      site.address.locality,
-      site.address.region,
-      site.address.postalCode,
-      site.address.countryName,
-    ].join(", "),
-  );
+  /* Coordinates rather than the address text: the street line is a plus code
+     and a landmark, which a Google search can read as a place to look for
+     near the visitor instead of a point in Mangaluru. */
+  const mapsQuery = encodeURIComponent(`${MAP.lat},${MAP.lon}`);
 
   return (
     <>
@@ -259,7 +250,7 @@ export default function ContactPage() {
                     title={`Map showing ${site.address.locality}, ${site.address.region}`}
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
-                    src={`https://maps.google.com/maps?q=${MAP.lat},${MAP.lon}&z=15&output=embed`}
+                    src={`https://maps.google.com/maps?q=${MAP.lat},${MAP.lon}&z=16&output=embed`}
                     className="h-full w-full border-0"
                   />
                 </div>

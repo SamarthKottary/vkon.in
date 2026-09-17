@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { ArrowRightIcon } from "@/components/icons/ui";
+import { site } from "@/content/site";
 
 export type SocialProfile = {
   key: string;
@@ -262,7 +263,7 @@ export function SocialProfileCard({ profile }: { profile: SocialProfile }) {
               Vkon Automation
             </p>
             <p className="truncate font-mono text-[0.6875rem] text-muted">
-              {profile.handle ?? "Kolar Gold Fields"}
+              {profile.handle ?? site.address.locality}
             </p>
           </div>
 
