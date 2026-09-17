@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRightIcon } from "@/components/icons/ui";
 import { formatPaise } from "@/lib/pricing";
 import { trackingLabel, trackingUrl } from "@/lib/tracking";
+import { PayNowButton } from "@/components/checkout/PayNowButton";
 import {
   isCod,
   isPaymentFailed,
@@ -31,26 +32,41 @@ const STATUS_STYLE: Record<OrderStatus, { label: string; className: string }> = 
 };
 
 /**
- * The status shown for an order. A failed online payment shows as "Payment
- * failed" instead of "Pending" (client, 2026-09-17) — the order is not
- * progressing until it is paid. It has its own filter for the same reason.
+ * The status shown for an order. **An online order waiting to be paid says so**
+ * — "Payment due", or "Payment failed" after an attempt — rather than
+ * "Pending" (client, 2026-09-17): the order is not progressing until it is
+ * paid, and "Pending" beside "Payment due" said the same thing twice. Both
+ * have their own filter.
  */
 const PAYMENT_FAILED_STYLE = { label: "Payment failed", className: "text-red-600 bg-red-50" };
+const PAYMENT_DUE_STYLE = { label: "Payment due", className: "text-signal-700 bg-signal-500/10" };
+
+function awaitingPayment(order: Order): boolean {
+  return (
+    !isCod(order) &&
+    order.status === "pending" &&
+    (order.paymentStatus === "unpaid" || order.paymentStatus === "failed")
+  );
+}
 
 function displayStatus(order: Order): { key: string; label: string; className: string } {
-  if (isPaymentFailed(order) && order.status === "pending") {
-    return { key: "payment_failed", ...PAYMENT_FAILED_STYLE };
+  if (awaitingPayment(order)) {
+    return isPaymentFailed(order)
+      ? { key: "payment_failed", ...PAYMENT_FAILED_STYLE }
+      : { key: "payment_due", ...PAYMENT_DUE_STYLE };
   }
   const s = STATUS_STYLE[order.status] ?? STATUS_STYLE.pending;
   return { key: order.status, ...s };
 }
 
-/** "COD", or "Online" with how it stands — "Paid", "Payment due", "Refunded".
- *  A failed payment is already the status, so it is not repeated here. */
+/** "COD", or "Online" with how it stands — "Paid" or "Refunded". Whether it is
+ *  still to be paid is the status, so it is not repeated here. */
 function paymentText(order: Order): { method: string; state: string | null } {
   if (isCod(order)) return { method: paymentMethodLabel(order), state: null };
-  if (isPaymentFailed(order)) return { method: "Online", state: null };
-  return { method: "Online", state: paymentStateLabel(order).label };
+  if (order.paymentStatus === "paid" || order.paymentStatus === "refunded") {
+    return { method: "Online", state: paymentStateLabel(order).label };
+  }
+  return { method: "Online", state: null };
 }
 
 /** A parcel with a courier tracking number can be followed on Shiprocket's
@@ -59,21 +75,19 @@ function canTrack(order: Order): boolean {
   return Boolean(order.awb) && order.status !== "cancelled";
 }
 
-/** An online order not yet paid has nothing to track; its page is where it is
- *  paid for. A parcel already on Shiprocket gets its own "Track parcel"
- *  button, so this one reads "View Details" rather than a second "Track". */
-function actionLabel(order: Order): string {
-  const unpaidOnline = !isCod(order) && (order.paymentStatus === "unpaid" || order.paymentStatus === "failed");
-  if (unpaidOnline && order.status === "pending") return "Pay now";
-  if (canTrack(order)) return "View Details";
-  return (ACTIVE_STATUSES as string[]).includes(order.status) ? "Track Order" : "View Details";
-}
-
-/** The row's buttons: the order page, and Shiprocket's tracking page when the
- *  parcel has a tracking number. */
+/**
+ * Three buttons exist and a row shows at most two of them (client,
+ * 2026-09-17): **Pay now** opens Razorpay on the spot, **Track order** opens
+ * Shiprocket's page for the parcel, and **View details** opens the order.
+ * Which of the first two appears depends on whether the order is waiting to
+ * be paid or already has a tracking number; View details is always there.
+ */
 function OrderActions({ order }: { order: Order }) {
   return (
     <span className="inline-flex flex-wrap items-center justify-end gap-2">
+      {awaitingPayment(order) && (
+        <PayNowButton orderId={order.id} amountLabel={formatPaise(order.total)} compact />
+      )}
       {canTrack(order) && (
         <a
           href={trackingUrl(order.awb!)}
@@ -81,7 +95,7 @@ function OrderActions({ order }: { order: Order }) {
           rel="noopener noreferrer"
           className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap border border-accent bg-accent px-4 text-xs font-semibold text-surface transition-colors hover:bg-accent-strong"
         >
-          Track parcel
+          Track order
           <ArrowRightIcon className="h-3.5 w-3.5 -rotate-45" />
           <span className="sr-only">(opens Shiprocket in a new tab)</span>
         </a>
@@ -90,7 +104,7 @@ function OrderActions({ order }: { order: Order }) {
         href={`/account/orders/${order.id}`}
         className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap border border-line-strong px-4 text-xs font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
       >
-        {actionLabel(order)}
+        View details
         <ArrowRightIcon className="h-3.5 w-3.5" />
       </Link>
     </span>
@@ -100,14 +114,13 @@ function OrderActions({ order }: { order: Order }) {
 const STATUS_FILTERS: { label: string; value: string }[] = [
   { label: "All",       value: "all" },
   { label: "Pending",   value: "pending" },
+  { label: "Payment due", value: "payment_due" },
   { label: "Payment failed", value: "payment_failed" },
   { label: "Confirmed", value: "confirmed" },
   { label: "Shipped",   value: "shipped" },
   { label: "Delivered", value: "delivered" },
   { label: "Cancelled", value: "cancelled" },
 ];
-
-const ACTIVE_STATUSES: OrderStatus[] = ["pending", "confirmed", "shipped"];
 
 type SortKey = "date" | "items" | "total";
 type SortDir = "asc" | "desc";
@@ -406,7 +419,10 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                       key={order.id}
                       onClick={(event) => openOrder(event, order.id)}
                       onMouseEnter={() => router.prefetch(`/account/orders/${order.id}`)}
-                      className="cursor-pointer transition-colors hover:bg-surface-subtle/50"
+                      /* A border round the row on hover (client, 2026-09-17):
+                         an outline, because a `tr` cannot carry a border of
+                         its own in a collapsed table. */
+                      className="cursor-pointer transition-colors hover:bg-surface-subtle/50 hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-accent"
                     >
                       <td className="px-5 py-4">
                         <Link
@@ -423,7 +439,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                         {order.items.length}
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold ${s.className}`}>
+                        <span className={`inline-flex items-center whitespace-nowrap px-2.5 py-1 text-xs font-semibold ${s.className}`}>
                           {s.label}
                         </span>
                         {/* Where a shipped parcel actually is, from the courier —
@@ -463,7 +479,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                 <li
                   key={order.id}
                   onClick={(event) => openOrder(event, order.id)}
-                  className="cursor-pointer border border-line bg-surface-raised p-4 shadow-card transition-colors hover:border-line-strong"
+                  className="cursor-pointer border border-line bg-surface-raised p-4 shadow-card transition-colors hover:border-accent"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <Link

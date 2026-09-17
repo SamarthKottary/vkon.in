@@ -244,6 +244,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `account/ProfileForm` · `AddressForm` | `useActionState`, per-field errors |
 | `account/PasswordCard` | Sets a first password or changes one; collapsed until asked for |
 | `account/verify-code/CodeForm` | The sign-in code, with its own resend and cancel actions |
+| `account/OrderFooterActions` | Repeat order (adds this order's lines to the cart and opens the drawer); Download invoice is a disabled placeholder |
 | `account/AddressBook` | Which address the dialog is open on; the optimistic default while "make default" is in flight |
 | `cart/CartDrawer` | Slide-over state, Escape, body scroll lock |
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
@@ -1555,6 +1556,32 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-17 (order history) — "Payment due" as the status, two buttons a row, repeat order
+
+Client, on the order history and one order's page.
+
+- **An online order waiting to be paid says "Payment due" as its status**, and
+  the Payment column then says only "Online" — the two used to say it twice
+  ("Pending" beside "Online / Payment due"). "Payment failed" already worked
+  this way; both now have a filter.
+- **Three buttons exist, a row shows at most two:** **Pay now** (opens Razorpay
+  in place — `PayNowButton` gained a `compact` variant — and no longer walks
+  the customer to the order page first), **Track order** (Shiprocket, new tab,
+  renamed from "Track parcel") and **View details**, which is always there.
+- **A row is outlined in accent on hover**, an outline rather than a border
+  because a `tr` in a collapsed table cannot carry one. Cards use a border.
+- **`OrderFooterActions` under the items on an order's page:** *Repeat order*
+  adds that order's lines to the cart — adding to what is there, never
+  replacing it — and opens the cart drawer; *Download invoice* is a disabled
+  placeholder while invoices wait on numbering and the GST decision
+  (EMAILS.md §3, E).
+- Status badges are `whitespace-nowrap`; the table still fits at 1280 and 1440.
+- **Tested in the browser:** the four order states show the right status,
+  payment text and buttons; Pay now opens the Razorpay window from the history
+  page and closing it stays there; Track order points at Shiprocket; the
+  Payment due filter works; Repeat order keeps an existing cart and adds to it,
+  twice over; Download invoice is disabled; no overflow at 390px.
 
 ### 2026-09-17 (orders) — Cart emptied after an unpaid checkout; whole order rows clickable; Track parcel; a missing order number fixed
 

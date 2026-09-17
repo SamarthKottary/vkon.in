@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertIcon, CheckIcon } from "@/components/icons/ui";
+import { OrderFooterActions } from "@/components/account/OrderFooterActions";
 import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
 import { ClearCartOnPlaced } from "@/components/cart/ClearCartOnPlaced";
 import { PayNowButton } from "@/components/checkout/PayNowButton";
@@ -147,7 +148,8 @@ export default async function OrderPage({
         </div>
 
         <div className="mt-6 grid gap-6 sm:mt-8 lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-8">
-          <div className="border border-line bg-surface-raised shadow-card">
+          <div>
+            <div className="border border-line bg-surface-raised shadow-card">
             <ul className="divide-y divide-line">
               {order.items.map((item) => (
                 /* Same shape as the checkout line for the same reason: at
@@ -216,6 +218,13 @@ export default async function OrderPage({
                 </p>
               </div>
             )}
+            </div>
+
+            {/* Under the items, not inside their card: they act on the order as
+                a whole (client, 2026-09-17). */}
+            <OrderFooterActions
+              items={order.items.map((item) => ({ slug: item.slug, qty: item.qty }))}
+            />
           </div>
 
           <div className="space-y-6">

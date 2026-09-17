@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { AlertIcon, SpinnerIcon } from "@/components/icons/ui";
+import { AlertIcon, ArrowRightIcon, SpinnerIcon } from "@/components/icons/ui";
 import { Button } from "@/components/ui/Button";
 
 /**
@@ -29,6 +29,10 @@ import { Button } from "@/components/ui/Button";
  * **A dismissed widget is not a failure.** People open it to look and close it
  * again; `ondismiss` returns the button to idle silently. The order stays
  * pending and payable, which is exactly the state it should be in.
+ *
+ * `compact` is the same button sized for a row in the order history (client,
+ * 2026-09-17: "the pay now directs to payment in razor pay"), where it opens
+ * the widget in place rather than sending anybody to the order page first.
  */
 
 type CheckoutConfig = {
@@ -85,9 +89,12 @@ export function loadRazorpay(): Promise<boolean> {
 export function PayNowButton({
   orderId,
   amountLabel,
+  compact = false,
 }: {
   orderId: string;
   amountLabel: string;
+  /** Row-sized, for the order history table and its cards. */
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -180,6 +187,28 @@ export function PayNowButton({
       setBusy(false);
     }
   }, [orderId, router]);
+
+  if (compact) {
+    return (
+      <span className="inline-flex flex-col items-end gap-1">
+        <button
+          type="button"
+          onClick={pay}
+          disabled={busy}
+          className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap border border-accent bg-accent px-4 text-xs font-semibold text-surface transition-colors hover:bg-accent-strong disabled:opacity-70"
+        >
+          {busy && <SpinnerIcon className="h-3.5 w-3.5" />}
+          {busy ? "Opening…" : "Pay now"}
+          {!busy && <ArrowRightIcon className="h-3.5 w-3.5" />}
+        </button>
+        {error && (
+          <span role="alert" className="max-w-[15rem] text-right text-xs leading-snug text-red-700">
+            {error}
+          </span>
+        )}
+      </span>
+    );
+  }
 
   return (
     <div>
