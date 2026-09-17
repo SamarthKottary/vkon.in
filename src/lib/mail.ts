@@ -433,3 +433,139 @@ export async function sendPaymentReceivedMail(input: {
   });
 }
 
+
+/**
+ * An order moved: shipped, out for delivery, delivered, or cancelled
+ * (client, 2026-09-17).
+ *
+ * One template for the four, because they are one message — "here is where
+ * your order stands" — and four copies of the same table would drift. What
+ * changes is the heading, the opening sentence, and whether there is a parcel
+ * to track.
+ *
+ * **It says plainly that replies go nowhere.** Every message here is sent from
+ * `no-reply@` (see `fromAddress`), and a customer whose parcel is late will hit
+ * Reply anyway. So these carry the phone number as the way to reach a person,
+ * where the other templates leave it to the footer.
+ *
+ * The courier's status is shown in customer words (`trackingLabel`), with the
+ * latest scan beneath it, so the email is useful on its own for somebody who
+ * never opens the tracking page.
+ */
+export type OrderUpdateKind = "shipped" | "out_for_delivery" | "delivered" | "cancelled";
+
+export async function sendOrderUpdateMail(input: {
+  to: string;
+  name: string;
+  kind: OrderUpdateKind;
+  orderNumber: string;
+  orderUrl: string;
+  /** Customer wording, e.g. "Out for delivery". */
+  trackingStatus: string | null;
+  courierName: string | null;
+  awb: string | null;
+  trackingUrl: string | null;
+  /** Already formatted for display. */
+  eta: string | null;
+  latest: { activity: string; location: string; at: string | null } | null;
+  /** For a cancellation: whether money has been taken and needs returning. */
+  paid: boolean;
+}): Promise<MailResult> {
+  const copy: Record<OrderUpdateKind, { subject: string; heading: string; lead: string }> = {
+    shipped: {
+      subject: `Order ${input.orderNumber} has shipped`,
+      heading: "Your order is on its way",
+      lead: `Order ${input.orderNumber} has been handed to the courier. You can follow it with the tracking link below.`,
+    },
+    out_for_delivery: {
+      subject: `Order ${input.orderNumber} is out for delivery`,
+      heading: "Out for delivery",
+      lead: `Order ${input.orderNumber} is out for delivery and should reach you today. Please keep your phone with you — the courier may call.`,
+    },
+    delivered: {
+      subject: `Order ${input.orderNumber} has been delivered`,
+      heading: "Delivered",
+      lead: `Order ${input.orderNumber} has been delivered. Thank you for buying from ${site.legalName}.`,
+    },
+    cancelled: {
+      subject: `Order ${input.orderNumber} has been cancelled`,
+      heading: "Your order has been cancelled",
+      lead: `Order ${input.orderNumber} has been cancelled and will not be delivered.`,
+    },
+  };
+  const { subject, heading, lead } = copy[input.kind];
+  const cancelled = input.kind === "cancelled";
+
+  const refund = cancelled
+    ? input.paid
+      ? "You paid for this order online. We will call you to arrange your refund."
+      : "No payment was taken for this order."
+    : null;
+
+  const latestLine = input.latest
+    ? [input.latest.activity, input.latest.location, input.latest.at].filter(Boolean).join(" · ")
+    : null;
+
+  const details: [string, string][] = cancelled
+    ? []
+    : ([
+        ["Status", input.trackingStatus],
+        ["Latest update", latestLine],
+        /* Not once it is out for delivery — that mail already says "today",
+           and the courier's estimate from pickup may by then be in the past. */
+        ["Expected by", input.kind === "shipped" ? input.eta : null],
+        ["Courier", input.courierName],
+        ["Tracking number", input.awb],
+      ].filter((row): row is [string, string] => Boolean(row[1])));
+
+  const detailRows = details
+    .map(
+      ([label, value]) =>
+        `<tr><td style="padding:9px 12px 9px 0;border-bottom:1px solid ${LINE};font:400 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#5a636c;white-space:nowrap;vertical-align:top;">${esc(label)}</td>
+<td style="padding:9px 0;border-bottom:1px solid ${LINE};font:500 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${INK};">${esc(value)}</td></tr>`,
+    )
+    .join("");
+
+  const noReply = `This email comes from an address that does not receive replies. For anything about this order, call or WhatsApp us on ${site.phone.display}.`;
+
+  const html = shell(
+    heading,
+    paragraph(hello(input.name)) +
+      paragraph(esc(lead)) +
+      (refund ? paragraph(esc(refund)) : "") +
+      (detailRows
+        ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">${detailRows}</table>`
+        : "") +
+      (input.trackingUrl && !cancelled
+        ? button(input.trackingUrl, "Track your parcel")
+        : button(input.orderUrl, "View your order")) +
+      (input.trackingUrl && !cancelled
+        ? paragraph(
+            `<a href="${input.orderUrl}" style="color:${ACCENT};text-decoration:none;">View your order on ${esc(site.domain)}</a>`,
+          )
+        : "") +
+      `<p style="margin:18px 0 0 0;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#5a636c;">${esc(noReply)}</p>`,
+  );
+
+  const text = [
+    hello(input.name).replace(/<[^>]+>/g, ""),
+    "",
+    lead,
+    ...(refund ? ["", refund] : []),
+    ...(details.length ? ["", ...details.map(([label, value]) => `  ${label}: ${value}`)] : []),
+    "",
+    ...(input.trackingUrl && !cancelled ? [`Track your parcel: ${input.trackingUrl}`] : []),
+    `Your order: ${input.orderUrl}`,
+    "",
+    noReply,
+    "",
+    `${site.legalName} · ${site.phone.display}`,
+  ].join("\n");
+
+  return sendMail({
+    to: input.to,
+    subject: `${subject} — ${site.legalName}`,
+    html,
+    text,
+  });
+}

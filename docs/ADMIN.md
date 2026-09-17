@@ -17,7 +17,8 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
-| `/admin/orders` | Order inbox. Read, and move an order along its status. |
+| `/admin/orders` | Order inbox. Read, move an order along its status (emails the customer), courier tracking, cancel. |
+| `/admin/users` | Customer accounts. Read, search, and turn the sign-in code off for a review account. |
 | `/admin/enquiries` | Contact-form inbox. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Read, export, remove. |
 | `/admin/seo` | Static page SEO overrides. |

@@ -13,9 +13,22 @@ import {
   updateProduct,
 } from "@/lib/db/products";
 import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
-import { getOrderForAdmin, setOrderShipment, setOrderStatus } from "@/lib/db/orders";
+import { setSigninCodeExempt } from "@/lib/db/customers";
+import {
+  applyTrackingUpdate,
+  getOrderForAdmin,
+  orderProgress,
+  setOrderShipment,
+  setOrderStatus,
+} from "@/lib/db/orders";
+import { mailForTrackingChange, notifyOrderUpdate } from "@/lib/order-notifications";
 import { listProducts } from "@/lib/db/products";
-import { bookShipment, isShiprocketConfigured } from "@/lib/shiprocket";
+import {
+  bookShipment,
+  cancelShipment,
+  fetchTracking,
+  isShiprocketConfigured,
+} from "@/lib/shiprocket";
 import { packParcel } from "@/lib/parcel";
 import { deleteSubscriber } from "@/lib/db/subscribers";
 import { upsertPageSeo } from "@/lib/db/pageSeo";
@@ -507,18 +520,101 @@ export async function setOrderStatusAction(formData: FormData): Promise<void> {
     redirect("/admin/orders?error=1");
   }
 
+  let change: Awaited<ReturnType<typeof setOrderStatus>> = null;
   try {
-    await setOrderStatus(id, status as OrderStatus);
+    change = await setOrderStatus(id, status as OrderStatus);
   } catch (error) {
     console.error("[admin] order status failed:", error);
     redirect("/admin/orders?error=1");
+  }
+  if (!change) redirect("/admin/orders?error=1");
+
+  /**
+   * What the customer hears about it (client, 2026-09-17), decided from the
+   * status the locked row actually had, not the one on the operator's screen.
+   *
+   * Cancelling emails them from `no-reply@`, and — if a shipment was booked and
+   * has not been picked up — cancels it at Shiprocket too, so a courier does
+   * not turn up for a parcel nobody is sending. After pickup Shiprocket cannot
+   * cancel; the result says so, because the operator then has a return to
+   * arrange. Shipped and delivered email only when the order moved *forward*
+   * into them: correcting a mistaken "delivered" back to "shipped" is
+   * housekeeping, not news.
+   */
+  let outcome = "";
+  const { previousStatus } = change;
+  if (previousStatus !== change.status) {
+    if (change.status === "cancelled") {
+      const order = await getOrderForAdmin(id);
+      if (order?.shipmentOrderId && isShiprocketConfigured()) {
+        if (orderProgress(previousStatus) >= orderProgress("shipped")) {
+          outcome = "&shipment=picked";
+        } else {
+          outcome = (await cancelShipment(order.shipmentOrderId))
+            ? "&shipment=cancelled"
+            : "&shipment=failed";
+        }
+      }
+      await notifyOrderUpdate(id, "cancelled");
+      outcome += "&mailed=1";
+    } else if (
+      (change.status === "shipped" || change.status === "delivered") &&
+      orderProgress(change.status) > orderProgress(previousStatus) &&
+      previousStatus !== "cancelled"
+    ) {
+      await notifyOrderUpdate(id, change.status);
+      outcome += "&mailed=1";
+    }
   }
 
   revalidatePath("/admin/orders");
   /* The customer's own copy shows the same status, and both routes are
      `force-dynamic` — but the client-side router cache is not. */
   revalidatePath("/account/orders");
-  redirect("/admin/orders?updated=1");
+  redirect(`/admin/orders?updated=1${outcome}`);
+}
+
+/**
+ * Asks Shiprocket where one parcel is, now.
+ *
+ * The webhook is how tracking normally arrives; this is for when it has not —
+ * the webhook not yet set up in their dashboard, a delivery that failed on
+ * their side, or an operator who wants to know before ringing a customer back.
+ * It goes through the same `applyTrackingUpdate`, so it emails the customer on
+ * exactly the same transitions a webhook would, and never twice for one.
+ */
+export async function refreshTrackingAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin/orders?error=1");
+  if (!isShiprocketConfigured()) redirect("/admin/orders?shipError=unconfigured");
+
+  const order = await getOrderForAdmin(id);
+  if (!order?.awb) redirect("/admin/orders?error=1");
+
+  let result = "none";
+  try {
+    const update = await fetchTracking(order.awb);
+    if (update) {
+      const change = await applyTrackingUpdate(update);
+      if (change) {
+        result = "1";
+        const mail = mailForTrackingChange(change);
+        if (mail) {
+          await notifyOrderUpdate(change.orderId, mail);
+          result = "mailed";
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[admin] tracking refresh failed:", error);
+    result = "failed";
+  }
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/account/orders");
+  redirect(`/admin/orders?tracked=${result}#order-${order.id}`);
 }
 
 /**
@@ -589,4 +685,36 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
   revalidatePath("/admin/orders");
   revalidatePath("/account/orders");
   redirect("/admin/orders?shipped=1");
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+/**
+ * Turns the emailed sign-in code off or on for one account.
+ *
+ * Off is for review accounts only — the login Razorpay's website verification
+ * asks for, used by reviewers who cannot read the account's inbox. It removes
+ * the second factor for that account, so `/admin/users` shows it in amber and
+ * it should be turned back on when the review is finished.
+ */
+export async function setSigninCodeExemptAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  const exempt = formData.get("exempt") === "1";
+  const back = String(formData.get("q") ?? "").trim();
+  const search = back ? `&q=${encodeURIComponent(back)}` : "";
+  if (!id) redirect(`/admin/users?error=1${search}`);
+
+  try {
+    await setSigninCodeExempt(id, exempt);
+  } catch (error) {
+    console.error("[admin] sign-in code setting failed:", error);
+    redirect(`/admin/users?error=1${search}`);
+  }
+
+  revalidatePath("/admin/users");
+  redirect(`/admin/users?updated=${exempt ? "off" : "on"}${search}#user-${id}`);
 }

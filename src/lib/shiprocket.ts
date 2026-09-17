@@ -1,4 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
+import { parseCourierDate, parseCourierDay, parseScan } from "@/lib/tracking";
+import type { TrackingEvent } from "@/lib/types";
 
 /**
  * Shiprocket, over `fetch`.
@@ -557,27 +559,144 @@ export function verifyShippingWebhook(header: string | null): boolean {
   return timingSafeEqual(a, b);
 }
 
+/** A tracking update, from either the webhook or the tracking API, in the
+ *  shape `applyTrackingUpdate` takes. */
+export type TrackingUpdate = {
+  awb: string;
+  status: string;
+  statusAt: string | null;
+  eta: string | null;
+  events: TrackingEvent[];
+  courierName: string | null;
+  isReturn: boolean;
+};
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function scans(list: unknown): TrackingEvent[] {
+  if (!Array.isArray(list)) return [];
+  return list
+    .slice(0, 100)
+    .map(parseScan)
+    .filter((event): event is TrackingEvent => event !== null);
+}
+
 /**
- * Shiprocket's status vocabulary, mapped onto this site's four order states.
+ * Reads one webhook event.
  *
- * Their `current_status` is free text and they add to it, so anything not
- * listed returns `null` and leaves the order's status alone rather than
- * guessing. Matching is lower-cased and substring-based because the same state
- * arrives as "DELIVERED", "Delivered" and "Delivered to consignee" depending
- * on the courier behind the shipment.
+ * Shiprocket's tracking webhook sends, per shipment: `awb`, `current_status`
+ * (with `shipment_status` as a near-synonym), `current_timestamp` as
+ * `DD MM YYYY HH:MM:SS`, `etd`, `courier_name`, `is_return`, and `scans` — the
+ * whole history so far, every time. Everything is optional here: a field that
+ * is missing or the wrong type is treated as absent, never as an error.
  */
-export function mapShipmentStatus(current: string): "shipped" | "delivered" | "cancelled" | null {
-  const s = current.toLowerCase();
-  if (s.includes("cancel") || s.includes("rto")) return "cancelled";
-  if (s.includes("delivered")) return "delivered";
-  if (
-    s.includes("shipped") ||
-    s.includes("in transit") ||
-    s.includes("out for delivery") ||
-    s.includes("picked up") ||
-    s.includes("dispatched")
-  ) {
-    return "shipped";
+export function parseShippingWebhookEvent(body: unknown): TrackingUpdate | null {
+  if (!body || typeof body !== "object") return null;
+  const e = body as Record<string, unknown>;
+  const awb = text(e.awb);
+  if (!awb) return null;
+
+  const events = scans(e.scans);
+  return {
+    awb,
+    status: text(e.current_status) || text(e.shipment_status),
+    statusAt: parseCourierDate(e.current_timestamp) ?? events[0]?.at ?? null,
+    eta: parseCourierDay(e.etd),
+    events,
+    courierName: text(e.courier_name) || null,
+    isReturn: e.is_return === 1 || e.is_return === "1" || e.is_return === true,
+  };
+}
+
+/**
+ * Asks Shiprocket where a parcel is — the admin's "Refresh tracking", for when
+ * a webhook was missed or has not been set up.
+ *
+ * Null when unconfigured, unreachable, or when Shiprocket has nothing yet for
+ * the AWB (a freshly assigned one has no scans for a few hours). The response
+ * has been seen both bare and wrapped under the AWB, so `tracking_data` is
+ * looked for rather than assumed.
+ */
+export async function fetchTracking(awb: string): Promise<TrackingUpdate | null> {
+  if (!isShiprocketConfigured()) return null;
+  const response = await api(`/courier/track/awb/${encodeURIComponent(awb)}`);
+  if (!response) return null;
+  if (!response.ok) {
+    console.error("[shiprocket] tracking failed:", response.status, await safeText(response));
+    return null;
+  }
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return null;
+  }
+
+  const data = findTrackingData(body, 0);
+  if (!data) return null;
+
+  const track = Array.isArray(data.shipment_track)
+    ? (data.shipment_track[0] as Record<string, unknown> | undefined)
+    : undefined;
+  const events = scans(data.shipment_track_activities);
+  const status = text(track?.current_status) || events[0]?.status || events[0]?.activity || "";
+  if (!status && events.length === 0) return null;
+
+  /* Shape confirmed against the live API on 2026-09-17 (with an AWB that does
+     not exist): `tracking_data.shipment_track[0]` carries `current_status`,
+     `courier_name` and `edd`; `shipment_track_activities` is the scan list,
+     or null; `is_return` is a boolean. An unknown AWB comes back 200 with
+     empty strings and an `error` sentence, which lands in the null above. */
+  return {
+    awb,
+    status,
+    statusAt: events[0]?.at ?? null,
+    eta: parseCourierDay(data.etd) ?? parseCourierDay(track?.edd),
+    events,
+    courierName: text(track?.courier_name) || null,
+    isReturn: data.is_return === true || data.is_return === 1,
+  };
+}
+
+function findTrackingData(value: unknown, depth: number): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || depth > 3) return null;
+  const record = value as Record<string, unknown>;
+  if (record.tracking_data && typeof record.tracking_data === "object") {
+    return record.tracking_data as Record<string, unknown>;
+  }
+  for (const child of Array.isArray(value) ? value : Object.values(record)) {
+    const found = findTrackingData(child, depth + 1);
+    if (found) return found;
   }
   return null;
+}
+
+/**
+ * Cancels a booked shipment at Shiprocket, when the order it was for is
+ * cancelled here.
+ *
+ * Only meaningful before pickup: once a courier has the parcel, Shiprocket
+ * cannot cancel it and a return has to be arranged instead. Takes Shiprocket's
+ * *order* id (`shipment_order_id`), not the shipment id — that is what their
+ * cancel endpoint wants. Returns whether they accepted; never throws, because
+ * the caller has already cancelled the order and must still email about it.
+ */
+export async function cancelShipment(shipmentOrderId: string): Promise<boolean> {
+  if (!isShiprocketConfigured()) return false;
+  const id = Number(shipmentOrderId);
+  if (!Number.isFinite(id)) return false;
+
+  const response = await api("/orders/cancel", {
+    method: "POST",
+    body: JSON.stringify({ ids: [id] }),
+  });
+  if (!response) return false;
+  if (!response.ok) {
+    console.error("[shiprocket] cancel failed:", response.status, await safeText(response));
+    return false;
+  }
+  return true;
 }

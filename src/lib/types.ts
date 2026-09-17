@@ -296,6 +296,29 @@ export type Order = {
   courierId: number | null;
   shippedAt: string | null;
   deliveredAt: string | null;
+  cancelledAt: string | null;
+  /**
+   * What the courier last said, in its own words ("OUT FOR DELIVERY"). Shown
+   * through `trackingLabel`; the order's `status` is this site's four-state
+   * summary of it. Null until the first tracking update.
+   */
+  trackingStatus: string | null;
+  /** When we last heard from the courier, webhook or refresh. */
+  trackingUpdatedAt: string | null;
+  /** The courier's delivery estimate, as a `YYYY-MM-DD` day in India. */
+  trackingEta: string | null;
+  /** Newest first. */
+  trackingEvents: TrackingEvent[];
   createdAt: string;
   items: OrderItem[];
+};
+
+/** One scan in a parcel's journey, as the courier reported it. */
+export type TrackingEvent = {
+  /** ISO. Null when the courier sent no time we could read. */
+  at: string | null;
+  activity: string;
+  location: string;
+  /** Shiprocket's normalised label for the scan, when it gave one. */
+  status: string;
 };

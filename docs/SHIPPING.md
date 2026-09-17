@@ -29,7 +29,8 @@ separately:
 |---|---|---|
 | **Quote** | Customer picks a shipping address at checkout | Silently — falls back to "Quoted on our call" |
 | **Book** | Operator presses "Book shipment" in `/admin/orders` | Loudly — a person is waiting and needs the reason |
-| **Track** | Courier POSTs to `/api/shipping/webhook` | Quietly — logs, always answers 200 |
+| **Track** | Courier POSTs to `/api/shipping/webhook`, or the operator presses "Refresh tracking" | Quietly — logs, always answers 200 |
+| **Tell the customer** | The order ships, goes out for delivery, is delivered, or is cancelled | Quietly — a mail that fails is logged; the status change stands |
 
 ---
 
@@ -203,10 +204,26 @@ Shiprocket POSTs status changes here.
   sender retry for hours over something that will never resolve. The only 4xx
   is a failed authentication, which *should* be retried after the secret is
   fixed.
-- **`applyShipmentUpdate` is idempotent and reports whether it changed the
-  row.** Couriers redeliver webhooks by design; that boolean is what separates
-  a real transition from a repeat, and is where a "your order has shipped" mail
-  would hook in when one is written.
+- **Everything the courier says is kept** (2026-09-17): its own status words
+  in `tracking_status`, the scan history in `tracking_events`, the delivery
+  estimate in `tracking_eta`. `lib/tracking.ts` turns the words into customer
+  language ("RTO INITIATED" → "Being returned to us").
+- **`applyTrackingUpdate` locks the row and returns what changed** — previous
+  and new order status, previous and new courier status. Couriers redeliver
+  webhooks by design; comparing against the locked row is what makes a repeat
+  send no second email, even when two copies arrive together.
+- **The order's status only moves forward, and a courier can never cancel an
+  order.** Webhooks arrive out of order, and a late "IN TRANSIT" used to put a
+  delivered order back to shipped. And until 2026-09-17 any "cancel" or "RTO"
+  cancelled the order — harmless while nothing was emailed, dangerous once a
+  cancellation mails the customer, because Shiprocket says "CANCELED" when a
+  *shipment* is cancelled to re-book it with another courier. Those words are
+  now recorded and shown to the operator (in amber), and cancelling is theirs
+  to do.
+- **"Undelivered" is not "delivered".** The first mapping matched the
+  substring and marked failed delivery attempts as delivered.
+- **A courier status stamped earlier than the stored one** adds its scans but
+  does not replace the current status.
 
 > **This authentication is weaker than Razorpay's**, and knowingly so. Razorpay
 > signs the request body; Shiprocket sends a bearer secret. That is only as
@@ -215,7 +232,17 @@ Shiprocket POSTs status changes here.
 ### 4.3 The admin button
 
 `/admin/orders` grows a **Shipment** block per order: a "Book shipment" button,
-or the AWB and a tracking link once there is one.
+or, once there is an AWB, the courier's status (customer wording, with
+Shiprocket's own beneath), the latest scan, the estimate, a tracking link and
+**Refresh tracking**. Refresh asks Shiprocket's tracking API directly — for
+when the webhook is not set up or missed an update — and goes through the same
+`applyTrackingUpdate`, so it emails on the same transitions and never twice.
+
+**Cancelling an order cancels its shipment** when one was booked and not yet
+picked up (`cancelShipment`, Shiprocket's `/orders/cancel`). After pickup it
+cannot, and the page says a return has to be arranged in their dashboard. The
+status select now asks before shipped, delivered and cancelled, because those
+email the customer and it submits on change.
 
 Guarded against a second press — an order that already has a `shipment_id` says
 so instead of re-booking. Cancelled orders get no button at all: booking a
@@ -224,9 +251,29 @@ real money.
 
 ### 4.4 The customer's view
 
-`/account/orders/[id]` shows an "On its way" panel with the courier, the AWB
-and a tracking link once a shipment exists, plus the dispatch or delivery date.
-The Delivery line in the totals names the courier once one is known.
+`/account/orders/[id]` shows an "On its way" (or "Delivered") panel once a
+shipment exists: the courier's status in plain words, the expected or actual
+delivery day, courier and AWB, a tracking link, and the scan history — latest
+four, the rest behind "Show earlier updates". A cancelled order shows when it
+was cancelled and, if it was paid online, that a refund call is coming. The
+order list shows the courier status under "Shipped".
+
+### 4.4a Emails
+
+`lib/order-notifications.ts` decides, `sendOrderUpdateMail` in `lib/mail.ts`
+writes. All from `no-reply@vkon.in` (`MAIL_FROM`), and each says so and gives
+the phone number instead.
+
+| Mail | Sent when |
+|---|---|
+| Shipped | The order first reaches `shipped` — courier picks it up, or the operator marks it |
+| Out for delivery | The courier status becomes "out for delivery" — again after a failed attempt, since that is another day to be home |
+| Delivered | The order first reaches `delivered` |
+| Cancelled | The operator cancels it. Never from a courier status |
+
+At most one per update, the furthest along. Manual changes email only when they
+move the order forward, so correcting a mistaken "delivered" back to "shipped"
+sends nothing.
 
 ### 4.5 Schema
 
@@ -245,6 +292,14 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_id         INTEGER;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipped_at         TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at       TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS orders_awb_idx ON orders (awb);
+
+-- 2026-09-17
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_status     TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_status_at  TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_updated_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_eta        DATE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_events     JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at        TIMESTAMPTZ;
 ```
 
 `orders.shipping` needed no change — it has been an integer-paise column
@@ -299,6 +354,32 @@ cannot invent one, and cannot set a price.
   that silently changed nothing. Fixed with explicit `::text` casts, and
   commented in place.
 
+### Tracking and emails (2026-09-17, laptop)
+
+Real orders placed through checkout, a local webhook token, webhooks fired at
+`/api/shipping/webhook`, mail logged rather than sent:
+
+| Sent | Result |
+|---|---|
+| Wrong token | 401 |
+| `PICKUP SCHEDULED` | courier status and scan stored; order still pending; no mail |
+| `PICKED UP` with scans and `etd` | shipped, estimate stored, **shipped mail** |
+| The same again | no mail, no duplicate scans |
+| An older `PICKED UP` after `IN TRANSIT` | current status stays `IN TRANSIT` |
+| `OUT FOR DELIVERY` | **out-for-delivery mail** |
+| `UNDELIVERED` | stays shipped — not delivered |
+| `OUT FOR DELIVERY` next day | **out-for-delivery mail** again |
+| `DELIVERED` | delivered, `delivered_at`, **delivered mail** — 4 mails in all |
+| A late `IN TRANSIT` | stays delivered |
+| Unknown AWB, malformed body, a batch | 200 |
+| `CANCELED` on a pending order | order stays pending, no mail |
+| Admin cancels (prompt dismissed, then accepted) | unchanged, then cancelled + `cancelled_at` + **cancellation mail** |
+| `IN TRANSIT` on the cancelled order | stays cancelled, no mail |
+| Refresh tracking on a fake AWB | live API answered "no activities"; page says so; nothing changed |
+
+The tracking API's response shape was confirmed against the live API with a
+non-existent AWB.
+
 ### Not testable here
 
 - **Live rates.** Needs credentials; the code path is exercised only as far as
@@ -306,7 +387,14 @@ cannot invent one, and cannot set a price.
 - **A real booking.** Needs KYC cleared and a pickup address registered.
 - **Shiprocket's own webhook delivery.** Same constraint as the Razorpay
   webhook: it needs a publicly reachable HTTPS URL, and the server is down. The
-  *handler* is proven; what is unproven is Shiprocket reaching it.
+  *handler* is proven; what is unproven is Shiprocket reaching it. Their exact
+  webhook body is taken from their documentation; the parser treats every
+  field as optional.
+- **Cancelling a real shipment.** `cancelShipment` has never been called
+  against a real booking — doing so on the live account would cancel a real
+  one. The first real cancellation is the test; the admin page reports if
+  Shiprocket refused.
+- **Tracking a real parcel.** No order has a real AWB yet.
 
 ---
 
@@ -318,9 +406,9 @@ cannot invent one, and cannot set a price.
   guesses. They are indistinguishable from real measurements in the admin, and
   the category fallback no longer applies to them. Replace them as products are
   weighed and measured.
-- **No "your order has shipped" email.** `applyShipmentUpdate` returns the
-  boolean that would gate it; nothing sends one. The customer finds out by
-  looking at their order page.
+- **Tracking is only as live as the webhook.** Nothing polls. Without the
+  webhook set up in Shiprocket (INTEGRATIONS-SETUP-GUIDE.md §4.3), statuses and
+  emails move only when somebody presses Refresh tracking.
 - **One parcel per order.** A cart that genuinely needs splitting across two
   boxes is quoted as one heavy one.
 - **Prepaid only.** COD is not offered, so COD rates are not requested.
@@ -328,7 +416,11 @@ cannot invent one, and cannot set a price.
   balance runs out, `bookShipment` still creates the order but the AWB step
   fails, and the admin card shows "created but no AWB was assigned". Orders on
   the site are unaffected. There is no low-balance warning in the admin.
-- **No return/RTO handling** beyond mapping the status to "cancelled".
+- **No return/RTO handling.** An RTO is recorded and shown in amber to the
+  operator, who decides whether to cancel (and email) the order. No mail goes
+  to the customer about a return on its own.
+- **Refunds are manual.** A cancelled, paid order's email promises a call about
+  the refund; nothing issues one through Razorpay.
 
 ---
 

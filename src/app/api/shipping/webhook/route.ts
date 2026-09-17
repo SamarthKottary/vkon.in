@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { applyShipmentUpdate } from "@/lib/db/orders";
-import { mapShipmentStatus, verifyShippingWebhook } from "@/lib/shiprocket";
+import { applyTrackingUpdate } from "@/lib/db/orders";
+import { mailForTrackingChange, notifyOrderUpdate } from "@/lib/order-notifications";
+import { parseShippingWebhookEvent, verifyShippingWebhook } from "@/lib/shiprocket";
 
 /**
  * Shiprocket tells us a parcel moved.
@@ -17,17 +18,18 @@ import { mapShipmentStatus, verifyShippingWebhook } from "@/lib/shiprocket";
  * ours, a status word we do not map. The only 4xx here is a failed
  * authentication, which *should* be retried after the secret is corrected.
  *
+ * **Every update is recorded, and some are emailed** (2026-09-17). The
+ * courier's own status, its scan history and its delivery estimate are stored
+ * on the order for `/admin/orders` and the customer's order page; the customer
+ * is emailed when the parcel ships, goes out for delivery, and is delivered.
+ * The mail is decided from what the locked row changed from, so a redelivered
+ * webhook sends nothing.
+ *
  * Unconfigured is a supported state: with no `SHIPROCKET_WEBHOOK_TOKEN` set,
  * every request fails authentication and nothing can be moved by a stranger
  * who guesses the URL.
  */
 export const dynamic = "force-dynamic";
-
-type ShipmentEvent = {
-  awb?: unknown;
-  current_status?: unknown;
-  courier_name?: unknown;
-};
 
 export async function POST(request: NextRequest) {
   if (!verifyShippingWebhook(request.headers.get("x-api-key"))) {
@@ -36,39 +38,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  let events: ShipmentEvent[];
+  let events: unknown[];
   try {
     const body: unknown = await request.json();
     /* Shiprocket posts a single object for one shipment and an array when it
        batches. Both shapes are normalised here so the loop below is the only
        code that has to be right. */
-    events = Array.isArray(body) ? (body as ShipmentEvent[]) : [body as ShipmentEvent];
+    events = Array.isArray(body) ? body : [body];
   } catch {
     console.error("[shipping] webhook body was not JSON");
     return NextResponse.json({ ok: true });
   }
 
-  for (const event of events.slice(0, 50)) {
-    const awb = typeof event?.awb === "string" ? event.awb.trim() : "";
-    const current = typeof event?.current_status === "string" ? event.current_status : "";
-    if (!awb) continue;
-
-    const status = mapShipmentStatus(current);
-    const courierName = typeof event?.courier_name === "string" ? event.courier_name : null;
+  for (const raw of events.slice(0, 50)) {
+    const update = parseShippingWebhookEvent(raw);
+    if (!update) continue;
 
     try {
-      /* `applyShipmentUpdate` reports whether this call actually moved the
-         row. Couriers redeliver webhooks by design, so the boolean is what
-         separates a real transition from a repeat — and is where a
-         "your order has shipped" mail would hook in when one is written. */
-      const moved = await applyShipmentUpdate({ awb, status, courierName });
-      if (!moved) {
-        console.info("[shipping] no change for AWB", awb, `(${current || "no status"})`);
+      const change = await applyTrackingUpdate(update);
+      if (!change) {
+        console.info("[shipping] no order for AWB", update.awb);
+        continue;
       }
+
+      const mail = mailForTrackingChange(change);
+      /* Awaited, not fired and forgotten: a route handler's work can be cut
+         off once the response is sent. `notifyOrderUpdate` never throws. */
+      if (mail) await notifyOrderUpdate(change.orderId, mail);
     } catch (error) {
       /* Logged, not raised: one bad row in a batch must not cost the others,
          and Shiprocket would retry the whole batch. */
-      console.error("[shipping] update failed for AWB", awb, error);
+      console.error("[shipping] update failed for AWB", update.awb, error);
     }
   }
 

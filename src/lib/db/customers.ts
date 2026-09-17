@@ -173,6 +173,9 @@ export async function createSession(input: {
      VALUES ($1, $2, $3, $4)`,
     [id, input.customerId, input.userAgent.slice(0, 200), input.expiresAt],
   );
+  /* For `/admin/users`. Sessions are deleted on logout, so the latest session
+     row is not a record of the latest sign-in. */
+  await query(`UPDATE customers SET last_sign_in_at = now() WHERE id = $1`, [input.customerId]);
   return id;
 }
 
@@ -459,4 +462,85 @@ export async function untrustAllDevices(customerId: string): Promise<void> {
 /** Swept opportunistically, the same way expired sessions are. */
 export async function sweepExpiredTrustedDevices(): Promise<void> {
   await query(`DELETE FROM customer_trusted_devices WHERE expires_at < now()`);
+}
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether this account signs in without the emailed code. Only a review
+ * account should — see `signin_code_exempt` in schema.sql and §9 of
+ * ARCHITECTURE.md.
+ */
+export async function isSigninCodeExempt(customerId: string): Promise<boolean> {
+  const rows = await query<{ signin_code_exempt: boolean }>(
+    `SELECT signin_code_exempt FROM customers WHERE id = $1`,
+    [customerId],
+  );
+  return rows[0]?.signin_code_exempt === true;
+}
+
+/** Called only from an authenticated admin action. */
+export async function setSigninCodeExempt(customerId: string, exempt: boolean): Promise<void> {
+  await query(
+    `UPDATE customers SET signin_code_exempt = $2, updated_at = now() WHERE id = $1`,
+    [customerId, exempt],
+  );
+}
+
+export type AdminCustomer = Customer & {
+  signinCodeExempt: boolean;
+  lastSignInAt: string | null;
+  orderCount: number;
+  /** Paise, cancelled orders excluded. */
+  orderTotal: number;
+  addressCount: number;
+};
+
+/**
+ * Every account, newest first, for `/admin/users`.
+ *
+ * The counts are correlated subqueries rather than joins: joining orders and
+ * addresses together multiplies each by the other, and a customer with three
+ * orders and two addresses would show six of each. At this shop's size the
+ * subqueries cost nothing.
+ *
+ * `search` matches name, email or phone, case-insensitively. Capped at 500 —
+ * past that this page wants paging, and "the newest 500" is still the useful
+ * end of the list.
+ */
+export async function listCustomersForAdmin(search = ""): Promise<AdminCustomer[]> {
+  const term = search.trim().slice(0, 100);
+  const rows = await query<
+    CustomerRow & {
+      signin_code_exempt: boolean;
+      last_sign_in_at: Date | null;
+      order_count: number;
+      order_total: string;
+      address_count: number;
+    }
+  >(
+    `SELECT ${SELECT}, signin_code_exempt, last_sign_in_at,
+            (SELECT count(*) FROM orders o WHERE o.customer_id = c.id)::int AS order_count,
+            (SELECT COALESCE(sum(o.total), 0) FROM orders o
+              WHERE o.customer_id = c.id AND o.status <> 'cancelled')::bigint AS order_total,
+            (SELECT count(*) FROM addresses a WHERE a.customer_id = c.id)::int AS address_count
+       FROM customers c
+      WHERE $1::text = ''
+         OR c.email ILIKE '%' || $1::text || '%'
+         OR c.name ILIKE '%' || $1::text || '%'
+         OR c.phone ILIKE '%' || $1::text || '%'
+      ORDER BY c.created_at DESC
+      LIMIT 500`,
+    [term],
+  );
+  return rows.map((row) => ({
+    ...mapRow(row),
+    signinCodeExempt: row.signin_code_exempt,
+    lastSignInAt: row.last_sign_in_at ? row.last_sign_in_at.toISOString() : null,
+    orderCount: Number(row.order_count),
+    orderTotal: Number(row.order_total),
+    addressCount: Number(row.address_count),
+  }));
 }

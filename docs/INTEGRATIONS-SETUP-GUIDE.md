@@ -326,7 +326,7 @@ docker compose exec app printenv | grep -cE '^SHIPROCKET_[A-Z_]*=.'
 
 ### 4.3  Create the tracking webhook
 
-This makes a customer's order page update itself as the parcel moves.
+This makes a customer's order page update itself as the parcel moves, and emails the customer when it ships, is out for delivery, and is delivered. Without it, nothing updates until you press **Refresh tracking** on the order in `/admin/orders`.
 
 1. In the Shiprocket dashboard, open **Settings** and find **Webhooks** (it's under **API** or **Additional Settings**, depending on your dashboard version).
 2. **URL:**

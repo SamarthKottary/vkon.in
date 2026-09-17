@@ -1,11 +1,13 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { getPool, isDatabaseConfigured, query } from "./client";
+import { mapShipmentStatus, mergeTrackingEvents } from "@/lib/tracking";
 import type {
   Order,
   OrderItem,
   OrderStatus,
   PaymentStatus,
   ShipTo,
+  TrackingEvent,
 } from "@/lib/types";
 
 /**
@@ -47,6 +49,11 @@ type OrderRow = {
   courier_id: number | null;
   shipped_at: Date | null;
   delivered_at: Date | null;
+  cancelled_at: Date | null;
+  tracking_status: string | null;
+  tracking_updated_at: Date | null;
+  tracking_eta: string | null;
+  tracking_events: TrackingEvent[] | null;
   created_at: Date;
 };
 
@@ -66,7 +73,9 @@ const ORDER_SELECT = `id, order_number, customer_id, status, payment_status,
   subtotal, cgst, sgst, shipping, total, currency, ship_to, bill_to, notes,
   payment_provider, payment_order_id, payment_id, paid_at,
   shipment_provider, shipment_order_id, shipment_id, awb, courier_name, courier_id,
-  shipped_at, delivered_at, created_at`;
+  shipped_at, delivered_at, cancelled_at,
+  tracking_status, tracking_updated_at, tracking_eta::text AS tracking_eta, tracking_events,
+  created_at`;
 
 const ITEM_SELECT = `id, order_id, product_id, slug, name, image_url, unit_price, qty, line_total`;
 
@@ -119,6 +128,13 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
     courierId: row.courier_id === null ? null : Number(row.courier_id),
     shippedAt: row.shipped_at ? row.shipped_at.toISOString() : null,
     deliveredAt: row.delivered_at ? row.delivered_at.toISOString() : null,
+    cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
+    trackingStatus: row.tracking_status,
+    trackingUpdatedAt: row.tracking_updated_at ? row.tracking_updated_at.toISOString() : null,
+    /* `::text` in the select: `pg` turns a DATE into a JS Date at the
+       server's local midnight, which is a different day in half the world. */
+    trackingEta: row.tracking_eta,
+    trackingEvents: Array.isArray(row.tracking_events) ? row.tracking_events : [],
     createdAt: row.created_at.toISOString(),
     items,
   };
@@ -409,59 +425,219 @@ export async function setOrderShipment(
   );
 }
 
+/** What a status change changed, so a caller can tell a real transition from
+ *  a repeat and email about the first only. */
+export type OrderStatusChange = {
+  orderId: string;
+  previousStatus: OrderStatus;
+  status: OrderStatus;
+};
+
+export type TrackingChange = OrderStatusChange & {
+  previousTracking: string | null;
+  tracking: string | null;
+};
+
+/** How far along an order is. Tracking may only move an order to a higher
+ *  number; cancelled is outside the scale and never moved by a courier. */
+const PROGRESS: Record<OrderStatus, number> = {
+  pending: 0,
+  confirmed: 1,
+  shipped: 2,
+  delivered: 3,
+  cancelled: -1,
+};
+
 /**
- * Applies a courier's tracking update, found by AWB.
+ * Applies a courier's tracking update, found by AWB — from the webhook or from
+ * the admin's "Refresh tracking".
  *
- * **Idempotent, and it reports whether it changed anything** — the same
- * contract `markOrderPaid` keeps, for the same reason: couriers redeliver
- * webhooks, and a caller needs to be able to tell a real transition from a
- * repeat so it does not act twice on one event.
+ * **Idempotent, and it returns what changed** — the same contract
+ * `markOrderPaid` keeps, for the same reason: couriers redeliver webhooks, and
+ * the caller emails the customer on a transition, so a repeat must be visible
+ * as a repeat. The row is locked for the read-then-write, so two deliveries of
+ * one event arriving together see each other and only one reports the change.
  *
- * The timestamps are written once and never overwritten (`COALESCE`), so a
- * duplicate "delivered" does not keep moving the delivery date forward.
- * Reads fail soft, writes do not: this is a webhook, and returning false on a
- * row that does not exist is how the route knows to answer 200 and stop
- * Shiprocket retrying something that will never resolve.
+ * Three rules, each for a failure that would otherwise reach a customer:
+ *
+ *  - **The order's status only moves forward.** Webhooks arrive out of order;
+ *    a late "IN TRANSIT" after "DELIVERED" used to put a delivered order back
+ *    to shipped. A cancelled order is never touched — see `mapShipmentStatus`
+ *    for why a courier can no longer cancel one either.
+ *  - **The courier's status only moves forward in time.** An update stamped
+ *    earlier than the one stored keeps its scans but does not replace the
+ *    current status. Where either side has no timestamp there is nothing to
+ *    compare, and the newer arrival wins.
+ *  - **`shipped_at`/`delivered_at` are written once** (`COALESCE`), so a
+ *    duplicate "delivered" does not keep moving the delivery date.
+ *
+ * Returns null for an AWB that is not ours, which the webhook answers with a
+ * 200 so Shiprocket does not retry something that will never resolve.
  */
-export async function applyShipmentUpdate(input: {
+export async function applyTrackingUpdate(input: {
   awb: string;
-  status: OrderStatus | null;
-  courierName?: string | null;
-}): Promise<boolean> {
-  /* **The `::text` casts are required, not stylistic.** `$2` appears inside
-     `COALESCE`, an `IN` list and an `IS NULL` test, and Postgres cannot infer
-     one type across all three — it answers "could not determine data type of
-     parameter $2" and the whole update fails. Caught only by firing a real
-     webhook at it: the route logs and returns 200 either way, so without the
-     cast this is a webhook that silently changes nothing. */
-  const rows = await query<{ id: string }>(
-    `UPDATE orders
-        SET status = COALESCE($2::text, status),
-            courier_name = COALESCE($3::text, courier_name),
-            shipped_at = CASE
-              WHEN $2::text IN ('shipped', 'delivered') THEN COALESCE(shipped_at, now())
-              ELSE shipped_at END,
-            delivered_at = CASE
-              WHEN $2::text = 'delivered' THEN COALESCE(delivered_at, now())
-              ELSE delivered_at END,
-            updated_at = now()
-      WHERE awb = $1
-        AND ($2::text IS NULL OR status IS DISTINCT FROM $2::text)
-      RETURNING id`,
-    [input.awb, input.status, input.courierName ?? null],
-  );
-  return rows.length > 0;
+  /** The courier's words. Empty when the update carried only scans. */
+  status: string;
+  /** ISO, the courier's time for `status`. */
+  statusAt: string | null;
+  /** `YYYY-MM-DD`. */
+  eta: string | null;
+  events: TrackingEvent[];
+  courierName: string | null;
+  /** A return shipment's "DELIVERED" means delivered back to us. */
+  isReturn: boolean;
+}): Promise<TrackingChange | null> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+
+    const found = await client.query<{
+      id: string;
+      status: OrderStatus;
+      tracking_status: string | null;
+      tracking_status_at: Date | null;
+      tracking_events: TrackingEvent[] | null;
+    }>(
+      `SELECT id, status, tracking_status, tracking_status_at, tracking_events
+         FROM orders WHERE awb = $1
+        LIMIT 1
+          FOR UPDATE`,
+      [input.awb],
+    );
+    const row = found.rows[0];
+    if (!row) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const storedAt = row.tracking_status_at ? row.tracking_status_at.getTime() : null;
+    const incomingAt = input.statusAt ? Date.parse(input.statusAt) : null;
+    const newer =
+      Boolean(input.status) && (storedAt === null || incomingAt === null || incomingAt >= storedAt);
+
+    const tracking = newer ? input.status : row.tracking_status;
+    const trackingAt = newer ? input.statusAt : row.tracking_status_at?.toISOString() ?? null;
+
+    const mapped = input.isReturn ? null : mapShipmentStatus(input.status);
+    const status =
+      row.status !== "cancelled" && mapped && PROGRESS[mapped] > PROGRESS[row.status]
+        ? mapped
+        : row.status;
+
+    /* An update with no scan list still belongs in the history when it says
+       something new — but only then, or every redelivery of a timestamp-less
+       webhook would add a line. */
+    const incoming =
+      input.events.length > 0
+        ? input.events
+        : newer && input.status !== row.tracking_status
+          ? [{ at: input.statusAt ?? new Date().toISOString(), activity: input.status, location: "", status: input.status }]
+          : [];
+    const events = mergeTrackingEvents(row.tracking_events ?? [], incoming);
+
+    /* The `::text` casts are required, not stylistic: a parameter used across
+       `COALESCE`, `IN` and `=` has no type Postgres can infer, and the update
+       fails with "could not determine data type of parameter" — a failure a
+       webhook route logs and answers 200 to, i.e. one nobody sees. */
+    await client.query(
+      `UPDATE orders
+          SET status = $2::text,
+              courier_name = COALESCE($3::text, courier_name),
+              tracking_status = $4::text,
+              tracking_status_at = $5::timestamptz,
+              tracking_eta = COALESCE($6::date, tracking_eta),
+              tracking_events = $7::jsonb,
+              tracking_updated_at = now(),
+              shipped_at = CASE
+                WHEN $2::text IN ('shipped', 'delivered') THEN COALESCE(shipped_at, now())
+                ELSE shipped_at END,
+              delivered_at = CASE
+                WHEN $2::text = 'delivered' THEN COALESCE(delivered_at, now())
+                ELSE delivered_at END,
+              updated_at = now()
+        WHERE id = $1`,
+      [
+        row.id,
+        status,
+        input.courierName,
+        tracking,
+        trackingAt,
+        input.eta,
+        JSON.stringify(events),
+      ],
+    );
+
+    await client.query("COMMIT");
+    return {
+      orderId: row.id,
+      previousStatus: row.status,
+      status,
+      previousTracking: row.tracking_status,
+      tracking,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
-/** Called only from an authenticated admin action, so it does not swallow. */
+/**
+ * Sets an order's status from `/admin/orders`, and reports what it was.
+ *
+ * Called only from an authenticated admin action, so it does not swallow.
+ * Returns null for an order that does not exist. The previous status comes
+ * from the locked row, not from the page the operator was looking at, which
+ * may be minutes old — it decides whether the customer is emailed.
+ */
 export async function setOrderStatus(
   orderId: string,
   status: OrderStatus,
-): Promise<void> {
-  await query(
-    `UPDATE orders SET status = $2, updated_at = now() WHERE id = $1`,
-    [orderId, status],
-  );
+): Promise<OrderStatusChange | null> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const found = await client.query<{ status: OrderStatus }>(
+      `SELECT status FROM orders WHERE id = $1 FOR UPDATE`,
+      [orderId],
+    );
+    if (!found.rows[0]) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    await client.query(
+      `UPDATE orders
+          SET status = $2::text,
+              cancelled_at = CASE
+                WHEN $2::text = 'cancelled' THEN COALESCE(cancelled_at, now())
+                ELSE NULL END,
+              shipped_at = CASE
+                WHEN $2::text IN ('shipped', 'delivered') THEN COALESCE(shipped_at, now())
+                ELSE shipped_at END,
+              delivered_at = CASE
+                WHEN $2::text = 'delivered' THEN COALESCE(delivered_at, now())
+                ELSE delivered_at END,
+              updated_at = now()
+        WHERE id = $1`,
+      [orderId, status],
+    );
+
+    await client.query("COMMIT");
+    return { orderId, previousStatus: found.rows[0].status, status };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** How far along an order is, for callers deciding whether a change was
+ *  forward. */
+export function orderProgress(status: OrderStatus): number {
+  return PROGRESS[status];
 }
 
 // ---------------------------------------------------------------------------

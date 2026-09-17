@@ -152,7 +152,8 @@ src/
       LoginForm.tsx
       actions.ts            ALL admin server actions — the security boundary
       products/             list, ProductForm, new/, [id]/
-      orders/               order inbox: read, advance status
+      orders/               order inbox: read, advance status, tracking, cancel
+      users/                customer accounts: read, search, review-account switch
       enquiries/            contact inbox: read, mark handled, remove
       subscribers/          mailing list: read, export, remove
     not-found.tsx           renders its own chrome (outside the (site) group)
@@ -189,6 +190,9 @@ src/
     password-policy.ts  the rules; no `node:` imports, so the browser shares it
     google.ts    OAuth 2.0 + PKCE, hand-written; no auth library
     mail.ts      Resend over fetch; no nodemailer, no SMTP (§2)
+    order-notifications.ts  which order emails a status change earns; never throws
+    tracking.ts  courier status words → order status, customer labels, dates;
+                 no `node:` imports, so the order list (client) shares it
     razorpay.ts  order creation + the two signature verifiers; no SDK
     pricing.ts   the ONE money calculation, shared by browser and server
     cart.ts      the basket, in localStorage
@@ -909,6 +913,22 @@ product later renamed, repriced or unpublished cannot go stale in someone's cart
 
 Each encodes a real bug. Breaking one reintroduces it.
 
+**A courier update may only move an order forward, and may never cancel it.**
+`applyTrackingUpdate` and `mapShipmentStatus` (`lib/tracking.ts`). Webhooks
+arrive out of order — a late "IN TRANSIT" put a delivered order back to
+shipped — and Shiprocket reports "CANCELED" when a *shipment* is cancelled to
+re-book it, which used to cancel the order. Since 2026-09-17 a cancellation
+emails the customer, so that mapping would now tell somebody their order is off
+when it is not. Cancelling is an operator action only. Check "undelivered"
+before "delivered": the substring match once marked failed attempts delivered.
+
+**Order emails are decided from the locked row's previous state, never from
+the request.** `applyTrackingUpdate` and `setOrderStatus` lock the order and
+return what it was; `mailForTrackingChange` and `setOrderStatusAction` compare
+against that. Couriers redeliver webhooks and operators double-submit, and
+anything that compares against what the caller *thought* the status was sends
+the same email twice.
+
 **`requireAdmin()` must be the first statement of every mutating server action
 in `app/admin/actions.ts`.** See §7.
 
@@ -922,11 +942,17 @@ constants unexported.
 
 **Sign-in's second factor may only be skipped where `skipTheCode` says.** A
 code is emailed on any browser an account has not been seen on
-(`lib/signin-challenge.ts`), and the three deliberate exemptions are: a
-brand-new registration, a brand-new Google account, and a deployment with no
-`RESEND_API_KEY`. That last one is not a loophole to close casually — with no
-mail provider there is no way to deliver a code, and challenging anyway would
-lock every customer out of a working shop.
+(`lib/signin-challenge.ts`), and the four deliberate exemptions are: a
+brand-new registration, a brand-new Google account, a deployment with no
+`RESEND_API_KEY`, and a password sign-in to an account the operator has marked
+as a review account in `/admin/users` (`customers.signin_code_exempt`,
+2026-09-17 — the login Razorpay's website verification asks for, used by
+reviewers who cannot read that account's inbox). The no-mail one is not a
+loophole to close casually — with no mail provider there is no way to deliver a
+code, and challenging anyway would lock every customer out of a working shop.
+The review flag removes the second factor from one account, so it is off by
+default, shown in amber, settable only by `setSigninCodeExemptAction` behind
+`requireAdmin()`, and meant to be turned back on after the review.
 
 **`<main>` keeps `overflow-x-clip`, and it must be `clip` rather than
 `hidden`.** `FeaturedProducts` and `RecentlyViewed` bleed out of the centred
@@ -1515,6 +1541,66 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-17 (admin) — `/admin/users`, and review accounts that skip the sign-in code
+
+Client: a Users section in the admin, and a test login for Razorpay's website
+verification.
+
+- **`/admin/users`:** every account, newest first, searchable by name, email or
+  phone (GET `?q=`, no client code). Each shows sign-in methods, email
+  confirmation, orders, spend (cancelled excluded), saved addresses, joined and
+  last sign-in. Read-only apart from the switch below. No delete: accounts own
+  orders. Linked in the admin nav after Orders.
+- **Schema:** `customers.signin_code_exempt` (default false) and
+  `customers.last_sign_in_at`, stamped by `createSession`. Sessions are deleted
+  on logout, so they could not answer "last here".
+- **Review accounts:** `skipTheCode` returns true for a flagged account, for
+  password sign-in only. Razorpay asks for a login, and its reviewers sign in
+  from a browser the site has never seen and cannot read the code. §9's
+  exemption list is updated to four.
+- **Tested:** register, then a new browser gets the code, flag off lets a new
+  browser straight in, flag on asks again. Search finds exactly one account,
+  and there is no mobile overflow.
+
+### 2026-09-17 (orders) — Live Shiprocket tracking on the admin and account pages; shipped, out-for-delivery, delivered and cancelled emails
+
+Client: tracking status straight from Shiprocket in `/admin/orders` and My
+account, an email to track the order showing that status, and a no-reply email
+when an order is cancelled. Detail and test results in `SHIPPING.md` §4.2–4.4a
+and §5.
+
+- **Schema:** `orders.tracking_status`, `tracking_status_at`,
+  `tracking_updated_at`, `tracking_eta` (DATE, selected `::text`),
+  `tracking_events` (JSONB, newest first, capped at 50), `cancelled_at`.
+  Additive, `IF NOT EXISTS`.
+- **New `lib/tracking.ts`** (no `node:` imports; `OrderHistoryTable` uses it)
+  and **`lib/order-notifications.ts`**. `lib/shiprocket.ts` gained
+  `parseShippingWebhookEvent`, `fetchTracking` (Shiprocket's track-by-AWB API,
+  shape confirmed live) and `cancelShipment`. Its `mapShipmentStatus` moved to
+  `lib/tracking.ts`.
+- **`applyShipmentUpdate` → `applyTrackingUpdate`:** it locks the row, stores
+  the courier's words, scans and estimate, moves status forward only, and
+  returns previous and new state. **`setOrderStatus` now returns what the order
+  was** and stamps `cancelled_at`, `shipped_at` and `delivered_at`.
+- **Behaviour change: a courier can no longer cancel an order.** "CANCELED" and
+  RTO used to map to `cancelled`, and "UNDELIVERED" mapped to `delivered`. Both
+  are fixed and both are in §9.
+- **`sendOrderUpdateMail`:** one template for four kinds, sent from `no-reply@`
+  and saying so, with the phone number instead. The webhook and "Refresh
+  tracking" send shipped, out for delivery and delivered. Admin changes send
+  shipped and delivered only when moving forward, and cancelled.
+- **`/admin/orders`:** courier status (amber for returns, failed attempts,
+  exceptions), latest scan, estimate, **Refresh tracking**. Cancelling cancels
+  a booked, un-picked-up Shiprocket shipment and reports the outcome. The
+  status select asks before shipped, delivered and cancelled.
+- **Account:** the order page's shipment panel shows the status, the expected
+  day, and the scan history (four, then "Show earlier updates"). A cancelled
+  order shows when it was cancelled and the refund line if it was paid. The
+  order list shows the courier status under "Shipped".
+- **Deploy needs the schema applied** on the server, which the deploy does. The
+  webhook must be configured in Shiprocket (INTEGRATIONS-SETUP-GUIDE.md §4.3)
+  for anything to update without the button.
 
 ### 2026-09-17 (account, checkout summary) — The address picker on the account page; a delivery dropdown; the summary sized to its column
 

@@ -55,6 +55,12 @@ export default async function AdminLayout({
                     Orders
                   </Link>
                   <Link
+                    href="/admin/users"
+                    className="text-sm text-muted hover:text-ink"
+                  >
+                    Users
+                  </Link>
+                  <Link
                     href="/admin/enquiries"
                     className="text-sm text-muted hover:text-ink"
                   >

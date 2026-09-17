@@ -48,7 +48,24 @@ export function OrderStatusSelect({
         id={`status-${id}`}
         name="status"
         defaultValue={status}
-        onChange={() => formRef.current?.requestSubmit()}
+        onChange={(event) => {
+          /* Shipped, delivered and cancelled email the customer, and
+             cancelling also cancels a booked Shiprocket shipment. Submitting
+             on change made a slip of the mouse enough to send one, so those
+             three ask first; a declined prompt puts the select back. */
+          const next = event.currentTarget.value;
+          const warning =
+            next === "cancelled"
+              ? `Cancel order ${orderNumber}? The customer will be emailed, and a booked Shiprocket shipment will be cancelled.`
+              : next === "shipped" || next === "delivered"
+                ? `Mark order ${orderNumber} as ${next}? The customer will be emailed.`
+                : null;
+          if (warning && !window.confirm(warning)) {
+            event.currentTarget.value = status;
+            return;
+          }
+          formRef.current?.requestSubmit();
+        }}
         className="border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
       >
         {OPTIONS.map((o) => (

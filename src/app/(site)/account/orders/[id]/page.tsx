@@ -13,7 +13,9 @@ import { getOrderForCustomer } from "@/lib/db/orders";
 import { formatPaise } from "@/lib/pricing";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import { trackingUrl } from "@/lib/shiprocket";
+import { trackingLabel } from "@/lib/tracking";
 import { site } from "@/content/site";
+import type { Order } from "@/lib/types";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
@@ -31,6 +33,27 @@ function formatDate(iso: string): string {
     month: "long",
     year: "numeric",
   });
+}
+
+/* Courier scans and estimates are Indian times; pinned so a server elsewhere
+   does not shift them. */
+function formatMoment(iso: string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(iso));
+}
+
+function formatDay(day: string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(`${day}T12:00:00+05:30`));
 }
 
 export default async function OrderPage({
@@ -183,13 +206,56 @@ export default async function OrderPage({
             {/* Tracking, once the parcel is with a courier. Above the address
                 because once something is moving, "where is it" is the question
                 the customer opened this page to answer. */}
-            {order.awb && (
-              <section className="border border-accent bg-accent-soft p-5 shadow-card">
-                <h3 className="label-tech text-muted">On its way</h3>
-                <p className="mt-3 font-semibold text-ink">
-                  {order.courierName || "Courier"}
+            {order.status === "cancelled" && (
+              <section className="border border-line bg-surface-raised p-5 shadow-card">
+                <h3 className="label-tech text-muted">Cancelled</h3>
+                <p className="mt-3 text-sm leading-relaxed text-body">
+                  This order was cancelled
+                  {order.cancelledAt ? ` on ${formatDate(order.cancelledAt)}` : ""} and
+                  will not be delivered.
+                  {order.paymentStatus === "paid" &&
+                    " You paid online, so we will call you to arrange the refund."}{" "}
+                  Questions? Call{" "}
+                  <a href={`tel:${site.phone.href}`} className="text-accent hover:underline">
+                    {site.phone.display}
+                  </a>
+                  .
                 </p>
-                <p className="mt-1 break-all font-mono text-sm text-body">{order.awb}</p>
+              </section>
+            )}
+
+            {/* Tracking, once the parcel is with a courier. Above the address
+                because once something is moving, "where is it" is the question
+                the customer opened this page to answer. The status and scans
+                are the courier's, kept current by Shiprocket's webhook
+                (2026-09-17) — this page no longer only links out to them. */}
+            {order.awb && order.status !== "cancelled" && (
+              <section className="border border-accent bg-accent-soft p-5 shadow-card">
+                <h3 className="label-tech text-muted">
+                  {order.status === "delivered" ? "Delivered" : "On its way"}
+                </h3>
+                <p className="mt-3 text-lg font-semibold leading-snug text-ink">
+                  {trackingLabel(order.trackingStatus) ??
+                    (order.status === "delivered" ? "Delivered" : "Booked with the courier")}
+                </p>
+                {order.deliveredAt ? (
+                  <p className="mt-1 text-sm text-body">
+                    Delivered {formatDate(order.deliveredAt)}.
+                  </p>
+                ) : order.trackingEta ? (
+                  <p className="mt-1 text-sm text-body">
+                    Expected by {formatDay(order.trackingEta)}.
+                  </p>
+                ) : order.shippedAt ? (
+                  <p className="mt-1 text-sm text-body">
+                    Dispatched {formatDate(order.shippedAt)}.
+                  </p>
+                ) : null}
+
+                <p className="mt-3 text-sm text-body">
+                  {order.courierName || "Courier"} ·{" "}
+                  <span className="break-all font-mono">{order.awb}</span>
+                </p>
                 <a
                   href={trackingUrl(order.awb)}
                   target="_blank"
@@ -198,15 +264,28 @@ export default async function OrderPage({
                 >
                   Track this parcel
                 </a>
-                {order.deliveredAt ? (
-                  <p className="mt-3 text-sm text-body">
-                    Delivered {formatDate(order.deliveredAt)}.
-                  </p>
-                ) : order.shippedAt ? (
-                  <p className="mt-3 text-sm text-body">
-                    Dispatched {formatDate(order.shippedAt)}.
-                  </p>
-                ) : null}
+
+                {order.trackingEvents.length > 0 && (
+                  <div className="mt-5 border-t border-line pt-4">
+                    <TrackingTimeline events={order.trackingEvents.slice(0, 4)} />
+                    {/* The rest folded away: on a phone, a dozen scans would
+                        push the address and the total off the screen. */}
+                    {order.trackingEvents.length > 4 && (
+                      <details className="group mt-3">
+                        <summary className="cursor-pointer text-sm text-accent hover:underline">
+                          <span className="group-open:hidden">
+                            Show {order.trackingEvents.length - 4} earlier update
+                            {order.trackingEvents.length - 4 === 1 ? "" : "s"}
+                          </span>
+                          <span className="hidden group-open:inline">Hide earlier updates</span>
+                        </summary>
+                        <div className="mt-3">
+                          <TrackingTimeline events={order.trackingEvents.slice(4)} />
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                )}
               </section>
             )}
 
@@ -326,5 +405,28 @@ function Line({
         {value}
       </dd>
     </div>
+  );
+}
+
+function TrackingTimeline({ events }: { events: Order["trackingEvents"] }) {
+  return (
+    <ol className="space-y-3">
+      {events.map((event, index) => (
+        <li key={`${event.at}-${index}`} className="relative pl-5">
+          <span
+            aria-hidden
+            className="absolute left-0 top-1.5 h-2 w-2 rounded-full border border-accent bg-surface"
+          />
+          <p className="text-sm leading-snug text-ink">{event.activity}</p>
+          {(event.location || event.at) && (
+            <p className="mt-0.5 text-xs text-muted">
+              {[event.location, event.at ? formatMoment(event.at) : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+        </li>
+      ))}
+    </ol>
   );
 }

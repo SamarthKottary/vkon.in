@@ -229,6 +229,20 @@ CREATE TABLE IF NOT EXISTS customers (
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Added 2026-09-17.
+--
+-- `signin_code_exempt`: this account signs in with its password alone, never
+-- the emailed code. For review accounts only -- Razorpay's website
+-- verification asks for a test login, and its reviewers sign in from a browser
+-- this site has never seen, with no access to the account's inbox. Set from
+-- `/admin/users`; off for every account by default.
+--
+-- `last_sign_in_at`: stamped whenever a session is issued, for `/admin/users`.
+-- Sessions themselves are deleted on logout, so they cannot answer "when was
+-- this person last here".
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS signin_code_exempt BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_sign_in_at    TIMESTAMPTZ;
+
 -- ---------------------------------------------------------------------------
 -- Customer sessions.
 --
@@ -477,6 +491,22 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivered_at       TIMESTAMPTZ;
 -- The shipping webhook looks an order up by the courier's AWB, which is the
 -- only id it carries that we also store.
 CREATE INDEX IF NOT EXISTS orders_awb_idx ON orders (awb);
+
+-- Added 2026-09-17: live tracking, and when an order was cancelled.
+--
+-- `tracking_status` is the courier's own words for where the parcel is ("OUT
+-- FOR DELIVERY"), kept beside `status`, which is this site's four-state summary
+-- of it -- the two are not the same thing and one must not be squeezed into
+-- the other. `tracking_status_at` is the courier's time for that status, used
+-- only to stop a late-arriving webhook overwriting a newer one; null when the
+-- courier sent no time. `tracking_events` is the scan history, newest first,
+-- capped in code. `tracking_eta` is the courier's estimate, as a day.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_status     TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_status_at  TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_updated_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_eta        DATE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_events     JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at        TIMESTAMPTZ;
 
 -- Order history is read newest-first for one customer, and that is the only
 -- way a customer ever reads it.

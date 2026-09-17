@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRightIcon } from "@/components/icons/ui";
 import { formatPaise } from "@/lib/pricing";
+import { trackingLabel } from "@/lib/tracking";
 import type { Order, OrderStatus } from "@/lib/types";
 
 function formatDate(iso: string): string {
@@ -322,6 +323,14 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                         <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold ${s.className}`}>
                           {s.label}
                         </span>
+                        {/* Where a shipped parcel actually is, from the courier —
+                            "Out for delivery" is the one worth seeing without
+                            opening the order. */}
+                        {order.status === "shipped" && trackingLabel(order.trackingStatus) && (
+                          <span className="mt-1 block text-xs text-muted">
+                            {trackingLabel(order.trackingStatus)}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-4 text-right font-bold tabular-nums text-accent whitespace-nowrap">
                         {formatPaise(order.total)}
@@ -359,6 +368,12 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                     <span>{formatDate(order.createdAt)}</span>
                     <span aria-hidden>·</span>
                     <span>{order.items.length} {order.items.length === 1 ? "item" : "items"}</span>
+                    {order.status === "shipped" && trackingLabel(order.trackingStatus) && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <span>{trackingLabel(order.trackingStatus)}</span>
+                      </>
+                    )}
                   </div>
                   <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
                     <span className="text-base font-bold tabular-nums text-accent">

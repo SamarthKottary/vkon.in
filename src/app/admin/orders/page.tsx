@@ -10,7 +10,8 @@ import { listAllOrders } from "@/lib/db/orders";
 import { formatPaise } from "@/lib/pricing";
 import type { Order } from "@/lib/types";
 import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
-import { bookShipmentAction } from "@/app/admin/actions";
+import { trackingLabel } from "@/lib/tracking";
+import { bookShipmentAction, refreshTrackingAction } from "@/app/admin/actions";
 import { OrderStatusSelect } from "./OrderStatusSelect";
 
 export const dynamic = "force-dynamic";
@@ -36,11 +37,14 @@ export default async function AdminOrdersPage({
     error?: string;
     shipped?: string;
     shipError?: string;
+    mailed?: string;
+    shipment?: string;
+    tracked?: string;
   }>;
 }) {
   if (!(await isAuthenticated())) redirect("/admin");
 
-  const { updated, error, shipped, shipError } = await searchParams;
+  const { updated, error, shipped, shipError, mailed, shipment, tracked } = await searchParams;
   const orders = await listAllOrders();
   const canShip = isShiprocketConfigured();
 
@@ -86,7 +90,33 @@ export default async function AdminOrdersPage({
             error ? "border-signal-500" : "border-accent"
           }`}
         >
-          {error ? "Could not update that order." : "Order updated."}
+          {error
+            ? "Could not update that order."
+            : `Order updated.${mailed ? " The customer has been emailed." : ""}`}
+          {/* A cancellation reaches Shiprocket too, when a shipment was booked.
+              Each outcome needs something different done, so each is said. */}
+          {shipment === "cancelled" && " The Shiprocket shipment was cancelled."}
+          {shipment === "failed" &&
+            " Shiprocket did not cancel the shipment — cancel it in their dashboard so the courier does not collect it."}
+          {shipment === "picked" &&
+            " The parcel is already with the courier, so Shiprocket cannot cancel it — arrange a return in their dashboard."}
+        </p>
+      )}
+
+      {tracked && (
+        <p
+          role="status"
+          className={`mt-6 border-l-2 bg-surface px-4 py-3 text-sm text-ink ${
+            tracked === "failed" || tracked === "none" ? "border-signal-500" : "border-accent"
+          }`}
+        >
+          {tracked === "failed"
+            ? "Could not reach Shiprocket for tracking. The reason is in the server log."
+            : tracked === "none"
+              ? "Shiprocket has no tracking for that parcel yet. A new AWB usually shows its first scan within a few hours of pickup."
+              : tracked === "mailed"
+                ? "Tracking updated, and the customer has been emailed about the change."
+                : "Tracking updated."}
         </p>
       )}
 
@@ -116,7 +146,10 @@ export default async function AdminOrdersPage({
         An order appears here and nowhere else — the customer gets the
         confirmation, you do not — so this page needs checking through the day.
         Payment is not taken online yet: ring the number on the order to settle
-        it and to quote the delivery charge.
+        it and to quote the delivery charge. The customer{" "}
+        <span className="font-medium text-ink">is</span> emailed
+        when you mark an order shipped, delivered or cancelled, and when the
+        courier reports it shipped, out for delivery or delivered.
       </p>
 
       <div className="mt-8 space-y-4">
@@ -140,7 +173,8 @@ function OrderCard({ order, canShip }: { order: Order; canShip: boolean }) {
 
   return (
     <article
-      className={`border bg-surface p-5 ${
+      id={`order-${order.id}`}
+      className={`scroll-mt-24 border bg-surface p-5 ${
         settled ? "border-line opacity-70" : "border-line-strong"
       }`}
     >
@@ -300,14 +334,69 @@ function OrderCard({ order, canShip }: { order: Order; canShip: boolean }) {
                   {order.courierName || "Courier"} ·{" "}
                   <span className="font-mono">{order.awb}</span>
                 </p>
-                <a
-                  href={trackingUrl(order.awb)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block text-accent hover:underline"
-                >
-                  Track this parcel
-                </a>
+
+                {/* The courier's status in the words the customer sees, with
+                    Shiprocket's own beneath it — the one to quote when talking
+                    to their support. Returns and failed attempts are the ones
+                    that need the operator, so they stand out. */}
+                {order.trackingStatus ? (
+                  <div className="pt-1">
+                    <p
+                      className={`font-semibold ${
+                        needsAttention(order.trackingStatus) ? "text-signal-700" : "text-ink"
+                      }`}
+                    >
+                      {trackingLabel(order.trackingStatus)}
+                    </p>
+                    <p className="label-tech text-muted">
+                      {order.trackingStatus}
+                      {order.trackingUpdatedAt &&
+                        ` · checked ${formatDate(order.trackingUpdatedAt)}`}
+                    </p>
+                    {order.trackingEta && order.status !== "delivered" && (
+                      <p className="mt-1 text-body">
+                        Expected by {formatDay(order.trackingEta)}
+                      </p>
+                    )}
+                    {order.trackingEvents[0] && (
+                      <p className="mt-1 text-body">
+                        {order.trackingEvents[0].activity}
+                        {order.trackingEvents[0].location &&
+                          ` — ${order.trackingEvents[0].location}`}
+                        {order.trackingEvents[0].at && (
+                          <span className="text-muted">
+                            {" "}
+                            · {formatDate(order.trackingEvents[0].at)}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted">No tracking update yet.</p>
+                )}
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+                  <a
+                    href={trackingUrl(order.awb)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    Track this parcel
+                  </a>
+                  {canShip && (
+                    <form action={refreshTrackingAction}>
+                      <input type="hidden" name="id" value={order.id} />
+                      <button
+                        type="submit"
+                        className="inline-flex h-8 items-center border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+                      >
+                        Refresh tracking
+                      </button>
+                    </form>
+                  )}
+                </div>
               </div>
             ) : order.shipmentId ? (
               /* Created at Shiprocket but no AWB came back — recoverable from
@@ -341,6 +430,29 @@ function OrderCard({ order, canShip }: { order: Order; canShip: boolean }) {
       </div>
     </article>
   );
+}
+
+/** Courier states that mean the operator probably has a call to make. */
+function needsAttention(raw: string): boolean {
+  const s = raw.toLowerCase();
+  return (
+    /\brto\b/.test(s.replace(/[_-]+/g, " ")) ||
+    s.includes("return") ||
+    s.includes("undelivered") ||
+    s.includes("cancel") ||
+    s.includes("exception") ||
+    s.includes("lost") ||
+    s.includes("damage")
+  );
+}
+
+function formatDay(day: string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(`${day}T12:00:00+05:30`));
 }
 
 function Row({ label, value }: { label: string; value: string }) {

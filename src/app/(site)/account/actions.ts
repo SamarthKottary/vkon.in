@@ -14,6 +14,7 @@ import {
   findCustomerById,
   getPasswordHash,
   invalidateTokens,
+  isSigninCodeExempt,
   markEmailVerified,
   setCustomerPassword,
   untrustAllDevices,
@@ -300,9 +301,17 @@ const CODE_PAGE = "/account/verify-code";
  * the same way — no keys, no feature. The cost is that the second factor is
  * only as present as the mail setup is, which is why the setup guide treats
  * Resend as the one integration to do first.
+ *
+ * **Also true for an account marked as a review account** in `/admin/users`
+ * (2026-09-17). Razorpay's website verification asks for a test login, and
+ * its reviewers sign in from a browser this site has never seen with no way
+ * to read the code. The flag is per account, off by default, set only by the
+ * operator, and meant to be turned off once the review is done. Password
+ * sign-in only: a review account has no Google login to exempt.
  */
 async function skipTheCode(customerId: string): Promise<boolean> {
   if (!isMailConfigured()) return true;
+  if (await isSigninCodeExempt(customerId)) return true;
   return isTrustedDevice(customerId);
 }
 
