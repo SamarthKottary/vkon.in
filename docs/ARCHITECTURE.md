@@ -1555,6 +1555,27 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-17 (refunds, later) — No Refund button once a shipment is booked or dispatched
+
+Client: "after book shipment/dispatched, we should not have refund option."
+New `lib/refunds.ts`: `refundBlock(order)` returns why an order cannot be
+refunded from the admin (`not_paid_online`, `fully_refunded`,
+`shipment_booked`, `dispatched`), and `refundBlockMessage` says it. The order
+card shows the reason in place of the button, and `refundOrderAction` refuses
+on the same rule before calling Razorpay.
+
+- **Exception kept:** a cancelled order that was booked but never dispatched.
+  Cancelling cancels the booking, and the Terms and cancellation email promise
+  the refund. Anything with `shipped_at` stays blocked, even if cancelled
+  later; returns are refunded in the Razorpay dashboard and recorded by the
+  webhook.
+- **Tested in the browser:** paid and unbooked shows the button; booking the
+  order while the page was open and then pressing Refund was refused by the
+  server with no Razorpay call; booked hides it with the reason; cancelled
+  before dispatch brings it back with the amber note; dispatched then
+  cancelled, delivered, and marked shipped with no booking all hide it; cash
+  on delivery has no button.
+
 ### 2026-09-17 (refunds) — Refund button in `/admin/orders`
 
 Client: "I want to initiate refund from admin itself … Like book shipment, i

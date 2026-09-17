@@ -15,6 +15,7 @@ import { bookShipmentAction, refreshTrackingAction } from "@/app/admin/actions";
 import { OrderStatusSelect } from "./OrderStatusSelect";
 import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
+import { refundBlock, refundBlockMessage } from "@/lib/refunds";
 
 export const dynamic = "force-dynamic";
 
@@ -198,8 +199,11 @@ export default async function AdminOrdersPage({
           <span className="font-medium text-ink">Cancelling does not refund.</span>{" "}
           Customers may cancel until dispatch. For an order paid online, use{" "}
           <span className="font-medium text-ink">Refund</span> on the order —
-          full or partial. The customer is emailed, and the money reaches them
-          in 5–7 days. A cash-on-delivery refund is paid back in person.
+          full or partial — until its shipment is booked. A booked order is
+          refunded by cancelling it first; a dispatched or returned one, in the
+          Razorpay dashboard. The customer is emailed either way, and the money
+          reaches them in 5–7 days. A cash-on-delivery refund is paid back in
+          person.
         </p>
         <p>
           The customer is emailed when you mark an order shipped, delivered or
@@ -515,16 +519,19 @@ function OrderCard({
  * 2026-09-17). Sits under Shipment for the same reason: it is the other thing
  * done *to* an order from this card rather than read off it.
  *
- * The button appears only for a captured online payment with something left
- * to refund. A cancelled order that was paid and not yet refunded is called
- * out in amber — the cancellation email has already promised the customer a
- * refund in 5–7 days, and nothing else on this page would say it is owed.
+ * The button appears only when `refundBlock` allows it: a captured online
+ * payment with something left, and no shipment booked or dispatched — except
+ * a cancelled order that never left, see `lib/refunds.ts`. When a shipment
+ * blocks it, the card says why instead of silently having no button. A
+ * cancelled order that is still owed a refund is called out in amber — the
+ * cancellation email has already promised the customer one.
  */
 function PaymentBlock({ order, canRefund }: { order: Order; canRefund: boolean }) {
   const online = order.paymentProvider === "razorpay" && Boolean(order.paymentId);
   const remaining = order.total - order.refundedAmount;
   const paidOnline = online && (order.paymentStatus === "paid" || order.refundedAmount > 0);
-  const owed = order.status === "cancelled" && paidOnline && remaining > 0;
+  const block = refundBlock(order);
+  const owed = order.status === "cancelled" && paidOnline && remaining > 0 && !block;
 
   return (
     <div className="mt-5 border-t border-line pt-4">
@@ -550,16 +557,17 @@ function PaymentBlock({ order, canRefund }: { order: Order; canRefund: boolean }
               Cancelled but not refunded — the customer was told a refund is on its way.
             </p>
           )}
-          {remaining > 0 &&
-            (canRefund ? (
-              <RefundForm
-                id={order.id}
-                orderNumber={order.orderNumber}
-                remainingRupees={(remaining / 100).toFixed(2)}
-              />
-            ) : (
-              <p className="text-muted">Razorpay not configured — refunds are unavailable.</p>
-            ))}
+          {block === "shipment_booked" || block === "dispatched" ? (
+            <p className="text-muted">{refundBlockMessage(block)}</p>
+          ) : block ? null : canRefund ? (
+            <RefundForm
+              id={order.id}
+              orderNumber={order.orderNumber}
+              remainingRupees={(remaining / 100).toFixed(2)}
+            />
+          ) : (
+            <p className="text-muted">Razorpay not configured — refunds are unavailable.</p>
+          )}
         </div>
       ) : order.paymentProvider === "cod" ? (
         <p className="mt-2.5 text-sm text-body">

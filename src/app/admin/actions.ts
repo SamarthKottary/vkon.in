@@ -30,6 +30,7 @@ import {
   notifyRefund,
 } from "@/lib/order-notifications";
 import { refundPayment } from "@/lib/razorpay";
+import { refundBlock, refundBlockMessage } from "@/lib/refunds";
 import { formatPaise } from "@/lib/pricing";
 import { listProducts } from "@/lib/db/products";
 import {
@@ -613,11 +614,12 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
   const fail = (message: string) =>
     redirect(back(`refundError=${encodeURIComponent(message.slice(0, 200))}`));
 
-  if (!order.paymentId || order.paymentProvider !== "razorpay") {
-    fail("This order has no online payment to refund.");
-  }
+  /* Paid online, something left, and not booked or dispatched — the same
+     rule the card uses to show the button, checked again because the page
+     may predate a booking. */
+  const block = refundBlock(order);
+  if (block) fail(refundBlockMessage(block));
   const remaining = order.total - order.refundedAmount;
-  if (remaining <= 0) fail("This order has already been refunded in full.");
 
   /* Rupees as typed, to paise, without floating point: "1,424.04" → 142404. */
   const typed = String(formData.get("amount") ?? "").replace(/[,\s₹]/g, "");

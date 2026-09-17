@@ -216,6 +216,18 @@ Razorpay dashboard.
   is greater than the refund payment amount", or not enough balance in the
   Razorpay account to cover it. Refunds come out of the Razorpay balance, so a
   new account with little settled balance can be refused.
+- **No refund once a shipment is booked or the order is dispatched** (client,
+  2026-09-17). `lib/refunds.ts` (`refundBlock`) decides, and both the card and
+  `refundOrderAction` read it, so an admin page left open since before the
+  booking is refused by the server too.
+  - **Booked but not dispatched:** cancel the order first, which also cancels
+    the Shiprocket booking. The button then comes back, because customers may
+    cancel until dispatch and the cancellation email has promised the refund.
+  - **Dispatched** (`shipped_at` set, or status shipped/delivered, whether or
+    not it was booked through Shiprocket): no button, even if later cancelled
+    or returned. Refund a return in the Razorpay dashboard; `refund.processed`
+    records it here and emails the customer.
+  - The card says which applies instead of just having no button.
 - **Cash on delivery** has no button; the card says any refund is paid back in
   person. A cancelled order that was paid online and not refunded is flagged in
   amber on its card.
