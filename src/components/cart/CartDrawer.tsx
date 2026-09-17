@@ -3,11 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CloseIcon } from "@/components/icons/ui";
+import { CloseIcon, TrashIcon } from "@/components/icons/ui";
 import { QuantityStepper } from "@/components/cart/QuantityStepper";
 import { useCartLines } from "@/components/cart/useCart";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
-import { formatRupees, subscribeCartDrawer } from "@/lib/cart";
+import { formatRupees, removeFromCart, subscribeCartDrawer } from "@/lib/cart";
 import type { Product } from "@/lib/types";
 
 /**
@@ -152,15 +152,26 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
 
                     <div className="flex min-w-0 flex-1 flex-col justify-between">
                       <div>
-                        <h3 className="text-sm font-semibold text-ink leading-snug line-clamp-2">
-                          <Link
-                            href={`/products/${product.slug}`}
-                            onClick={() => setOpen(false)}
-                            className="hover:text-accent transition-colors"
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="text-sm font-semibold text-ink leading-snug line-clamp-2">
+                            <Link
+                              href={`/products/${product.slug}`}
+                              onClick={() => setOpen(false)}
+                              className="hover:text-accent transition-colors"
+                            >
+                              {product.name}
+                            </Link>
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(product.slug)}
+                            aria-label={`Remove ${product.name} from cart`}
+                            className="shrink-0 p-1 text-muted hover:text-red-600 hover:bg-red-500/10 rounded transition-colors"
+                            title="Remove item"
                           >
-                            {product.name}
-                          </Link>
-                        </h3>
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
                         <p className="mt-1 text-xs text-muted font-mono uppercase tracking-wide">
                           SKU: {skuCode}
                         </p>

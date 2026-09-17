@@ -3,11 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
-import { ArrowRightIcon } from "@/components/icons/ui";
+import { ArrowRightIcon, TrashIcon } from "@/components/icons/ui";
 import { QuantityStepper } from "@/components/cart/QuantityStepper";
 import { useCartLines } from "@/components/cart/useCart";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
-import { formatRupees } from "@/lib/cart";
+import { formatRupees, removeFromCart } from "@/lib/cart";
 import type { Product } from "@/lib/types";
 
 /**
@@ -107,12 +107,23 @@ export function CartList({ products }: { products: Product[] }) {
                     )}
                   </Link>
                   <div className="min-w-0 flex-1">
-                    <Link
-                      href={`/products/${product.slug}`}
-                      className="font-semibold text-ink hover:text-accent transition-colors leading-snug line-clamp-2 text-sm"
-                    >
-                      {product.name}
-                    </Link>
+                    <div className="flex items-start justify-between gap-2">
+                      <Link
+                        href={`/products/${product.slug}`}
+                        className="font-semibold text-ink hover:text-accent transition-colors leading-snug line-clamp-2 text-sm"
+                      >
+                        {product.name}
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(product.slug)}
+                        aria-label={`Remove ${product.name} from cart`}
+                        className="shrink-0 p-1 text-muted hover:text-red-600 hover:bg-red-500/10 rounded transition-colors"
+                        title="Remove item"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
                     <p className="mt-1 text-xs text-muted font-mono uppercase tracking-wide">
                       SKU: {skuCode}
                     </p>
@@ -141,7 +152,7 @@ export function CartList({ products }: { products: Product[] }) {
           })}
         </div>
 
-        {/* Desktop / Tablet View: Full 4-Column Table (>= sm) */}
+        {/* Desktop / Tablet View: Full 5-Column Table (>= sm) */}
         <div className="hidden sm:block overflow-x-auto border border-line bg-surface shadow-card">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-surface-subtle text-xs font-bold uppercase tracking-wider text-ink">
@@ -150,6 +161,9 @@ export function CartList({ products }: { products: Product[] }) {
                 <th scope="col" className="px-4 py-4 text-right">PRICE</th>
                 <th scope="col" className="px-4 py-4 text-center">QUANTITY</th>
                 <th scope="col" className="px-6 py-4 text-right">SUBTOTAL</th>
+                <th scope="col" className="w-12 pl-2 pr-6 py-4 text-right">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -214,6 +228,19 @@ export function CartList({ products }: { products: Product[] }) {
                     {/* Subtotal */}
                     <td className="px-6 py-5 text-right font-bold text-accent tabular-nums whitespace-nowrap">
                       {formatRupees(totalPrice)}
+                    </td>
+
+                    {/* Delete Action */}
+                    <td className="pl-2 pr-6 py-5 text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(product.slug)}
+                        aria-label={`Remove ${product.name} from cart`}
+                        className="inline-flex h-8 w-8 items-center justify-center text-muted hover:text-red-600 hover:bg-red-500/10 rounded transition-colors"
+                        title="Remove item"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
                     </td>
                   </tr>
                 );

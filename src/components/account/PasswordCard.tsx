@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { AlertIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
@@ -51,9 +52,14 @@ export function PasswordCard({ hasGoogle, hasPassword }: { hasGoogle: boolean; h
         </div>
 
         {!open && !done && (
-          <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-            {hasPassword ? "Change password" : "Set a password"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+              {hasPassword ? "Change password" : "Set a password"}
+            </Button>
+            <Button href="/account/forgot" variant="ghost">
+              Forgot password?
+            </Button>
+          </div>
         )}
       </div>
 
@@ -118,6 +124,12 @@ export function PasswordCard({ hasGoogle, hasPassword }: { hasGoogle: boolean; h
             >
               Cancel
             </button>
+            <Link
+              href="/account/forgot"
+              className="ml-auto text-sm text-accent hover:underline"
+            >
+              Forgot password?
+            </Link>
           </div>
 
           <p className="text-sm leading-relaxed text-muted">
