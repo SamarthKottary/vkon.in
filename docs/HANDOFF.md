@@ -50,7 +50,8 @@ Working and verified:
 
 **[PAYMENTS.md](PAYMENTS.md)** covers what was built and what is still open;
 the click-by-click account setup for Resend, Google and Razorpay is in
-**[SETUP-GUIDE.md](SETUP-GUIDE.md)**.
+**[SETUP-GUIDE.md](SETUP-GUIDE.md)**. Every email the site sends, and the ones
+still missing, is tracked in **[EMAILS.md](EMAILS.md)**.
 
 > **The project was deleted and rebuilt on 2026-09-10.** Git history was
 > intact and the account work survived on disk, so the recovery was a
@@ -171,7 +172,9 @@ the row count is small enough not to matter.
 **Email arrived on 2026-09-06, and only for accounts.** `lib/mail.ts` sends the
 welcome, password-reset, order-placed and payment-received messages through
 Resend — over plain HTTPS, because SMTP is a socket protocol and would have
-meant `nodemailer`, the first new runtime dependency since `pg`.
+meant `nodemailer`, the first new runtime dependency since `pg`. Sign-in codes
+and the shipped / out-for-delivery / delivered / cancelled emails followed;
+**[EMAILS.md](EMAILS.md)** is the current list and the gaps.
 
 **The mailing list and the enquiry inbox still send nothing**, and the cost is
 unchanged: ADMIN.md §7.6–7.7 — **an enquiry sits unseen until somebody opens
