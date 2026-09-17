@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRightIcon } from "@/components/icons/ui";
 import { formatPaise } from "@/lib/pricing";
-import { trackingLabel } from "@/lib/tracking";
+import { trackingLabel, trackingUrl } from "@/lib/tracking";
 import {
   isCod,
   isPaymentFailed,
@@ -52,12 +53,48 @@ function paymentText(order: Order): { method: string; state: string | null } {
   return { method: "Online", state: paymentStateLabel(order).label };
 }
 
+/** A parcel with a courier tracking number can be followed on Shiprocket's
+ *  public tracking page (client, 2026-09-17). */
+function canTrack(order: Order): boolean {
+  return Boolean(order.awb) && order.status !== "cancelled";
+}
+
 /** An online order not yet paid has nothing to track; its page is where it is
- *  paid for. */
+ *  paid for. A parcel already on Shiprocket gets its own "Track parcel"
+ *  button, so this one reads "View Details" rather than a second "Track". */
 function actionLabel(order: Order): string {
   const unpaidOnline = !isCod(order) && (order.paymentStatus === "unpaid" || order.paymentStatus === "failed");
   if (unpaidOnline && order.status === "pending") return "Pay now";
+  if (canTrack(order)) return "View Details";
   return (ACTIVE_STATUSES as string[]).includes(order.status) ? "Track Order" : "View Details";
+}
+
+/** The row's buttons: the order page, and Shiprocket's tracking page when the
+ *  parcel has a tracking number. */
+function OrderActions({ order }: { order: Order }) {
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-2">
+      {canTrack(order) && (
+        <a
+          href={trackingUrl(order.awb!)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap border border-accent bg-accent px-4 text-xs font-semibold text-surface transition-colors hover:bg-accent-strong"
+        >
+          Track parcel
+          <ArrowRightIcon className="h-3.5 w-3.5 -rotate-45" />
+          <span className="sr-only">(opens Shiprocket in a new tab)</span>
+        </a>
+      )}
+      <Link
+        href={`/account/orders/${order.id}`}
+        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap border border-line-strong px-4 text-xs font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+      >
+        {actionLabel(order)}
+        <ArrowRightIcon className="h-3.5 w-3.5" />
+      </Link>
+    </span>
+  );
 }
 
 const STATUS_FILTERS: { label: string; value: string }[] = [
@@ -115,6 +152,19 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 }
 
 export function OrderHistoryTable({ orders }: { orders: Order[] }) {
+  const router = useRouter();
+  /**
+   * The whole row opens the order (client, 2026-09-17), not only its button.
+   * A click on a link or button inside keeps its own job — Track parcel still
+   * opens Shiprocket — and a click that ends a text selection (somebody
+   * copying the order number) does not navigate. The order number is a real
+   * link too, so keyboard users and "open in new tab" still work.
+   */
+  const openOrder = (event: React.MouseEvent, id: string) => {
+    if ((event.target as HTMLElement).closest("a, button")) return;
+    if (window.getSelection()?.toString()) return;
+    router.push(`/account/orders/${id}`);
+  };
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -291,8 +341,12 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
         </div>
       ) : (
         <>
-          {/* Desktop table */}
-          <div className="mt-4 hidden overflow-x-auto border border-line bg-surface-raised shadow-card sm:block">
+          {/* Desktop table — from `xl` only (2026-09-17). With the Payment
+              column and a second button for trackable parcels it needs ~930px,
+              which the account column only has at `xl`; between `sm` and `xl`
+              it scrolled sideways inside its box. The cards below cover
+              everything narrower. */}
+          <div className="mt-4 hidden overflow-x-auto border border-line bg-surface-raised shadow-card xl:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line bg-surface-subtle">
                 <tr>
@@ -348,11 +402,19 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                   const s = displayStatus(order);
                   const pay = paymentText(order);
                   return (
-                    <tr key={order.id} className="transition-colors hover:bg-surface-subtle/50">
+                    <tr
+                      key={order.id}
+                      onClick={(event) => openOrder(event, order.id)}
+                      onMouseEnter={() => router.prefetch(`/account/orders/${order.id}`)}
+                      className="cursor-pointer transition-colors hover:bg-surface-subtle/50"
+                    >
                       <td className="px-5 py-4">
-                        <span className="font-mono text-sm font-semibold text-ink">
+                        <Link
+                          href={`/account/orders/${order.id}`}
+                          className="whitespace-nowrap font-mono text-sm font-semibold text-ink hover:text-accent hover:underline"
+                        >
                           {order.orderNumber}
-                        </span>
+                        </Link>
                       </td>
                       <td className="px-4 py-4 text-sm text-muted whitespace-nowrap">
                         {formatDate(order.createdAt)}
@@ -373,7 +435,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-4 text-sm">
+                      <td className="whitespace-nowrap px-4 py-4 text-sm">
                         <span className="font-medium text-ink">{pay.method}</span>
                         {pay.state && (
                           <span className="mt-0.5 block text-xs text-muted">{pay.state}</span>
@@ -383,13 +445,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                         {formatPaise(order.total)}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <Link
-                          href={`/account/orders/${order.id}`}
-                          className="inline-flex h-9 items-center gap-1.5 border border-line-strong px-4 text-xs font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle whitespace-nowrap"
-                        >
-                          {actionLabel(order)}
-                          <ArrowRightIcon className="h-3.5 w-3.5" />
-                        </Link>
+                        <OrderActions order={order} />
                       </td>
                     </tr>
                   );
@@ -398,15 +454,24 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
             </table>
           </div>
 
-          {/* Mobile cards */}
-          <ul className="mt-4 space-y-3 sm:hidden">
+          {/* Cards, below `xl` */}
+          <ul className="mt-4 space-y-3 xl:hidden">
             {filtered.map((order) => {
               const s = displayStatus(order);
               const pay = paymentText(order);
               return (
-                <li key={order.id} className="border border-line bg-surface-raised p-4 shadow-card">
+                <li
+                  key={order.id}
+                  onClick={(event) => openOrder(event, order.id)}
+                  className="cursor-pointer border border-line bg-surface-raised p-4 shadow-card transition-colors hover:border-line-strong"
+                >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-mono text-sm font-semibold text-ink">{order.orderNumber}</span>
+                    <Link
+                      href={`/account/orders/${order.id}`}
+                      className="font-mono text-sm font-semibold text-ink hover:text-accent"
+                    >
+                      {order.orderNumber}
+                    </Link>
                     <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold ${s.className}`}>
                       {s.label}
                     </span>
@@ -427,17 +492,11 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                       </>
                     )}
                   </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
                     <span className="text-base font-bold tabular-nums text-accent">
                       {formatPaise(order.total)}
                     </span>
-                    <Link
-                      href={`/account/orders/${order.id}`}
-                      className="inline-flex h-9 items-center gap-1.5 border border-line-strong px-4 text-xs font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
-                    >
-                      {actionLabel(order)}
-                      <ArrowRightIcon className="h-3.5 w-3.5" />
-                    </Link>
+                    <OrderActions order={order} />
                   </div>
                 </li>
               );

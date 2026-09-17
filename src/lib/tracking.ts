@@ -15,6 +15,12 @@ import type { OrderStatus, TrackingEvent } from "@/lib/types";
  * courier's own words rather than to a guess.
  */
 
+/** Where a customer goes to watch the parcel. Shiprocket's own public page,
+ *  which needs no login and works for every courier they broker. */
+export function trackingUrl(awb: string): string {
+  return `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
+}
+
 function words(raw: string): string {
   return raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }

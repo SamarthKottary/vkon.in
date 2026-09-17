@@ -251,6 +251,8 @@ export type CheckoutConfig = {
   name: string;
   description: string;
   orderId: string;
+  /** Ours, e.g. VK-0917-4F7A — for checkout's redirect, not for Razorpay. */
+  orderNumber: string;
   prefill: { name: string; email: string; contact: string };
 };
 
@@ -269,6 +271,13 @@ export function checkoutConfig(input: {
     name: site.legalName,
     description: `Order ${input.orderNumber}`,
     orderId: input.razorpayOrderId,
+    /* Checkout redirects with it (`?placed=` on success, `?unpaid=` when the
+       window closes unpaid), and the order page compares it before emptying
+       the cart. It was missing until 2026-09-17, so both redirects carried
+       "undefined": after a successful online payment the cart was never
+       emptied and the thank-you note never showed. Not secret — it is the
+       customer's own order number. */
+    orderNumber: input.orderNumber,
     /* Prefilled so somebody on a phone is not retyping what we already hold.
        Razorpay uses these only to populate its own form fields. */
     prefill: {

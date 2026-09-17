@@ -29,6 +29,16 @@ import type { Address } from "@/lib/types";
  * them (client, same day): the chevron that opened the list moves onto the
  * first row, in the same place, and closes it.
  *
+ * **The open list floats over the page; it does not push it down** (client,
+ * 2026-09-17: "it should be over the below sections"). The closed row stays in
+ * the layout at its own height, and the list is laid over it and whatever
+ * follows — the next checkout step, the order lines — the way a `<select>`'s
+ * menu is. Because it now covers things, it closes like one too: a click
+ * anywhere outside it, or Escape. A click inside the add/edit dialog does not
+ * count as outside, so editing an address leaves the list open behind the
+ * dialog as before. Long address books scroll inside the panel, capped at 60%
+ * of the viewport, with "Use a different address" always in view at its foot.
+ *
  * **One text column, open or closed.** Every row — the closed one, each
  * address, "Use a different address" — has the same `px-4`, a 16px leading
  * slot (pin, radio or plus) and a `gap-3`, so names, addresses, Edit/Delete
@@ -79,36 +89,74 @@ export function AddressPicker({
   const ordered = [...addresses].sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
 
   /**
-   * The open and the closed state each render their own toggle, so the one
-   * that was pressed is gone by the next paint and focus would fall back to
-   * `<body>`. This hands it to the toggle that replaced it — but only after a
-   * toggle, never on first render, which would pull focus into checkout the
-   * moment the page loads.
+   * Focus follows the toggle: into the panel's close chevron on opening, back
+   * to the closed row on closing — but only after a toggle, never on first
+   * render, which would pull focus into checkout the moment the page loads.
    */
-  const toggleRef = useRef<HTMLButtonElement>(null);
+  const rowRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const moveFocus = useRef(false);
   const setOpenAndFocus = (next: boolean) => {
     moveFocus.current = true;
     setOpen(next);
   };
   useEffect(() => {
+    if (open) {
+      /* A picker near the bottom of the window would open mostly off-screen;
+         bring the panel into view without jumping the page more than that. */
+      panelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
     if (!moveFocus.current) return;
     moveFocus.current = false;
-    toggleRef.current?.focus();
+    (open ? closeRef : rowRef).current?.focus();
+  }, [open]);
+
+  /* Outside click and Escape close it, as they would a select's menu. The
+     add/edit dialog is portalled elsewhere and marked `data-address-dialog`;
+     it is not "outside", and while it is open Escape belongs to it. */
+  useEffect(() => {
+    if (!open) return;
+    const insideDialog = (target: EventTarget | null) =>
+      target instanceof Element && Boolean(target.closest("[data-address-dialog]"));
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (wrapperRef.current?.contains(event.target as Node)) return;
+      if (insideDialog(event.target)) return;
+      setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (document.querySelector("[data-address-dialog]")) return;
+      moveFocus.current = true;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   /* Same box, same place, open or closed: 8px in from the top-right corner,
      40px square, so the chevron is centred on the first line of the name. */
   const chevronBox = "absolute right-2 top-2 flex h-10 w-10 items-center justify-center";
 
-  if (!open) {
-    return (
-      <div className="border border-line bg-surface-raised shadow-card">
+  return (
+    <div ref={wrapperRef} className="relative">
+      {/* The closed row is always rendered: it is what holds the space in the
+          page, so opening the list moves nothing. While the list is open it
+          sits underneath it, `inert` so neither Tab nor a screen reader lands
+          on a control nobody can see. */}
+      <div className="border border-line bg-surface-raised shadow-card" inert={open}>
         <button
-          ref={toggleRef}
+          ref={rowRef}
           type="button"
           onClick={() => setOpenAndFocus(true)}
-          aria-expanded={false}
+          aria-expanded={open}
           aria-controls={listId}
           className="relative flex w-full items-start gap-3 py-4 pl-4 pr-12 text-left transition-colors hover:bg-surface-subtle"
         >
@@ -125,105 +173,110 @@ export function AddressPicker({
           </span>
         </button>
       </div>
-    );
-  }
 
-  return (
-    <div id={listId} className="relative border border-line bg-surface-raised shadow-card">
-      <button
-        ref={toggleRef}
-        type="button"
-        onClick={() => setOpenAndFocus(false)}
-        aria-expanded
-        aria-controls={listId}
-        className={`${chevronBox} z-10 text-muted transition-colors hover:text-ink`}
-      >
-        <ChevronDownIcon className="h-5 w-5 rotate-180" />
-        <span className="sr-only">Close the address list</span>
-      </button>
+      {open && (
+        <div
+          ref={panelRef}
+          id={listId}
+          className="absolute inset-x-0 top-0 z-30 flex max-h-[60vh] flex-col border border-line-strong bg-surface-raised shadow-2xl"
+        >
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={() => setOpenAndFocus(false)}
+            aria-expanded
+            aria-controls={listId}
+            className={`${chevronBox} z-10 text-muted transition-colors hover:text-ink`}
+          >
+            <ChevronDownIcon className="h-5 w-5 rotate-180" />
+            <span className="sr-only">Close the address list</span>
+          </button>
 
-      <ul className="divide-y divide-line">
-        {ordered.map((address, index) => {
-          const isSelected = address.id === selectedId;
-          return (
-            <li
-              key={address.id}
-              className={`py-4 pl-4 transition-colors ${
-                /* The first row makes room for the close chevron. */
-                index === 0 ? "pr-12" : "pr-4"
-              } ${isSelected ? "bg-accent-soft/50" : "hover:bg-surface-subtle"}`}
-            >
-              <label className="flex min-w-0 cursor-pointer items-start gap-3">
-                <input
-                  type="radio"
-                  name={group}
-                  value={address.id}
-                  checked={isSelected}
-                  onChange={() => {
-                    onSelect(address.id);
-                    setOpenAndFocus(false);
-                  }}
-                  /* `onChange` does not fire for the radio that is already
-                     checked, so re-choosing the current address would
-                     otherwise leave the list open. */
-                  onClick={() => {
-                    if (isSelected) setOpenAndFocus(false);
-                  }}
-                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
-                />
-                <span className="min-w-0 flex-1">
-                  <AddressLines address={address} showGstin={showGstin} withPhone />
-                </span>
-              </label>
-
-              {/* `pl-7` is the radio's 16px plus the 12px gap: the buttons
-                  start where the name does. */}
-              <div className="mt-2.5 flex items-center gap-5 pl-7 text-sm">
-                <button
-                  type="button"
-                  onClick={() => onEdit(address)}
-                  className="flex items-center gap-1.5 text-accent hover:underline"
+          <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto overscroll-contain">
+            {ordered.map((address) => {
+              const isSelected = address.id === selectedId;
+              return (
+                <li
+                  key={address.id}
+                  /* Every row keeps clear of the close chevron, not just the
+                     first: the list scrolls under it. */
+                  className={`py-4 pl-4 pr-12 transition-colors ${
+                    isSelected ? "bg-accent-soft/50" : "hover:bg-surface-subtle"
+                  }`}
                 >
-                  <PencilIcon className="h-3.5 w-3.5" />
-                  Edit
-                </button>
+                  <label className="flex min-w-0 cursor-pointer items-start gap-3">
+                    <input
+                      type="radio"
+                      name={group}
+                      value={address.id}
+                      checked={isSelected}
+                      onChange={() => {
+                        onSelect(address.id);
+                        setOpenAndFocus(false);
+                      }}
+                      /* `onChange` does not fire for the radio that is already
+                         checked, so re-choosing the current address would
+                         otherwise leave the list open. */
+                      onClick={() => {
+                        if (isSelected) setOpenAndFocus(false);
+                      }}
+                      className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <AddressLines address={address} showGstin={showGstin} withPhone />
+                    </span>
+                  </label>
 
-                <form
-                  action={deleteAddressAction}
-                  /* A plain `confirm()`, as everywhere else an address is
-                     deleted. It is recoverable by typing it again. */
-                  onSubmit={(event) => {
-                    if (!window.confirm(`Delete the address for ${address.name}?`)) {
-                      event.preventDefault();
-                    }
-                  }}
-                >
-                  <input type="hidden" name="id" value={address.id} />
-                  <button
-                    type="submit"
-                    className="flex items-center gap-1.5 text-muted hover:text-red-700"
-                  >
-                    <TrashIcon className="h-3.5 w-3.5" />
-                    Delete
-                  </button>
-                </form>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                  {/* `pl-7` is the radio's 16px plus the 12px gap: the buttons
+                      start where the name does. */}
+                  <div className="mt-2.5 flex items-center gap-5 pl-7 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(address)}
+                      className="flex items-center gap-1.5 text-accent hover:underline"
+                    >
+                      <PencilIcon className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
 
-      <button
-        type="button"
-        onClick={() => {
-          setOpenAndFocus(false);
-          onAdd();
-        }}
-        className="flex w-full items-center gap-3 border-t border-line px-4 py-3.5 text-left text-sm font-medium text-accent transition-colors hover:bg-surface-subtle"
-      >
-        <PlusIcon className="h-4 w-4 shrink-0" />
-        {addLabel}
-      </button>
+                    <form
+                      action={deleteAddressAction}
+                      /* A plain `confirm()`, as everywhere else an address is
+                         deleted. It is recoverable by typing it again. */
+                      onSubmit={(event) => {
+                        if (!window.confirm(`Delete the address for ${address.name}?`)) {
+                          event.preventDefault();
+                        }
+                      }}
+                    >
+                      <input type="hidden" name="id" value={address.id} />
+                      <button
+                        type="submit"
+                        className="flex items-center gap-1.5 text-muted hover:text-red-700"
+                      >
+                        <TrashIcon className="h-3.5 w-3.5" />
+                        Delete
+                      </button>
+                    </form>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          <button
+            type="button"
+            onClick={() => {
+              setOpenAndFocus(false);
+              onAdd();
+            }}
+            className="flex w-full shrink-0 items-center gap-3 border-t border-line px-4 py-3.5 text-left text-sm font-medium text-accent transition-colors hover:bg-surface-subtle"
+          >
+            <PlusIcon className="h-4 w-4 shrink-0" />
+            {addLabel}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -334,6 +387,7 @@ export function AddressDialog({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        data-address-dialog=""
         aria-labelledby={`${uid}-title`}
         tabIndex={-1}
         /* Sized to fit a laptop viewport with no scroll bar (client,

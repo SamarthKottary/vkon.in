@@ -310,10 +310,18 @@ export function CheckoutForm({
               }
             },
             modal: {
+              /* The window closed without a successful payment — failed, or
+                 abandoned. The order exists and is in their order history
+                 with Pay now, so the cart is emptied there (`?unpaid=`),
+                 not left full for a second, duplicate order (client,
+                 2026-09-17). Emptied on the order page, not here, for the
+                 reason `ClearCartOnPlaced` records. */
               ondismiss: () => {
                 if (active) {
                   setPayBusy(false);
-                  router.push(`/account/orders/${state.orderId}`);
+                  router.push(
+                    `/account/orders/${state.orderId}?unpaid=${encodeURIComponent(config.orderNumber)}`,
+                  );
                 }
               },
             },

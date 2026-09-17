@@ -527,11 +527,10 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
   return { shipmentOrderId, shipmentId, awb, courierName };
 }
 
-/** Where a customer goes to watch the parcel. Shiprocket's own public page,
- *  which needs no login and works for every courier they broker. */
-export function trackingUrl(awb: string): string {
-  return `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
-}
+/* `trackingUrl` lives in `lib/tracking.ts` since 2026-09-17, so the client-side
+   order history can link to it; re-exported for the server code that imports
+   it from here. */
+export { trackingUrl } from "@/lib/tracking";
 
 // ---------------------------------------------------------------------------
 // Webhook

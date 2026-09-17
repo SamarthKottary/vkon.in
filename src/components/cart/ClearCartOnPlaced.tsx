@@ -20,6 +20,11 @@ import { clearCart } from "@/lib/cart";
  *
  * Rendered only when `?placed=` matches the order being shown, so revisiting
  * an old order later does not empty a cart that has since been refilled.
+ *
+ * **Also on `?unpaid=`** (client, 2026-09-17): checkout sends the customer
+ * here when the Razorpay window closes without a payment. The order exists and
+ * waits in their history with Pay now, so leaving the cart full only invites a
+ * second, duplicate order.
  */
 export function ClearCartOnPlaced() {
   useEffect(() => {

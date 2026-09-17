@@ -248,7 +248,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `cart/CartDrawer` | Slide-over state, Escape, body scroll lock |
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
 | `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection |
-| `account/AddressPicker` · `AddressDialog` | The chosen address collapsed, the list on demand (default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout and the account page |
+| `account/AddressPicker` · `AddressDialog` | The chosen address collapsed; the list opens as a panel over the content below (outside click / Escape close it, default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout and the account page |
 | `checkout/DeliveryPicker` | The chosen delivery service collapsed, the others on demand |
 | `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, refreshes |
 | `ui/PasswordField` | Live requirement checklist and strength meter as you type |
@@ -1555,6 +1555,74 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-17 (orders) — Cart emptied after an unpaid checkout; whole order rows clickable; Track parcel; a missing order number fixed
+
+Client: empty the cart when a payment fails, since the order is already in
+order history; clicking anywhere on an order row should open it, keeping the
+buttons; shipped orders need Shiprocket's tracking link.
+
+- **Bug fixed: `checkoutConfig` never returned `orderNumber`**, though
+  `CheckoutConfig` consumers used it. Checkout redirected to
+  `?placed=undefined` after a successful online payment, so **the cart was
+  never emptied and the thank-you note never showed** for online orders; only
+  cash on delivery worked. Found while building the next bullet. Verified with
+  a real test-mode payment: the redirect now carries the number, the note
+  shows, and the cart is empty.
+- **Cart emptied when the Razorpay window closes unpaid**, whether the payment
+  failed or was abandoned. `ondismiss` redirects to
+  `/account/orders/{id}?unpaid={number}`, and the order page renders
+  `ClearCartOnPlaced` for `?unpaid=` as well as `?placed=`, with an amber
+  "Your payment didn't go through" note while the order is still unpaid.
+  Clearing still happens only on the order page, where the order is certain
+  to exist.
+- **`OrderHistoryTable`:** the whole row or card opens the order. Clicks on
+  links and buttons, and clicks that end a text selection, are left alone. The
+  order number is now a real link, for keyboard users and new tabs, and rows
+  prefetch on hover. Orders with an AWB that are not cancelled get **Track
+  parcel**, opening Shiprocket's page in a new tab, beside the order button,
+  which reads "View Details" for them.
+- **`trackingUrl` moved to `lib/tracking.ts`** so the client table can use it.
+  `lib/shiprocket.ts` re-exports it.
+- **The table shows from `xl`; cards below.** With the Payment column and the
+  second button it needs ~930px, and between `sm` and `xl` it scrolled
+  sideways inside its box (158px at 1024). Measured at 1440 and 1280 (table,
+  no overflow) and at 1024, 768 and 390 (cards, no overflow).
+- **Tested against Razorpay test mode:** abandoning the window, and a real
+  test payment set to Failure then closed, both land on the order page with
+  the note and empty the browser and saved carts. Track parcel opens
+  Shiprocket in a new tab without leaving the history page. Clicking the date
+  cell, the total cell, or a mobile card opens the order.
+
+### 2026-09-17 (addresses) — The address list floats over the page instead of pushing it down
+
+Client: "the address drop down pushes the below content down … it should be
+over the below sections", on checkout and the account page. Both use
+`AddressPicker`, so one change covers both.
+
+- **Layout:** the closed row is always rendered and holds the space. The open
+  list is `absolute inset-x-0 top-0 z-30` over it and whatever follows, with a
+  stronger border and shadow. While open, the closed row is `inert`.
+- **Closing:** like a select's menu, an outside `mousedown`/`touchstart` or
+  Escape closes it. Clicks inside the add/edit dialog are not "outside" (the
+  dialog carries `data-address-dialog`), and while the dialog is open Escape
+  belongs to it. Choosing an address still closes the list.
+- **Long lists:** the panel is capped at 60vh and the list scrolls inside it,
+  with the add link pinned at the foot. Every row keeps `pr-12` clear of the
+  close chevron, which stays put while the list scrolls. On opening, the panel
+  is scrolled into view (`block: "nearest"`), so a picker near the bottom of
+  the window does not open off-screen.
+- **Tested in the browser.**
+  - Checkout, opening the list: the Shipping and Your order headings and the
+    page height are unchanged, and the panel covers the next step.
+  - Checkout, closing: Escape closes it and returns focus to the row; an
+    outside click closes it; clicking in the edit dialog leaves it open;
+    Escape in the dialog closes only the dialog; choosing an address closes it.
+  - Checkout, many addresses: with 11, the panel stays within 60vh and
+    scrolls, with the add link visible.
+  - Account page: the section position and page height are unchanged, and an
+    outside click closes it.
+  - No overflow at 390px, and it works in dark mode.
 
 ### 2026-09-17 (orders) — Admin lists confirmed orders only; COD and online shown everywhere
 

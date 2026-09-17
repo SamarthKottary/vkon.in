@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CheckIcon } from "@/components/icons/ui";
+import { AlertIcon, CheckIcon } from "@/components/icons/ui";
 import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
 import { ClearCartOnPlaced } from "@/components/cart/ClearCartOnPlaced";
 import { PayNowButton } from "@/components/checkout/PayNowButton";
@@ -61,7 +61,7 @@ export default async function OrderPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ placed?: string }>;
+  searchParams: Promise<{ placed?: string; unpaid?: string }>;
 }) {
   const { id } = await params;
   const customer = await requireSignIn(`/account/orders/${id}`);
@@ -73,8 +73,12 @@ export default async function OrderPage({
   const order = await getOrderForCustomer(customer.id, id);
   if (!order) notFound();
 
-  const { placed } = await searchParams;
+  const { placed, unpaid } = await searchParams;
   const justPlaced = placed === order.orderNumber;
+  /* Arrived from checkout after the payment window closed without a payment.
+     The order is real either way, so the cart goes; the note only shows while
+     it is still unpaid — a webhook may have settled it in the meantime. */
+  const leftUnpaid = unpaid === order.orderNumber;
 
   /* Read on the server: `isRazorpayConfigured` looks at the secret, which must
      never reach the browser. Only the boolean crosses. */
@@ -86,7 +90,24 @@ export default async function OrderPage({
       <div>
         {/* The cart is emptied here, not at checkout — this is the first moment
             that is certainly "the order exists". See the component's own note. */}
-        {justPlaced && <ClearCartOnPlaced />}
+        {(justPlaced || leftUnpaid) && <ClearCartOnPlaced />}
+
+        {leftUnpaid && order.paymentStatus !== "paid" && order.status !== "cancelled" && (
+          <div
+            role="status"
+            className="mb-8 flex items-start gap-4 border border-signal-500 bg-surface-raised px-5 py-5"
+          >
+            <AlertIcon className="mt-0.5 h-5 w-5 shrink-0 text-signal-700" />
+            <div>
+              <p className="font-medium text-ink">Your payment didn&rsquo;t go through.</p>
+              <p className="mt-2 text-sm leading-relaxed text-body">
+                Your order is saved here and in your order history, and your cart
+                has been emptied so it isn&rsquo;t ordered twice. You can pay for
+                it below whenever you&rsquo;re ready.
+              </p>
+            </div>
+          </div>
+        )}
 
         {justPlaced && (
           <div
