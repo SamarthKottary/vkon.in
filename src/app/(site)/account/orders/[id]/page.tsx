@@ -122,7 +122,7 @@ export default async function OrderPage({
               Placed {formatDate(order.createdAt)}
             </p>
           </div>
-          <OrderStatusBadge status={order.status} paymentStatus={order.paymentStatus} />
+          <OrderStatusBadge order={order} />
         </div>
 
         <div className="mt-6 grid gap-6 sm:mt-8 lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-8">

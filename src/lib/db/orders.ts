@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { getPool, isDatabaseConfigured, query } from "./client";
+import { CONFIRMED_ORDER_SQL } from "@/lib/order-payment";
 import { mapShipmentStatus, mergeTrackingEvents } from "@/lib/tracking";
 import type {
   Order,
@@ -340,11 +341,19 @@ export async function getOrderForCustomer(
 }
 
 /** Every order, newest first — the admin inbox. */
+/**
+ * Orders for `/admin/orders`: **confirmed orders only** (client, 2026-09-17) —
+ * cash on delivery, or paid online (including since refunded or cancelled).
+ * An online order that was never paid is the customer's business, not the
+ * operator's; it stays in their order history. See `isConfirmedOrder`.
+ */
 export async function listAllOrders(limit = 200): Promise<Order[]> {
   if (!isDatabaseConfigured()) return [];
   try {
     const orders = await query<OrderRow>(
-      `SELECT ${ORDER_SELECT} FROM orders ORDER BY created_at DESC LIMIT $1`,
+      `SELECT ${ORDER_SELECT} FROM orders
+        WHERE ${CONFIRMED_ORDER_SQL}
+        ORDER BY created_at DESC LIMIT $1`,
       [limit],
     );
     if (orders.length === 0) return [];

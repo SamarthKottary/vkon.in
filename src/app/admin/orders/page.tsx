@@ -16,6 +16,7 @@ import { OrderStatusSelect } from "./OrderStatusSelect";
 import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import { refundBlock, refundBlockMessage } from "@/lib/refunds";
+import { isCod } from "@/lib/order-payment";
 
 export const dynamic = "force-dynamic";
 
@@ -187,11 +188,13 @@ export default async function AdminOrdersPage({
           it is paid. An unpaid or failed online order appears only here.
         </p>
         <p>
-          <span className="font-medium text-ink">Payments are taken online.</span>{" "}
-          An order paid through Razorpay shows <span className="font-medium text-ink">Paid</span>.
-          A cash-on-delivery order, or one whose online payment did not go
-          through, shows <span className="font-medium text-ink">Payment due</span>. A
-          delivery charge that could not be quoted at checkout shows as{" "}
+          <span className="font-medium text-ink">Only confirmed orders are listed:</span>{" "}
+          cash on delivery (<span className="font-medium text-ink">COD</span>) and
+          orders paid online (<span className="font-medium text-ink">Paid online</span>).
+          An online order that was never paid, or whose payment failed, is not
+          shown — the customer sees it in their order history and can pay from
+          there, and it appears here once they do. A delivery charge that could
+          not be quoted at checkout shows as{" "}
           <span className="font-medium text-ink">Not quoted</span> — ring the
           customer to agree it before dispatch.
         </p>
@@ -255,17 +258,19 @@ function OrderCard({
               {order.orderNumber}
             </h2>
             <StatusBadge status={order.status} />
-            {/* Refunded and failed are their own badges since 2026-09-17: a
-                refunded order read "Payment due", which invites chasing a
-                customer for money already sent back. */}
-            {order.paymentStatus === "paid" ? (
-              <Badge tone="brand">Paid</Badge>
+            {/* How it is paid, first (client, 2026-09-17). Only confirmed
+                orders are listed, so there is no "Payment due" or "Payment
+                failed" here any more: cash on delivery reads COD, and an
+                online order is paid or refunded. The last branch is for old
+                phone-settled orders from before online payment. */}
+            {isCod(order) ? (
+              <Badge>COD</Badge>
+            ) : order.paymentStatus === "paid" ? (
+              <Badge tone="brand">Paid online</Badge>
             ) : order.paymentStatus === "refunded" ? (
-              <Badge>Refunded</Badge>
-            ) : order.paymentStatus === "failed" ? (
-              <Badge tone="warn">Payment failed</Badge>
+              <Badge>Online · Refunded</Badge>
             ) : (
-              <Badge>Payment due</Badge>
+              <Badge>Settled by phone</Badge>
             )}
             {order.paymentStatus === "paid" && order.refundedAmount > 0 && (
               <Badge tone="warn">Refunded {formatPaise(order.refundedAmount)}</Badge>

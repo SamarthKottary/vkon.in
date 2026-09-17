@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import { query } from "./client";
+import { CONFIRMED_ORDER_SQL } from "@/lib/order-payment";
 import type { Customer } from "@/lib/types";
 
 /**
@@ -492,8 +493,9 @@ export async function setSigninCodeExempt(customerId: string, exempt: boolean): 
 export type AdminCustomer = Customer & {
   signinCodeExempt: boolean;
   lastSignInAt: string | null;
+  /** Confirmed orders only, as `/admin/orders` counts them. */
   orderCount: number;
-  /** Paise, cancelled orders excluded. */
+  /** Paise: confirmed, not cancelled, net of refunds. */
   orderTotal: number;
   addressCount: number;
 };
@@ -522,9 +524,11 @@ export async function listCustomersForAdmin(search = ""): Promise<AdminCustomer[
     }
   >(
     `SELECT ${SELECT}, signin_code_exempt, last_sign_in_at,
-            (SELECT count(*) FROM orders o WHERE o.customer_id = c.id)::int AS order_count,
-            (SELECT COALESCE(sum(o.total), 0) FROM orders o
-              WHERE o.customer_id = c.id AND o.status <> 'cancelled')::bigint AS order_total,
+            (SELECT count(*) FROM orders o
+              WHERE o.customer_id = c.id AND ${CONFIRMED_ORDER_SQL})::int AS order_count,
+            (SELECT COALESCE(sum(o.total - o.refunded_amount), 0) FROM orders o
+              WHERE o.customer_id = c.id AND o.status <> 'cancelled'
+                AND ${CONFIRMED_ORDER_SQL})::bigint AS order_total,
             (SELECT count(*) FROM addresses a WHERE a.customer_id = c.id)::int AS address_count
        FROM customers c
       WHERE $1::text = ''

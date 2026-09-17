@@ -5,6 +5,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRightIcon } from "@/components/icons/ui";
 import { formatPaise } from "@/lib/pricing";
 import { trackingLabel } from "@/lib/tracking";
+import {
+  isCod,
+  isPaymentFailed,
+  paymentMethodLabel,
+  paymentStateLabel,
+} from "@/lib/order-payment";
 import type { Order, OrderStatus } from "@/lib/types";
 
 function formatDate(iso: string): string {
@@ -23,9 +29,41 @@ const STATUS_STYLE: Record<OrderStatus, { label: string; className: string }> = 
   cancelled: { label: "Cancelled", className: "text-red-600 bg-red-50" },
 };
 
+/**
+ * The status shown for an order. A failed online payment shows as "Payment
+ * failed" instead of "Pending" (client, 2026-09-17) — the order is not
+ * progressing until it is paid. It has its own filter for the same reason.
+ */
+const PAYMENT_FAILED_STYLE = { label: "Payment failed", className: "text-red-600 bg-red-50" };
+
+function displayStatus(order: Order): { key: string; label: string; className: string } {
+  if (isPaymentFailed(order) && order.status === "pending") {
+    return { key: "payment_failed", ...PAYMENT_FAILED_STYLE };
+  }
+  const s = STATUS_STYLE[order.status] ?? STATUS_STYLE.pending;
+  return { key: order.status, ...s };
+}
+
+/** "COD", or "Online" with how it stands — "Paid", "Payment due", "Refunded".
+ *  A failed payment is already the status, so it is not repeated here. */
+function paymentText(order: Order): { method: string; state: string | null } {
+  if (isCod(order)) return { method: paymentMethodLabel(order), state: null };
+  if (isPaymentFailed(order)) return { method: "Online", state: null };
+  return { method: "Online", state: paymentStateLabel(order).label };
+}
+
+/** An online order not yet paid has nothing to track; its page is where it is
+ *  paid for. */
+function actionLabel(order: Order): string {
+  const unpaidOnline = !isCod(order) && (order.paymentStatus === "unpaid" || order.paymentStatus === "failed");
+  if (unpaidOnline && order.status === "pending") return "Pay now";
+  return (ACTIVE_STATUSES as string[]).includes(order.status) ? "Track Order" : "View Details";
+}
+
 const STATUS_FILTERS: { label: string; value: string }[] = [
   { label: "All",       value: "all" },
   { label: "Pending",   value: "pending" },
+  { label: "Payment failed", value: "payment_failed" },
   { label: "Confirmed", value: "confirmed" },
   { label: "Shipped",   value: "shipped" },
   { label: "Delivered", value: "delivered" },
@@ -117,7 +155,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const rows = orders.filter((o) => {
-      const matchesStatus = statusFilter === "all" || o.status === statusFilter;
+      const matchesStatus = statusFilter === "all" || displayStatus(o).key === statusFilter;
       const matchesSearch =
         !q ||
         o.orderNumber.toLowerCase().includes(q) ||
@@ -286,6 +324,9 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                   <th scope="col" className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-muted">
                     Status
                   </th>
+                  <th scope="col" className="px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-muted">
+                    Payment
+                  </th>
                   <th
                     scope="col"
                     className={`px-4 py-3.5 text-right ${thClass}`}
@@ -304,8 +345,8 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
               </thead>
               <tbody>
                 {filtered.map((order) => {
-                  const s = STATUS_STYLE[order.status] ?? STATUS_STYLE.pending;
-                  const isActive = (ACTIVE_STATUSES as string[]).includes(order.status);
+                  const s = displayStatus(order);
+                  const pay = paymentText(order);
                   return (
                     <tr key={order.id} className="transition-colors hover:bg-surface-subtle/50">
                       <td className="px-5 py-4">
@@ -332,6 +373,12 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                           </span>
                         )}
                       </td>
+                      <td className="px-4 py-4 text-sm">
+                        <span className="font-medium text-ink">{pay.method}</span>
+                        {pay.state && (
+                          <span className="mt-0.5 block text-xs text-muted">{pay.state}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-4 text-right font-bold tabular-nums text-accent whitespace-nowrap">
                         {formatPaise(order.total)}
                       </td>
@@ -340,7 +387,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                           href={`/account/orders/${order.id}`}
                           className="inline-flex h-9 items-center gap-1.5 border border-line-strong px-4 text-xs font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle whitespace-nowrap"
                         >
-                          {isActive ? "Track Order" : "View Details"}
+                          {actionLabel(order)}
                           <ArrowRightIcon className="h-3.5 w-3.5" />
                         </Link>
                       </td>
@@ -354,8 +401,8 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
           {/* Mobile cards */}
           <ul className="mt-4 space-y-3 sm:hidden">
             {filtered.map((order) => {
-              const s = STATUS_STYLE[order.status] ?? STATUS_STYLE.pending;
-              const isActive = (ACTIVE_STATUSES as string[]).includes(order.status);
+              const s = displayStatus(order);
+              const pay = paymentText(order);
               return (
                 <li key={order.id} className="border border-line bg-surface-raised p-4 shadow-card">
                   <div className="flex items-center justify-between gap-3">
@@ -364,10 +411,15 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                       {s.label}
                     </span>
                   </div>
-                  <div className="mt-2 flex items-center gap-3 text-xs text-muted">
+                  {/* Wraps: with the payment method added, a shipped online order's
+                      line (date · items · Online · Paid · In transit) no longer
+                      fits one row at 390px. */}
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                     <span>{formatDate(order.createdAt)}</span>
                     <span aria-hidden>·</span>
                     <span>{order.items.length} {order.items.length === 1 ? "item" : "items"}</span>
+                    <span aria-hidden>·</span>
+                    <span>{pay.state ? `${pay.method} · ${pay.state}` : pay.method}</span>
                     {order.status === "shipped" && trackingLabel(order.trackingStatus) && (
                       <>
                         <span aria-hidden>·</span>
@@ -383,7 +435,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                       href={`/account/orders/${order.id}`}
                       className="inline-flex h-9 items-center gap-1.5 border border-line-strong px-4 text-xs font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
                     >
-                      {isActive ? "Track Order" : "View Details"}
+                      {actionLabel(order)}
                       <ArrowRightIcon className="h-3.5 w-3.5" />
                     </Link>
                   </div>

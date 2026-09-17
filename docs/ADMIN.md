@@ -17,7 +17,7 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
-| `/admin/orders` | Order inbox. Read, move an order along its status (emails the customer), courier tracking, cancel, and refund an online payment in full or in part. |
+| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out. Read, move an order along its status (emails the customer), courier tracking, cancel, and refund an online payment in full or in part. |
 | `/admin/users` | Customer accounts. Read, search, and turn the sign-in code off for a review account. |
 | `/admin/enquiries` | Contact-form inbox. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Read, export, remove. |

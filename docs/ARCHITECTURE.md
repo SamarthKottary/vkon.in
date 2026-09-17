@@ -191,6 +191,7 @@ src/
     google.ts    OAuth 2.0 + PKCE, hand-written; no auth library
     mail.ts      Resend over fetch; no nodemailer, no SMTP (§2)
     order-notifications.ts  which order emails a status change earns; never throws
+    order-payment.ts  COD vs online, "confirmed order", payment labels; client-safe
     tracking.ts  courier status words → order status, customer labels, dates;
                  no `node:` imports, so the order list (client) shares it
     razorpay.ts  order creation + the two signature verifiers; no SDK
@@ -1554,6 +1555,38 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-17 (orders) — Admin lists confirmed orders only; COD and online shown everywhere
+
+Client: only confirmed orders in `/admin/orders`, not failed or due payments,
+though customers still see those in their order history. Say COD instead of
+"payment due" for cash on delivery, show which orders are online or COD, and
+show a failed payment to the customer only as "Payment failed".
+
+- **New `lib/order-payment.ts`** (no server imports).
+  - `isConfirmedOrder` is true for cash on delivery, an online order paid or
+    refunded, or an old phone-settled order the operator moved past pending.
+  - `CONFIRMED_ORDER_SQL` is the same rule as SQL; the two must change
+    together.
+  - Also `isCod`, `paymentMethodLabel`, `isPaymentFailed` and
+    `paymentStateLabel` (COD / Paid / Payment due / Refunded / Payment failed).
+- **`listAllOrders` filters to confirmed orders**, so the admin header counts
+  and revenue follow. Badges are **COD**, **Paid online** or **Online ·
+  Refunded**, and the admin note explains what is left out. `/admin/users`
+  counts confirmed orders only, and "Spent" is net of refunds, so the two pages
+  agree.
+- **`OrderStatusBadge` takes the order.** It shows "Pending · COD", "Confirmed
+  · Online · Paid", and so on. A failed online payment on a pending order is
+  one badge, "Payment failed".
+- **`OrderHistoryTable`** gains a Payment column (COD, or Online with Paid /
+  Payment due / Refunded). A failed payment shows as the status "Payment
+  failed", with its own filter. Unpaid and failed online orders get **Pay
+  now** instead of "Track Order". The mobile meta line wraps.
+- **Tested in the browser** with five orders on one account: COD, paid,
+  failed, unpaid, and refunded-cancelled. Admin shows 3 and hides 2, with the
+  right badges; `/admin/users` shows 3 orders and ₹ spent excluding the
+  cancelled one; the customer sees all 5 labelled as above; the Payment failed
+  filter works; the detail badges are right; no overflow at 390px.
 
 ### 2026-09-17 (refunds, later) — No Refund button once a shipment is booked or dispatched
 
