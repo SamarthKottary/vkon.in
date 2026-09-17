@@ -165,7 +165,9 @@ src/
                AddressBook (client), AddressForm (client), AddressPicker (client),
                ProfileForm (client),
                OrderStatusBadge
-    checkout/  CheckoutForm, DeliveryPicker, PayNowButton — all client
+    checkout/  CheckoutForm, DeliveryPicker, PayNowButton,
+               PaymentSuccessDialog, PaymentSuccessOnArrival,
+               CodConfirmDialog — all client
     contact/   EnquiryForm (client)
     layout/    Header (client), Footer, MobileActionBar, PageHero,
                ProductsMenu (client), SubscribePanel (client)
@@ -177,7 +179,7 @@ src/
     icons/     protections.tsx (12-icon set), ui.tsx, Logo.tsx
     theme/     ThemeScript (pre-paint, inline), ThemeToggle (client)
     ui/        Button, Container, Section, Badge, JsonLd, Field,
-               PasswordField (client)
+               PasswordField (client), Modal (client)
 
   content/     taxonomy.ts (sectors + categories), segments.ts, site.ts, nav.ts,
                states.ts (India, for the address form)
@@ -251,7 +253,11 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `account/AddressBook` | The account page's card grid: radio sets the default (optimistic), Edit/Add open `AddressDialog`, `confirm()` before delete |
 | `account/AddressPicker` · `AddressDialog` | The chosen address collapsed; the list opens as a panel over the content below (outside click / Escape close it, default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout and the account page |
 | `checkout/DeliveryPicker` | The chosen delivery service collapsed, the others on demand |
-| `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, refreshes |
+| `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, announces the payment, then refreshes |
+| `checkout/PaymentSuccessDialog` | "Payment successful": amount and order number as aligned label/figure rows, and where the receipt is going. Shown by both paths that take money |
+| `checkout/PaymentSuccessOnArrival` | Shows that dialog once when checkout lands on a paid order, then strips `?placed=` from the URL |
+| `checkout/CodConfirmDialog` | Confirms cash on delivery before the order form submits: what is due at the door, and that nothing is charged now |
+| `ui/Modal` | The shared dialog frame (portal, blurred backdrop, Escape, scroll lock, focus restore) — `AddressDialog`'s, lifted out |
 | `ui/PasswordField` | Live requirement checklist and strength meter as you type |
 | `admin/orders/OrderStatusSelect` | Submits the status `<select>` on change |
 | `admin/orders/RefundForm` | Confirms the refund amount before submitting; pending state while Razorpay answers |
@@ -1570,6 +1576,59 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-18 (checkout) — A dialog when the money lands, and one before cash on delivery
+
+Client: "After payment is done/confirmed … show a pop which says payment done
+… like edit address pop up. Also, a pop up when customer choses cash on
+delivery option and clicks place order, we show a pop up to confirm cash on
+delivery."
+
+- **New `ui/Modal`** — `AddressDialog`'s frame lifted out so the new dialogs are
+  the same object the client asked them to look like, rather than a second
+  near-copy: portalled to `<body>`, blurred backdrop with **no tint** (a
+  `bg-ink/50` wash *brightens* the dark theme, where `ink` is near-white),
+  Escape / backdrop / X close, focus moved in and restored on close, page
+  scroll locked. `onClose` is held in a ref so the setup effect runs once —
+  keyed on the callback it re-ran on every re-render behind and stole focus.
+- **`PaymentSuccessDialog`**, shown by both paths that can take money:
+  `PayNowButton` the moment `/api/payment/verify` answers, and the order page
+  on arrival from checkout (`PaymentSuccessOnArrival`, which then
+  `router.replace`s `?placed=` away so a reload does not announce it twice).
+  One component so the two cannot drift apart.
+- **The refresh now waits for the dialog.** `PayNowButton` used to
+  `router.refresh()` the instant verification returned, which replaced the page
+  under the reader. It sets `paid` instead and refreshes when the dialog is
+  dismissed.
+- **Both are label-and-figure rows, not figures inside sentences** (client,
+  same day: "properly align this"). The amount and the order number sit in a
+  right-aligned column over the `PriceChangeDialog` row idiom, and the buttons
+  are one width (`min-w-36`) on the same left edge as the title and the rows.
+  The success dialog's green tick went with the change: it indented every
+  paragraph past the panel edge while the button below stayed at it, so nothing
+  lined up, and the heading already says the payment succeeded.
+- **Neither promises a phone call.** The COD dialog read the delivery number
+  back and said the courier "will ring before delivering", and the success
+  dialog said "we will call you to confirm the details before dispatch"
+  (client: "remove the phone number calling message"). Nothing in the system
+  places either call, so both were promises the site could not keep;
+  `CodConfirmDialog` no longer takes a `phone` prop at all.
+- **`CodConfirmDialog`** intercepts the order form's `onSubmit` when the mode is
+  COD, and a `confirmedCod` ref lets the second, programmatic
+  `requestSubmit()` through. Nothing is placed while it is open; Cancel and
+  Escape place nothing at all.
+- **Bug fixed on the way:** `checkoutConfig` never returned `orderNumber`, so
+  checkout redirected to `?placed=undefined` — the cart was never cleared after
+  a successful online payment and the thank-you note never appeared. Added to
+  `CheckoutConfig` and to `PayNowButton`'s local copy of that type.
+- **Tested in the browser** (both themes, 1280px and 390px): COD dialog names
+  the amount and the delivery phone and places nothing until confirmed, and
+  Cancel and Escape both leave the order count unchanged; real Razorpay test
+  payments from *both* checkout and order-history "Pay now" show the dialog
+  with the amount and order number matching the row in `orders` (a COD parcel
+  costs ₹48 more to ship than a prepaid one — `shiprocket.ts` quotes
+  `cod: "1"` — so the two flows legitimately differ); Done clears `?placed=`
+  and refreshes the status to Paid; reloading does not announce it again.
 
 ### 2026-09-18 (account) — The address book is a grid of cards again; checkout keeps its dropdown
 

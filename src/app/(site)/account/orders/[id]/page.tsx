@@ -6,6 +6,7 @@ import { OrderFooterActions } from "@/components/account/OrderFooterActions";
 import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
 import { ClearCartOnPlaced } from "@/components/cart/ClearCartOnPlaced";
 import { PayNowButton } from "@/components/checkout/PayNowButton";
+import { PaymentSuccessOnArrival } from "@/components/checkout/PaymentSuccessOnArrival";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { AccountShell } from "@/components/account/AccountShell";
 import { OrderAddress, sameOrderAddress } from "@/components/account/OrderAddress";
@@ -92,6 +93,18 @@ export default async function OrderPage({
         {/* The cart is emptied here, not at checkout — this is the first moment
             that is certainly "the order exists". See the component's own note. */}
         {(justPlaced || leftUnpaid) && <ClearCartOnPlaced />}
+
+        {/* Paid at checkout and just landed here: say so in a dialog before
+            they start reading the page (client, 2026-09-18). A cash-on-delivery
+            order arrives with the same `?placed=` and has paid nothing, so it
+            gets the note below and no dialog. */}
+        {justPlaced && order.paymentStatus === "paid" && (
+          <PaymentSuccessOnArrival
+            orderNumber={order.orderNumber}
+            amountLabel={formatPaise(order.total)}
+            email={customer.email}
+          />
+        )}
 
         {leftUnpaid && order.paymentStatus !== "paid" && order.status !== "cancelled" && (
           <div

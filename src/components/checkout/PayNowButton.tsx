@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertIcon, ArrowRightIcon, SpinnerIcon } from "@/components/icons/ui";
 import { Button } from "@/components/ui/Button";
+import { PaymentSuccessDialog } from "@/components/checkout/PaymentSuccessDialog";
 import { formatPaise } from "@/lib/pricing";
 
 /**
@@ -72,7 +73,10 @@ type CheckoutConfig = {
   currency: string;
   name: string;
   description: string;
+  /** Razorpay's id. */
   orderId: string;
+  /** Ours, e.g. VK-0918-4F7A — named in the success dialog. */
+  orderNumber: string;
   prefill: { name: string; email: string; contact: string };
 };
 
@@ -131,6 +135,8 @@ export function PayNowButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [priceChange, setPriceChange] = useState<PriceChange | null>(null);
+  /** Set when a payment has just succeeded: `{ orderNumber, amountLabel }`. */
+  const [paid, setPaid] = useState<{ orderNumber: string; amountLabel: string } | null>(null);
 
   const pay = useCallback(async (acceptTotal?: number) => {
     setBusy(true);
@@ -219,7 +225,14 @@ export function PayNowButton({
               return;
             }
 
-            router.refresh();
+            /* Told before the page moves under them (client, 2026-09-18).
+               The refresh waits until the dialog is dismissed, so the status
+               badge and totals change once they have read it. */
+            setPaid({
+              orderNumber: config.orderNumber,
+              amountLabel: formatPaise(config.amount),
+            });
+            setBusy(false);
           } catch {
             setError(
               "Your payment went through, but we could not confirm it here. " +
@@ -247,6 +260,17 @@ export function PayNowButton({
     }
   }, [orderId, router]);
 
+  const success = paid && (
+    <PaymentSuccessDialog
+      orderNumber={paid.orderNumber}
+      amountLabel={paid.amountLabel}
+      onClose={() => {
+        setPaid(null);
+        router.refresh();
+      }}
+    />
+  );
+
   const dialog = priceChange && (
     <PriceChangeDialog
       change={priceChange}
@@ -259,6 +283,7 @@ export function PayNowButton({
   if (compact) {
     return (
       <span className="inline-flex flex-col items-end gap-1">
+        {success}
         {dialog}
         <button
           type="button"
@@ -282,6 +307,7 @@ export function PayNowButton({
 
   return (
     <div>
+      {success}
       {dialog}
       <Button
         type="button"

@@ -18,6 +18,7 @@ import {
   type CheckoutState,
   type DeliveryQuoteState,
 } from "@/app/(site)/account/private-actions";
+import { CodConfirmDialog } from "@/components/checkout/CodConfirmDialog";
 import { DeliveryPicker } from "@/components/checkout/DeliveryPicker";
 import { loadRazorpay } from "@/components/checkout/PayNowButton";
 import type { Address, Product } from "@/lib/types";
@@ -68,6 +69,18 @@ export function CheckoutForm({
   const [paymentMode, setPaymentMode] = useState<"online" | "cod">("online");
   const [payError, setPayError] = useState<string | null>(null);
   const [payBusy, setPayBusy] = useState(false);
+  /**
+   * The cash-on-delivery confirmation (client, 2026-09-18).
+   *
+   * An online order has Razorpay's window as its moment of commitment; COD had
+   * none. The submit is stopped once, the dialog asks, and Confirm submits the
+   * same form again — `confirmedCod` is a ref, not state, because the second
+   * submit happens in the same tick as setting it and state would not have
+   * landed yet.
+   */
+  const [codConfirm, setCodConfirm] = useState(false);
+  const confirmedCod = useRef(false);
+  const orderFormRef = useRef<HTMLFormElement>(null);
 
   const preferred = () => addresses.find((a) => a.isDefault)?.id ?? addresses[0]?.id ?? "";
 
@@ -586,7 +599,13 @@ export function CheckoutForm({
           choices made on the left, the totals, and the one submit button. */}
       <form
         id={formId}
+        ref={orderFormRef}
         action={formAction}
+        onSubmit={(event) => {
+          if (paymentMode !== "cod" || confirmedCod.current) return;
+          event.preventDefault();
+          setCodConfirm(true);
+        }}
         /* Not sticky (client, 2026-09-17). The panel is taller than a
            laptop viewport, so `sticky` never kept the button in view; what it
            did do was start sliding the panel down the page as soon as the left
@@ -693,6 +712,21 @@ export function CheckoutForm({
               : "Choose a billing address to continue."}
           </p>
         )}
+        {codConfirm && (
+          <CodConfirmDialog
+            amountLabel={formatPaise(money.total)}
+            onCancel={() => setCodConfirm(false)}
+            onConfirm={() => {
+              confirmedCod.current = true;
+              setCodConfirm(false);
+              /* The same form, submitted for real this time. `requestSubmit`
+                 rather than `submit`: `submit()` bypasses React and the server
+                 action would never run. */
+              orderFormRef.current?.requestSubmit();
+            }}
+          />
+        )}
+
         {/* No note under the button (client, 2026-09-17). */}
       </form>
     </div>
