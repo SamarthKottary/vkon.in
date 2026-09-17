@@ -141,16 +141,39 @@ export default async function AdminOrdersPage({
         </p>
       )}
 
-      <p className="mt-6 border-l-2 border-line-strong px-4 py-3 text-sm text-body">
-        <span className="font-medium text-ink">Nothing is emailed to you.</span>{" "}
-        An order appears here and nowhere else — the customer gets the
-        confirmation, you do not — so this page needs checking through the day.
-        Payment is not taken online yet: ring the number on the order to settle
-        it and to quote the delivery charge. The customer{" "}
-        <span className="font-medium text-ink">is</span> emailed
-        when you mark an order shipped, delivered or cancelled, and when the
-        courier reports it shipped, out for delivery or delivered.
-      </p>
+      {/* Rewritten 2026-09-17 when Razorpay went live: it used to say payment
+          was not taken online and had to be settled by phone. The refund line
+          is the one that costs money if missed — cancelling here emails the
+          customer a refund promise, and nothing on this page issues it. */}
+      <div className="mt-6 space-y-2 border-l-2 border-line-strong px-4 py-3 text-sm text-body">
+        <p>
+          <span className="font-medium text-ink">Nothing is emailed to you.</span>{" "}
+          An order appears here and nowhere else — the customer gets the
+          confirmation, you do not — so this page needs checking through the
+          day.
+        </p>
+        <p>
+          <span className="font-medium text-ink">Payments are taken online.</span>{" "}
+          An order paid through Razorpay shows <span className="font-medium text-ink">Paid</span>.
+          A cash-on-delivery order, or one whose online payment did not go
+          through, shows <span className="font-medium text-ink">Payment due</span>. A
+          delivery charge that could not be quoted at checkout shows as{" "}
+          <span className="font-medium text-ink">Not quoted</span> — ring the
+          customer to agree it before dispatch.
+        </p>
+        <p>
+          <span className="font-medium text-ink">Cancelling does not refund.</span>{" "}
+          Customers may cancel until dispatch. For a paid order, refund it in
+          the Razorpay dashboard (Transactions → the payment → Refund) — the
+          cancellation email tells the customer the refund takes 5–7 days to
+          reach them.
+        </p>
+        <p>
+          The customer is emailed when you mark an order shipped, delivered or
+          cancelled, and when the courier reports it shipped, out for delivery
+          or delivered.
+        </p>
+      </div>
 
       <div className="mt-8 space-y-4">
         {orders.length === 0 ? (

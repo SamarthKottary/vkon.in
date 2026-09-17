@@ -214,7 +214,7 @@ export default async function OrderPage({
                   {order.cancelledAt ? ` on ${formatDate(order.cancelledAt)}` : ""} and
                   will not be delivered.
                   {order.paymentStatus === "paid" &&
-                    " You paid online, so we will call you to arrange the refund."}{" "}
+                    " You paid online, so the full amount will be refunded to the payment method you used — it takes 5–7 days to reach your account."}{" "}
                   Questions? Call{" "}
                   <a href={`tel:${site.phone.href}`} className="text-accent hover:underline">
                     {site.phone.display}

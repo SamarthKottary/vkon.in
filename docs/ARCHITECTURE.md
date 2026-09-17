@@ -1542,6 +1542,37 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-17 (payments live) — Terms, admin note and refund wording rewritten for online payment
+
+Razorpay passed website verification and live keys are on the server. Several
+pages still described the old flow: an order placed unpaid, with payment and
+the delivery charge agreed on a phone call.
+
+- **`/terms`:** new Payment, Delivery, Cancelling an order and Refunds
+  sections, and Returns reworded. The policy is the client's: customers may
+  cancel until dispatch; an online payment is refunded in full to the original
+  method; a refund takes 5–7 days to reach the customer; the customer pays
+  return shipping on a wrong-specification order. Also fixed a missing space in
+  "Vkon Automation unless", where the JSX text after `{site.legalName}` lost
+  its leading space.
+- **`/admin/orders` note:** payments are taken online; how Paid, Payment due
+  and Not quoted read; and that **cancelling does not refund**. A paid order is
+  refunded in the Razorpay dashboard. The cancel prompt says the same.
+- **Refund wording** in the cancellation email (`sendOrderUpdateMail`) and the
+  cancelled-order panel now matches the Terms. It used to be "we will call you
+  to arrange your refund". Change all three together.
+- **`/privacy` brought up to date** (it listed Resend, Google and "a courier"
+  as the only processors). It now names Razorpay (name, email, phone, order
+  number and amount; card, UPI and bank details never reach us) and Shiprocket
+  with its couriers (names, addresses, phones, items and value, but not the
+  customer's email). It adds the `vkon_signin` and `vkon_device` cookies, the
+  signed-in cart, last sign-in and browser type, payment reference and tracking
+  history, and every local-storage key. Two outside services load on page view
+  and had never been listed: the Google Maps embed on /contact, and YouTube's
+  image server for a product video's preview picture (the player waits for
+  play). Every claim was checked against the code, and that check caught the
+  video one.
+
 ### 2026-09-17 (contact) — The real business address, and a map pin on it
 
 The placeholder "Industrial Area, Kolar Gold Fields 563122" was on the contact

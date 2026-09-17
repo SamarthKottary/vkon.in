@@ -498,7 +498,7 @@ export async function sendOrderUpdateMail(input: {
 
   const refund = cancelled
     ? input.paid
-      ? "You paid for this order online. We will call you to arrange your refund."
+      ? "You paid for this order online, so the full amount will be refunded to the payment method you used. A refund takes 5–7 days to reach your account."
       : "No payment was taken for this order."
     : null;
 

@@ -11,10 +11,18 @@ export const metadata = pageMetadata({
 
 /**
  * Added 2026-09-07, alongside `/privacy` — see that page's note. Same rule
- * applies: this describes what the checkout in this codebase actually does
- * (an order is placed unpaid and settled by phone, per docs/PAYMENTS.md), not
- * generic e-commerce boilerplate. It goes out of date the day payment is
- * wired up and the "how you pay" section needs rewriting alongside the code.
+ * applies: this describes what the checkout in this codebase actually does,
+ * not generic e-commerce boilerplate.
+ *
+ * **Rewritten 2026-09-17 for live payments.** It used to say an order was
+ * placed unpaid and settled on a phone call, with delivery priced on that
+ * call. Since Razorpay went live the customer pays at checkout, and the
+ * delivery charge comes from Shiprocket before they pay. The cancellation and
+ * refund terms are the client's own: cancel any time before dispatch, refunds
+ * reach the customer in 5–7 days, and the customer pays return shipping on an
+ * item ordered to the wrong specification. The cancellation email
+ * (`sendOrderUpdateMail`) and the cancelled-order panel repeat the refund
+ * wording — change all three together.
  */
 export default function TermsPage() {
   return (
@@ -36,7 +44,7 @@ export default function TermsPage() {
           <h1 className="mt-8 text-[2rem] leading-tight sm:text-[2.5rem]">
             Terms of Service
           </h1>
-          <p className="mt-3 text-sm text-muted">Last updated 7 September 2026.</p>
+          <p className="mt-3 text-sm text-muted">Last updated 17 September 2026.</p>
 
           <div className="mt-10 space-y-10">
             <Section title="Who this agreement is with">
@@ -75,57 +83,135 @@ export default function TermsPage() {
             <Section title="Orders and pricing">
               <ul className="list-disc space-y-2 pl-5">
                 <li>
-                  Prices shown are in Indian Rupees and include GST at the rate
-                  displayed at checkout.
-                </li>
-                <li>
-                  <strong className="text-ink">
-                    Placing an order does not take a payment.
-                  </strong>{" "}
-                  We call you on the number attached to your delivery address to
-                  confirm the order and the delivery charge before anything is
-                  dispatched. Payment is currently arranged on that call.
-                </li>
-                <li>
-                  An order is not accepted until we confirm it with you. We may
-                  decline or cancel an order — for example if a product is out
-                  of stock, or a price was shown in error — and will tell you if
-                  we do.
+                  Prices are in Indian Rupees. GST and the delivery charge are
+                  added at checkout, and the full total is shown before you pay.
                 </li>
                 <li>
                   Some products on the site are priced on request rather than
                   shown online; those are quoted individually when you contact
                   us.
                 </li>
+                <li>
+                  We may decline or cancel an order — for example if a product
+                  is out of stock, or a price was shown in error. We will tell
+                  you if we do, and refund anything you have paid in full.
+                </li>
+              </ul>
+            </Section>
+
+            <Section title="Payment">
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  You pay when you place your order: online by UPI, debit or
+                  credit card, or netbanking, or by cash on delivery where that
+                  option is offered at checkout.
+                </li>
+                <li>
+                  Online payments are processed securely by Razorpay. We never
+                  see or store your card, UPI or bank details.
+                </li>
+                <li>
+                  If an online payment does not go through, your order is kept
+                  and you can pay for it again from{" "}
+                  <Link href="/account/orders" className="text-accent hover:underline">
+                    your order history
+                  </Link>
+                  .
+                </li>
               </ul>
             </Section>
 
             <Section title="Delivery">
-              <p>
-                Delivery charges and timelines are confirmed on the call after
-                you order, since they depend on where the order is going and
-                what it weighs. We aim to get agricultural and industrial
-                equipment to you promptly, but a date given on the phone is an
-                estimate, not a guarantee.
-              </p>
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  The delivery charge is worked out at checkout from your
+                  delivery address and the size and weight of your order, and
+                  is shown before you pay. Where more than one service is
+                  available, you choose between them — for example Standard or
+                  Express.
+                </li>
+                <li>
+                  If a delivery charge cannot be worked out online for your
+                  address, we call you to agree it before anything is
+                  dispatched.
+                </li>
+                <li>
+                  We email you when your order is dispatched, with a link to
+                  track it, and your order page shows where it is. Delivery
+                  times are the courier&rsquo;s estimates, not guarantees.
+                </li>
+              </ul>
+            </Section>
+
+            <Section title="Cancelling an order">
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  <strong className="text-ink">
+                    You can cancel any order until it is dispatched.
+                  </strong>{" "}
+                  Call or WhatsApp us on{" "}
+                  <a href={`tel:${site.phone.href}`} className="text-accent hover:underline">
+                    {site.phone.display}
+                  </a>
+                  , or email{" "}
+                  <a href={`mailto:${site.email}`} className="text-accent hover:underline">
+                    {site.email}
+                  </a>
+                  , with your order number. We confirm the cancellation by
+                  email.
+                </li>
+                <li>
+                  Once an order has been dispatched it can no longer be
+                  cancelled. See returns below.
+                </li>
+              </ul>
+            </Section>
+
+            <Section title="Refunds">
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  If you cancel before dispatch, or we cancel your order, an
+                  online payment is refunded in full to the payment method you
+                  used.
+                </li>
+                <li>
+                  <strong className="text-ink">
+                    A refund takes 5–7 days to reach your account.
+                  </strong>{" "}
+                  An order paid by cash on delivery that is cancelled before
+                  dispatch has nothing to refund.
+                </li>
+              </ul>
             </Section>
 
             <Section title="Returns and warranty">
-              <p>
-                A manufacturing fault is covered under warranty — call or email
-                us with your order number and we will sort it out. Because this
-                is electrical equipment sized and specified for a particular
-                pump or panel, we ask that you check the rating and
-                specification with us before ordering if you are at all unsure;
-                a correctly working item ordered to the wrong specification may
-                not be returnable.
-              </p>
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  A manufacturing fault is covered under warranty — call or
+                  email us with your order number and we will sort it out.
+                </li>
+                <li>
+                  This is electrical equipment sized and specified for a
+                  particular pump or panel, so please check the rating and
+                  specification with us before ordering if you are at all
+                  unsure.
+                </li>
+                <li>
+                  If you ordered the wrong specification, contact us before
+                  sending anything back so we can confirm the return.{" "}
+                  <strong className="text-ink">
+                    The cost of shipping it back to us is yours.
+                  </strong>{" "}
+                  Once it reaches us and we have checked it, we refund you, and
+                  the refund takes 5–7 days to reach your account.
+                </li>
+              </ul>
             </Section>
 
             <Section title="Using the site">
               <p>
                 The content on this site — text, photographs, product
-                specifications — belongs to {site.legalName} unless stated
+                specifications — belongs to {site.legalName}{" "}unless stated
                 otherwise, and is here so you can find and understand our
                 products, not for reuse elsewhere. Don&rsquo;t attempt to
                 interfere with the site&rsquo;s operation, scrape it at scale,
