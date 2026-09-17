@@ -34,7 +34,11 @@ export const site = {
   /** Digits only, country code first, no + or spaces. */
   whatsapp: "918217086719",
 
-  email: "vkonautomation@gmail.com",
+  /* The address customers write to, shown on /contact, the footer, /terms and
+     /privacy, and where new-order and enquiry alerts are sent. Changed from
+     the Gmail address to the domain's own Microsoft 365 mailbox on 2026-09-17.
+     Outgoing site mail still comes from no-reply@ (`MAIL_FROM`). */
+  email: "support@vkon.in",
 
   /**
    * The business address as registered with Razorpay (client, 2026-09-17).

@@ -50,6 +50,8 @@ type OrderRow = {
   shipped_at: Date | null;
   delivered_at: Date | null;
   cancelled_at: Date | null;
+  refunded_amount: number;
+  refunded_at: Date | null;
   tracking_status: string | null;
   tracking_updated_at: Date | null;
   tracking_eta: string | null;
@@ -73,7 +75,7 @@ const ORDER_SELECT = `id, order_number, customer_id, status, payment_status,
   subtotal, cgst, sgst, shipping, total, currency, ship_to, bill_to, notes,
   payment_provider, payment_order_id, payment_id, paid_at,
   shipment_provider, shipment_order_id, shipment_id, awb, courier_name, courier_id,
-  shipped_at, delivered_at, cancelled_at,
+  shipped_at, delivered_at, cancelled_at, refunded_amount, refunded_at,
   tracking_status, tracking_updated_at, tracking_eta::text AS tracking_eta, tracking_events,
   created_at`;
 
@@ -129,6 +131,8 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
     shippedAt: row.shipped_at ? row.shipped_at.toISOString() : null,
     deliveredAt: row.delivered_at ? row.delivered_at.toISOString() : null,
     cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
+    refundedAmount: Number(row.refunded_amount ?? 0),
+    refundedAt: row.refunded_at ? row.refunded_at.toISOString() : null,
     trackingStatus: row.tracking_status,
     trackingUpdatedAt: row.tracking_updated_at ? row.tracking_updated_at.toISOString() : null,
     /* `::text` in the select: `pg` turns a DATE into a JS Date at the
@@ -688,12 +692,92 @@ export async function markOrderPaid(input: {
   return rows.length > 0;
 }
 
-export async function markPaymentFailed(orderId: string): Promise<void> {
-  await query(
+/**
+ * Records a failed online payment. Returns whether this call moved the order
+ * from unpaid to failed — the payment-failed email (EMAILS.md B) is sent only
+ * then, so a customer who fails, retries and fails again gets one email, and
+ * a failure reported after the order was paid changes nothing and sends none.
+ */
+export async function markPaymentFailed(orderId: string): Promise<boolean> {
+  const rows = await query<{ id: string }>(
     `UPDATE orders SET payment_status = 'failed', updated_at = now()
-      WHERE id = $1 AND payment_status = 'unpaid'`,
+      WHERE id = $1 AND payment_status = 'unpaid'
+      RETURNING id`,
     [orderId],
   );
+  return rows.length > 0;
+}
+
+/** Looks an order up by Razorpay's payment id — for a refund event that
+ *  arrives without the payment's order id. */
+export async function findOrderIdByPaymentId(paymentId: string): Promise<string | null> {
+  const rows = await query<{ id: string }>(`SELECT id FROM orders WHERE payment_id = $1`, [
+    paymentId,
+  ]);
+  return rows[0]?.id ?? null;
+}
+
+export type RefundChange = {
+  orderId: string;
+  /** This refund, paise. */
+  amount: number;
+  /** All refunds so far, paise. */
+  refundedAmount: number;
+  total: number;
+  full: boolean;
+};
+
+/**
+ * Records one Razorpay refund against an order (EMAILS.md D).
+ *
+ * **Keyed on Razorpay's refund id**, under a row lock: a redelivered
+ * `refund.processed` finds its id already stored and returns null, so the
+ * refund email goes once; a second, partial refund has a new id and is
+ * recorded and emailed on its own. The order becomes `refunded` only once the
+ * refunds add up to its total.
+ */
+export async function recordRefund(input: {
+  orderId: string;
+  refundId: string;
+  amount: number;
+}): Promise<RefundChange | null> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const found = await client.query<{
+      total: number;
+      refunds: { id: string; amount: number; at: string }[] | null;
+    }>(`SELECT total, refunds FROM orders WHERE id = $1 FOR UPDATE`, [input.orderId]);
+    const row = found.rows[0];
+    const refunds = Array.isArray(row?.refunds) ? row.refunds : [];
+    if (!row || refunds.some((r) => r.id === input.refundId)) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const total = Number(row.total);
+    const next = [...refunds, { id: input.refundId, amount: input.amount, at: new Date().toISOString() }];
+    const refundedAmount = next.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    const full = refundedAmount >= total;
+
+    await client.query(
+      `UPDATE orders
+          SET refunds = $2::jsonb,
+              refunded_amount = $3::int,
+              refunded_at = now(),
+              payment_status = CASE WHEN $4::boolean THEN 'refunded' ELSE payment_status END,
+              updated_at = now()
+        WHERE id = $1`,
+      [input.orderId, JSON.stringify(next), refundedAmount, full],
+    );
+    await client.query("COMMIT");
+    return { orderId: input.orderId, amount: input.amount, refundedAmount, total, full };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /** Looks an order up by the gateway's id — the only thing a webhook carries. */

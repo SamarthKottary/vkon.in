@@ -508,6 +508,17 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_eta        DATE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_events     JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at        TIMESTAMPTZ;
 
+-- Added 2026-09-17: refunds, as Razorpay reports them (`refund.processed`).
+--
+-- `refunds` is one entry per Razorpay refund -- `{id, amount, at}`, amount in
+-- paise -- and the id is what makes a redelivered webhook a no-op and a second
+-- partial refund a new one. `refunded_amount` is their sum, kept beside it so
+-- a list page does not have to add up JSON. `payment_status` becomes
+-- 'refunded' only when the whole total has gone back.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunds         JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_amount INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_at     TIMESTAMPTZ;
+
 -- Order history is read newest-first for one customer, and that is the only
 -- way a customer ever reads it.
 CREATE INDEX IF NOT EXISTS orders_customer_idx

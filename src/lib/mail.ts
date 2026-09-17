@@ -36,6 +36,12 @@ type Mail = {
   subject: string;
   html: string;
   text: string;
+  /**
+   * Where a reply goes, for the alerts sent to the business: replying to a new
+   * order or enquiry reaches the customer, not `no-reply@`. Customer mail sets
+   * none, and stays no-reply as the client asked.
+   */
+  replyTo?: string;
 };
 
 function isConfigured(): boolean {
@@ -79,6 +85,7 @@ export async function sendMail(mail: Mail): Promise<MailResult> {
   if (!isConfigured()) {
     console.info(
       `[mail] not configured; would have sent to ${mail.to}: ${mail.subject}\n` +
+        (mail.replyTo ? `[mail] reply-to: ${mail.replyTo}\n` : "") +
         `[mail] ${mail.text.replace(/\n/g, "\n[mail] ")}`,
     );
     return { ok: true, skipped: true };
@@ -100,6 +107,7 @@ export async function sendMail(mail: Mail): Promise<MailResult> {
         subject: mail.subject,
         html: mail.html,
         text: mail.text,
+        ...(mail.replyTo ? { reply_to: mail.replyTo } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
     });
@@ -452,7 +460,13 @@ export async function sendPaymentReceivedMail(input: {
  * latest scan beneath it, so the email is useful on its own for somebody who
  * never opens the tracking page.
  */
-export type OrderUpdateKind = "shipped" | "out_for_delivery" | "delivered" | "cancelled";
+export type OrderUpdateKind =
+  | "shipped"
+  | "out_for_delivery"
+  | "delivery_failed"
+  | "returning"
+  | "delivered"
+  | "cancelled";
 
 export async function sendOrderUpdateMail(input: {
   to: string;
@@ -481,6 +495,21 @@ export async function sendOrderUpdateMail(input: {
       subject: `Order ${input.orderNumber} is out for delivery`,
       heading: "Out for delivery",
       lead: `Order ${input.orderNumber} is out for delivery and should reach you today. Please keep your phone with you — the courier may call.`,
+    },
+    /* Written not to alarm: most failed attempts are "nobody home" and the
+       courier simply comes back. The courier's own reason is in the details
+       table ("Latest update"), not paraphrased here. */
+    delivery_failed: {
+      subject: `Order ${input.orderNumber} could not be delivered today`,
+      heading: "We couldn't deliver today",
+      lead: `The courier tried to deliver order ${input.orderNumber} but couldn't. They usually try again on the next working day, so please keep your phone with you. If your address or phone number needs correcting, call us on ${site.phone.display}.`,
+    },
+    /* A return to origin can often still be turned around by a phone call,
+       so this asks for one rather than announcing the order is over. */
+    returning: {
+      subject: `Order ${input.orderNumber} is being returned to us`,
+      heading: "Your order is on its way back to us",
+      lead: `The courier couldn't deliver order ${input.orderNumber} and has started returning it to us. If you still want it, please call us on ${site.phone.display} as soon as you can and we will try to arrange delivery again.`,
     },
     delivered: {
       subject: `Order ${input.orderNumber} has been delivered`,
@@ -526,7 +555,7 @@ export async function sendOrderUpdateMail(input: {
     )
     .join("");
 
-  const noReply = `This email comes from an address that does not receive replies. For anything about this order, call or WhatsApp us on ${site.phone.display}.`;
+  const noReply = noReplyNotice("this order");
 
   const html = shell(
     heading,
@@ -567,5 +596,317 @@ export async function sendOrderUpdateMail(input: {
     subject: `${subject} — ${site.legalName}`,
     html,
     text,
+  });
+}
+
+/** The line every customer notice ends with: `no-reply@` is not read, so say
+ *  where a person is. */
+function noReplyNotice(about: string): string {
+  return `This email comes from an address that does not receive replies. For anything about ${about}, email ${site.email} or call or WhatsApp us on ${site.phone.display}.`;
+}
+
+function smallPrint(text: string): string {
+  return `<p style="margin:18px 0 0 0;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#5a636c;">${esc(text)}</p>`;
+}
+
+/** Label/value rows, for the details block several notices share. Rows with
+ *  no value are dropped rather than shown empty. */
+function detailTable(rows: [string, string | null | undefined][]): { html: string; text: string[] } {
+  const kept = rows.filter((row): row is [string, string] => Boolean(row[1]));
+  if (kept.length === 0) return { html: "", text: [] };
+  const html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">${kept
+    .map(
+      ([label, value]) =>
+        `<tr><td style="padding:9px 12px 9px 0;border-bottom:1px solid ${LINE};font:400 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#5a636c;white-space:nowrap;vertical-align:top;">${esc(label)}</td>
+<td style="padding:9px 0;border-bottom:1px solid ${LINE};font:500 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${INK};white-space:pre-wrap;">${esc(value)}</td></tr>`,
+    )
+    .join("")}</table>`;
+  return { html, text: kept.map(([label, value]) => `  ${label}: ${value}`) };
+}
+
+// ---------------------------------------------------------------------------
+// Payments (EMAILS.md B and D)
+// ---------------------------------------------------------------------------
+
+/**
+ * An online payment failed (EMAILS.md B, 2026-09-17). Sent from Razorpay's
+ * `payment.failed` webhook, once per order — the first failure only, so a
+ * customer retrying three times is not sent three of these.
+ *
+ * The order is still there and can be paid from its page, which is the point
+ * of the mail: without it the customer may believe they ordered.
+ */
+export async function sendPaymentFailedMail(input: {
+  to: string;
+  name: string;
+  orderNumber: string;
+  total: string;
+  orderUrl: string;
+}): Promise<MailResult> {
+  const lead = `We couldn't take the payment of ${input.total} for order ${input.orderNumber}. Your order is saved, and you can pay for it again from your order page by UPI, card or netbanking.`;
+  const debited = "If money left your account for the attempt that failed, your bank returns it automatically.";
+  const notice = noReplyNotice("this order");
+
+  const html = shell(
+    "Your payment didn't go through",
+    paragraph(hello(input.name)) +
+      paragraph(esc(lead)) +
+      button(input.orderUrl, "Pay for this order") +
+      paragraph(esc(debited)) +
+      smallPrint(notice),
+  );
+  const text = [
+    hello(input.name).replace(/<[^>]+>/g, ""),
+    "",
+    lead,
+    "",
+    `Pay for this order: ${input.orderUrl}`,
+    "",
+    debited,
+    "",
+    notice,
+    "",
+    `${site.legalName} · ${site.phone.display}`,
+  ].join("\n");
+
+  return sendMail({
+    to: input.to,
+    subject: `Payment for order ${input.orderNumber} didn't go through — ${site.legalName}`,
+    html,
+    text,
+  });
+}
+
+/**
+ * A refund went through (EMAILS.md D, 2026-09-17). Sent from Razorpay's
+ * `refund.processed` webhook, so it fires whether the refund was made in the
+ * Razorpay dashboard or, later, from the admin — once per Razorpay refund id.
+ *
+ * The 5–7 days is the Terms' wording (/terms, "Refunds"); change them together.
+ */
+export async function sendRefundMail(input: {
+  to: string;
+  name: string;
+  orderNumber: string;
+  orderUrl: string;
+  /** This refund. */
+  amount: string;
+  /** Every refund on the order so far, and the order total — for a partial. */
+  refundedTotal: string;
+  orderTotal: string;
+  full: boolean;
+  refundId: string;
+}): Promise<MailResult> {
+  const lead = `We've refunded ${input.amount} for order ${input.orderNumber} to the payment method you used. A refund takes 5–7 days to reach your account.`;
+  const partial = input.full
+    ? null
+    : `This is a partial refund: ${input.refundedTotal} of the ${input.orderTotal} you paid has now been refunded.`;
+  const details = detailTable([
+    ["Refund", input.amount],
+    ["Order", input.orderNumber],
+    ["Refund reference", input.refundId],
+  ]);
+  const help = "If it hasn't arrived after 7 days, your bank can trace it with the refund reference above.";
+  const notice = noReplyNotice("this refund");
+
+  const html = shell(
+    "Your refund is on its way",
+    paragraph(hello(input.name)) +
+      paragraph(esc(lead)) +
+      (partial ? paragraph(esc(partial)) : "") +
+      details.html +
+      paragraph(esc(help)) +
+      button(input.orderUrl, "View your order") +
+      smallPrint(notice),
+  );
+  const text = [
+    hello(input.name).replace(/<[^>]+>/g, ""),
+    "",
+    lead,
+    ...(partial ? ["", partial] : []),
+    "",
+    ...details.text,
+    "",
+    help,
+    "",
+    `Your order: ${input.orderUrl}`,
+    "",
+    notice,
+    "",
+    `${site.legalName} · ${site.phone.display}`,
+  ].join("\n");
+
+  return sendMail({
+    to: input.to,
+    subject: `Refund for order ${input.orderNumber} — ${site.legalName}`,
+    html,
+    text,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Account security (EMAILS.md C)
+// ---------------------------------------------------------------------------
+
+/**
+ * A password was set, changed or reset (EMAILS.md C, 2026-09-17).
+ *
+ * The one way somebody learns that another person changed their password, so
+ * it says what happened, when, and what to do if it was not them — and it
+ * contains no link that signs anybody in, only one to reset.
+ */
+export async function sendPasswordChangedMail(input: {
+  to: string;
+  name: string;
+  kind: "changed" | "set" | "reset";
+  /** Already formatted, Indian time. */
+  when: string;
+}): Promise<MailResult> {
+  const heading =
+    input.kind === "set" ? "A password was added to your account" : "Your password was changed";
+  const lead =
+    input.kind === "set"
+      ? `A password was added to your ${site.legalName} account on ${input.when}. You can now sign in with your email address and this password, as well as with Google.`
+      : input.kind === "reset"
+        ? `The password for your ${site.legalName} account was reset on ${input.when}, using the link we emailed you. You have been signed out everywhere.`
+        : `The password for your ${site.legalName} account was changed on ${input.when}. Any other device you were signed in on has been signed out.`;
+  const warning = `If this wasn't you, reset your password straight away and call us on ${site.phone.display}.`;
+  const resetUrl = `${site.url.replace(/\/$/, "")}/account/forgot`;
+  const notice = noReplyNotice("your account");
+
+  const html = shell(
+    heading,
+    paragraph(hello(input.name)) +
+      paragraph(esc(lead)) +
+      paragraph(`<strong style="color:${INK};">${esc(warning)}</strong>`) +
+      button(resetUrl, "Reset my password") +
+      smallPrint(notice),
+  );
+  const text = [
+    hello(input.name).replace(/<[^>]+>/g, ""),
+    "",
+    lead,
+    "",
+    warning,
+    `Reset your password: ${resetUrl}`,
+    "",
+    notice,
+    "",
+    `${site.legalName} · ${site.phone.display}`,
+  ].join("\n");
+
+  return sendMail({
+    to: input.to,
+    subject: `${heading} — ${site.legalName}`,
+    html,
+    text,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Alerts to the business (EMAILS.md A and G)
+// ---------------------------------------------------------------------------
+
+/**
+ * A new order, to the business inbox (`site.email`) — EMAILS.md A, 2026-09-17.
+ *
+ * Sent when an order is real: at placement for cash on delivery, and on
+ * payment for an online order (an unpaid, abandoned one is not news). Reply-To
+ * is the customer, so answering it reaches them.
+ */
+export async function sendNewOrderAlert(input: {
+  orderNumber: string;
+  total: string;
+  payment: string;
+  customerName: string;
+  customerEmail: string;
+  phone: string;
+  deliverTo: string;
+  delivery: string;
+  lines: { name: string; qty: number; amount: string }[];
+  adminUrl: string;
+}): Promise<MailResult> {
+  const details = detailTable([
+    ["Total", input.total],
+    ["Payment", input.payment],
+    ["Customer", input.customerName],
+    ["Email", input.customerEmail],
+    ["Phone", input.phone],
+    ["Deliver to", input.deliverTo],
+    ["Delivery", input.delivery],
+  ]);
+  const items = detailTable(input.lines.map((line) => [`${line.qty} ×`, `${line.name} — ${line.amount}`]));
+
+  const html = shell(
+    `New order ${input.orderNumber}`,
+    details.html +
+      paragraph(`<strong style="color:${INK};">Items</strong>`) +
+      items.html +
+      button(input.adminUrl, "Open in admin") +
+      smallPrint("Reply to this email to write to the customer."),
+  );
+  const text = [
+    `New order ${input.orderNumber}`,
+    "",
+    ...details.text,
+    "",
+    "Items:",
+    ...items.text,
+    "",
+    `Open in admin: ${input.adminUrl}`,
+  ].join("\n");
+
+  return sendMail({
+    to: site.email,
+    subject: `New order ${input.orderNumber} — ${input.total} — ${input.payment}`,
+    html,
+    text,
+    replyTo: input.customerEmail,
+  });
+}
+
+/**
+ * A contact-form enquiry, to the business inbox — EMAILS.md G, 2026-09-17.
+ * Until this, an enquiry sat unseen until somebody opened /admin/enquiries
+ * (ADMIN.md §7.7). Reply-To is the visitor.
+ */
+export async function sendEnquiryAlert(input: {
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+  page: string;
+  adminUrl: string;
+}): Promise<MailResult> {
+  const details = detailTable([
+    ["Name", input.name],
+    ["Email", input.email],
+    ["Phone", input.phone],
+    ["Sent from", input.page],
+  ]);
+
+  const html = shell(
+    `New enquiry from ${input.name}`,
+    details.html +
+      `<p style="margin:0 0 14px 0;padding:14px 16px;background:#f7faf8;border-left:2px solid ${ACCENT};font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${BODY};white-space:pre-wrap;">${esc(input.message)}</p>` +
+      button(input.adminUrl, "Open enquiries") +
+      smallPrint("Reply to this email to answer them directly."),
+  );
+  const text = [
+    `New enquiry from ${input.name}`,
+    "",
+    ...details.text,
+    "",
+    input.message,
+    "",
+    `Open enquiries: ${input.adminUrl}`,
+  ].join("\n");
+
+  return sendMail({
+    to: site.email,
+    subject: `New enquiry from ${input.name} — ${site.domain}`,
+    html,
+    text,
+    replyTo: input.email,
   });
 }

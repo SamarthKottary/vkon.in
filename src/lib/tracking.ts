@@ -26,6 +26,14 @@ export function isReturnStatus(raw: string | null | undefined): boolean {
   return /\brto\b/.test(s) || s.includes("return");
 }
 
+/** A delivery attempt that failed — "UNDELIVERED", or a non-delivery report
+ *  (NDR). Not a return: that is `isReturnStatus`. */
+export function isUndelivered(raw: string | null | undefined): boolean {
+  if (!raw || isReturnStatus(raw)) return false;
+  const s = words(raw);
+  return s.includes("undelivered") || s.includes("not delivered") || /\bndr\b/.test(s);
+}
+
 export function isOutForDelivery(raw: string | null | undefined): boolean {
   if (!raw) return false;
   return !isReturnStatus(raw) && words(raw).includes("out for delivery");

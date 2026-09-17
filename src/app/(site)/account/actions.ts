@@ -23,7 +23,13 @@ import { isDatabaseConfigured } from "@/lib/db/client";
 import { normaliseEmail } from "@/lib/db/subscribers";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
 import { confirmationProblem } from "@/lib/password-policy";
-import { isMailConfigured, sendPasswordResetMail, sendSignInCodeMail, sendWelcomeMail } from "@/lib/mail";
+import {
+  isMailConfigured,
+  sendPasswordChangedMail,
+  sendPasswordResetMail,
+  sendSignInCodeMail,
+  sendWelcomeMail,
+} from "@/lib/mail";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { safeNext } from "@/lib/google";
 import {
@@ -685,6 +691,30 @@ export async function resetPasswordAction(
   } catch (error) {
     console.error("[account] password reset failed:", error);
     return unavailable("reset");
+  }
+
+  /* EMAILS.md C. The reset link proves somebody could read the inbox, which
+     is exactly why the inbox's owner is told it was used. */
+  try {
+    const customer = await findCustomerById(customerId);
+    if (customer) {
+      const sent = await sendPasswordChangedMail({
+        to: customer.email,
+        name: customer.name,
+        kind: "reset",
+        when: new Intl.DateTimeFormat("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: "Asia/Kolkata",
+        }).format(new Date()),
+      });
+      if (!sent.ok) console.error("[account] password-reset notice failed:", sent.error);
+    }
+  } catch (error) {
+    console.error("[account] password-reset notice failed:", error);
   }
 
   /* **No session is issued here** (client, 2026-09-16: choosing a new

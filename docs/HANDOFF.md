@@ -176,11 +176,8 @@ meant `nodemailer`, the first new runtime dependency since `pg`. Sign-in codes
 and the shipped / out-for-delivery / delivered / cancelled emails followed;
 **[EMAILS.md](EMAILS.md)** is the current list and the gaps.
 
-**The mailing list and the enquiry inbox still send nothing**, and the cost is
-unchanged: ADMIN.md §7.6–7.7 — **an enquiry sits unseen until somebody opens
-`/admin/enquiries`.** **Orders have the same problem**, and it gets worse the
-day payment goes live: `/admin/orders` exists but nothing emails the operator,
-so a paid customer could hear nothing. ADMIN.md §7.8.
+**The mailing list still sends nothing** (ADMIN.md §7.6). New orders and
+enquiries are emailed to support@vkon.in since 2026-09-17 — EMAILS.md A and G.
 
 **Product-driven routes are `force-dynamic`, never ISR.** `revalidatePath`
 marks a page stale but Next still serves the stale copy to the next request, so

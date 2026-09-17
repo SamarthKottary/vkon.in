@@ -2,10 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { findCustomerById } from "@/lib/db/customers";
 import {
   findOrderByPaymentOrderId,
+  findOrderIdByPaymentId,
+  getOrderForAdmin,
   markOrderPaid,
   markPaymentFailed,
+  recordRefund,
 } from "@/lib/db/orders";
 import { sendOrderPlacedMail, sendPaymentReceivedMail } from "@/lib/mail";
+import { notifyNewOrder, notifyPaymentFailed, notifyRefund } from "@/lib/order-notifications";
 import { formatPaise } from "@/lib/pricing";
 import { isWebhookConfigured, verifyWebhookSignature } from "@/lib/razorpay";
 import { site } from "@/content/site";
@@ -30,12 +34,26 @@ import { site } from "@/content/site";
  * `request.text()` and parsed afterwards. `await request.json()` would parse
  * and re-serialise, changing whitespace and key order, and the signature would
  * then never match — a failure that looks like a wrong secret and is not.
+ *
+ * **Three events are acted on** (2026-09-17): `payment.captured` (paid, the
+ * confirmation and receipt, and the new-order alert to the business),
+ * `payment.failed` (the payment-failed email, first failure only) and
+ * `refund.processed` (records the refund and emails the customer — whether the
+ * refund was made in the Razorpay dashboard or anywhere else). Each must be
+ * ticked on the webhook in Razorpay's dashboard; one that is not ticked is
+ * simply never sent.
  */
 export const dynamic = "force-dynamic";
 
 type WebhookPayment = {
   id?: string;
   order_id?: string;
+  amount?: number;
+};
+
+type WebhookRefund = {
+  id?: string;
+  payment_id?: string;
   amount?: number;
 };
 
@@ -57,15 +75,24 @@ export async function POST(request: NextRequest) {
 
   let event: string;
   let payment: WebhookPayment;
+  let refund: WebhookRefund;
   try {
     const parsed = JSON.parse(rawBody) as {
       event?: string;
-      payload?: { payment?: { entity?: WebhookPayment } };
+      payload?: {
+        payment?: { entity?: WebhookPayment };
+        refund?: { entity?: WebhookRefund };
+      };
     };
     event = String(parsed.event ?? "");
     payment = parsed.payload?.payment?.entity ?? {};
+    refund = parsed.payload?.refund?.entity ?? {};
   } catch {
     return NextResponse.json({ error: "Bad payload." }, { status: 400 });
+  }
+
+  if (event === "refund.processed") {
+    return handleRefund(refund, payment);
   }
 
   const gatewayOrderId = String(payment.order_id ?? "");
@@ -88,11 +115,16 @@ export async function POST(request: NextRequest) {
   }
 
   if (event === "payment.failed") {
+    let firstFailure = false;
     try {
-      await markPaymentFailed(order.id);
+      firstFailure = await markPaymentFailed(order.id);
     } catch (error) {
       console.error("[webhook] could not mark failed:", error);
     }
+    /* Only on the move from unpaid to failed: a customer who retries and
+       fails again is not sent another, and a failure reported after the order
+       was paid sends nothing. `notifyPaymentFailed` never throws. */
+    if (firstFailure) await notifyPaymentFailed(order.id);
     return NextResponse.json({ ok: true });
   }
 
@@ -172,7 +204,49 @@ export async function POST(request: NextRequest) {
          retry and re-run everything above. */
       console.error("[webhook] receipt mail failed:", error);
     }
+    await notifyNewOrder(order.id);
   }
 
+  return NextResponse.json({ ok: true });
+}
+
+/**
+ * `refund.processed`: record it and tell the customer.
+ *
+ * The payment entity normally rides along with the refund and carries the
+ * order id; the refund's own `payment_id` is the fallback. Everything that
+ * cannot be matched answers 200, for the same reason as above — a retry will
+ * not make an unknown payment known.
+ */
+async function handleRefund(refund: WebhookRefund, payment: WebhookPayment) {
+  const refundId = String(refund.id ?? "");
+  const amount = typeof refund.amount === "number" ? refund.amount : 0;
+  if (!refundId || amount <= 0) {
+    return NextResponse.json({ ok: true, ignored: "refund without id or amount" });
+  }
+
+  let orderId: string | null = null;
+  if (payment.order_id) {
+    orderId = (await findOrderByPaymentOrderId(String(payment.order_id)))?.id ?? null;
+  }
+  if (!orderId && refund.payment_id) {
+    orderId = await findOrderIdByPaymentId(String(refund.payment_id));
+  }
+  if (!orderId || !(await getOrderForAdmin(orderId))) {
+    console.error(`[webhook] no order for refund ${refundId}`);
+    return NextResponse.json({ ok: true, unknownOrder: true });
+  }
+
+  let change: Awaited<ReturnType<typeof recordRefund>> = null;
+  try {
+    change = await recordRefund({ orderId, refundId, amount });
+  } catch (error) {
+    console.error("[webhook] could not record refund:", error);
+    /* Retry: the refund is real and not yet on the order. */
+    return NextResponse.json({ error: "Could not record refund." }, { status: 500 });
+  }
+
+  /* Null means this refund id is already recorded — a redelivery. */
+  if (change) await notifyRefund(change, refundId);
   return NextResponse.json({ ok: true });
 }

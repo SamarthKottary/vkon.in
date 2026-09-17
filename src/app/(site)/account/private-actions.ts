@@ -28,7 +28,8 @@ import {
   type DeliveryOption,
 } from "@/lib/shiprocket";
 import { packParcel } from "@/lib/parcel";
-import { sendOrderPlacedMail } from "@/lib/mail";
+import { sendOrderPlacedMail, sendPasswordChangedMail } from "@/lib/mail";
+import { notifyNewOrder } from "@/lib/order-notifications";
 import { formatPaise, priceLines, totals } from "@/lib/pricing";
 import { site } from "@/content/site";
 import type { Address, ShipTo } from "@/lib/types";
@@ -232,6 +233,16 @@ export async function setPasswordAction(
     console.error("[account] setting a password failed:", error);
     return { status: "error", message: "Could not save that just now. Please try again." };
   }
+
+  /* EMAILS.md C: the owner of the inbox hears about it even if somebody else
+     did it. After the change is saved, and never able to undo it. */
+  const sent = await sendPasswordChangedMail({
+    to: customer.email,
+    name: customer.name,
+    kind: customer.hasPassword ? "changed" : "set",
+    when: nowInIndia(),
+  });
+  if (!sent.ok) console.error("[account] password-changed mail failed:", sent.error);
 
   revalidatePath("/account");
   revalidatePath("/", "layout");
@@ -672,6 +683,10 @@ export async function placeOrderAction(
       })),
       orderUrl: `${site.url.replace(/\/$/, "")}/account/orders/${order.id}`,
     });
+    /* Cash on delivery is a real order the moment it is placed, so the
+       business is told now. An online order waits for its payment — see
+       `/api/payment/verify` and the webhook. Never throws. */
+    await notifyNewOrder(order.id);
   } catch (error) {
     console.error("[account] order failed:", error);
     return {
@@ -773,3 +788,15 @@ export async function getAccountCartAction(): Promise<CartLine[]> {
   return getCustomerCart(customer.id);
 }
 
+/** "17 Sept 2026, 3:42 pm" in Indian time, for a security notice. Not
+ *  exported — only exports of a "use server" file must be async (§9). */
+function nowInIndia(): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
+}

@@ -6,6 +6,7 @@ import {
   markPaymentFailed,
 } from "@/lib/db/orders";
 import { sendOrderPlacedMail, sendPaymentReceivedMail } from "@/lib/mail";
+import { notifyNewOrder } from "@/lib/order-notifications";
 import { formatPaise } from "@/lib/pricing";
 import { isRazorpayConfigured, verifyCheckoutSignature } from "@/lib/razorpay";
 import { site } from "@/content/site";
@@ -139,6 +140,9 @@ export async function POST(request: NextRequest) {
       paymentId: razorpayPaymentId,
       orderUrl: `${site.url.replace(/\/$/, "")}/account/orders/${order.id}`,
     });
+    /* The business hears about it once, from whichever path moved the row —
+       this one or the webhook. */
+    await notifyNewOrder(order.id);
   }
 
 

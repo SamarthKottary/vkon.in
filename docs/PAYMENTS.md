@@ -95,7 +95,7 @@ and a person who can sign.
 3. **Note your Key ID and Key Secret**, in Test mode first. Settings → API Keys.
 4. **Set the webhook** — Settings → Webhooks:
    - URL: `https://vkon.in/api/payment/webhook`
-   - Events: `payment.captured`, `payment.failed`
+   - Events: `payment.captured`, `payment.failed`, `refund.processed`
    - Set a **webhook secret** and keep it; it is separate from the API secret.
 5. **Decide the two business questions in §7 below** before go-live, because
    both change what the customer is charged.
@@ -209,7 +209,12 @@ all passing:
 - An **amount mismatch** is refused rather than marked paid.
 - An **unknown gateway order** is acknowledged with 200 so Razorpay stops
   retrying.
-- `payment.failed` marks the order failed.
+- `payment.failed` marks the order failed and, on the first failure only,
+  emails the customer a link to pay again (EMAILS.md B).
+- `refund.processed` records the refund on the order (`refunds`,
+  `refunded_amount`; `payment_status` becomes `refunded` once the whole total
+  is back) and emails the customer, once per Razorpay refund id (EMAILS.md D).
+  It fires for refunds made in the Razorpay dashboard.
 - **Another customer cannot pay somebody else's order** (404), and a
   **signed-out request** is refused (401).
 

@@ -342,6 +342,10 @@ to clear a high bar.
 
 ### 7.7 Nobody is told when an enquiry arrives — *the gap with a cost*
 
+> **Closed 2026-09-17.** Every enquiry is now emailed to `site.email`
+> (support@vkon.in) with the visitor as Reply-To — `sendEnquiryAlert`,
+> EMAILS.md G. The text below is the reasoning that made it urgent.
+
 The contact form writes a row and stops. There is no email, no SMS, no
 notification of any kind: **an enquiry is invisible until somebody opens
 `/admin/enquiries`.** For a business whose buyer has a stopped pump, an enquiry
@@ -377,6 +381,10 @@ and needs no unsubscribe; a newsletter is not and does.
 
 
 ### 7.8 The order inbox — *built 2026-09-07; the notification half is not*
+
+> **Notification half closed 2026-09-17.** A new order is emailed to
+> support@vkon.in — cash on delivery at placement, online on payment — with the
+> customer as Reply-To (`notifyNewOrder`, EMAILS.md A).
 
 `/admin/orders` exists. Newest first, with the line items as they were bought,
 the delivery address, the customer's note and their phone number as a

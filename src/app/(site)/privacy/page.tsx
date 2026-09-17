@@ -180,10 +180,14 @@ export default function PrivacyPage() {
                 </Item>
                 <Item term="Resend">
                   Sends the emails the site sends you — a welcome message, sign-in
-                  codes, password reset links, order confirmations, payment
-                  receipts, and updates when an order ships, is out for delivery,
-                  is delivered or is cancelled. They process the address and
-                  message content only to deliver that email.
+                  codes, password reset links and a notice when your password
+                  changes, order confirmations, payment receipts, failed-payment
+                  and refund notices, and updates when an order ships, is out for
+                  delivery, could not be delivered, is being returned, is
+                  delivered or is cancelled. They process the address and message
+                  content only to deliver that email. New orders and contact-form
+                  enquiries are also emailed to our own inbox so we can act on
+                  them.
                 </Item>
                 <Item term="Google">
                   If you choose &ldquo;Continue with Google&rdquo; to sign in,

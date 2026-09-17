@@ -147,10 +147,9 @@ export default async function AdminOrdersPage({
           customer a refund promise, and nothing on this page issues it. */}
       <div className="mt-6 space-y-2 border-l-2 border-line-strong px-4 py-3 text-sm text-body">
         <p>
-          <span className="font-medium text-ink">Nothing is emailed to you.</span>{" "}
-          An order appears here and nowhere else — the customer gets the
-          confirmation, you do not — so this page needs checking through the
-          day.
+          <span className="font-medium text-ink">New orders are emailed to support@vkon.in</span>{" "}
+          — a cash-on-delivery order when it is placed, an online order once
+          it is paid. An unpaid or failed online order appears only here.
         </p>
         <p>
           <span className="font-medium text-ink">Payments are taken online.</span>{" "}
@@ -208,10 +207,20 @@ function OrderCard({ order, canShip }: { order: Order; canShip: boolean }) {
               {order.orderNumber}
             </h2>
             <StatusBadge status={order.status} />
+            {/* Refunded and failed are their own badges since 2026-09-17: a
+                refunded order read "Payment due", which invites chasing a
+                customer for money already sent back. */}
             {order.paymentStatus === "paid" ? (
               <Badge tone="brand">Paid</Badge>
+            ) : order.paymentStatus === "refunded" ? (
+              <Badge>Refunded</Badge>
+            ) : order.paymentStatus === "failed" ? (
+              <Badge tone="warn">Payment failed</Badge>
             ) : (
               <Badge>Payment due</Badge>
+            )}
+            {order.paymentStatus === "paid" && order.refundedAmount > 0 && (
+              <Badge tone="warn">Refunded {formatPaise(order.refundedAmount)}</Badge>
             )}
           </div>
           <p className="label-tech mt-1.5 text-muted">{formatDate(order.createdAt)}</p>

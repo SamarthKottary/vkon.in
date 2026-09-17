@@ -297,6 +297,9 @@ export type Order = {
   shippedAt: string | null;
   deliveredAt: string | null;
   cancelledAt: string | null;
+  /** Paise refunded so far, across every Razorpay refund. 0 for most orders. */
+  refundedAmount: number;
+  refundedAt: string | null;
   /**
    * What the courier last said, in its own words ("OUT FOR DELIVERY"). Shown
    * through `trackingLabel`; the order's `status` is this site's four-state

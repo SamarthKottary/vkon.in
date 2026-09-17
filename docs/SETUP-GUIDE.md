@@ -561,7 +561,7 @@ marked unpaid.
    openssl rand -hex 32
    ```
    This is **not** the same as the API secret.
-4. **Active Events:** tick `payment.captured` and `payment.failed`.
+4. **Active Events:** tick `payment.captured`, `payment.failed` and `refund.processed`.
 5. **Create Webhook.**
 
 ```bash
@@ -714,7 +714,7 @@ Two things to be clear-eyed about while running as an individual:
 ### 5.2 Create the account
 
 1. Go to **https://www.shiprocket.in** and **Sign Up**.
-2. Use the business email (`vkonautomation@gmail.com`) and a strong password.
+2. Use the business email (`support@vkon.in`) and a strong password.
 3. Verify the email and mobile number they send codes to.
 4. Choose the **free** plan. There is no monthly fee on the entry plan — you
    pay per shipment, and rates are shown before you book anything.

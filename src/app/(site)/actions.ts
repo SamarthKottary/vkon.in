@@ -5,6 +5,8 @@ import { createEnquiry } from "@/lib/db/enquiries";
 import { addSubscriber, normaliseEmail } from "@/lib/db/subscribers";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { sendEnquiryAlert } from "@/lib/mail";
+import { site } from "@/content/site";
 
 /**
  * Public server actions — the only writes on the site that are not behind
@@ -188,6 +190,20 @@ export async function sendEnquiryAction(
       message: "Could not send that just now — please call or WhatsApp us.",
     };
   }
+
+  /* EMAILS.md G: until this, an enquiry sat unseen until somebody opened
+     /admin/enquiries. After the save, so a mail failure never loses one;
+     `sendMail` never throws. Reply-To is the visitor. */
+  const source = safePath(requestHeaders.get("referer") ?? "");
+  const alert = await sendEnquiryAlert({
+    name,
+    email: email as string,
+    phone,
+    message,
+    page: source ? `${site.domain}${source}` : site.domain,
+    adminUrl: `${site.url.replace(/\/$/, "")}/admin/enquiries`,
+  });
+  if (!alert.ok) console.error("[enquiry] alert mail failed:", alert.error);
 
   return {
     status: "ok",

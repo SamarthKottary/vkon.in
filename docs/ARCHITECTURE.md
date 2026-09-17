@@ -927,7 +927,11 @@ the request.** `applyTrackingUpdate` and `setOrderStatus` lock the order and
 return what it was; `mailForTrackingChange` and `setOrderStatusAction` compare
 against that. Couriers redeliver webhooks and operators double-submit, and
 anything that compares against what the caller *thought* the status was sends
-the same email twice.
+the same email twice. The same holds for payments and refunds:
+`markPaymentFailed` and `markOrderPaid` return whether *this* call moved the
+row, and `recordRefund` is keyed on Razorpay's refund id under a row lock. The
+payment-failed, receipt, new-order and refund emails are gated on those, never
+on the event merely arriving.
 
 **`requireAdmin()` must be the first statement of every mutating server action
 in `app/admin/actions.ts`.** See §7.
@@ -1541,6 +1545,42 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-17 (emails) — support@vkon.in, and six more emails: new-order and enquiry alerts, payment failed, password changed, refunds, delivery problems
+
+Client: make the site's email support@vkon.in instead of the Gmail address, and
+start building the missing emails in `docs/EMAILS.md`.
+
+- **`site.email` is support@vkon.in.** It is shown on /contact, the footer,
+  /terms, /privacy and in the JSON-LD, and it receives the alerts below. vkon.in
+  mail is Microsoft 365, and the mailbox or alias has to exist there.
+- **`sendMail` takes `replyTo`** (Resend `reply_to`), used only on alerts to
+  the business. Customer mail stays no-reply, and its notice now names
+  support@vkon.in.
+- **New templates in `lib/mail.ts`:** `sendNewOrderAlert` (A),
+  `sendEnquiryAlert` (G), `sendPaymentFailedMail` (B), `sendPasswordChangedMail`
+  (C), `sendRefundMail` (D); plus `delivery_failed` and `returning` kinds of
+  `sendOrderUpdateMail` (F). `lib/order-notifications.ts` gained
+  `notifyNewOrder`, `notifyPaymentFailed` and `notifyRefund`, and
+  `mailForTrackingChange` decides the two new kinds on the change *into* the
+  state (`isUndelivered`, `isReturnStatus`).
+- **Payment webhook handles `refund.processed`.** It finds the order via the
+  payment's order id, or the refund's `payment_id` (`findOrderIdByPaymentId`),
+  then `recordRefund`. **`markPaymentFailed` now returns a boolean.**
+- **Schema:** `orders.refunds` (JSONB, one `{id, amount, at}` per Razorpay
+  refund), `refunded_amount`, `refunded_at`. `payment_status` becomes
+  `refunded` only when the whole total is back. `/admin/orders` shows Refunded,
+  Payment failed and a partial-refund badge; before this, a refunded order read
+  "Payment due". The customer's order page shows the refunded amount.
+- **Razorpay webhook must include `refund.processed`**, added to
+  INTEGRATIONS-SETUP-GUIDE §5.2/§6.3, SETUP-GUIDE and PAYMENTS.md. The live
+  webhook created before today has two events.
+- Admin orders note, /privacy's list of emails, ADMIN.md §7.7–7.8 and HANDOFF
+  updated. The §9 "decided from the locked row" rule now names the payment and
+  refund gates.
+- **Tested:** the laptop checks and results are recorded in EMAILS.md §6.
+  Rendered HTML was checked for the alerts, refund, payment-failed and
+  failed-delivery emails. `reply_to` is set on alerts only.
 
 ### 2026-09-17 (payments live) — Terms, admin note and refund wording rewritten for online payment
 

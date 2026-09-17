@@ -1,9 +1,16 @@
 import { site } from "@/content/site";
 import { findCustomerById } from "@/lib/db/customers";
-import { getOrderForAdmin, type TrackingChange } from "@/lib/db/orders";
-import { sendOrderUpdateMail, type OrderUpdateKind } from "@/lib/mail";
+import { getOrderForAdmin, type RefundChange, type TrackingChange } from "@/lib/db/orders";
+import {
+  sendNewOrderAlert,
+  sendOrderUpdateMail,
+  sendPaymentFailedMail,
+  sendRefundMail,
+  type OrderUpdateKind,
+} from "@/lib/mail";
+import { formatPaise } from "@/lib/pricing";
 import { trackingUrl } from "@/lib/shiprocket";
-import { isOutForDelivery, trackingLabel } from "@/lib/tracking";
+import { isOutForDelivery, isReturnStatus, isUndelivered, trackingLabel } from "@/lib/tracking";
 
 /**
  * Emails a customer when their order moves (client, 2026-09-17): shipped, out
@@ -32,7 +39,7 @@ export async function notifyOrderUpdate(orderId: string, kind: OrderUpdateKind):
       name: customer.name,
       kind,
       orderNumber: order.orderNumber,
-      orderUrl: `${site.url.replace(/\/$/, "")}/account/orders/${order.id}`,
+      orderUrl: orderUrl(order.id),
       trackingStatus:
         trackingLabel(order.trackingStatus) ??
         (kind === "delivered" ? "Delivered" : kind === "shipped" ? "In transit" : null),
@@ -60,20 +67,117 @@ export async function notifyOrderUpdate(orderId: string, kind: OrderUpdateKind):
  * the furthest along: a first webhook that already says "DELIVERED" sends the
  * delivered mail, not three.
  *
- * "Out for delivery" is not one of the order's four statuses, so it is judged
- * on the courier's words — sent when the parcel goes out, and again if it goes
- * out again after a failed attempt, which is a new day the customer needs to
- * be home.
+ * "Out for delivery", a failed attempt and a return are not among the order's
+ * four statuses, so they are judged on the courier's words, each on the change
+ * *into* that state — a failed attempt followed by another failed attempt is
+ * one mail, but going out again the next day is a new out-for-delivery mail,
+ * because it is a new day the customer needs to be home.
  */
 export function mailForTrackingChange(change: TrackingChange): OrderUpdateKind | null {
   if (change.status === "cancelled") return null;
   if (change.status === "delivered" && change.previousStatus !== "delivered") return "delivered";
   if (change.status === "delivered") return null;
-  if (isOutForDelivery(change.tracking) && !isOutForDelivery(change.previousTracking)) {
-    return "out_for_delivery";
-  }
+  const into = (test: (raw: string | null) => boolean) =>
+    test(change.tracking) && !test(change.previousTracking);
+  if (into(isReturnStatus)) return "returning";
+  if (into(isUndelivered)) return "delivery_failed";
+  if (into(isOutForDelivery)) return "out_for_delivery";
   if (change.status === "shipped" && change.previousStatus !== "shipped") return "shipped";
   return null;
+}
+
+function orderUrl(orderId: string): string {
+  return `${site.url.replace(/\/$/, "")}/account/orders/${orderId}`;
+}
+
+/**
+ * Tells the business a new order is in (EMAILS.md A). Called once per order,
+ * from the same places the customer's confirmation goes out: placement for
+ * cash on delivery, the first successful payment for an online order. Never
+ * throws.
+ */
+export async function notifyNewOrder(orderId: string): Promise<void> {
+  try {
+    const order = await getOrderForAdmin(orderId);
+    if (!order) return;
+    const customer = await findCustomerById(order.customerId);
+    const to = order.shipTo;
+    const result = await sendNewOrderAlert({
+      orderNumber: order.orderNumber,
+      total: formatPaise(order.total),
+      payment:
+        order.paymentStatus === "paid"
+          ? "Paid online"
+          : order.paymentProvider === "cod"
+            ? "Cash on delivery"
+            : "Not yet paid",
+      customerName: customer?.name || to.name,
+      customerEmail: customer?.email ?? "",
+      phone: to.phone,
+      deliverTo: [to.name, to.line1, to.line2, `${to.city}, ${to.state} ${to.postalCode}`]
+        .filter(Boolean)
+        .join("\n"),
+      delivery:
+        order.shipping > 0
+          ? `${formatPaise(order.shipping)}${order.courierName ? ` · ${order.courierName}` : ""}`
+          : "Not quoted — call to agree it",
+      lines: order.items.map((item) => ({
+        name: item.name,
+        qty: item.qty,
+        amount: formatPaise(item.lineTotal),
+      })),
+      adminUrl: `${site.url.replace(/\/$/, "")}/admin/orders#order-${order.id}`,
+    });
+    if (!result.ok) console.error("[orders] new-order alert not sent:", order.orderNumber);
+  } catch (error) {
+    console.error("[orders] new-order alert failed:", orderId, error);
+  }
+}
+
+/** EMAILS.md B. The caller has already established this was the first
+ *  failure (`markPaymentFailed` returned true). Never throws. */
+export async function notifyPaymentFailed(orderId: string): Promise<void> {
+  try {
+    const order = await getOrderForAdmin(orderId);
+    if (!order) return;
+    const customer = await findCustomerById(order.customerId);
+    if (!customer?.email) return;
+    const result = await sendPaymentFailedMail({
+      to: customer.email,
+      name: customer.name,
+      orderNumber: order.orderNumber,
+      total: formatPaise(order.total),
+      orderUrl: orderUrl(order.id),
+    });
+    if (!result.ok) console.error("[orders] payment-failed mail not sent:", order.orderNumber);
+  } catch (error) {
+    console.error("[orders] payment-failed mail failed:", orderId, error);
+  }
+}
+
+/** EMAILS.md D. The caller has already established this refund is new
+ *  (`recordRefund` returned a change). Never throws. */
+export async function notifyRefund(change: RefundChange, refundId: string): Promise<void> {
+  try {
+    const order = await getOrderForAdmin(change.orderId);
+    if (!order) return;
+    const customer = await findCustomerById(order.customerId);
+    if (!customer?.email) return;
+    const result = await sendRefundMail({
+      to: customer.email,
+      name: customer.name,
+      orderNumber: order.orderNumber,
+      orderUrl: orderUrl(order.id),
+      amount: formatPaise(change.amount),
+      refundedTotal: formatPaise(change.refundedAmount),
+      orderTotal: formatPaise(change.total),
+      full: change.full,
+      refundId,
+    });
+    if (!result.ok) console.error("[orders] refund mail not sent:", order.orderNumber);
+  } catch (error) {
+    console.error("[orders] refund mail failed:", change.orderId, error);
+  }
 }
 
 /* Fixed locale and zone: this runs on a server whose clock may be anywhere. */
