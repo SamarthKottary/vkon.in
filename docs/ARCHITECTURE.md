@@ -245,10 +245,10 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `account/PasswordCard` | Sets a first password or changes one; collapsed until asked for |
 | `account/verify-code/CodeForm` | The sign-in code, with its own resend and cancel actions |
 | `account/OrderFooterActions` | Repeat order (adds this order's lines to the cart and opens the drawer); Download invoice is a disabled placeholder |
-| `account/AddressBook` | Which address the dialog is open on; the optimistic default while "make default" is in flight |
 | `cart/CartDrawer` | Slide-over state, Escape, body scroll lock |
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
 | `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection |
+| `account/AddressBook` | The account page's card grid: radio sets the default (optimistic), Edit/Add open `AddressDialog`, `confirm()` before delete |
 | `account/AddressPicker` · `AddressDialog` | The chosen address collapsed; the list opens as a panel over the content below (outside click / Escape close it, default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout and the account page |
 | `checkout/DeliveryPicker` | The chosen delivery service collapsed, the others on demand |
 | `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, refreshes |
@@ -1570,6 +1570,26 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-18 (account) — The address book is a grid of cards again; checkout keeps its dropdown
+
+Client: "revert the address section in users my account page to how it was
+before, with no drop down we could see all addresses … only the my account
+page and not the checkout."
+
+- `AddressBook` no longer renders `AddressPicker`. It is the two-column grid of
+  cards again — radio, name, Default mark, address, phone, GSTIN, and Edit and
+  Delete along the foot — with "Add an address" beneath. The two pages want
+  opposite things from one list: checkout shows one address to get past them,
+  this page *is* them.
+- **Kept from the newer version:** the radio sets the default
+  (`setDefaultAddressAction`, optimistic), and Edit and Add open
+  `AddressDialog` rather than the inline panel that used to push the page down.
+  `AddressPicker` is now checkout's alone.
+- **Tested in the browser:** all three cards show at once with no dropdown;
+  choosing a card moves the default in the database and the Default mark;
+  Edit opens the pop-up prefilled and saves; Add and Delete work; no overflow
+  at 390px; and checkout still has its dropdown.
 
 ### 2026-09-18 (order history) — Badges and buttons aligned, and coloured for both themes
 
