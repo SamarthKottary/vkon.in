@@ -44,7 +44,7 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
 | 5 | Order confirmation | **Cash on delivery:** when the order is placed. **Online:** only once payment succeeds | Order VK-… — Vkon Automation | `sendOrderPlacedMail` ← `account/private-actions.ts` (COD), `api/payment/verify`, `api/payment/webhook` |
 | 6 | Payment receipt | Online payment succeeds | Payment received for Order VK-… | `sendPaymentReceivedMail` ← `api/payment/verify`, `api/payment/webhook` |
 | 7 | Payment failed *(B)* | Razorpay's `payment.failed`, **first failure on the order only** — with a link to pay again | Payment for order VK-… didn't go through | `sendPaymentFailedMail` ← `notifyPaymentFailed` ← `api/payment/webhook` |
-| 8 | Refund issued *(D)* | Razorpay's `refund.processed` — once per Razorpay refund, including refunds made in the Razorpay dashboard. Partial refunds say how much of the total is back | Refund for order VK-… | `sendRefundMail` ← `notifyRefund` ← `api/payment/webhook` |
+| 8 | Refund issued *(D)* | The **Refund** button in `/admin/orders`, or Razorpay's `refund.processed` for a refund made elsewhere — once per Razorpay refund either way. Partial refunds say how much of the total is back | Refund for order VK-… | `sendRefundMail` ← `notifyRefund` ← `admin/actions.ts` (`refundOrderAction`), `api/payment/webhook` |
 | 9 | Shipped, with tracking link | Courier reports pickup / in transit, or admin marks Shipped | Order VK-… has shipped | `sendOrderUpdateMail("shipped")` ← `lib/order-notifications.ts` |
 | 10 | Out for delivery | Courier reports it (again after a failed attempt) | Order VK-… is out for delivery | `sendOrderUpdateMail("out_for_delivery")` |
 | 11 | Delivery attempt failed *(F)* | Courier reports UNDELIVERED / NDR — once per run of failed attempts, with the courier's reason | Order VK-… could not be delivered today | `sendOrderUpdateMail("delivery_failed")` |
@@ -103,9 +103,6 @@ footer, /terms and /privacy.
 ## 5. Decisions waiting on the client
 
 - **B2:** whether to send a reminder for unpaid orders, and after how long.
-- **Refunds:** refunds are still made in the Razorpay dashboard. The refund
-  email (8) works either way. A **Refund** button in `/admin/orders` would stop a
-  cancelled, paid order's refund being forgotten — say if you want one.
 - **E:** whether the business is GST-registered for invoicing, and whether
   out-of-state orders should be IGST.
 
@@ -127,3 +124,6 @@ footer, /terms and /privacy.
   partial then a full refund each email once and mark the order refunded;
   repeated UNDELIVERED sends one mail and an RTO does not cancel the order;
   the reset notice needs a confirmed email, as the reset link itself does.
+- **2026-09-17 (refunds)** — Refunds are made from the **Refund** button in
+  `/admin/orders` (PAYMENTS.md §5.5). Email 8 is now sent by that button as
+  well as by the webhook, still once per refund.

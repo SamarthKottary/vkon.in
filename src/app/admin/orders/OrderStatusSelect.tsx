@@ -56,7 +56,7 @@ export function OrderStatusSelect({
           const next = event.currentTarget.value;
           const warning =
             next === "cancelled"
-              ? `Cancel order ${orderNumber}? The customer will be emailed, and a booked Shiprocket shipment will be cancelled. If it was paid online, refund it in the Razorpay dashboard — this does not.`
+              ? `Cancel order ${orderNumber}? The customer will be emailed, and a booked Shiprocket shipment will be cancelled. If it was paid online, use Refund on the order afterwards — cancelling does not refund.`
               : next === "shipped" || next === "delivered"
                 ? `Mark order ${orderNumber} as ${next}? The customer will be emailed.`
                 : null;

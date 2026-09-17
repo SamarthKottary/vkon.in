@@ -16,12 +16,21 @@ import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
 import { setSigninCodeExempt } from "@/lib/db/customers";
 import {
   applyTrackingUpdate,
+  claimRefundRequest,
   getOrderForAdmin,
   orderProgress,
+  recordRefund,
+  releaseRefundRequest,
   setOrderShipment,
   setOrderStatus,
 } from "@/lib/db/orders";
-import { mailForTrackingChange, notifyOrderUpdate } from "@/lib/order-notifications";
+import {
+  mailForTrackingChange,
+  notifyOrderUpdate,
+  notifyRefund,
+} from "@/lib/order-notifications";
+import { refundPayment } from "@/lib/razorpay";
+import { formatPaise } from "@/lib/pricing";
 import { listProducts } from "@/lib/db/products";
 import {
   bookShipment,
@@ -572,6 +581,96 @@ export async function setOrderStatusAction(formData: FormData): Promise<void> {
      `force-dynamic` — but the client-side router cache is not. */
   revalidatePath("/account/orders");
   redirect(`/admin/orders?updated=1${outcome}`);
+}
+
+/**
+ * Refunds an online payment from `/admin/orders` (client, 2026-09-17: "I want
+ * to initiate refund from admin itself, no need to go to razorpay").
+ *
+ * **Everything is re-checked here, not trusted from the form.** The order is
+ * re-read, the amount must be a positive rupee figure no larger than what is
+ * still unrefunded, and the order must have a captured Razorpay payment. The
+ * form's pre-filled amount is a convenience; this is the control.
+ *
+ * **One request at a time per order** (`claimRefundRequest`): a double click
+ * or a second tab is refused instead of becoming a second refund.
+ *
+ * On success the refund is recorded and the customer emailed straight away,
+ * keyed on Razorpay's refund id — so when Razorpay's `refund.processed`
+ * webhook arrives for the same refund it finds it already recorded and sends
+ * nothing. Whichever of the two gets there first does the recording.
+ */
+export async function refundOrderAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  const back = (query: string) => `/admin/orders?${query}#order-${id}`;
+  if (!id) redirect("/admin/orders?error=1");
+
+  const order = await getOrderForAdmin(id);
+  if (!order) redirect("/admin/orders?error=1");
+
+  const fail = (message: string) =>
+    redirect(back(`refundError=${encodeURIComponent(message.slice(0, 200))}`));
+
+  if (!order.paymentId || order.paymentProvider !== "razorpay") {
+    fail("This order has no online payment to refund.");
+  }
+  const remaining = order.total - order.refundedAmount;
+  if (remaining <= 0) fail("This order has already been refunded in full.");
+
+  /* Rupees as typed, to paise, without floating point: "1,424.04" → 142404. */
+  const typed = String(formData.get("amount") ?? "").replace(/[,\s₹]/g, "");
+  const match = typed.match(/^(\d+)(?:\.(\d{1,2}))?$/);
+  if (!match) fail("Enter the amount to refund in rupees, for example 1424.04.");
+  const amount = Number(match![1]) * 100 + Number((match![2] ?? "").padEnd(2, "0"));
+  if (amount <= 0) fail("The refund amount must be more than zero.");
+  if (amount > remaining) {
+    fail(`That is more than is left to refund (${formatPaise(remaining)}).`);
+  }
+
+  if (!(await claimRefundRequest(order.id))) {
+    fail("A refund for this order was requested moments ago. Wait a minute and check before trying again.");
+  }
+
+  let outcome: string;
+  try {
+    const result = await refundPayment({
+      paymentId: order.paymentId!,
+      amountPaise: amount,
+      orderNumber: order.orderNumber,
+      /* See `refundPayment`: unique per genuine refund, repeated by a
+         duplicate of the same request. */
+      receipt: `${order.orderNumber}-${order.refundedAmount}-${amount}`,
+    });
+
+    if (!result.ok) {
+      outcome = `refundError=${encodeURIComponent(`Razorpay refused the refund: ${result.error}`.slice(0, 200))}`;
+    } else {
+      try {
+        const change = await recordRefund({
+          orderId: order.id,
+          refundId: result.refundId,
+          amount: result.amount,
+        });
+        /* Null: the webhook recorded this refund id first, and emailed. */
+        if (change) await notifyRefund(change, result.refundId);
+        outcome = `refunded=${result.amount}`;
+      } catch (error) {
+        /* The money has moved; only our record of it failed. The webhook will
+           record it when it arrives, so say so rather than inviting a retry
+           that would refund twice. */
+        console.error("[admin] refund recorded at Razorpay but not here:", error);
+        outcome = `refunded=${result.amount}&refundUnrecorded=1`;
+      }
+    }
+  } finally {
+    await releaseRefundRequest(order.id).catch(() => {});
+  }
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/account/orders");
+  redirect(back(outcome));
 }
 
 /**

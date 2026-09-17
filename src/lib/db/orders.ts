@@ -708,6 +708,27 @@ export async function markPaymentFailed(orderId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/**
+ * Claims the right to start a refund on this order for the next minute.
+ * Returns false when another refund request is already in flight — see
+ * `refund_requested_at` in schema.sql. Atomic: two presses racing each other
+ * cannot both win.
+ */
+export async function claimRefundRequest(orderId: string): Promise<boolean> {
+  const rows = await query<{ id: string }>(
+    `UPDATE orders SET refund_requested_at = now()
+      WHERE id = $1
+        AND (refund_requested_at IS NULL OR refund_requested_at < now() - interval '60 seconds')
+      RETURNING id`,
+    [orderId],
+  );
+  return rows.length > 0;
+}
+
+export async function releaseRefundRequest(orderId: string): Promise<void> {
+  await query(`UPDATE orders SET refund_requested_at = NULL WHERE id = $1`, [orderId]);
+}
+
 /** Looks an order up by Razorpay's payment id — for a refund event that
  *  arrives without the payment's order id. */
 export async function findOrderIdByPaymentId(paymentId: string): Promise<string | null> {

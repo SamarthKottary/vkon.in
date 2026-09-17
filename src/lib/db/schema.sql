@@ -518,6 +518,11 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at        TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunds         JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_amount INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_at     TIMESTAMPTZ;
+-- Set while the admin's Refund button is talking to Razorpay, and cleared when
+-- it finishes. A second press in that window -- a double click, a second tab
+-- -- is refused rather than sent as a second refund. Stale after a minute, so
+-- a crash mid-request cannot lock an order's refunds forever.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_requested_at TIMESTAMPTZ;
 
 -- Order history is read newest-first for one customer, and that is the only
 -- way a customer ever reads it.

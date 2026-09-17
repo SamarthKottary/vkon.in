@@ -101,6 +101,81 @@ export async function createRazorpayOrder(input: {
   }
 }
 
+export type RefundResult =
+  | { ok: true; refundId: string; amount: number; status: string }
+  | { ok: false; error: string };
+
+/**
+ * Refunds a captured payment, from the admin's Refund button (client,
+ * 2026-09-17: "I want to initiate refund from admin itself").
+ *
+ * `amountPaise` is always sent, even for a full refund, so what Razorpay does
+ * is exactly what the operator confirmed. `speed: "normal"` — the 5–7 days the
+ * Terms and the refund email promise; "optimum" can cost extra per refund.
+ *
+ * **Returns Razorpay's own error text on failure** rather than a generic one:
+ * the likely failures are ones the operator has to act on in person — not
+ * enough balance in the Razorpay account to cover the refund, or more asked
+ * for than is left to refund — and "refund failed" would send them to the
+ * server log to find out which. Never throws.
+ *
+ * **`receipt` must differ between refunds on one payment** — Razorpay refuses
+ * a repeated one with "Duplicate receipt found". The caller builds it from the
+ * order number, what was already refunded and this amount, which makes the
+ * rule work for us: a genuine second refund has a new receipt, while the same
+ * request sent twice (a retry after a timeout that Razorpay had in fact
+ * processed) repeats its receipt and is refused instead of refunding twice.
+ * Found by testing a partial refund followed by the rest, 2026-09-17.
+ */
+export async function refundPayment(input: {
+  paymentId: string;
+  amountPaise: number;
+  orderNumber: string;
+  receipt: string;
+}): Promise<RefundResult> {
+  if (!isRazorpayConfigured()) return { ok: false, error: "Razorpay is not configured." };
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/payments/${encodeURIComponent(input.paymentId)}/refund`,
+      {
+        method: "POST",
+        headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: input.amountPaise,
+          speed: "normal",
+          receipt: input.receipt.slice(0, 40),
+          notes: { order_number: input.orderNumber, source: "vkon.in admin" },
+        }),
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+
+    const body = (await response.json().catch(() => null)) as
+      | { id?: string; amount?: number; status?: string; error?: { description?: string } }
+      | null;
+
+    if (!response.ok || !body?.id) {
+      const raw = body?.error?.description || `Razorpay answered ${response.status}.`;
+      const description = /duplicate receipt/i.test(raw)
+        ? "Razorpay has already received this exact refund request, so it was not sent again. Reload the page to see the order's refunds before trying anything else."
+        : raw;
+      console.error(`[razorpay] refund ${response.status} for ${input.orderNumber}: ${description}`);
+      return { ok: false, error: description };
+    }
+
+    return {
+      ok: true,
+      refundId: body.id,
+      amount: typeof body.amount === "number" ? body.amount : input.amountPaise,
+      status: body.status ?? "processed",
+    };
+  } catch (error) {
+    console.error("[razorpay] refund failed:", error);
+    return { ok: false, error: "Could not reach Razorpay. Nothing was refunded — try again." };
+  }
+}
+
 /** Constant-time compare of two hex digests. Returns false rather than
  *  throwing on a length mismatch, which is what a forged signature usually
  *  is. */

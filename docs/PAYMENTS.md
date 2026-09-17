@@ -188,6 +188,49 @@ with an index on `payment_order_id` for the webhook's lookup.
 
 ---
 
+### 5.5 Refunds from `/admin/orders` (2026-09-17)
+
+Every order paid online has a **Payment** block with an amount (pre-filled with
+what is left to refund) and a **Refund** button. There is no need to open the
+Razorpay dashboard.
+
+- **`refundOrderAction`** (`app/admin/actions.ts`) re-reads the order and
+  checks everything itself. The order must have a captured Razorpay payment,
+  and the amount must be a positive rupee figure no larger than what is left.
+  It then calls **`refundPayment`** (`lib/razorpay.ts`,
+  `POST /payments/:id/refund`, `speed: "normal"`). On success it records the
+  refund (`recordRefund`, keyed on Razorpay's refund id) and emails the
+  customer. When `refund.processed` arrives for the same refund, it finds the
+  id already stored and does nothing.
+- **Partial refunds** are the same form with a smaller amount, for example the
+  delivery charge alone. The order becomes `refunded` once the refunds add up
+  to its total. After a partial refund the amount field shows the remainder.
+- **One request at a time per order.** `refund_requested_at` is claimed
+  atomically for 60 seconds, so a double click or a second tab is refused.
+- **Razorpay's `receipt` is `{order number}-{already refunded}-{amount}`.**
+  Razorpay refuses a receipt it has seen before on that payment. The first
+  version used the order number alone, which blocked every second refund. The
+  current form still gives a new receipt to a genuine second refund, while a
+  repeat of the same request is refused instead of refunding twice. ARCHITECTURE.md §9.
+- **Refusals show Razorpay's own reason**, for example "The total refund amount
+  is greater than the refund payment amount", or not enough balance in the
+  Razorpay account to cover it. Refunds come out of the Razorpay balance, so a
+  new account with little settled balance can be refused.
+- **Cash on delivery** has no button; the card says any refund is paid back in
+  person. A cancelled order that was paid online and not refunded is flagged in
+  amber on its card.
+
+**Tested 2026-09-17 against Razorpay test mode**, using a real test payment made
+through the checkout window on the laptop (netbanking, demo bank, Success):
+
+- invalid and over-large amounts were refused
+- a dismissed confirmation sent nothing
+- the in-flight guard refused a second request
+- a ₹49.72 partial refund was recorded and emailed, and the remainder filled in
+- a genuine Razorpay refusal was shown with nothing recorded
+- the full remainder was refunded, the order became `refunded`, and the button
+  disappeared
+
 ## 6. Testing it
 
 ### Already verified, without live keys

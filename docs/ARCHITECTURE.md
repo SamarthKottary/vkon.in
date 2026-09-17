@@ -252,6 +252,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, refreshes |
 | `ui/PasswordField` | Live requirement checklist and strength meter as you type |
 | `admin/orders/OrderStatusSelect` | Submits the status `<select>` on change |
+| `admin/orders/RefundForm` | Confirms the refund amount before submitting; pending state while Razorpay answers |
 
 Everything else is a server component.
 
@@ -922,6 +923,14 @@ emails the customer, so that mapping would now tell somebody their order is off
 when it is not. Cancelling is an operator action only. Check "undelivered"
 before "delivered": the substring match once marked failed attempts delivered.
 
+**A Razorpay refund's `receipt` must differ between refunds on one payment,
+and must repeat for a repeated request.** `refundOrderAction` sends
+`{order number}-{already refunded}-{amount}`. Razorpay refuses a receipt it has
+already seen on the payment ("Duplicate receipt found"). The first version sent
+the order number alone, so a partial refund blocked every later refund on the
+order. Something unique per click (a timestamp) would fix that but lose the
+protection: a retry after a timeout Razorpay had processed would refund twice.
+
 **Order emails are decided from the locked row's previous state, never from
 the request.** `applyTrackingUpdate` and `setOrderStatus` lock the order and
 return what it was; `mailForTrackingChange` and `setOrderStatusAction` compare
@@ -1545,6 +1554,26 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-17 (refunds) — Refund button in `/admin/orders`
+
+Client: "I want to initiate refund from admin itself … Like book shipment, i
+want refund button as well."
+
+- **Payment block on each order card** (`PaymentBlock` in
+  `admin/orders/page.tsx`): how it was paid, what has been refunded, and for an
+  online payment with money left, an amount and **Refund**. New client
+  component `admin/orders/RefundForm.tsx` confirms and shows progress. A
+  cancelled, paid, unrefunded order is flagged in amber.
+- **`refundOrderAction`** re-validates everything, claims a 60-second
+  per-order lock (`claimRefundRequest` / `releaseRefundRequest`,
+  `orders.refund_requested_at`), calls **`refundPayment`** in
+  `lib/razorpay.ts`, then `recordRefund` and `notifyRefund`. The webhook's
+  `refund.processed` for the same refund id is then a no-op.
+- **The receipt bug and its §9 constraint:** see §9. Found by testing a
+  partial refund followed by the rest against Razorpay test mode.
+- The admin note and cancel prompt say to use Refund instead of the Razorpay
+  dashboard. PAYMENTS.md §5.5 has the full description and test results.
 
 ### 2026-09-17 (emails) — support@vkon.in, and six more emails: new-order and enquiry alerts, payment failed, password changed, refunds, delivery problems
 
