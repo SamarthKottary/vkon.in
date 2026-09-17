@@ -23,8 +23,9 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
 - **Never throws.** A failed send is logged and the action that triggered it
   (registration, payment, cancellation) still succeeds.
 - **Never sent twice for one event.** Each trigger is gated on the database row
-  actually changing (`markOrderPaid`, `applyTrackingUpdate`, `setOrderStatus`),
-  because Razorpay and Shiprocket both redeliver webhooks.
+  actually changing (`markOrderPaid`, `markPaymentFailed`, `recordRefund`,
+  `applyTrackingUpdate`, `setOrderStatus`), because Razorpay and Shiprocket both
+  redeliver webhooks.
 - **Without `RESEND_API_KEY`**, nothing is sent and each message is printed to
   the server log instead. To read an email's text locally, run
   `RESEND_API_KEY= npm run dev` and watch the terminal.
@@ -44,13 +45,13 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
 | 5 | Order confirmation | **Cash on delivery:** when the order is placed. **Online:** only once payment succeeds | Order VK-… — Vkon Automation | `sendOrderPlacedMail` ← `account/private-actions.ts` (COD), `api/payment/verify`, `api/payment/webhook` |
 | 6 | Payment receipt | Online payment succeeds | Payment received for Order VK-… | `sendPaymentReceivedMail` ← `api/payment/verify`, `api/payment/webhook` |
 | 7 | Payment failed *(B)* | Razorpay's `payment.failed`, **first failure on the order only** — with a link to pay again | Payment for order VK-… didn't go through | `sendPaymentFailedMail` ← `notifyPaymentFailed` ← `api/payment/webhook` |
-| 8 | Refund issued *(D)* | The **Refund** button in `/admin/orders`, or Razorpay's `refund.processed` for a refund made elsewhere — once per Razorpay refund either way. Partial refunds say how much of the total is back | Refund for order VK-… | `sendRefundMail` ← `notifyRefund` ← `admin/actions.ts` (`refundOrderAction`), `api/payment/webhook` |
+| 8 | Refund issued *(D)* | The **Refund** button in `/admin/orders` — available until a shipment is booked, and again for an order cancelled before dispatch; never once dispatched (`lib/refunds.ts`) — or Razorpay's `refund.processed` for a refund made in the Razorpay dashboard, which is how a returned order is refunded. Once per Razorpay refund either way. Partial refunds say how much of the total is back | Refund for order VK-… | `sendRefundMail` ← `notifyRefund` ← `admin/actions.ts` (`refundOrderAction`), `api/payment/webhook` |
 | 9 | Shipped, with tracking link | Courier reports pickup / in transit, or admin marks Shipped | Order VK-… has shipped | `sendOrderUpdateMail("shipped")` ← `lib/order-notifications.ts` |
 | 10 | Out for delivery | Courier reports it (again after a failed attempt) | Order VK-… is out for delivery | `sendOrderUpdateMail("out_for_delivery")` |
 | 11 | Delivery attempt failed *(F)* | Courier reports UNDELIVERED / NDR — once per run of failed attempts, with the courier's reason | Order VK-… could not be delivered today | `sendOrderUpdateMail("delivery_failed")` |
 | 12 | Being returned *(F)* | Courier starts a return (RTO) — asks the customer to call if they still want it. Does **not** cancel the order | Order VK-… is being returned to us | `sendOrderUpdateMail("returning")` |
 | 13 | Delivered | Courier reports it, or admin marks Delivered | Order VK-… has been delivered | `sendOrderUpdateMail("delivered")` |
-| 14 | Cancelled | Admin marks Cancelled. Says a paid order is refunded to the original method in 5–7 days | Order VK-… has been cancelled | `sendOrderUpdateMail("cancelled")` |
+| 14 | Cancelled | Admin marks Cancelled. Says a paid order is refunded to the original method in 5–7 days — cancelling does not refund by itself; the refund is the **Refund** button, which sends email 8 | Order VK-… has been cancelled | `sendOrderUpdateMail("cancelled")` |
 
 Emails 5 and 6 arrive together for an online order. Merging them into one is an
 option, not a fault.
@@ -83,7 +84,6 @@ footer, /terms and /privacy.
 
 | # | Email | To | Status | Why it matters | What building it involves | Size |
 |---|---|---|---|---|---|---|
-| B2 | **Unpaid-order reminder** | Customer | Not started | An online order whose payment window was closed without paying gets no message at all — no failure is reported for it. | A single reminder for orders still unpaid after N hours. Needs a scheduled job — nothing on the server runs on a schedule today (a cron container or a systemd timer calling a protected route). | Medium |
 | E | **GST tax invoice** | Customer | Not started | Business buyers who enter a GSTIN expect a tax invoice; many customers expect one anyway. | Invoice numbering (sequential, per financial year), a printable invoice page or PDF, and a link or attachment on email 5 or 13. Settle the GST treatment first: `lib/pricing.ts` always charges CGST + SGST, and its own note records that an inter-state sale should be a single IGST line. | Large |
 
 ---
@@ -93,7 +93,8 @@ footer, /terms and /privacy.
 | Email | Why not |
 |---|---|
 | Newsletters to the mailing list | The list collects addresses and sends nothing. Bulk mail needs an unsubscribe link and consent handling first (ADMIN.md §7.6). |
-| Abandoned-cart reminders | Marketing mail: needs consent and an unsubscribe. Signed-in carts are saved (`customer_carts`), so it is possible later. |
+| Abandoned-cart reminders | **Not wanted** (client, 2026-09-17). |
+| Unpaid-order reminder | **Not wanted** (client, 2026-09-17). An online order whose payment window was closed without paying gets no email; it stays in `/admin/orders` as Payment due, and the customer can pay from their order page. A payment that actually fails still gets email 7. |
 | Review request after delivery | Nowhere on the site to leave a review yet. |
 | "Order confirmed" when admin marks Confirmed | Email 5 already confirms the order; a second "confirmed" adds noise. Revisit if orders start being checked before acceptance. |
 | A second payment-failed email | Only the first failure on an order is emailed; a customer retrying and failing again is not sent more. |
@@ -102,7 +103,6 @@ footer, /terms and /privacy.
 
 ## 5. Decisions waiting on the client
 
-- **B2:** whether to send a reminder for unpaid orders, and after how long.
 - **E:** whether the business is GST-registered for invoicing, and whether
   out-of-state orders should be IGST.
 
@@ -127,3 +127,10 @@ footer, /terms and /privacy.
 - **2026-09-17 (refunds)** — Refunds are made from the **Refund** button in
   `/admin/orders` (PAYMENTS.md §5.5). Email 8 is now sent by that button as
   well as by the webhook, still once per refund.
+- **2026-09-17 (refunds, later)** — No Refund button once a shipment is booked
+  or the order is dispatched (`lib/refunds.ts`). A returned order is refunded in
+  the Razorpay dashboard, and email 8 still goes out via `refund.processed`.
+  Rows 8 and 14 updated.
+- **2026-09-17 (scope)** — The client does not want an unpaid-order reminder
+  (B2) or abandoned-cart emails. Both moved to §4. The only email still to
+  build is E, the GST tax invoice.
