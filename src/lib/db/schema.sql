@@ -524,6 +524,11 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS refunded_at     TIMESTAMPTZ;
 -- a crash mid-request cannot lock an order's refunds forever.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_requested_at TIMESTAMPTZ;
 
+-- Added 2026-09-17: when an unpaid order's prices were last brought up to the
+-- catalogue's, which only happens when the customer accepted the change at
+-- "Pay now". A paid order is never repriced.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS repriced_at TIMESTAMPTZ;
+
 -- Order history is read newest-first for one customer, and that is the only
 -- way a customer ever reads it.
 CREATE INDEX IF NOT EXISTS orders_customer_idx

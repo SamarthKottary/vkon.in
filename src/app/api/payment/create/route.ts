@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentCustomer } from "@/lib/account";
-import { attachPaymentOrder, getOrderForCustomer } from "@/lib/db/orders";
+import { attachPaymentOrder, getOrderForCustomer, repriceOrder } from "@/lib/db/orders";
+import { listProducts } from "@/lib/db/products";
+import { formatPaise, repriceOrderItems, totals } from "@/lib/pricing";
 import {
   checkoutConfig,
   createRazorpayOrder,
@@ -27,6 +29,23 @@ import {
  *     a ₹40,000 panel for ₹1, which is the same rule `placeOrderAction`
  *     already enforces at checkout and the reason this route takes an order
  *     id and nothing else.
+ *
+ * **Prices are rechecked here, every time** (client, 2026-09-17). An order
+ * keeps the prices it was placed at, so one left unpaid while the catalogue
+ * moved would otherwise be paid at the old figure. Before the gateway order is
+ * created, the lines are re-priced against today's catalogue:
+ *
+ *  - unchanged — pay as normal, nothing is written;
+ *  - changed, and the request did not accept it — **409 `price_changed`** with
+ *    what moved and the new total, for the customer to accept or cancel;
+ *  - changed, and `acceptTotal` equals what this route just computed — the
+ *    order is rewritten to today's prices and paid at that.
+ *
+ * **`acceptTotal` is not a price the browser sets.** It is only compared for
+ * equality with the figure computed here; anything else is refused with a
+ * fresh 409. That is what stops a customer being charged a total they were
+ * never shown — including when the price moves again between the dialog and
+ * the button.
  */
 export const dynamic = "force-dynamic";
 
@@ -44,9 +63,11 @@ export async function POST(request: NextRequest) {
   }
 
   let orderId: string;
+  let acceptTotal: number | null = null;
   try {
-    const body = (await request.json()) as { orderId?: unknown };
+    const body = (await request.json()) as { orderId?: unknown; acceptTotal?: unknown };
     orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
+    acceptTotal = typeof body.acceptTotal === "number" ? Math.round(body.acceptTotal) : null;
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
@@ -72,8 +93,70 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This order has nothing to pay." }, { status: 409 });
   }
 
+  /* Today's prices for this order's own lines. */
+  let amountPaise = order.total;
+  try {
+    /* Every line, not only the ones that moved: the dialog shows the whole
+       bill, and an unchanged line is part of it. */
+    const { lines } = repriceOrderItems(order.items, await listProducts());
+    const money = totals(lines, order.shipping);
+
+    if (money.total !== order.total) {
+      if (acceptTotal !== money.total) {
+        /* The whole bill, then and now — the customer is about to be asked to
+           pay a different figure, and "the total is now X" without the tax and
+           delivery it is made of is not enough to check it against. */
+        return NextResponse.json(
+          {
+            error: "price_changed",
+            message: `Prices have changed since this order was placed. The total is now ${formatPaise(money.total)}.`,
+            orderNumber: order.orderNumber,
+            previousTotal: order.total,
+            newTotal: money.total,
+            previous: {
+              subtotal: order.subtotal,
+              cgst: order.cgst,
+              sgst: order.sgst,
+              shipping: order.shipping,
+              total: order.total,
+            },
+            next: {
+              subtotal: money.subtotal,
+              cgst: money.cgst,
+              sgst: money.sgst,
+              shipping: money.shipping,
+              total: money.total,
+            },
+            lines: lines.map((line) => ({
+              name: line.name,
+              qty: line.qty,
+              wasUnitPrice: line.wasUnitPrice,
+              unitPrice: line.unitPrice,
+              wasLineTotal: line.wasUnitPrice * line.qty,
+              lineTotal: line.lineTotal,
+              unavailable: line.unavailable,
+            })),
+          },
+          { status: 409 },
+        );
+      }
+
+      /* Accepted. False means the order was paid or cancelled in the meantime,
+         in which case the row's own total is the one to charge — the guards
+         above have already refused the paid and cancelled cases, so this is
+         the narrow race between them and here. */
+      if (await repriceOrder({ orderId: order.id, lines, money })) {
+        amountPaise = money.total;
+      }
+    }
+  } catch (error) {
+    /* A catalogue read that fails must not block a payment: the order's own
+       total is what it was placed at, and charging that is never wrong. */
+    console.error("[payment] price recheck failed:", error);
+  }
+
   const rzpOrder = await createRazorpayOrder({
-    amountPaise: order.total,
+    amountPaise,
     receipt: order.orderNumber,
     customerEmail: customer.email,
   });
@@ -103,7 +186,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(
     checkoutConfig({
       razorpayOrderId: rzpOrder.id,
-      amountPaise: order.total,
+      amountPaise,
       orderNumber: order.orderNumber,
       customerName: customer.name,
       customerEmail: customer.email,

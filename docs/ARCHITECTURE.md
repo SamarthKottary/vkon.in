@@ -925,6 +925,20 @@ emails the customer, so that mapping would now tell somebody their order is off
 when it is not. Cancelling is an operator action only. Check "undelivered"
 before "delivered": the substring match once marked failed attempts delivered.
 
+**The browser never sends a price, and `acceptTotal` is not an exception.**
+`/api/payment/create` re-prices the order from the catalogue itself and only
+proceeds when `acceptTotal` *equals* the figure it just computed; anything else
+is refused with a fresh 409. It is an "I saw this total" receipt, never an
+amount to charge. The moment it is read as a price, a customer can name what
+they pay — the rule `placeOrderAction` and `resolveChargedDelivery` already
+keep.
+
+**A paid order is never repriced.** `repriceOrder` re-checks
+`payment_status <> 'paid' AND status <> 'cancelled'` under the row lock in the
+transaction that writes, not before it. A paid order is the record of what was
+charged; rewriting its lines would put the invoice, the refund and the
+accounts out of step with the money.
+
 **A Razorpay refund's `receipt` must differ between refunds on one payment,
 and must repeat for a repeated request.** `refundOrderAction` sends
 `{order number}-{already refunded}-{amount}`. Razorpay refuses a receipt it has
@@ -1556,6 +1570,55 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-18 (order history) — Badges and buttons aligned, and coloured for both themes
+
+Client, looking at the order history in dark mode: "properly align the boxes …
+the colours look too contrasting and odd".
+
+- **Status badges were raw Tailwind fills** (`bg-red-50`, `bg-blue-50`,
+  `bg-green-50`, `text-signal-700`), which are near-white: in the dark theme
+  every badge was a white box on a near-black page, with barely legible amber
+  text on the "Payment due" one. They are now the palette border-and-text pairs
+  `OrderStatusBadge` uses, which are defined for both themes, with only
+  `delivered` filled. `signal-500` carries "Payment due" on the border, never
+  as text — §9's contrast note reserves it for borders and icons.
+- **One width each:** badges `w-32`, the row's single button `w-36`, so the
+  Status column shares a left edge and the Action column a right edge.
+- **Measured in both themes at 1440:** one badge width and one left edge, one
+  button width and one right edge, no sideways scroll, and no near-white fill
+  in dark.
+
+### 2026-09-18 (orders) — The price-change dialog shows the whole bill; one button a row
+
+- **`/api/payment/create`'s 409 carries both bills** — lines, subtotal, CGST,
+  SGST, delivery and total, before and after — and `PayNowButton` shows them
+  in two aligned columns with the order number and the difference. The old
+  copy ("this order was placed at the prices below") described a table that
+  showed both, and left out the tax and delivery the new total is made of.
+  Unchanged figures appear once.
+- **The action column holds one button:** Pay now, else Track parcel (renamed
+  from "Track order"), else View details — which now appears only when neither
+  applies, since the row itself opens the order.
+- **Tested in the browser:** a rise and a fall both read correctly and name the
+  order; the two amount columns line up to the pixel; unchanged delivery shows
+  a single figure; Escape cancels; no overflow at 390px; and the three order
+  states each show exactly one button.
+
+### 2026-09-17 (payments) — Prices rechecked at "Pay now", with the customer asked first
+
+Client: an unpaid order should not be payable at a price the catalogue has
+left behind; recheck when Pay now is pressed and show a dialog, rather than
+rewriting orders when a price changes (which would also rewrite paid ones).
+
+- **`repriceOrderItems`** in `lib/pricing.ts`, **`repriceOrder`** in
+  `lib/db/orders.ts` (row-locked, refuses paid or cancelled),
+  `orders.repriced_at`, and the recheck in `/api/payment/create` with its 409
+  `price_changed` answer.
+- **`PayNowButton` gained the dialog** and an `acceptTotal` round trip. Two new
+  §9 constraints: `acceptTotal` is a receipt and never a price, and a paid
+  order is never repriced.
+- Full description and the test results: PAYMENTS.md §5.6.
 
 ### 2026-09-17 (order history) — "Payment due" as the status, two buttons a row, repeat order
 

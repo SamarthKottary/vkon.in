@@ -269,7 +269,20 @@ export function CheckoutForm({
 
           if (!response.ok) {
             if (active) {
-              setPayError("Could not start the payment. Please try again.");
+              /* `price_changed` cannot normally happen here — the order was
+                 priced by `placeOrderAction` seconds ago — but if a price
+                 moved in between, say so rather than charging the new figure
+                 unannounced. Accepting it belongs on the order page, where
+                 the dialog lists what changed. */
+              const body = (await response.json().catch(() => ({}))) as {
+                error?: string;
+                message?: string;
+              };
+              setPayError(
+                body.error === "price_changed"
+                  ? `${body.message ?? "Prices have changed."} Your order is saved — open it from My account to review and pay.`
+                  : "Could not start the payment. Please try again.",
+              );
               setPayBusy(false);
             }
             return;

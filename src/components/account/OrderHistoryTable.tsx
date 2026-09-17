@@ -23,13 +23,35 @@ function formatDate(iso: string): string {
   });
 }
 
+/**
+ * Status badges, as border-and-text pairs rather than fills (client,
+ * 2026-09-17: "align the colours … it looks too contrasting and odd").
+ *
+ * They used raw Tailwind steps — `bg-red-50`, `bg-blue-50`, `bg-green-50` —
+ * which are near-white, so in the dark theme each badge was a white box on a
+ * near-black page, and `text-signal-700` (#a66200) on it was barely legible.
+ * These are the palette pairs `OrderStatusBadge` already uses on the order
+ * page, which are defined for both themes; §9's contrast note also reserves
+ * `signal-500` for borders and icons, never text, so "Payment due" carries its
+ * amber on the border and keeps ordinary ink.
+ *
+ * Only `delivered` is filled, because it is the one state worth spotting from
+ * across the table.
+ */
 const STATUS_STYLE: Record<OrderStatus, { label: string; className: string }> = {
-  pending:   { label: "Pending",   className: "text-signal-700 bg-signal-500/10" },
-  confirmed: { label: "Confirmed", className: "text-accent bg-accent-soft" },
-  shipped:   { label: "Shipped",   className: "text-blue-700 bg-blue-50" },
-  delivered: { label: "Delivered", className: "text-green-700 bg-green-50" },
-  cancelled: { label: "Cancelled", className: "text-red-600 bg-red-50" },
+  pending:   { label: "Pending",   className: "border-line-strong text-muted" },
+  confirmed: { label: "Confirmed", className: "border-line-strong text-ink" },
+  shipped:   { label: "Shipped",   className: "border-accent text-accent" },
+  delivered: { label: "Delivered", className: "border-accent bg-accent-soft text-ink" },
+  cancelled: { label: "Cancelled", className: "border-red-300 text-red-700" },
 };
+
+/** One badge width across the table, so the column reads as a column. The
+ *  cards below `xl` let the badge size itself. */
+const BADGE = "inline-flex items-center justify-center whitespace-nowrap border px-2.5 py-1 text-xs font-semibold";
+const TABLE_BADGE = `${BADGE} w-32`;
+/** The same for the one button a row carries. */
+const ACTION_WIDTH = "w-36 justify-center";
 
 /**
  * The status shown for an order. **An online order waiting to be paid says so**
@@ -38,8 +60,8 @@ const STATUS_STYLE: Record<OrderStatus, { label: string; className: string }> = 
  * paid, and "Pending" beside "Payment due" said the same thing twice. Both
  * have their own filter.
  */
-const PAYMENT_FAILED_STYLE = { label: "Payment failed", className: "text-red-600 bg-red-50" };
-const PAYMENT_DUE_STYLE = { label: "Payment due", className: "text-signal-700 bg-signal-500/10" };
+const PAYMENT_FAILED_STYLE = { label: "Payment failed", className: "border-red-300 text-red-700" };
+const PAYMENT_DUE_STYLE = { label: "Payment due", className: "border-signal-500 text-ink" };
 
 function awaitingPayment(order: Order): boolean {
   return (
@@ -76,38 +98,40 @@ function canTrack(order: Order): boolean {
 }
 
 /**
- * Three buttons exist and a row shows at most two of them (client,
- * 2026-09-17): **Pay now** opens Razorpay on the spot, **Track order** opens
- * Shiprocket's page for the parcel, and **View details** opens the order.
- * Which of the first two appears depends on whether the order is waiting to
- * be paid or already has a tracking number; View details is always there.
+ * **One button a row** (client, 2026-09-17), the one thing this order is
+ * waiting for: **Pay now** where it is unpaid, **Track parcel** where it is on
+ * its way, and **View details** only when it is neither — the whole row
+ * already opens the order, so a second button for that would be the row's
+ * least useful control in its most prominent spot.
  */
 function OrderActions({ order }: { order: Order }) {
-  return (
-    <span className="inline-flex flex-wrap items-center justify-end gap-2">
-      {awaitingPayment(order) && (
-        <PayNowButton orderId={order.id} amountLabel={formatPaise(order.total)} compact />
-      )}
-      {canTrack(order) && (
-        <a
-          href={trackingUrl(order.awb!)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap border border-accent bg-accent px-4 text-xs font-semibold text-surface transition-colors hover:bg-accent-strong"
-        >
-          Track order
-          <ArrowRightIcon className="h-3.5 w-3.5 -rotate-45" />
-          <span className="sr-only">(opens Shiprocket in a new tab)</span>
-        </a>
-      )}
-      <Link
-        href={`/account/orders/${order.id}`}
-        className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap border border-line-strong px-4 text-xs font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+  if (awaitingPayment(order)) {
+    return <PayNowButton orderId={order.id} amountLabel={formatPaise(order.total)} compact />;
+  }
+
+  if (canTrack(order)) {
+    return (
+      <a
+        href={trackingUrl(order.awb!)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`inline-flex h-9 ${ACTION_WIDTH} items-center gap-1.5 whitespace-nowrap border border-accent bg-accent text-xs font-semibold text-surface transition-colors hover:bg-accent-strong`}
       >
-        View details
-        <ArrowRightIcon className="h-3.5 w-3.5" />
-      </Link>
-    </span>
+        Track parcel
+        <ArrowRightIcon className="h-3.5 w-3.5 -rotate-45" />
+        <span className="sr-only">(opens Shiprocket in a new tab)</span>
+      </a>
+    );
+  }
+
+  return (
+    <Link
+      href={`/account/orders/${order.id}`}
+      className={`inline-flex h-9 ${ACTION_WIDTH} items-center gap-1.5 whitespace-nowrap border border-line-strong text-xs font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle`}
+    >
+      View details
+      <ArrowRightIcon className="h-3.5 w-3.5" />
+    </Link>
   );
 }
 
@@ -439,9 +463,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                         {order.items.length}
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center whitespace-nowrap px-2.5 py-1 text-xs font-semibold ${s.className}`}>
-                          {s.label}
-                        </span>
+                        <span className={`${TABLE_BADGE} ${s.className}`}>{s.label}</span>
                         {/* Where a shipped parcel actually is, from the courier —
                             "Out for delivery" is the one worth seeing without
                             opening the order. */}
@@ -488,9 +510,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                     >
                       {order.orderNumber}
                     </Link>
-                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold ${s.className}`}>
-                      {s.label}
-                    </span>
+                    <span className={`${BADGE} ${s.className}`}>{s.label}</span>
                   </div>
                   {/* Wraps: with the payment method added, a shipped online order's
                       line (date · items · Online · Paid · In transit) no longer

@@ -243,6 +243,50 @@ through the checkout window on the laptop (netbanking, demo bank, Success):
 - the full remainder was refunded, the order became `refunded`, and the button
   disappeared
 
+### 5.6 Prices are rechecked at "Pay now" (2026-09-17)
+
+An order keeps the prices it was placed at (`order_items` is a snapshot), so
+one left unpaid while the catalogue moved would otherwise be paid at the old
+figure. The client asked for the check to happen when the customer presses Pay
+now, with a dialog rather than a silent adjustment.
+
+- **`/api/payment/create` re-prices before creating anything.**
+  `repriceOrderItems` (lib/pricing.ts) values this order's own lines against
+  today's catalogue — it keeps every line, unlike `priceLines`, and a product
+  withdrawn since keeps the price it was bought at.
+- **Unchanged:** pay as before, nothing is written.
+- **Changed:** **409 `price_changed`** carrying the whole bill twice — every
+  line, subtotal, both GST lines, delivery and total, as the order has them and
+  as they are now. `PayNowButton` lays them out in two aligned columns ("When
+  ordered" and "Now"), naming the order and the difference, and offers *Pay
+  ₹new* or *Cancel*. A figure that has not moved (delivery, and any line whose
+  price held) is shown once, so what changed stands out. Cancel writes nothing;
+  the order stays payable at its old prices, and the dialog says so.
+- **Continue** re-sends the request with `acceptTotal` — the total the customer
+  was just shown. The server proceeds only if that still equals what it
+  computes, so a price that moves again between the dialog and the button
+  produces a fresh 409 rather than a surprise charge. See ARCHITECTURE.md §9.
+- **`repriceOrder`** then rewrites the lines and totals under a row lock,
+  refusing a paid or cancelled order, and stamps `orders.repriced_at`.
+- A price *drop* takes the same path, with a lower total.
+- Checkout's own payment (`CheckoutForm`) cannot normally hit this — the order
+  was priced seconds earlier — and if it does it says so and sends the customer
+  to the order page, where the dialog lives.
+
+**Tested 2026-09-17** on the laptop against Razorpay test mode, by changing a
+product's price in the database (restored afterwards):
+
+| Check | Result |
+|---|---|
+| Price up, dialog | lists ₹1,124.00 → ₹1,499.00 and the total ₹1,424.04 → ₹1,866.54 |
+| Dialog open | nothing written to the order |
+| Cancel | order and `repriced_at` untouched |
+| Continue | order and its line rewritten to ₹1,866.54, `repriced_at` set, Razorpay's window asks for ₹1,866.54 |
+| Price down | neutral heading, order rewritten to ₹1,247.04, that amount sent to Razorpay |
+| Paid order | payment refused ("already paid"), total untouched |
+
+---
+
 ## 6. Testing it
 
 ### Already verified, without live keys

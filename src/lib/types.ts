@@ -297,6 +297,8 @@ export type Order = {
   shippedAt: string | null;
   deliveredAt: string | null;
   cancelledAt: string | null;
+  /** When the customer accepted new prices on an unpaid order at "Pay now". */
+  repricedAt: string | null;
   /** Paise refunded so far, across every Razorpay refund. 0 for most orders. */
   refundedAmount: number;
   refundedAt: string | null;

@@ -53,6 +53,7 @@ type OrderRow = {
   cancelled_at: Date | null;
   refunded_amount: number;
   refunded_at: Date | null;
+  repriced_at: Date | null;
   tracking_status: string | null;
   tracking_updated_at: Date | null;
   tracking_eta: string | null;
@@ -76,7 +77,7 @@ const ORDER_SELECT = `id, order_number, customer_id, status, payment_status,
   subtotal, cgst, sgst, shipping, total, currency, ship_to, bill_to, notes,
   payment_provider, payment_order_id, payment_id, paid_at,
   shipment_provider, shipment_order_id, shipment_id, awb, courier_name, courier_id,
-  shipped_at, delivered_at, cancelled_at, refunded_amount, refunded_at,
+  shipped_at, delivered_at, cancelled_at, refunded_amount, refunded_at, repriced_at,
   tracking_status, tracking_updated_at, tracking_eta::text AS tracking_eta, tracking_events,
   created_at`;
 
@@ -134,6 +135,7 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
     cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
     refundedAmount: Number(row.refunded_amount ?? 0),
     refundedAt: row.refunded_at ? row.refunded_at.toISOString() : null,
+    repricedAt: row.repriced_at ? row.repriced_at.toISOString() : null,
     trackingStatus: row.tracking_status,
     trackingUpdatedAt: row.tracking_updated_at ? row.tracking_updated_at.toISOString() : null,
     /* `::text` in the select: `pg` turns a DATE into a JS Date at the
@@ -736,6 +738,64 @@ export async function claimRefundRequest(orderId: string): Promise<boolean> {
 
 export async function releaseRefundRequest(orderId: string): Promise<void> {
   await query(`UPDATE orders SET refund_requested_at = NULL WHERE id = $1`, [orderId]);
+}
+
+/**
+ * Writes today's prices onto an unpaid order, after the customer accepted
+ * them at "Pay now" (client, 2026-09-17).
+ *
+ * **Only while it is unpaid and not cancelled**, checked under a row lock in
+ * the same transaction that writes: an order that has been paid is a record of
+ * what was charged, and nothing may rewrite it. If the guard fails — the
+ * webhook settled it a second earlier — nothing is written and it returns
+ * false, and the caller charges the amount that is already on the row.
+ *
+ * The lines come from `repriceOrderItems`, which keeps every line the order
+ * has; this never adds or removes one.
+ */
+export async function repriceOrder(input: {
+  orderId: string;
+  lines: { id: string; unitPrice: number; lineTotal: number }[];
+  money: { subtotal: number; cgst: number; sgst: number; total: number };
+}): Promise<boolean> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const found = await client.query<{ id: string }>(
+      `SELECT id FROM orders
+        WHERE id = $1 AND payment_status <> 'paid' AND status <> 'cancelled'
+          FOR UPDATE`,
+      [input.orderId],
+    );
+    if (!found.rows[0]) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    for (const line of input.lines) {
+      await client.query(
+        `UPDATE order_items SET unit_price = $2, line_total = $3
+          WHERE id = $1 AND order_id = $4`,
+        [line.id, line.unitPrice, line.lineTotal, input.orderId],
+      );
+    }
+
+    await client.query(
+      `UPDATE orders
+          SET subtotal = $2, cgst = $3, sgst = $4, total = $5,
+              repriced_at = now(), updated_at = now()
+        WHERE id = $1`,
+      [input.orderId, input.money.subtotal, input.money.cgst, input.money.sgst, input.money.total],
+    );
+
+    await client.query("COMMIT");
+    return true;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /** Looks an order up by Razorpay's payment id — for a refund event that

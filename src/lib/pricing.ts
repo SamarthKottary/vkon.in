@@ -136,3 +136,51 @@ export function formatPaise(paise: number): string {
     })
   );
 }
+
+/**
+ * Re-prices an order's own lines against today's catalogue (client,
+ * 2026-09-17: recheck when "Pay now" is pressed).
+ *
+ * **It keeps the order's lines and only changes their prices.** `priceLines`
+ * drops anything missing from the catalogue, which is right for a cart and
+ * wrong for an order: dropping a line would quietly remove something the
+ * customer ordered. A product withdrawn since keeps the price it was bought
+ * at, and says so with `unavailable`.
+ *
+ * Returns every line, plus just the ones whose unit price moved — which is
+ * what the customer is shown before being charged the new total.
+ */
+export type RepricedLine = PricedLine & {
+  /** The order item this came from. */
+  id: string;
+  /** Paise, as the order recorded it. */
+  wasUnitPrice: number;
+  /** No longer in the catalogue, so its price could not be rechecked. */
+  unavailable: boolean;
+};
+
+export function repriceOrderItems(
+  items: { id: string; slug: string; name: string; qty: number; unitPrice: number }[],
+  products: Product[],
+): { lines: RepricedLine[]; changed: RepricedLine[] } {
+  const bySlug = new Map(products.map((product) => [product.slug, product]));
+
+  const lines = items.map((item) => {
+    const product = bySlug.get(item.slug);
+    const unitPrice = product ? sellingPricePaise(product) : item.unitPrice;
+    return {
+      id: item.id,
+      slug: item.slug,
+      /* The order's own name, not the catalogue's: an order is a snapshot of
+         what was bought, and a product renamed since is still that product. */
+      name: item.name,
+      qty: item.qty,
+      unitPrice,
+      lineTotal: unitPrice * item.qty,
+      wasUnitPrice: item.unitPrice,
+      unavailable: !product,
+    };
+  });
+
+  return { lines, changed: lines.filter((line) => line.unitPrice !== line.wasUnitPrice) };
+}
