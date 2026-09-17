@@ -161,9 +161,10 @@ src/
 
   components/
     account/   AccountShell, AccountNavLink (client), AccountMenu (client),
-               AddressBook (client), AddressForm (client), ProfileForm (client),
+               AddressBook (client), AddressForm (client), AddressPicker (client),
+               ProfileForm (client),
                OrderStatusBadge
-    checkout/  CheckoutForm, PayNowButton — both client
+    checkout/  CheckoutForm, DeliveryPicker, PayNowButton — all client
     contact/   EnquiryForm (client)
     layout/    Header (client), Footer, MobileActionBar, PageHero,
                ProductsMenu (client), SubscribePanel (client)
@@ -238,10 +239,12 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `account/ProfileForm` · `AddressForm` | `useActionState`, per-field errors |
 | `account/PasswordCard` | Sets a first password or changes one; collapsed until asked for |
 | `account/verify-code/CodeForm` | The sign-in code, with its own resend and cancel actions |
-| `account/AddressBook` | Which card is being edited; `confirm()` before delete |
+| `account/AddressBook` | Which address the dialog is open on; the optimistic default while "make default" is in flight |
 | `cart/CartDrawer` | Slide-over state, Escape, body scroll lock |
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
-| `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection, with add/edit/delete inline |
+| `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection |
+| `account/AddressPicker` · `AddressDialog` | The chosen address collapsed, the list on demand (default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout and the account page |
+| `checkout/DeliveryPicker` | The chosen delivery service collapsed, the others on demand |
 | `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, refreshes |
 | `ui/PasswordField` | Live requirement checklist and strength meter as you type |
 | `admin/orders/OrderStatusSelect` | Submits the status `<select>` on change |
@@ -1087,7 +1090,10 @@ order rather than saving an address. The billing and shipping sections live in
 the left-hand column, the order form is the summary panel on the right, and
 everything chosen on the left reaches the order form through hidden inputs
 (`billingAddressId`, `shippingAddressId`, `sameAsBilling`) rather than through
-DOM nesting.
+DOM nesting. Since 2026-09-17 add and edit open in `AddressDialog`, which is
+portalled to `<body>` — outside the order form wherever it is declared. The
+delete forms in `AddressPicker`'s list and the first-address form still render
+in the left column, and must stay there.
 
 **`orders.bill_to` defaulting to `orders.ship_to` is reading history
 correctly, not covering a bug.** Every order placed before this date has
@@ -1509,6 +1515,112 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-17 (account, checkout summary) — The address picker on the account page; a delivery dropdown; the summary sized to its column
+
+- **`AddressPicker` moved to `components/account/`** (from `checkout/`, where
+  it was never committed), since two pages now use it, next to `AddressForm`.
+  It gained `addLabel`.
+- **`AddressBook` is now `AddressPicker` plus `AddressDialog`**, the same as
+  checkout. The card grid, the inline edit panel and the "Make default" button
+  are gone. On this page the radio chooses the **default**, calling
+  `setDefaultAddressAction`, with `useOptimistic` moving it at once. The cards'
+  old radio chose nothing: it only highlighted a card. No saved addresses still
+  shows the form inline.
+- **The three address actions also `revalidatePath("/account")`.** They
+  revalidated `/account/addresses`, which only redirects to `/account#addresses`
+  since the address book moved onto the account page.
+- **New `checkout/DeliveryPicker`**, above "Payment Method" in the summary: the
+  chosen service in one bordered row ("Delivery · Standard, ~4 days · ₹77.32"),
+  and with two or more services a chevron opening a radio list. Choosing closes
+  it. With one service, while calculating, or with no quote it is a plain row
+  of the same height, so a quote arriving does not move Pay Now. The totals'
+  Delivery row is now just the charge. `serviceName` moved into this file.
+- **Summary grid is `minmax(0,42rem) 22rem`, and `28rem` from `xl`, with
+  `justify-between`.** It was `1fr 22rem` with the left column capped at
+  `max-w-2xl`, which left ~190px of empty gutter and wrapped the panel's copy.
+  Filling the whole gap (~31rem) was too wide for the client, so 28rem it is.
+  The cap moved from the column to the track.
+- **Summary panel spacing:** one `PanelHeading` style for both headings, the
+  delivery and payment boxes on one radio column, and no top border on
+  "Invoiced to". The note under Pay Now is removed at the client's request.
+
+### 2026-09-17 (checkout, alignment) — One text column in the address boxes, one width in the left column, a summary that stays put
+
+Client review of the two entries below.
+
+- **Summary panel no longer sticky.** It is ~840px tall, taller than a laptop
+  viewport, so `lg:sticky lg:top-24` never kept Pay Now in view. It did start
+  sliding the panel down the page once the left column outgrew it, and opening
+  the address list was enough to do that (measured: 92px of travel at 400px of
+  scroll), which read as the order total moving by itself.
+- **Left column capped at `lg:max-w-2xl`** instead of the two address boxes.
+  Capping only those left the order lines below them 144px wider. Every box in
+  the column now shares both edges, and the summary keeps its place at the
+  container's right edge.
+- **`AddressPicker` opens straight into the addresses.** The "Choose an
+  address" header row is gone, and the close chevron sits on the first row,
+  exactly where the open chevron was. Every row has the same `px-4`, a 16px
+  leading slot (pin when closed, radio when open, plus on the add link) and
+  `gap-3`. Names, Edit/Delete and "Use a different address" therefore start
+  at one x, which is also the step heading's text and the ship-to box's text.
+  The selected row's highlight runs edge to edge. Focus moves to whichever
+  toggle replaces the one pressed.
+- **`AddressForm` `compact` is one two-column grid**: name/phone,
+  address/landmark, town/state, PIN/GSTIN, then the default checkbox on its
+  own row. The GSTIN hint is dropped in that layout; checkout's step heading
+  already carries it.
+- **`AddressForm`'s state `<select>` is `appearance-none`** with a drawn
+  chevron and `h-[50px]`, in both layouts. Natively it was 46px tall with its
+  text 4px further in than the inputs beside it. The account page's form gets
+  the same fix.
+
+### 2026-09-17 (checkout, later) — Default address first, a dialog that fits, blur without a wash
+
+Client review of the entry below, in dark mode.
+
+- `AddressPicker` lists the default address first, then the rest in query
+  order (newest first). Sorted in the component, not in `listAddresses`, so the
+  account page's address book is unaffected.
+- Edit and Delete moved under each address, aligned with the name.
+- The picker and step 2's "Ship to the billing address" box are capped at
+  `max-w-2xl`, so the two steps share a right edge.
+- `AddressForm` gained a `compact` prop, used only by `AddressDialog`: address
+  beside landmark, GSTIN beside the default checkbox, the address hint moved
+  into the placeholder, tighter gaps. The dialog is 525px tall and shows no
+  scroll bar down to a 1366×650 viewport (it was 718px). `overflow-y-auto`
+  remains for shorter windows, phones, and a form showing validation errors.
+- The dialog's backdrop is `backdrop-blur-md` with no colour. It was
+  `bg-ink/50`, and `ink` is near-white in the dark theme, so the "dim" behind
+  the dialog brightened the page. `QuickViewModal` still uses `bg-ink/40` and
+  has the same effect in dark mode; not changed here.
+
+### 2026-09-17 (checkout) — Saved addresses collapse to the chosen one; add and edit open in a dialog
+
+Client, with a reference checkout: somebody with many saved addresses scrolled
+past every one of them as a card, twice (billing, then shipping), to reach the
+order.
+
+- New `components/checkout/AddressPicker.tsx` (client): `AddressPicker` shows
+  the selected address as one row with a chevron; opening it lists every saved
+  address as a radio row with a Default pill, **Edit** and **Delete** on the
+  row itself (the reference hid them behind "⋮"; the client asked for them
+  visible), and "Use a different address" at the foot. Choosing closes the
+  list, including re-choosing the current one.
+- `AddressDialog` replaces the inline edit panel: portalled, Escape, backdrop
+  click, X, body scroll lock, focus restored on close. Its callbacks go through
+  refs so a checkout re-render behind it (a delivery quote landing) does not
+  re-run the setup and pull focus out of the field being typed in.
+- `CheckoutForm`: `AddressCard` and `addressPanel` removed; the editor state
+  now only drives the dialog and starts closed. A customer with **no**
+  addresses still gets the form inline in step 1 — a dialog popping up on page
+  load would be hiding nothing. Editing no longer selects the address being
+  edited: the dialog names it, and correcting one should not change where the
+  order goes.
+- Unchanged: numbered steps, billing first, "Ship to the billing address", the
+  summary panel, the hidden inputs, and the "select what was just added"
+  effect (`onDone` leaves `awaiting` set; cancelling clears it).
+- The §9 nested-form constraint notes the dialog is portalled.
 
 ### 2026-09-16 (design) — One dark masthead band across products, cart, checkout and the account pages
 

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useId, useRef } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertIcon, SpinnerIcon } from "@/components/icons/ui";
+import { AlertIcon, ChevronDownIcon, SpinnerIcon } from "@/components/icons/ui";
 import { Button } from "@/components/ui/Button";
 import { Field, fieldInput } from "@/components/ui/Field";
 import { INDIAN_STATES } from "@/content/states";
@@ -30,12 +30,23 @@ export function AddressForm({
   address,
   onDone,
   onCancel,
+  compact = false,
 }: {
   address?: Address;
   /** Called after a successful save, so the page can close the form. */
   onDone?: () => void;
   /** Called when the user clicks Cancel. */
   onCancel?: () => void;
+  /**
+   * Two columns throughout, for checkout's dialog: every field in one grid,
+   * tighter spacing, the address hint moved into the placeholder and the GSTIN
+   * hint dropped. The client asked for the dialog to fit without a
+   * scroll bar (2026-09-17), and one field per row was 720px tall — past a
+   * laptop's viewport. Two fields sharing a row cannot carry a hint on only
+   * one of them without the pair sitting at different heights, which is why
+   * the address hint moves rather than stays.
+   */
+  compact?: boolean;
 }) {
   const uid = useId();
   const [state, formAction] = useActionState<AccountState, FormData>(saveAddressAction, {
@@ -78,8 +89,165 @@ export function AddressForm({
   const value = (field: keyof Address) =>
     state.values?.[field] ?? (address ? String(address[field] ?? "") : "");
 
+  const nameField = (
+    <Field id={`${uid}-name`} label="Deliver to" error={error("name")} required>
+      <input
+        id={`${uid}-name`}
+        name="name"
+        defaultValue={value("name")}
+        autoComplete="name"
+        required
+        maxLength={120}
+        className={fieldInput(error("name"))}
+      />
+    </Field>
+  );
+
+  const phoneField = (
+    <Field id={`${uid}-phone`} label="Phone" error={error("phone")} required>
+      <input
+        id={`${uid}-phone`}
+        name="phone"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        defaultValue={value("phone")}
+        required
+        maxLength={40}
+        className={fieldInput(error("phone"))}
+      />
+    </Field>
+  );
+
+  const line1Field = (
+    <Field
+      id={`${uid}-line1`}
+      label="Address"
+      hint={compact ? undefined : "House or shop number, street or village."}
+      error={error("line1")}
+      required
+    >
+      <input
+        id={`${uid}-line1`}
+        name="line1"
+        defaultValue={value("line1")}
+        autoComplete="address-line1"
+        required
+        maxLength={200}
+        placeholder={compact ? "House or shop number, street or village" : undefined}
+        className={fieldInput(error("line1"))}
+      />
+    </Field>
+  );
+
+  const line2Field = (
+    <Field id={`${uid}-line2`} label="Landmark or area" optional error={error("line2")}>
+      <input
+        id={`${uid}-line2`}
+        name="line2"
+        defaultValue={value("line2")}
+        autoComplete="address-line2"
+        maxLength={200}
+        className={fieldInput(error("line2"))}
+      />
+    </Field>
+  );
+
+  const cityField = (
+    <Field id={`${uid}-city`} label="Town or city" error={error("city")} required>
+      <input
+        id={`${uid}-city`}
+        name="city"
+        defaultValue={value("city")}
+        autoComplete="address-level2"
+        required
+        maxLength={80}
+        className={fieldInput(error("city"))}
+      />
+    </Field>
+  );
+
+  /* `appearance-none` and a drawn chevron, with the height pinned to the text
+     inputs' (12px padding twice, a 24px line, two 1px borders). A native
+     `<select>` ignores `line-height` and adds its own inner padding, so beside
+     an input it sat 4px short with its text 4px further in — visible in the
+     dialog's two-column rows (client, 2026-09-17). */
+  const stateField = (
+    <Field id={`${uid}-state`} label="State" error={error("state")} required>
+      <div className="relative">
+        <select
+          id={`${uid}-state`}
+          name="state"
+          defaultValue={value("state") || "Karnataka"}
+          required
+          className={`${fieldInput(error("state"))} h-[50px] appearance-none pr-10`}
+        >
+          {INDIAN_STATES.map((s) => (
+            <option key={s.code} value={s.name}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <ChevronDownIcon className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+      </div>
+    </Field>
+  );
+
+  const pinField = (
+    <Field id={`${uid}-pin`} label="PIN code" error={error("postalCode")} required>
+      <input
+        id={`${uid}-pin`}
+        name="postalCode"
+        autoComplete="postal-code"
+        defaultValue={value("postalCode")}
+        required
+        maxLength={10}
+        className={fieldInput(error("postalCode"))}
+      />
+    </Field>
+  );
+
+  /* Optional, and last, because almost nobody has one -- a required-looking
+     box for a registration number is the sort of thing that stops a farmer's
+     order dead. It lives on the address rather than the account because a
+     GSTIN belongs to a registered place of business: the same person can order
+     to a firm's premises against its GSTIN one week and to their home the
+     next.
+
+     No hint in the compact layout: it shares a row with the PIN code, and a
+     hint on one of two fields in a row pushes that one's box below the
+     other's. Checkout, the only compact user, already says what a GSTIN is
+     for in its step heading. */
+  const gstinField = (
+    <Field
+      id={`${uid}-gstin`}
+      label="GSTIN"
+      hint={
+        compact
+          ? undefined
+          : "If you are buying in a business's name, we will print this on the tax invoice."
+      }
+      error={error("gstin")}
+      optional
+    >
+      <input
+        id={`${uid}-gstin`}
+        name="gstin"
+        defaultValue={value("gstin")}
+        autoComplete="off"
+        spellCheck={false}
+        maxLength={20}
+        placeholder="29AAGCB7383J1Z4"
+        /* `uppercase` is presentation only -- the action upper-cases what it
+           is sent regardless, because CSS is not a validator and this box is
+           reachable without this page. */
+        className={`${fieldInput(error("gstin"))} uppercase placeholder:normal-case`}
+      />
+    </Field>
+  );
+
   return (
-    <form action={formAction} className="space-y-5">
+    <form action={formAction} className={compact ? "space-y-4" : "space-y-5"}>
       {address && <input type="hidden" name="id" value={address.id} />}
 
       {state.status === "error" && state.message && (
@@ -92,132 +260,36 @@ export function AddressForm({
         </p>
       )}
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field id={`${uid}-name`} label="Deliver to" error={error("name")} required>
-          <input
-            id={`${uid}-name`}
-            name="name"
-            defaultValue={value("name")}
-            autoComplete="name"
-            required
-            maxLength={120}
-            className={fieldInput(error("name"))}
-          />
-        </Field>
-
-        <Field id={`${uid}-phone`} label="Phone" error={error("phone")} required>
-          <input
-            id={`${uid}-phone`}
-            name="phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            defaultValue={value("phone")}
-            required
-            maxLength={40}
-            className={fieldInput(error("phone"))}
-          />
-        </Field>
-      </div>
-
-      <Field
-        id={`${uid}-line1`}
-        label="Address"
-        hint="House or shop number, street or village."
-        error={error("line1")}
-        required
-      >
-        <input
-          id={`${uid}-line1`}
-          name="line1"
-          defaultValue={value("line1")}
-          autoComplete="address-line1"
-          required
-          maxLength={200}
-          className={fieldInput(error("line1"))}
-        />
-      </Field>
-
-      <Field id={`${uid}-line2`} label="Landmark or area" optional error={error("line2")}>
-        <input
-          id={`${uid}-line2`}
-          name="line2"
-          defaultValue={value("line2")}
-          autoComplete="address-line2"
-          maxLength={200}
-          className={fieldInput(error("line2"))}
-        />
-      </Field>
-
-      <div className="grid gap-5 sm:grid-cols-3">
-        <Field id={`${uid}-city`} label="Town or city" error={error("city")} required>
-          <input
-            id={`${uid}-city`}
-            name="city"
-            defaultValue={value("city")}
-            autoComplete="address-level2"
-            required
-            maxLength={80}
-            className={fieldInput(error("city"))}
-          />
-        </Field>
-
-        <Field id={`${uid}-state`} label="State" error={error("state")} required>
-          <select
-            id={`${uid}-state`}
-            name="state"
-            defaultValue={value("state") || "Karnataka"}
-            required
-            className={fieldInput(error("state"))}
-          >
-            {INDIAN_STATES.map((s) => (
-              <option key={s.code} value={s.name}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field id={`${uid}-pin`} label="PIN code" error={error("postalCode")} required>
-          <input
-            id={`${uid}-pin`}
-            name="postalCode"
-            autoComplete="postal-code"
-            defaultValue={value("postalCode")}
-            required
-            maxLength={10}
-            className={fieldInput(error("postalCode"))}
-          />
-        </Field>
-      </div>
-
-      {/* Optional, and last, because almost nobody has one -- a required-looking
-          box for a registration number is the sort of thing that stops a
-          farmer's order dead. It lives on the address rather than the account
-          because a GSTIN belongs to a registered place of business: the same
-          person can order to a firm's premises against its GSTIN one week and
-          to their home the next. */}
-      <Field
-        id={`${uid}-gstin`}
-        label="GSTIN"
-        hint="If you are buying in a business's name, we will print this on the tax invoice."
-        error={error("gstin")}
-        optional
-      >
-        <input
-          id={`${uid}-gstin`}
-          name="gstin"
-          defaultValue={value("gstin")}
-          autoComplete="off"
-          spellCheck={false}
-          maxLength={20}
-          placeholder="29AAGCB7383J1Z4"
-          /* `uppercase` is presentation only -- the action upper-cases what it
-             is sent regardless, because CSS is not a validator and this box is
-             reachable without this page. */
-          className={`${fieldInput(error("gstin"))} uppercase placeholder:normal-case`}
-        />
-      </Field>
+      {compact ? (
+        /* One two-column grid for every field, so every box in the dialog
+           shares the same two edges — the three-across town/state/PIN row
+           had its own. */
+        <div className="grid gap-4 sm:grid-cols-2">
+          {nameField}
+          {phoneField}
+          {line1Field}
+          {line2Field}
+          {cityField}
+          {stateField}
+          {pinField}
+          {gstinField}
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-5 sm:grid-cols-2">
+            {nameField}
+            {phoneField}
+          </div>
+          {line1Field}
+          {line2Field}
+          <div className="grid gap-5 sm:grid-cols-3">
+            {cityField}
+            {stateField}
+            {pinField}
+          </div>
+          {gstinField}
+        </>
+      )}
 
       <label className="flex items-center gap-3 text-sm text-body">
         <input
@@ -229,7 +301,7 @@ export function AddressForm({
         Use this as my default address
       </label>
 
-      <div className="flex flex-wrap items-center gap-3 pt-2">
+      <div className={`flex flex-wrap items-center gap-3 ${compact ? "pt-1" : "pt-2"}`}>
         <Save editing={Boolean(address)} />
         {onCancel && <CancelButton onCancel={onCancel} />}
       </div>

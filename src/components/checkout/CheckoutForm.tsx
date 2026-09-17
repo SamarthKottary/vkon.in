@@ -5,28 +5,21 @@ import Link from "next/link";
 import { useActionState, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import {
-  AlertIcon,
-  PencilIcon,
-  PinIcon,
-  PlusIcon,
-  SpinnerIcon,
-  TrashIcon,
-} from "@/components/icons/ui";
+import { AlertIcon, PlusIcon, SpinnerIcon } from "@/components/icons/ui";
 import { AddressForm } from "@/components/account/AddressForm";
+import { AddressDialog, AddressPicker } from "@/components/account/AddressPicker";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { Button } from "@/components/ui/Button";
 import { useCartLines } from "@/components/cart/useCart";
 import { formatPaise, priceLines, totals } from "@/lib/pricing";
 import {
-  deleteAddressAction,
   placeOrderAction,
   quoteDeliveryAction,
   type CheckoutState,
   type DeliveryQuoteState,
 } from "@/app/(site)/account/private-actions";
+import { DeliveryPicker } from "@/components/checkout/DeliveryPicker";
 import { loadRazorpay } from "@/components/checkout/PayNowButton";
-import type { DeliveryOption } from "@/lib/shiprocket";
 import type { Address, Product } from "@/lib/types";
 
 /**
@@ -87,11 +80,10 @@ export function CheckoutForm({
    */
   const [sameAsBilling, setSameAsBilling] = useState(true);
 
-  /** Which address panel is open, if any. One at a time: two open forms are
-   *  two Save buttons and no way to tell which is which. */
-  const [editor, setEditor] = useState<Editor | null>(() =>
-    addresses.length === 0 ? { section: "billing", addressId: null } : null,
-  );
+  /** Which address the dialog is open on, if any — `addressId: null` is a new
+   *  one. One at a time: two open forms are two Save buttons and no way to
+   *  tell which is which. */
+  const [editor, setEditor] = useState<Editor | null>(null);
 
   const priced = useMemo(() => priceLines(lines ?? [], products), [lines, products]);
 
@@ -130,9 +122,9 @@ export function CheckoutForm({
    * whichever section asked for it, which is the only reason anybody opens that
    * form mid-checkout.
    *
-   * The new row is found by id difference rather than by taking the first or
-   * the newest: `listAddresses` sorts default-first, so ticking "use this as my
-   * default" while adding moves the new row to the top and any positional guess
+   * The new row is found by id difference rather than by position: the picker
+   * lists the default first, so ticking "use this as my default" while adding
+   * moves the new row to the top, and a positional guess tied to either order
    * would be wrong exactly when the customer was most explicit.
    */
   const knownIds = useRef<Set<string>>(new Set(addresses.map((a) => a.id)));
@@ -371,46 +363,34 @@ export function CheckoutForm({
   const bySlug = new Map(products.map((p) => [p.slug, p]));
   const ready = Boolean(billingId) && (sameAsBilling || Boolean(shippingId));
 
+  /* Editing leaves the selection alone. It used to select the card being
+     edited, because the form opened inline under the grid and the highlighted
+     card was the only sign of which address it was for; the dialog says so
+     itself, and fixing a typo in the office address should not quietly make it
+     where the order goes. */
   const openEditor = (section: Section, addressId: string | null) => {
     if (addressId === null) awaiting.current = section;
     setEditor({ section, addressId });
-    if (addressId !== null) {
-      if (section === "billing") setBillingId(addressId);
-      if (section === "shipping") setShippingId(addressId);
-    }
   };
-
-  const addressPanel = (section: Section) => {
-    if (!editor || editor.section !== section) return null;
-    const editing = addresses.find((a) => a.id === editor.addressId);
-    return (
-      <div className="mt-5 border border-line-strong bg-surface-raised p-5 shadow-card sm:p-6">
-        <h3 className="mb-6 text-sm font-semibold uppercase tracking-wider text-ink">
-          {editing ? "Edit address" : "New address"}
-        </h3>
-        {/* Its own `<form>` — see the note at the top of this file for why the
-            order form cannot be an ancestor of this element. */}
-        <AddressForm
-          key={editing?.id ?? "new"}
-          address={editing}
-          onDone={() => {
-            setEditor(null);
-          }}
-          onCancel={
-            addresses.length > 0
-              ? () => {
-                  awaiting.current = null;
-                  setEditor(null);
-                }
-              : undefined
-          }
-        />
-      </div>
-    );
+  const closeEditor = () => {
+    awaiting.current = null;
+    setEditor(null);
   };
+  const editing = editor ? addresses.find((a) => a.id === editor.addressId) : undefined;
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[1fr_22rem] lg:items-start lg:gap-12">
+    /* Summary sizing (client, 2026-09-17). It was a fixed 22rem beside a
+       column capped at 42rem, which left ~190px of nothing between them and
+       wrapped the panel's copy; grown to fill that gap (~31rem) it was then
+       asked to be "a bit" narrower. So: 22rem at `lg`, where there is no
+       slack and the address column gives way first, and 28rem from `xl`.
+       `justify-between` keeps the panel's right edge on the container's —
+       the header's — with what is left over as gutter. */
+    <div className="grid gap-10 lg:grid-cols-[minmax(0,42rem)_22rem] lg:items-start lg:justify-between lg:gap-12 xl:grid-cols-[minmax(0,42rem)_28rem]">
+      {/* Every box in this column — the address pickers, the ship-to box, the
+          order lines — shares one width and one right edge: the grid track's
+          42rem cap above. Below `lg` the summary stacks underneath at full
+          width, and this column matches it. */}
       <div className="min-w-0 space-y-10">
         {(state.status === "error" || payError) && (
           <p
@@ -432,32 +412,27 @@ export function CheckoutForm({
             hint="Whom the invoice is made out to. Add a GSTIN here if you are buying in a business's name."
           />
 
-          {addresses.length > 0 && (
-            <ul className="mt-6 grid gap-4 sm:grid-cols-2">
-              {addresses.map((address) => (
-                <li key={address.id} className="min-w-0">
-                  <AddressCard
-                    address={address}
-                    group={`${uid}-billing`}
-                    selected={billingId === address.id}
-                    onSelect={() => {
-                      setBillingId(address.id);
-                      if (editor?.section === "billing" && editor.addressId !== null) {
-                        setEditor({ section: "billing", addressId: address.id });
-                      }
-                    }}
-                    onEdit={() => openEditor("billing", address.id)}
-                    showGstin
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {editor?.section === "billing" ? (
-            addressPanel("billing")
+          {addresses.length > 0 ? (
+            <div className="mt-6">
+              <AddressPicker
+                addresses={addresses}
+                selectedId={billingId}
+                group={`${uid}-billing`}
+                onSelect={setBillingId}
+                onEdit={(address) => openEditor("billing", address.id)}
+                onAdd={() => openEditor("billing", null)}
+                showGstin
+              />
+            </div>
           ) : (
-            <AddAddressButton onClick={() => openEditor("billing", null)} />
+            /* Nothing saved yet, so there is nothing to pick from and nothing
+               a dialog would be hiding: the form is the step. No Cancel —
+               there is nowhere to go back to. The first address becomes the
+               selection through the fallback in the effect above, without the
+               `awaiting` marker. */
+            <div className="mt-6 border border-line-strong bg-surface-raised p-5 shadow-card sm:p-6">
+              <AddressForm />
+            </div>
           )}
         </section>
 
@@ -469,6 +444,8 @@ export function CheckoutForm({
             hint="Where the goods actually go. Untick the box if that is somewhere else."
           />
 
+          {/* `p-4`, a 16px checkbox and `gap-3`: the same text column as the
+              address picker and the step heading. */}
           <label className="mt-6 flex cursor-pointer items-start gap-3 border border-line bg-surface-subtle p-4 text-sm">
             <input
               type="checkbox"
@@ -491,29 +468,17 @@ export function CheckoutForm({
 
           {!sameAsBilling && (
             <>
-              {addresses.length > 0 && (
-                <ul className="mt-5 grid gap-4 sm:grid-cols-2">
-                  {addresses.map((address) => (
-                    <li key={address.id} className="min-w-0">
-                      <AddressCard
-                        address={address}
-                        group={`${uid}-shipping`}
-                        selected={shippingId === address.id}
-                        onSelect={() => {
-                          setShippingId(address.id);
-                          if (editor?.section === "shipping" && editor.addressId !== null) {
-                            setEditor({ section: "shipping", addressId: address.id });
-                          }
-                        }}
-                        onEdit={() => openEditor("shipping", address.id)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {editor?.section === "shipping" ? (
-                addressPanel("shipping")
+              {addresses.length > 0 ? (
+                <div className="mt-5">
+                  <AddressPicker
+                    addresses={addresses}
+                    selectedId={shippingId}
+                    group={`${uid}-shipping`}
+                    onSelect={setShippingId}
+                    onEdit={(address) => openEditor("shipping", address.id)}
+                    onAdd={() => openEditor("shipping", null)}
+                  />
+                </div>
               ) : (
                 <AddAddressButton onClick={() => openEditor("shipping", null)} />
               )}
@@ -535,7 +500,7 @@ export function CheckoutForm({
                    thumbnail and a two-line product name have taken their
                    width, there is not enough left for a rupee figure beside
                    them — the two ran into each other. */
-                <li key={line.slug} className="flex items-start gap-3 p-4 sm:items-center sm:gap-4 sm:p-5">
+                <li key={line.slug} className="flex items-start gap-3 px-4 py-4 sm:items-center sm:gap-4 sm:py-5">
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden border border-line bg-surface-subtle">
                     {image ? (
                       <Image
@@ -580,6 +545,20 @@ export function CheckoutForm({
             .
           </p>
         </section>
+
+        {/* Portalled to `<body>`, so where it sits in this tree does not put
+            its form inside the order form. `key` so switching from one address
+            to another starts a fresh form rather than keeping the first one's
+            typed values. `onDone` leaves `awaiting` set: a new address has to
+            arrive in `addresses` before the effect can select it. */}
+        {editor && (
+          <AddressDialog
+            key={`${editor.section}:${editor.addressId ?? "new"}`}
+            address={editing}
+            onDone={() => setEditor(null)}
+            onCancel={closeEditor}
+          />
+        )}
       </div>
 
       {/* The order form itself. Small on purpose: hidden fields carrying the
@@ -587,7 +566,12 @@ export function CheckoutForm({
       <form
         id={formId}
         action={formAction}
-        className="border border-line bg-surface p-5 shadow-card sm:p-6 lg:sticky lg:top-24"
+        /* Not sticky (client, 2026-09-17). The panel is taller than a
+           laptop viewport, so `sticky` never kept the button in view; what it
+           did do was start sliding the panel down the page as soon as the left
+           column grew taller than it — opening the address list was enough —
+           which read as the order total moving on its own. */
+        className="border border-line bg-surface p-5 shadow-card sm:p-6"
       >
         {/* What the server re-resolves. Prices are deliberately absent: the
             browser has no say in what anything costs. */}
@@ -605,9 +589,11 @@ export function CheckoutForm({
             pick a different real service at its real cost. */}
         <input type="hidden" name="courierId" value={chosen?.courierId ?? ""} />
 
-        <h2 className="border-b border-line pb-4 text-lg font-bold uppercase tracking-wider text-ink">
-          Order total
-        </h2>
+        {/* One heading style, one inset (the panel's padding), and one radio
+            column (`px-4`/`p-4` boxes, 16px radios, `gap-3`) for the delivery
+            and payment choices, so the panel's pieces line up with each other
+            (client, 2026-09-17). */}
+        <PanelHeading>Order total</PanelHeading>
 
         <div className="divide-y divide-line text-sm">
           <Row
@@ -623,63 +609,18 @@ export function CheckoutForm({
               number — an unserviceable PIN code, a courier API that timed out,
               or no Shiprocket account configured at all. The last of those is
               exactly what this row said before live rates existed, so an
-              unconfigured site is unchanged. */}
-          {quote === null ? (
-            <Row label="Delivery" value="Calculating…" />
-          ) : options.length === 0 ? (
-            <Row label="Delivery" value="Quoted on our call" />
-          ) : options.length === 1 ? (
-            /* One service on offer is not a choice — showing it as a radio
-               with nothing to compare against is a decision the customer
-               cannot make. */
-            <Row
-              label={deliveryLabel(options[0])}
-              value={formatPaise(options[0].ratePaise)}
-            />
-          ) : (
-            <div className="py-3">
-              <p className="mb-2 text-muted">Delivery</p>
-              <ul className="space-y-2">
-                {options.map((option, index) => {
-                  const selected = chosen?.courierId === option.courierId;
-                  return (
-                    <li key={option.courierId}>
-                      <label
-                        className={`flex cursor-pointer items-start gap-2.5 border p-2.5 transition-colors ${
-                          selected
-                            ? "border-accent bg-accent-soft/40"
-                            : "border-line hover:border-line-strong"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name={`${uid}-courier`}
-                          checked={selected}
-                          onChange={() => setCourierId(option.courierId)}
-                          className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-baseline justify-between gap-2">
-                            <span className="font-medium text-ink">
-                              {serviceName(index, options.length)}
-                            </span>
-                            <span className="shrink-0 font-semibold tabular-nums text-ink">
-                              {formatPaise(option.ratePaise)}
-                            </span>
-                          </span>
-                          <span className="mt-0.5 block text-xs leading-snug text-muted">
-                            {option.estimatedDays
-                              ? `~${option.estimatedDays} days · ${option.courierName}`
-                              : option.courierName}
-                          </span>
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+              unconfigured site is unchanged. Which service it is lives in the
+              delivery box below; this row is only the charge. */}
+          <Row
+            label="Delivery"
+            value={
+              quote === null
+                ? "Calculating…"
+                : chosen
+                  ? formatPaise(chosen.ratePaise)
+                  : "Quoted on our call"
+            }
+          />
 
           <div className="flex items-center justify-between gap-3 py-4 text-base font-bold">
             <span className="text-ink">Total</span>
@@ -689,59 +630,34 @@ export function CheckoutForm({
           </div>
         </div>
 
-        <h2 className="border-b border-line pb-4 pt-4 text-lg font-bold uppercase tracking-wider text-ink mt-2">
-          Payment Method
-        </h2>
-        <div className="py-4 space-y-3">
-          <label
-            className={`flex cursor-pointer items-start gap-3 border p-4 transition-colors ${
-              paymentMode === "online"
-                ? "border-accent bg-accent-soft/40"
-                : "border-line hover:border-line-strong"
-            }`}
-          >
-            <input
-              type="radio"
-              name="paymentMode"
-              value="online"
-              checked={paymentMode === "online"}
-              onChange={() => setPaymentMode("online")}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
-            />
-            <div>
-              <div className="font-semibold text-ink">Online Payment</div>
-              <div className="mt-1 text-sm text-muted">
-                Pay securely with UPI, Credit/Debit Cards, or Netbanking.
-              </div>
-            </div>
-          </label>
+        {/* Above the payment method, as the client asked. */}
+        <DeliveryPicker
+          options={quote === null ? null : options}
+          chosenId={chosen?.courierId ?? null}
+          onChoose={setCourierId}
+          group={`${uid}-courier`}
+        />
 
-          <label
-            className={`flex cursor-pointer items-start gap-3 border p-4 transition-colors ${
-              paymentMode === "cod"
-                ? "border-accent bg-accent-soft/40"
-                : "border-line hover:border-line-strong"
-            }`}
-          >
-            <input
-              type="radio"
-              name="paymentMode"
-              value="cod"
-              checked={paymentMode === "cod"}
-              onChange={() => setPaymentMode("cod")}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
-            />
-            <div>
-              <div className="font-semibold text-ink">Cash on Delivery (COD)</div>
-              <div className="mt-1 text-sm text-muted">
-                Pay with cash when your order is delivered.
-              </div>
-            </div>
-          </label>
+        <PanelHeading className="mt-8">Payment Method</PanelHeading>
+        <div className="mt-4 space-y-3">
+          <PaymentOption
+            value="online"
+            current={paymentMode}
+            onChange={setPaymentMode}
+            title="Online Payment"
+            detail="Pay securely with UPI, Credit/Debit Cards, or Netbanking."
+          />
+          <PaymentOption
+            value="cod"
+            current={paymentMode}
+            onChange={setPaymentMode}
+            title="Cash on Delivery (COD)"
+            detail="Pay with cash when your order is delivered."
+          />
         </div>
 
         {billing?.gstin && (
-          <p className="border-t border-line pt-4 text-xs leading-relaxed text-muted">
+          <p className="mt-5 text-xs leading-relaxed text-muted">
             Invoiced to{" "}
             <span className="font-mono font-medium text-ink">{billing.gstin}</span>
           </p>
@@ -756,17 +672,7 @@ export function CheckoutForm({
               : "Choose a billing address to continue."}
           </p>
         )}
-
-        {/* The second sentence follows the quote. Promising to agree the
-            delivery charge on the call is true only while there is no charge
-            on screen — once a courier has priced it, saying so anyway reads as
-            though the figure above might still change. */}
-        <p className="mt-4 text-xs leading-relaxed text-muted">
-          Placing the order does not take a payment.{" "}
-          {quote?.status === "quoted"
-            ? "Delivery is priced above. We call you to confirm the details before dispatch."
-            : "We call you to confirm the details and the delivery charge first."}
-        </p>
+        {/* No note under the button (client, 2026-09-17). */}
       </form>
     </div>
   );
@@ -775,26 +681,57 @@ export function CheckoutForm({
 type Section = "billing" | "shipping";
 type Editor = { section: Section; addressId: string | null };
 
-/**
- * What a delivery service is called: by its place in the shortlist, never by
- * whether it flies. `shortlistDeliveryOptions` returns them cheapest first and
- * each strictly quicker than the one before, so position *is* speed.
- *
- * Shiprocket's air/surface flag is not. Labelled from it, a Mangaluru order
- * offered "Express, ~2 days" for ₹49.72 above "Standard, ~1 day" for ₹73.44 —
- * Xpressbees by air against Blue Dart by road — and a Delhi one showed two
- * different services both called "Standard".
- */
-function serviceName(index: number, count: number): string {
-  if (index === 0) return "Standard";
-  return index === count - 1 ? "Express" : "Faster";
+function PanelHeading({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <h2
+      className={`border-b border-line pb-3 text-base font-bold uppercase tracking-wider text-ink ${className}`}
+    >
+      {children}
+    </h2>
+  );
 }
 
-/** "Delivery · Standard, ~3 days" — the wording when there is nothing to choose. */
-function deliveryLabel(option: DeliveryOption): string {
-  return option.estimatedDays
-    ? `Delivery · Standard, ~${option.estimatedDays} days`
-    : "Delivery · Standard";
+function PaymentOption({
+  value,
+  current,
+  onChange,
+  title,
+  detail,
+}: {
+  value: "online" | "cod";
+  current: "online" | "cod";
+  onChange: (value: "online" | "cod") => void;
+  title: string;
+  detail: string;
+}) {
+  const selected = value === current;
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 border p-4 transition-colors ${
+        selected ? "border-accent bg-accent-soft/40" : "border-line hover:border-line-strong"
+      }`}
+    >
+      <input
+        type="radio"
+        name="paymentMode"
+        value={value}
+        checked={selected}
+        onChange={() => onChange(value)}
+        /* `mt-1` centres the 16px radio on the title's 24px line. */
+        className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+      />
+      <span className="min-w-0">
+        <span className="block font-semibold text-ink">{title}</span>
+        <span className="mt-0.5 block text-sm text-muted">{detail}</span>
+      </span>
+    </label>
+  );
 }
 
 function StepHeading({
@@ -825,104 +762,6 @@ function StepHeading({
       {hint && (
         <p className="mt-2 max-w-xl pl-11 text-sm leading-relaxed text-muted">{hint}</p>
       )}
-    </div>
-  );
-}
-
-/**
- * One saved address, as a selectable card with its own edit and delete.
- *
- * The `<label>` covers the radio and the address only. Wrapping the buttons in
- * it too would make "Edit" also select the card — a label forwards its click to
- * its control — and "Delete" select it on the way out.
- */
-function AddressCard({
-  address,
-  group,
-  selected,
-  onSelect,
-  onEdit,
-  showGstin = false,
-}: {
-  address: Address;
-  group: string;
-  selected: boolean;
-  onSelect: () => void;
-  onEdit: () => void;
-  showGstin?: boolean;
-}) {
-  return (
-    <div
-      className={`flex h-full flex-col border bg-surface-raised transition-colors ${
-        selected ? "border-accent ring-1 ring-accent" : "border-line hover:border-line-strong"
-      }`}
-    >
-      <label className="flex flex-1 cursor-pointer gap-3 p-4">
-        <input
-          type="radio"
-          name={group}
-          value={address.id}
-          checked={selected}
-          onChange={onSelect}
-          className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
-        />
-        <span className="min-w-0">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-semibold text-ink">{address.name}</span>
-            {address.isDefault && (
-              <span className="label-tech flex items-center gap-1 text-accent">
-                <PinIcon className="h-3 w-3" />
-                Default
-              </span>
-            )}
-          </span>
-          <span className="mt-1 block text-sm leading-relaxed text-body">
-            {address.line1}
-            {address.line2 ? `, ${address.line2}` : ""}
-            <br />
-            {address.city}, {address.state} {address.postalCode}
-            <br />
-            {address.phone}
-          </span>
-          {showGstin && address.gstin && (
-            <span className="label-tech mt-2 block break-all text-muted">
-              GSTIN {address.gstin}
-            </span>
-          )}
-        </span>
-      </label>
-
-      <div className="flex items-center gap-4 border-t border-line px-4 py-2.5 text-sm">
-        <button
-          type="button"
-          onClick={onEdit}
-          className="flex items-center gap-1.5 text-accent hover:underline"
-        >
-          <PencilIcon className="h-3.5 w-3.5" />
-          Edit
-        </button>
-
-        <form
-          action={deleteAddressAction}
-          /* A plain `confirm()`, the same as the address book's — see the note
-             there. Deleting one is entirely recoverable by typing it again. */
-          onSubmit={(event) => {
-            if (!window.confirm(`Delete the address for ${address.name}?`)) {
-              event.preventDefault();
-            }
-          }}
-          className="ml-auto"
-        >
-          <input type="hidden" name="id" value={address.id} />
-          <button
-            type="submit"
-            className="flex items-center gap-1.5 text-muted hover:text-red-700"
-          >
-            <TrashIcon className="h-3.5 w-3.5" />
-            Delete
-          </button>
-        </form>
-      </div>
     </div>
   );
 }
@@ -972,7 +811,7 @@ function PlaceOrder({ disabled, paymentMode }: { disabled: boolean; paymentMode:
       disabled={busy}
       size="lg"
       variant="accent"
-      className="mt-6 w-full"
+      className="mt-5 w-full"
     >
       {busy && <SpinnerIcon className="h-4 w-4" />}
       {pending ? "Processing…" : paymentMode === "online" ? "Pay Now" : "Place order"}

@@ -350,6 +350,9 @@ export async function saveAddressAction(
     };
   }
 
+  /* `/account` too: the address book moved onto that page and
+     `/account/addresses` only redirects there now. */
+  revalidatePath("/account");
   revalidatePath("/account/addresses");
   revalidatePath("/checkout");
   return { status: "ok", message: id ? "Address updated." : "Address saved." };
@@ -366,6 +369,9 @@ export async function deleteAddressAction(formData: FormData): Promise<void> {
     console.error("[account] address delete failed:", error);
   }
 
+  /* `/account` too: the address book moved onto that page and
+     `/account/addresses` only redirects there now. */
+  revalidatePath("/account");
   revalidatePath("/account/addresses");
   revalidatePath("/checkout");
 }
@@ -381,6 +387,9 @@ export async function setDefaultAddressAction(formData: FormData): Promise<void>
     console.error("[account] default address failed:", error);
   }
 
+  /* `/account` too: the address book moved onto that page and
+     `/account/addresses` only redirects there now. */
+  revalidatePath("/account");
   revalidatePath("/account/addresses");
   revalidatePath("/checkout");
 }

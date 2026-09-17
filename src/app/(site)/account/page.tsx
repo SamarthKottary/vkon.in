@@ -106,7 +106,8 @@ export default async function AccountPage({
         <section id="addresses" className="border border-line bg-surface-raised p-5 shadow-card sm:p-8">
           <h2 className="text-lg font-semibold text-ink sm:text-xl">Delivery addresses</h2>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
-            Save the places you take delivery, and checkout becomes one tap.
+            Save the places you take delivery. The one chosen here is your
+            default, and checkout starts with it.
           </p>
           <div className="mt-6">
             <AddressBook addresses={addresses} />
