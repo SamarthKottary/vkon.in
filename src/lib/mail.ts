@@ -42,6 +42,8 @@ type Mail = {
    * none, and stays no-reply as the client asked.
    */
   replyTo?: string;
+  /** Overrides `MAIL_FROM` — the new-order alert's own sender. */
+  from?: string;
 };
 
 function isConfigured(): boolean {
@@ -71,6 +73,17 @@ function fromAddress(): string {
 }
 
 /**
+ * The sender of the new-order alert to the business (client, 2026-09-18):
+ * `ORDER_ALERT_FROM`, e.g. `Vkon Automation <nivixsa@vkon.in>`, so the
+ * business's own mail rules (a Microsoft 365 rule forwarding orders@ to Teams)
+ * can tell it from customer mail, which stays on `MAIL_FROM` (no-reply@).
+ * Falls back to `MAIL_FROM` when unset. Must be on the Resend-verified domain.
+ */
+function orderAlertFromAddress(): string {
+  return process.env.ORDER_ALERT_FROM || fromAddress();
+}
+
+/**
  * Sends, and never throws.
  *
  * Every caller is in the middle of something that matters more than the mail:
@@ -85,6 +98,7 @@ export async function sendMail(mail: Mail): Promise<MailResult> {
   if (!isConfigured()) {
     console.info(
       `[mail] not configured; would have sent to ${mail.to}: ${mail.subject}\n` +
+        `[mail] from: ${mail.from ?? fromAddress()}\n` +
         (mail.replyTo ? `[mail] reply-to: ${mail.replyTo}\n` : "") +
         `[mail] ${mail.text.replace(/\n/g, "\n[mail] ")}`,
     );
@@ -102,7 +116,7 @@ export async function sendMail(mail: Mail): Promise<MailResult> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: fromAddress(),
+        from: mail.from ?? fromAddress(),
         to: [mail.to],
         subject: mail.subject,
         html: mail.html,
@@ -808,6 +822,35 @@ export async function sendPasswordChangedMail(input: {
 // ---------------------------------------------------------------------------
 
 /**
+ * The business's alert layout: small, plain HTML, nothing the customer sees
+ * (2026-09-18).
+ *
+ * **Why it is not `shell()`.** The client forwards orders@ to a Microsoft
+ * Teams channel, and Teams silently skipped the new-order alert while posting
+ * the shorter delivered one. Real test sends, one change at a time: a plain
+ * email posted, the real subject posted, and every HTML body posted or not by
+ * *size* — 5.2 KB posted, 5.8 KB and 6.2 KB did not. `shell()` and
+ * `detailTable()` repeat a full inline style on every cell (~430 bytes a
+ * row), so an order with a few lines went over. This layout sets the font
+ * once and gives the cells no styles, which keeps an order with ten lines far
+ * below that.
+ *
+ * **No colours.** Teams draws emails in its own theme; `shell()`'s dark text
+ * on Teams' dark table cells was nearly unreadable. Left unset, text takes
+ * each app's own colours — black in Outlook, light in Teams' dark mode.
+ */
+function leanAlert(heading: string, summary: string, rows: [string, string][], adminUrl: string): string {
+  const cells = rows
+    .filter(([, value]) => value)
+    .map(
+      ([label, value]) =>
+        `<tr><td valign="top" style="padding:3px 16px 3px 0;white-space:nowrap">${esc(label)}</td><td style="padding:3px 0"><b>${esc(value).replace(/\n/g, "<br>")}</b></td></tr>`,
+    )
+    .join("");
+  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5"><p style="font-size:17px;margin:0 0 6px"><b>${esc(heading)}</b></p><p style="margin:0 0 12px">${esc(summary)}</p><table cellpadding="0" cellspacing="0">${cells}</table><p style="margin:14px 0 0"><a href="${esc(adminUrl)}">Open in admin</a></p><p style="margin:10px 0 0;font-size:12px">Reply to this email to write to the customer.</p></div>`;
+}
+
+/**
  * A new order, to the orders inbox (`site.ordersEmail`, orders@vkon.in —
  * client, 2026-09-18; it went to support@ before) — EMAILS.md A, 2026-09-17.
  * The only order mail the business gets (client, same day): the customer's
@@ -830,16 +873,7 @@ export async function sendNewOrderAlert(input: {
   lines: { name: string; qty: number; amount: string }[];
   adminUrl: string;
 }): Promise<MailResult> {
-  /* **One paragraph, one table, one button — nothing else** (2026-09-18).
-     The client forwards this inbox to a Teams channel, and Teams silently
-     dropped this alert while posting the shipped/delivered ones built from
-     the same pieces. Tested one change at a time: the subject passed on its
-     own, this body did not, and the only things it had that the posted ones
-     did not were a bold "Items" heading and a second table (with "×") for
-     the lines. So the lines are rows of the one table, written with a plain
-     "x", and the shape is the one Teams is known to accept. Keep it that way
-     — a second table or block here is how it stops reaching Teams again. */
-  const details = detailTable([
+  const rows: [string, string][] = [
     ["Total", input.total],
     ["Payment", input.payment],
     ["Customer", input.customerName],
@@ -853,22 +887,17 @@ export async function sendNewOrderAlert(input: {
         `${line.qty} x ${line.name} — ${line.amount}`,
       ],
     ),
-  ]);
+  ];
   const summary = `A new order is in: ${input.total}, ${input.payment.toLowerCase()}.`;
+  const heading = `${input.orderNumber} — New order`;
 
-  const html = shell(
-    `${input.orderNumber} — New order`,
-    paragraph(esc(summary)) +
-      details.html +
-      button(input.adminUrl, "Open in admin") +
-      smallPrint("Reply to this email to write to the customer."),
-  );
+  const html = leanAlert(heading, summary, rows, input.adminUrl);
   const text = [
-    `${input.orderNumber} — New order`,
+    heading,
     "",
     summary,
     "",
-    ...details.text,
+    ...rows.filter(([, value]) => value).map(([label, value]) => `  ${label || " "}: ${value}`),
     "",
     `Open in admin: ${input.adminUrl}`,
   ].join("\n");
@@ -884,6 +913,7 @@ export async function sendNewOrderAlert(input: {
     html,
     text,
     replyTo: input.customerEmail,
+    from: orderAlertFromAddress(),
   });
 }
 

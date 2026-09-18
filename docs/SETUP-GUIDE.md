@@ -299,7 +299,13 @@ nano .env
 ```bash
 RESEND_API_KEY=re_paste_your_key_here
 MAIL_FROM=Vkon Automation <no-reply@vkon.in>
+ORDER_ALERT_FROM=Vkon Automation <nivixsa@vkon.in>
 ```
+
+`ORDER_ALERT_FROM` is optional: the sender of the new-order alert to
+orders@vkon.in only, kept apart from `no-reply@` so Microsoft 365 rules (the
+Teams forward) can pick it out. Customer emails stay on `MAIL_FROM`. Unset,
+the alert comes from `MAIL_FROM` too.
 
 Then rebuild — **editing `.env` alone does nothing to a running container**:
 
@@ -946,6 +952,7 @@ AUTH_SECRET=your-dev-secret-at-least-16-chars
 
 RESEND_API_KEY=re_xxxxxxxx
 MAIL_FROM=Vkon Automation <no-reply@vkon.in>
+ORDER_ALERT_FROM=Vkon Automation <nivixsa@vkon.in>
 
 GOOGLE_CLIENT_ID=1234567890-abcdefg.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxx
@@ -969,6 +976,7 @@ COMPOSE_PROFILES=tunnel
 
 RESEND_API_KEY=re_xxxxxxxx
 MAIL_FROM=Vkon Automation <no-reply@vkon.in>
+ORDER_ALERT_FROM=Vkon Automation <nivixsa@vkon.in>
 
 GOOGLE_CLIENT_ID=1234567890-abcdefg.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxx

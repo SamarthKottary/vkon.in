@@ -1603,6 +1603,39 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-18 (mail) — The new-order alert has its own sender
+
+Client: "keep the no-reply for the customer, and the mail being sent to the
+admin use nivixsa@vkon.in for new order alerts" — their Microsoft 365 rule
+forwarding orders@ to Teams matches on it.
+
+- **New env var `ORDER_ALERT_FROM`**, e.g. `Vkon Automation <nivixsa@vkon.in>`,
+  read by `orderAlertFromAddress()` in `lib/mail.ts` for `sendNewOrderAlert`
+  only; unset, it falls back to `MAIL_FROM`. `Mail` gained an optional `from`,
+  and the unconfigured-mail log now prints the sender.
+- **Added to the app's `environment:` allowlist in `docker-compose.yml`** —
+  without that line the server's `.env` value never reaches the container —
+  and to `.env.example` and SETUP-GUIDE.md.
+- **Tested:** a COD order through checkout logs the customer's confirmation from
+  no-reply@ and the new-order alert from nivixsa@.
+
+### 2026-09-18 (mail) — The Teams problem was size: new-order alert in a lean layout
+
+**Corrects the entry below.** The one-table rebuild still did not reach the
+client's Teams channel (test 5). Lined up, the result is size, not structure:
+plain text and the 5.2 KB delivered alert were posted; the 5.8 KB and 6.2 KB
+new-order bodies were not. `shell()` + `detailTable()` put a full inline
+style on every cell (~430 bytes a row), so the alert grew past the line with
+each order line — and the rebuild, by adding rows, made it bigger.
+
+- **New `leanAlert`** (`lib/mail.ts`): the font set once, bare cells, values
+  in `<b>`, no colours (so Teams' dark theme stays readable — `shell()`'s dark
+  text on Teams' dark cells was not). The same two-line order is 1.85 KB, down
+  from 6.2 KB. Used by `sendNewOrderAlert` only; customer emails keep `shell()`.
+- **Constraint for anyone touching it:** keep business alerts small. Teams does
+  not bounce or report an oversized email; it just never posts it, and it
+  still arrives in Outlook, so nothing looks broken.
+
 ### 2026-09-18 (mail) — New-order alert rebuilt so Teams posts it
 
 The client forwards orders@ to a Microsoft Teams channel (an Exchange mail

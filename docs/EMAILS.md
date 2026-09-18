@@ -18,6 +18,10 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
 - **From `no-reply@vkon.in`** (`MAIL_FROM`). Customer emails say replies are
   not read and point to support@vkon.in and the phone number instead. Alerts to
   the business carry the customer as Reply-To.
+- **Except the new-order alert, from `nivixsa@vkon.in`** (`ORDER_ALERT_FROM`,
+  2026-09-18), so the Microsoft 365 rule that forwards orders@ to Teams can
+  match it on its own sender. Falls back to `MAIL_FROM` when unset. The
+  enquiry alert stays on `MAIL_FROM`.
 - **Customer emails go to the customer only.** None is copied to the business
   (client, 2026-09-18: "just the admin mail is enough"). **The one order email
   the business gets is the new-order alert (15)**, at orders@vkon.in — "only
@@ -118,6 +122,16 @@ footer, /terms and /privacy.
 
 ## 6. Change log
 
+- **2026-09-18 (sender)** — The new-order alert has its own sender,
+  `ORDER_ALERT_FROM` (nivixsa@vkon.in); customer mail stays on no-reply@.
+- **2026-09-18 (Teams fix, corrected)** — The one-table rebuild below did not
+  reach Teams either (test 5). What separates every email Teams posted from
+  every one it skipped is **HTML size**: plain text and the 5.2 KB delivered
+  alert posted; the 5.8 KB and 6.2 KB new-order bodies did not. `shell()`
+  repeats a full inline style on every table cell, so an order with a few
+  lines crossed the line. The new-order alert now uses its own small layout,
+  `leanAlert` (~1.9 KB for a two-line order), with no colours so it also reads
+  in Teams' dark theme. Customer emails keep `shell()`.
 - **2026-09-18 (Teams fix)** — The new-order alert reached the orders@ inbox
   but never the Teams channel it is forwarded to, while shipped/delivered
   alerts did. Tested with real sends, one change at a time: a plain-text email

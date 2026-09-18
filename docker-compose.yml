@@ -30,6 +30,8 @@ services:
       # call". `:-` keeps Compose from warning when unset.
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      # The new-order alert's sender; falls back to MAIL_FROM when unset.
+      ORDER_ALERT_FROM: ${ORDER_ALERT_FROM:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
