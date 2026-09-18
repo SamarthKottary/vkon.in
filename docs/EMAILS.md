@@ -118,6 +118,14 @@ footer, /terms and /privacy.
 
 ## 6. Change log
 
+- **2026-09-18 (Teams fix)** — The new-order alert reached the orders@ inbox
+  but never the Teams channel it is forwarded to, while shipped/delivered
+  alerts did. Tested with real sends, one change at a time: a plain-text email
+  and the real subject both reached Teams; the real HTML body did not. Its
+  only differences from alerts Teams accepted were a bold "Items" heading and
+  a second table (with "×") for the lines. The alert is now one summary line,
+  one table with the lines as rows ("1 x …"), and the button — the shape Teams
+  is known to post. Keep it to that shape.
 - **2026-09-18 (final)** — The order-activity alerts (17: payment failed,
   refund, courier updates, delivered, cancelled, address changes) removed at
   the client's request: "only new order mail is enough". orders@vkon.in gets

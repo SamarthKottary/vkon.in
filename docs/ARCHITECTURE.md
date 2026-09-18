@@ -1603,6 +1603,19 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-18 (mail) — New-order alert rebuilt so Teams posts it
+
+The client forwards orders@ to a Microsoft Teams channel (an Exchange mail
+flow rule adds the channel's address). Every alert appeared in Teams except
+the new-order one, which still reached Outlook. Real test sends, varying one
+thing at a time: plain text from `no-reply@` — posted; the real subject with a
+plain body — posted; the real HTML body with a plain subject — dropped. The
+body's only differences from alerts Teams had posted were a bold "Items"
+paragraph and a second `detailTable` for the lines (label `1 ×`).
+`sendNewOrderAlert` is now a summary paragraph, one `detailTable` with the
+lines as rows (`1 x …`), and the button. The comment in it says why; adding a
+second table or block back is how it stops reaching Teams.
+
 ### 2026-09-18 (mail) — Only the new-order alert goes to orders@
 
 Client: "remove all other mail being sent to the orders@vkon.in, only new

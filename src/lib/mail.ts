@@ -830,6 +830,15 @@ export async function sendNewOrderAlert(input: {
   lines: { name: string; qty: number; amount: string }[];
   adminUrl: string;
 }): Promise<MailResult> {
+  /* **One paragraph, one table, one button — nothing else** (2026-09-18).
+     The client forwards this inbox to a Teams channel, and Teams silently
+     dropped this alert while posting the shipped/delivered ones built from
+     the same pieces. Tested one change at a time: the subject passed on its
+     own, this body did not, and the only things it had that the posted ones
+     did not were a bold "Items" heading and a second table (with "×") for
+     the lines. So the lines are rows of the one table, written with a plain
+     "x", and the shape is the one Teams is known to accept. Keep it that way
+     — a second table or block here is how it stops reaching Teams again. */
   const details = detailTable([
     ["Total", input.total],
     ["Payment", input.payment],
@@ -838,24 +847,28 @@ export async function sendNewOrderAlert(input: {
     ["Phone", input.phone],
     ["Deliver to", input.deliverTo],
     ["Delivery", input.delivery],
+    ...input.lines.map(
+      (line, index): [string, string] => [
+        index === 0 ? (input.lines.length === 1 ? "Item" : "Items") : "",
+        `${line.qty} x ${line.name} — ${line.amount}`,
+      ],
+    ),
   ]);
-  const items = detailTable(input.lines.map((line) => [`${line.qty} ×`, `${line.name} — ${line.amount}`]));
+  const summary = `A new order is in: ${input.total}, ${input.payment.toLowerCase()}.`;
 
   const html = shell(
     `${input.orderNumber} — New order`,
-    details.html +
-      paragraph(`<strong style="color:${INK};">Items</strong>`) +
-      items.html +
+    paragraph(esc(summary)) +
+      details.html +
       button(input.adminUrl, "Open in admin") +
       smallPrint("Reply to this email to write to the customer."),
   );
   const text = [
     `${input.orderNumber} — New order`,
     "",
-    ...details.text,
+    summary,
     "",
-    "Items:",
-    ...items.text,
+    ...details.text,
     "",
     `Open in admin: ${input.adminUrl}`,
   ].join("\n");
