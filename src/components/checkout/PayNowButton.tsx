@@ -292,7 +292,11 @@ export function PayNowButton({
         {dialog}
         <button
           type="button"
-          onClick={() => pay()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            pay();
+          }}
           disabled={busy}
           /* `w-36` matches the other row buttons, so the column has one edge. */
           className="inline-flex h-9 w-36 items-center justify-center gap-1.5 whitespace-nowrap border border-accent bg-accent text-xs font-semibold text-surface transition-colors hover:bg-accent-strong disabled:opacity-70"
