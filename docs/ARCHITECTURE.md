@@ -1603,6 +1603,18 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-18 (mail) — New-order alert aligned for Teams and mail
+
+Client, with a Teams screenshot: "properly align this for teams and for mail."
+Teams draws a border round every table cell, so the per-section tables showed
+four different column widths and the empty spacer column showed as an empty
+box on every row. `leanAlert` is now **one table, three columns**: labels,
+values, and amounts right-aligned in the last; section titles are `<th>` rows;
+every cell holds something, spacing comes from `cellpadding`. Order lines are
+`Item | 1 x name | amount`; bill lines span the first two columns. A missing
+profile phone reads "Not in profile" rather than dropping the row. Size
+unchanged (~2.8 KB for two lines).
+
 ### 2026-09-18 (mail) — The new-order alert as sections and a bill
 
 Client: the admin email should show the profile's phone and email, the

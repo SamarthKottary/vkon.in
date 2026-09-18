@@ -842,7 +842,10 @@ export async function sendPasswordChangedMail(input: {
 type AlertRow = {
   label: string;
   value: string;
-  /** Right-aligned, for amounts. */
+  /** An order line: `item` sits in the middle column, `value` (its amount)
+   *  right-aligned in the last. */
+  item?: string;
+  /** A bill line — label across the first two columns, amount right-aligned. */
   figure?: boolean;
   strong?: boolean;
 };
@@ -851,28 +854,42 @@ type AlertRow = {
  *  with none is dropped with them. */
 type AlertSection = { title: string; rows: AlertRow[] };
 
+/**
+ * **One table, three columns, for the whole email** (client, 2026-09-18:
+ * "properly align this for teams and for mail"). Labels in the first column,
+ * values across the other two, and amounts right-aligned in the third — so
+ * every label and every figure lines up down the page. Section titles are
+ * header rows of the same table.
+ *
+ * Teams draws a border round every cell, which is why: a table per section
+ * gave each its own column widths, and an empty spacer column showed as an
+ * empty box on every row. Here every cell holds something, and the spacing
+ * comes from `cellpadding`.
+ */
 function leanAlert(heading: string, intro: string, sections: AlertSection[], adminUrl: string): string {
-  /* A small table per section, so each lines up on its own: in one shared
-     table the longest item name set the label column for the addresses too. */
-  const body = sections
+  const rows = sections
     .map((section) => ({ ...section, rows: section.rows.filter((row) => row.value) }))
     .filter((section) => section.rows.length > 0)
     .map(
       (section) =>
-        `<p style="margin:14px 0 2px"><b>${esc(section.title)}</b></p><table cellpadding="2" cellspacing="0">` +
+        `<tr><th colspan="3" align="left" style="padding-top:12px">${esc(section.title)}</th></tr>` +
         section.rows
           .map((row) => {
-            /* Attributes, not a style per cell: ~40 bytes a row saved, which
-               is what keeps a long order clear of the size Teams drops. */
-            const value = esc(row.value).replace(/\n/g, "<br>");
-            const label = row.strong ? `<b>${esc(row.label)}</b>` : esc(row.label);
-            return `<tr><td valign="top"${row.figure ? "" : " nowrap"}>${label}</td><td width="16"></td><td valign="top"${row.figure ? ' align="right"' : ""}>${row.strong ? `<b>${value}</b>` : value}</td></tr>`;
+            const b = (text: string) => (row.strong ? `<b>${text}</b>` : text);
+            const value = b(esc(row.value).replace(/\n/g, "<br>"));
+            const label = b(esc(row.label));
+            if (row.item !== undefined) {
+              return `<tr><td valign="top">${label}</td><td valign="top">${esc(row.item)}</td><td valign="top" align="right" nowrap>${value}</td></tr>`;
+            }
+            if (row.figure) {
+              return `<tr><td colspan="2" valign="top">${label}</td><td valign="top" align="right" nowrap>${value}</td></tr>`;
+            }
+            return `<tr><td valign="top" nowrap>${label}</td><td colspan="2" valign="top">${value}</td></tr>`;
           })
-          .join("") +
-        "</table>",
+          .join(""),
     )
     .join("");
-  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5"><p style="font-size:17px;margin:0 0 2px"><b>${esc(heading)}</b></p><p style="margin:0">${esc(intro)}</p>${body}<p style="margin:16px 0 0"><a href="${esc(adminUrl)}">Open in admin</a></p><p style="margin:10px 0 0;font-size:12px">Reply to this email to write to the customer.</p></div>`;
+  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5"><p style="font-size:17px;margin:0 0 2px"><b>${esc(heading)}</b></p><p style="margin:0 0 6px">${esc(intro)}</p><table width="100%" cellpadding="4" cellspacing="0" style="max-width:560px"><col width="90">${rows}</table><p style="margin:14px 0 0"><a href="${esc(adminUrl)}">Open in admin</a></p><p style="margin:8px 0 0;font-size:12px">Reply to this email to write to the customer.</p></div>`;
 }
 
 /** The same sections as text, for the plain part. */
@@ -883,25 +900,14 @@ function leanAlertText(heading: string, intro: string, sections: AlertSection[],
     if (rows.length === 0) continue;
     out.push("", section.title.toUpperCase());
     for (const row of rows) {
-      const [first, ...rest] = row.value.split("\n");
-      out.push(`  ${row.label ? `${row.label}: ` : ""}${first}`, ...rest.map((line) => `    ${line}`));
+      const [first, ...rest] = (row.item !== undefined ? `${row.item} — ${row.value}` : row.value).split("\n");
+      out.push(`  ${row.label}: ${first}`, ...rest.map((line) => `    ${line}`));
     }
   }
   out.push("", `Open in admin: ${adminUrl}`);
   return out.join("\n");
 }
 
-/**
- * A new order, to the orders inbox (`site.ordersEmail`, orders@vkon.in —
- * client, 2026-09-18; it went to support@ before) — EMAILS.md A, 2026-09-17.
- * The only order mail the business gets (client, same day): the customer's
- * own order emails are not copied, and later events send the business nothing
- * — "only new order mail is enough".
- *
- * Sent when an order is real: at placement for cash on delivery, and on
- * payment for an online order (an unpaid, abandoned one is not news). Reply-To
- * is the customer, so answering it reaches them.
- */
 export type AlertAddress = {
   name: string;
   /** Street, area, town — one per line. */
@@ -950,8 +956,11 @@ export async function sendNewOrderAlert(input: {
       title: "Customer",
       rows: [
         { label: "Name", value: input.customer.name },
-        { label: "Phone", value: input.customer.phone },
         { label: "Email", value: input.customer.email },
+        /* The phone saved in My account → Your details, under the email
+           (client, 2026-09-18). Said, not dropped, when there is none — a
+           missing row reads as a bug, "Not in profile" says where to add it. */
+        { label: "Phone", value: input.customer.phone || "Not in profile" },
       ],
     },
     { title: "Deliver to", rows: address(input.deliverTo) },
@@ -960,9 +969,9 @@ export async function sendNewOrderAlert(input: {
       title: "Order",
       rows: [
         ...input.lines.map((line) => ({
-          label: `${line.qty} x ${line.name}`,
+          label: "Item",
+          item: `${line.qty} x ${line.name}`,
           value: line.amount,
-          figure: true,
         })),
         { label: "Subtotal", value: input.subtotal, figure: true },
         { label: "CGST 9%", value: input.cgst, figure: true },
