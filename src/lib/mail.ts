@@ -839,71 +839,65 @@ export async function sendPasswordChangedMail(input: {
  * on Teams' dark table cells was nearly unreadable. Left unset, text takes
  * each app's own colours — black in Outlook, light in Teams' dark mode.
  */
-type AlertRow = {
-  label: string;
-  value: string;
-  /** An order line: `item` sits in the middle column, `value` (its amount)
-   *  right-aligned in the last. */
-  item?: string;
-  /** A bill line — label across the first two columns, amount right-aligned. */
-  figure?: boolean;
-  strong?: boolean;
-};
-
-/** A heading and its rows. Rows with no value are dropped, and a section left
- *  with none is dropped with them. */
-type AlertSection = { title: string; rows: AlertRow[] };
+/** Contact details: the title in the left column, its lines in the right. */
+type AlertBlock = { title: string; lines: string[] };
+/** One line of the bill: what, and how much, right-aligned. */
+type AlertBillLine = { label: string; amount: string; strong?: boolean };
 
 /**
- * **One table, three columns, for the whole email** (client, 2026-09-18:
- * "properly align this for teams and for mail"). Labels in the first column,
- * values across the other two, and amounts right-aligned in the third — so
- * every label and every figure lines up down the page. Section titles are
- * header rows of the same table.
+ * The layout, in **only the markup Teams is known to post** (2026-09-18):
+ * `div`, `p`, `b`, `br`, `a`, and tables of `tr`/`td` with `cellpadding`,
+ * `valign`, `align` and `nowrap`. The client forwards this inbox to a Teams
+ * channel, and Teams skips an email it cannot convert — silently, while the
+ * Outlook copy arrives as normal. It skipped this alert twice: once for size
+ * (over ~5.5 KB), and once, at 2.8 KB, when it used `th`, `col`, `colspan`
+ * and a width/style on the table to line columns up. Keep to this list.
  *
- * Teams draws a border round every cell, which is why: a table per section
- * gave each its own column widths, and an empty spacer column showed as an
- * empty box on every row. Here every cell holds something, and the spacing
- * comes from `cellpadding`.
+ * **Two tables, two columns each, no empty cells** — Teams draws a border
+ * round every cell, so an empty one shows as an empty box:
+ *  - contact details: Customer / Deliver to / Billed to on the left, and on
+ *    the right the name, the address, then "Email:", "Phone:", "GSTIN:";
+ *  - the order: each line on the left, its amount right-aligned.
  */
-function leanAlert(heading: string, intro: string, sections: AlertSection[], adminUrl: string): string {
-  const rows = sections
-    .map((section) => ({ ...section, rows: section.rows.filter((row) => row.value) }))
-    .filter((section) => section.rows.length > 0)
+function leanAlert(
+  heading: string,
+  intro: string,
+  blocks: AlertBlock[],
+  bill: AlertBillLine[],
+  adminUrl: string,
+): string {
+  const contact = blocks
     .map(
-      (section) =>
-        `<tr><th colspan="3" align="left" style="padding-top:12px">${esc(section.title)}</th></tr>` +
-        section.rows
-          .map((row) => {
-            const b = (text: string) => (row.strong ? `<b>${text}</b>` : text);
-            const value = b(esc(row.value).replace(/\n/g, "<br>"));
-            const label = b(esc(row.label));
-            if (row.item !== undefined) {
-              return `<tr><td valign="top">${label}</td><td valign="top">${esc(row.item)}</td><td valign="top" align="right" nowrap>${value}</td></tr>`;
-            }
-            if (row.figure) {
-              return `<tr><td colspan="2" valign="top">${label}</td><td valign="top" align="right" nowrap>${value}</td></tr>`;
-            }
-            return `<tr><td valign="top" nowrap>${label}</td><td colspan="2" valign="top">${value}</td></tr>`;
-          })
-          .join(""),
+      (block) =>
+        `<tr><td valign="top" nowrap><b>${esc(block.title)}</b></td><td valign="top">${block.lines
+          .filter(Boolean)
+          .map(esc)
+          .join("<br>")}</td></tr>`,
     )
     .join("");
-  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5"><p style="font-size:17px;margin:0 0 2px"><b>${esc(heading)}</b></p><p style="margin:0 0 6px">${esc(intro)}</p><table width="100%" cellpadding="4" cellspacing="0" style="max-width:560px"><col width="90">${rows}</table><p style="margin:14px 0 0"><a href="${esc(adminUrl)}">Open in admin</a></p><p style="margin:8px 0 0;font-size:12px">Reply to this email to write to the customer.</p></div>`;
+  const order = bill
+    .filter((line) => line.amount)
+    .map((line) => {
+      const b = (text: string) => (line.strong ? `<b>${text}</b>` : text);
+      return `<tr><td valign="top">${b(esc(line.label))}</td><td valign="top" align="right" nowrap>${b(esc(line.amount))}</td></tr>`;
+    })
+    .join("");
+  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5"><p style="font-size:17px;margin:0 0 2px"><b>${esc(heading)}</b></p><p style="margin:0 0 10px">${esc(intro)}</p><table cellpadding="4" cellspacing="0">${contact}</table><p style="margin:14px 0 4px"><b>Order</b></p><table cellpadding="4" cellspacing="0">${order}</table><p style="margin:14px 0 0"><a href="${esc(adminUrl)}">Open in admin</a></p><p style="margin:8px 0 0;font-size:12px">Reply to this email to write to the customer.</p></div>`;
 }
 
-/** The same sections as text, for the plain part. */
-function leanAlertText(heading: string, intro: string, sections: AlertSection[], adminUrl: string): string {
+/** The same, as text, for the plain part. */
+function leanAlertText(
+  heading: string,
+  intro: string,
+  blocks: AlertBlock[],
+  bill: AlertBillLine[],
+  adminUrl: string,
+): string {
   const out = [heading, intro];
-  for (const section of sections) {
-    const rows = section.rows.filter((row) => row.value);
-    if (rows.length === 0) continue;
-    out.push("", section.title.toUpperCase());
-    for (const row of rows) {
-      const [first, ...rest] = (row.item !== undefined ? `${row.item} — ${row.value}` : row.value).split("\n");
-      out.push(`  ${row.label}: ${first}`, ...rest.map((line) => `    ${line}`));
-    }
+  for (const block of blocks) {
+    out.push("", block.title.toUpperCase(), ...block.lines.filter(Boolean).map((line) => `  ${line}`));
   }
+  out.push("", "ORDER", ...bill.filter((l) => l.amount).map((l) => `  ${l.label}: ${l.amount}`));
   out.push("", `Open in admin: ${adminUrl}`);
   return out.join("\n");
 }
@@ -945,48 +939,46 @@ export async function sendNewOrderAlert(input: {
      the phone typed on that address, which is the number the courier (or the
      accounts office) will actually ring; the profile's own number is under
      Customer. */
-  const address = (a: AlertAddress): AlertRow[] => [
-    { label: "Name", value: a.name },
-    { label: "Address", value: a.lines.filter(Boolean).join("\n") },
-    { label: "Phone", value: a.phone },
-    { label: "GSTIN", value: a.gstin ?? "" },
-  ];
-  const sections: AlertSection[] = [
+  const blocks: AlertBlock[] = [
     {
       title: "Customer",
-      rows: [
-        { label: "Name", value: input.customer.name },
-        { label: "Email", value: input.customer.email },
+      lines: [
+        input.customer.name,
+        `Email: ${input.customer.email}`,
         /* The phone saved in My account → Your details, under the email
-           (client, 2026-09-18). Said, not dropped, when there is none — a
-           missing row reads as a bug, "Not in profile" says where to add it. */
-        { label: "Phone", value: input.customer.phone || "Not in profile" },
+           (client, 2026-09-18). Said when there is none, so the absence is
+           explained rather than looking like a bug. */
+        `Phone: ${input.customer.phone || "Not in profile"}`,
       ],
     },
-    { title: "Deliver to", rows: address(input.deliverTo) },
-    { title: "Billed to", rows: address(input.billTo) },
     {
-      title: "Order",
-      rows: [
-        ...input.lines.map((line) => ({
-          label: "Item",
-          item: `${line.qty} x ${line.name}`,
-          value: line.amount,
-        })),
-        { label: "Subtotal", value: input.subtotal, figure: true },
-        { label: "CGST 9%", value: input.cgst, figure: true },
-        { label: "SGST 9%", value: input.sgst, figure: true },
-        { label: input.deliveryLabel, value: input.delivery, figure: true },
-        { label: "Total", value: input.total, figure: true, strong: true },
-        { label: "Payment", value: input.payment, figure: true },
+      title: "Deliver to",
+      lines: [input.deliverTo.name, ...input.deliverTo.lines, `Phone: ${input.deliverTo.phone}`],
+    },
+    {
+      title: "Billed to",
+      lines: [
+        input.billTo.name,
+        ...input.billTo.lines,
+        `Phone: ${input.billTo.phone}`,
+        input.billTo.gstin ? `GSTIN: ${input.billTo.gstin}` : "",
       ],
     },
+  ];
+  const bill: AlertBillLine[] = [
+    ...input.lines.map((line) => ({ label: `${line.qty} x ${line.name}`, amount: line.amount })),
+    { label: "Subtotal", amount: input.subtotal },
+    { label: "CGST 9%", amount: input.cgst },
+    { label: "SGST 9%", amount: input.sgst },
+    { label: input.deliveryLabel, amount: input.delivery },
+    { label: "Total", amount: input.total, strong: true },
+    { label: "Payment", amount: input.payment },
   ];
   const heading = `${input.orderNumber} — New order`;
   const intro = `${input.payment} · placed ${input.placed}`;
 
-  const html = leanAlert(heading, intro, sections, input.adminUrl);
-  const text = leanAlertText(heading, intro, sections, input.adminUrl);
+  const html = leanAlert(heading, intro, blocks, bill, input.adminUrl);
+  const text = leanAlertText(heading, intro, blocks, bill, input.adminUrl);
 
   return sendMail({
     to: site.ordersEmail,

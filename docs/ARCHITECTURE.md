@@ -1603,6 +1603,21 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-18 (mail) — New-order alert in markup Teams will post
+
+The aligned three-column version (entry below) reached Outlook but **not the
+client's Teams channel**, at only 2.8 KB — so size was not the whole story.
+What it had that the last version Teams posted did not: `<th>`, `<col>`,
+`colspan`, and a `width`/`style` on the table. `leanAlert` now uses **only**
+`div`, `p`, `b`, `br`, `a`, `table`/`tr`/`td` with `cellpadding`,
+`cellspacing`, `valign`, `align`, `nowrap` — exactly the markup of the version
+Teams was seen to post — in two two-column tables: contact details (section
+title left; name, address, "Email:", "Phone:", "GSTIN:" right) and the order
+(line left, amount right). No empty cells, so no empty boxes in Teams'
+bordered tables. 2.0 KB for two lines, 4.2 KB at twenty. The function's
+comment lists the allowed markup; **treat it as a §9-style constraint** — the
+failure is silent.
+
 ### 2026-09-18 (mail) — New-order alert aligned for Teams and mail
 
 Client, with a Teams screenshot: "properly align this for teams and for mail."

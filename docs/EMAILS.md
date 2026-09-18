@@ -82,7 +82,7 @@ order email the business receives; enquiries go to **support@vkon.in**
 
 | # | Email | When | Subject | Code |
 |---|---|---|---|---|
-| 15 | New order *(A)* — to **orders@vkon.in**, from **nivixsa@vkon.in** (`ORDER_ALERT_FROM`). Sections: **Customer** (profile name, email, then the phone saved in My account — "Not in profile" when none), **Deliver to** and **Billed to** (each address with the phone typed on it; GSTIN when given), **Order** (each line, subtotal, CGST, SGST, delivery with service and courier, total, payment) | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | VK-… — New order — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
+| 15 | New order *(A)* — to **orders@vkon.in**, from **nivixsa@vkon.in** (`ORDER_ALERT_FROM`). Sections: **Customer** (profile name, "Email:", then "Phone:" from My account — "Not in profile" when none), **Deliver to** and **Billed to** (each address with the phone typed on it; GSTIN when given), **Order** (each line, subtotal, CGST, SGST, delivery with service and courier, total, payment) | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | VK-… — New order — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
 | 16 | New enquiry *(G)* | Contact form saved (bots caught by the honeypot are not sent) | New enquiry from {name} — vkon.in | `sendEnquiryAlert` ← `app/(site)/actions.ts` |
 
 **orders@vkon.in and support@vkon.in must both exist in Microsoft 365**
@@ -122,6 +122,11 @@ footer, /terms and /privacy.
 
 ## 6. Change log
 
+- **2026-09-18 (Teams markup)** — The three-column version did not reach
+  Teams despite being small: Teams also skips emails using table markup it
+  cannot convert (`th`, `col`, `colspan`, table width/style). The alert now
+  uses only plain tables and inline text markup — see `leanAlert` — as two
+  two-column tables: contact details, then the order.
 - **2026-09-18 (alignment)** — The new-order alert is one three-column table
   (labels, values, amounts), so it lines up in Teams — which borders every
   cell — as well as in Outlook.
