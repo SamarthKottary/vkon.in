@@ -1603,6 +1603,20 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-18 (mail) — Only the new-order alert goes to orders@
+
+Client: "remove all other mail being sent to the orders@vkon.in, only new
+order mail is enough."
+
+- **Removed** `sendOrderActivityAlert` (`lib/mail.ts`), and `alertAdmin`,
+  `notifyAddressChanged` and their helpers (`lib/order-notifications.ts`) —
+  the order-activity alerts added earlier the same day. `notifyOrderUpdate`,
+  `notifyPaymentFailed` and `notifyRefund` email the customer only, as before
+  those alerts. The address actions no longer look the order up first for the
+  alert's "was" address.
+- `sendNewOrderAlert` is untouched and is the only order email to the
+  business. The admin page's note says so. EMAILS.md row 17 removed.
+
 ### 2026-09-18 (mail) — New-order alert subject starts with the order number
 
 Client: every admin mail showed in their Teams integration except new orders,

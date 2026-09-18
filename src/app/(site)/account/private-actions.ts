@@ -43,7 +43,7 @@ import {
 } from "@/lib/shiprocket";
 import { packParcel } from "@/lib/parcel";
 import { sendOrderPlacedMail, sendPasswordChangedMail } from "@/lib/mail";
-import { notifyAddressChanged, notifyNewOrder } from "@/lib/order-notifications";
+import { notifyNewOrder } from "@/lib/order-notifications";
 import { formatPaise, priceLines, totals } from "@/lib/pricing";
 import { site } from "@/content/site";
 import type { Address, Order, ShipTo } from "@/lib/types";
@@ -1042,8 +1042,6 @@ export async function changeOrderAddressAction(
       };
     }
     await saveToAddressBook(customer.id, formData, input);
-    /* The orders inbox hears of it (2026-09-18). Never throws. */
-    await notifyAddressChanged(order.id, "delivery", order.shipTo);
   } catch (error) {
     console.error("[account] order address change failed:", error);
     return {
@@ -1087,15 +1085,13 @@ export async function changeOrderBillingAction(
   }
 
   try {
-    const before = orderId ? await getOrderForCustomer(customer.id, orderId) : null;
-    const changed = before
+    const changed = orderId
       ? await changeOrderBilling({ orderId, customerId: customer.id, billTo: { ...input } })
       : false;
-    if (!before || !changed) {
+    if (!changed) {
       return { status: "error", message: "That order could not be found.", values: typed };
     }
     await saveToAddressBook(customer.id, formData, input);
-    await notifyAddressChanged(orderId, "billing", before.billTo);
   } catch (error) {
     console.error("[account] billing address change failed:", error);
     return {
@@ -1150,11 +1146,9 @@ export async function applySavedBillingAction(input: {
   const saved = await getAddress(customer.id, String(input?.addressId ?? ""));
   if (!saved) return { status: "error", message: "That address could not be found." };
   try {
-    const before = await getOrderForCustomer(customer.id, orderId);
-    if (!before || !(await changeOrderBilling({ orderId, customerId: customer.id, billTo: snapshot(saved) }))) {
+    if (!(await changeOrderBilling({ orderId, customerId: customer.id, billTo: snapshot(saved) }))) {
       return { status: "error", message: "That order could not be found." };
     }
-    await notifyAddressChanged(orderId, "billing", before.billTo);
   } catch (error) {
     console.error("[account] billing address choice failed:", error);
     return { status: "error", message: "Could not change the billing address just now. Please try again." };

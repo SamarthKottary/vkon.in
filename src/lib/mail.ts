@@ -810,8 +810,9 @@ export async function sendPasswordChangedMail(input: {
 /**
  * A new order, to the orders inbox (`site.ordersEmail`, orders@vkon.in —
  * client, 2026-09-18; it went to support@ before) — EMAILS.md A, 2026-09-17.
- * The only order mail the business gets: the customer's own order emails are
- * not copied anywhere (client, same day: "just the admin mail is enough").
+ * The only order mail the business gets (client, same day): the customer's
+ * own order emails are not copied, and later events send the business nothing
+ * — "only new order mail is enough".
  *
  * Sent when an order is real: at placement for cash on delivery, and on
  * payment for an online order (an unpaid, abandoned one is not news). Reply-To
@@ -870,59 +871,6 @@ export async function sendNewOrderAlert(input: {
     html,
     text,
     replyTo: input.customerEmail,
-  });
-}
-
-/**
- * Something happened to an order after it came in — to the orders inbox, for
- * the business to follow the order (client, 2026-09-18: "for the admin to
- * track the user, not just simply forwarding the customer's mail").
- *
- * **Written for the operator, not a copy of the customer's email.** It leads
- * with what happened and what, if anything, needs doing ("refund it from
- * /admin/orders"), then the facts to act on — who, the phone, the courier and
- * AWB, the amounts — and a link to the order in admin. Subject
- * `VK-… — {event}`, so the inbox reads as a timeline per order. Reply-To is
- * the customer, as on the new-order alert.
- *
- * One function for every event, called from `lib/order-notifications.ts` at
- * the same points, and under the same once-only gates, as the customer's own
- * emails. EMAILS.md 17.
- */
-export async function sendOrderActivityAlert(input: {
-  orderNumber: string;
-  /** Short, for the subject and heading: "Shipped", "Refund issued". */
-  event: string;
-  /** What happened and what to do about it, in a sentence or two. */
-  summary: string;
-  details: [string, string | null | undefined][];
-  customerEmail: string | null;
-  /** Null for an order `/admin/orders` does not list (unpaid). */
-  adminUrl: string | null;
-}): Promise<MailResult> {
-  const details = detailTable(input.details);
-  const html = shell(
-    `${input.orderNumber} — ${input.event}`,
-    paragraph(esc(input.summary)) +
-      details.html +
-      (input.adminUrl ? button(input.adminUrl, "Open in admin") : "") +
-      (input.customerEmail ? smallPrint("Reply to this email to write to the customer.") : ""),
-  );
-  const text = [
-    `${input.orderNumber} — ${input.event}`,
-    "",
-    input.summary,
-    "",
-    ...details.text,
-    ...(input.adminUrl ? ["", `Open in admin: ${input.adminUrl}`] : []),
-  ].join("\n");
-
-  return sendMail({
-    to: site.ordersEmail,
-    subject: `${input.orderNumber} — ${input.event}`,
-    html,
-    text,
-    ...(input.customerEmail ? { replyTo: input.customerEmail } : {}),
   });
 }
 

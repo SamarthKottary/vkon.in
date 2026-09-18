@@ -190,9 +190,8 @@ export default async function AdminOrdersPage({
         <p>
           <span className="font-medium text-ink">New orders are emailed to orders@vkon.in</span>{" "}
           — a cash-on-delivery order when it is placed, an online order once
-          it is paid — and so is everything that happens to an order after:
-          a failed payment, courier updates, delivery, cancellation, refunds
-          and the customer changing an address.
+          it is paid. That is the only order email we get; follow everything
+          after it here.
         </p>
         <p>
           <span className="font-medium text-ink">Only confirmed orders are listed:</span>{" "}

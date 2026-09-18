@@ -19,10 +19,10 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
   not read and point to support@vkon.in and the phone number instead. Alerts to
   the business carry the customer as Reply-To.
 - **Customer emails go to the customer only.** None is copied to the business
-  (client, 2026-09-18: "just the admin mail is enough"). The business follows
-  an order through its **own alerts** at orders@vkon.in instead — the
-  new-order alert (15) and an activity alert (17) for everything after —
-  written for the operator, not copies of what the customer was sent.
+  (client, 2026-09-18: "just the admin mail is enough"). **The one order email
+  the business gets is the new-order alert (15)**, at orders@vkon.in — "only
+  new order mail is enough" (same day). Everything after it is followed in
+  `/admin/orders`.
 - **Plain inline-styled HTML plus a text version** for every message, kept
   small for phones on weak connections.
 - **Never throws.** A failed send is logged and the action that triggered it
@@ -72,15 +72,13 @@ before 2026-09-17 has only the first two events.
 ### To the business
 
 Reply-To is the customer, so answering reaches them rather than `no-reply@`.
-New-order and order-activity alerts go to **orders@vkon.in**
-(`site.ordersEmail`); enquiries to **support@vkon.in** (`site.email`). The
-confirmation and the payment receipt have no separate alert: they go out at
-the same moment as the new-order alert, which is that event.
+New-order alerts go to **orders@vkon.in** (`site.ordersEmail`) — the only
+order email the business receives; enquiries go to **support@vkon.in**
+(`site.email`).
 
 | # | Email | When | Subject | Code |
 |---|---|---|---|---|
 | 15 | New order *(A)* — to **orders@vkon.in** | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | VK-… — New order — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
-| 17 | Order activity — to **orders@vkon.in** | Everything after the order comes in, at the same points and under the same once-only gates as the customer's email: payment failed (7), refund issued (8), shipped, out for delivery, delivery attempt failed, being returned, delivered, cancelled (9–14) — and the customer changing a delivery or billing address on a confirmed order. Each says what happened and what to do (a cancelled paid order: "refund it from /admin/orders"), then customer, phone, email, total, payment, and the courier/AWB/latest scan, amounts or old→new address. Admin link except for an unpaid order, which admin does not list | VK-… — Shipped / Delivery attempt failed / Refund issued / Delivery address changed … | `sendOrderActivityAlert` ← `alertAdmin` / `notifyAddressChanged` in `lib/order-notifications.ts` |
 | 16 | New enquiry *(G)* | Contact form saved (bots caught by the honeypot are not sent) | New enquiry from {name} — vkon.in | `sendEnquiryAlert` ← `app/(site)/actions.ts` |
 
 **orders@vkon.in and support@vkon.in must both exist in Microsoft 365**
@@ -120,6 +118,10 @@ footer, /terms and /privacy.
 
 ## 6. Change log
 
+- **2026-09-18 (final)** — The order-activity alerts (17: payment failed,
+  refund, courier updates, delivered, cancelled, address changes) removed at
+  the client's request: "only new order mail is enough". orders@vkon.in gets
+  the new-order alert and nothing else.
 - **2026-09-18 (Teams)** — The new-order alert's subject now starts with the
   order number (`VK-… — New order — ₹total — payment`), like every activity
   alert. Starting "New order VK-…", it was the one admin mail the client's
