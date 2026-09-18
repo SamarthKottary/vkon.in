@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TrashIcon } from "@/components/icons/ui";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 
 export function CancelOrderButton({
   orderId,
@@ -13,12 +15,10 @@ export function CancelOrderButton({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   async function cancelOrder() {
-    if (!window.confirm("Are you sure you want to delete this order?")) {
-      return;
-    }
-
+    setShowConfirm(false);
     setBusy(true);
     try {
       const res = await fetch(`/api/orders/${orderId}/cancel`, {
@@ -27,8 +27,7 @@ export function CancelOrderButton({
 
       if (res.ok) {
         if (!compact) {
-          router.push("/account/orders");
-          router.refresh(); // Ensure the list is updated
+          router.replace("/account/orders");
         } else {
           router.refresh();
         }
@@ -46,33 +45,68 @@ export function CancelOrderButton({
   const baseClasses =
     "inline-flex items-center justify-center transition-colors disabled:opacity-50";
 
+  const confirmDialog = showConfirm && (
+    <Modal title="Delete order" onClose={() => setShowConfirm(false)}>
+      <p className="mt-2 text-sm leading-relaxed text-body">
+        Are you sure you want to permanently delete this order? This action cannot be undone.
+      </p>
+
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Button
+          type="button"
+          variant="danger"
+          size="lg"
+          onClick={cancelOrder}
+          className="min-w-36 flex-1 sm:flex-none"
+        >
+          Delete
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={() => setShowConfirm(false)}
+          className="min-w-36 flex-1 sm:flex-none"
+        >
+          Cancel
+        </Button>
+      </div>
+    </Modal>
+  );
+
   if (compact) {
     return (
-      <button
-        type="button"
-        title="Delete order"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          cancelOrder();
-        }}
-        disabled={busy}
-        className={`${baseClasses} h-9 w-9 border border-line-strong text-muted hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30`}
-      >
-        <TrashIcon className="h-4 w-4" />
-      </button>
+      <>
+        {confirmDialog}
+        <button
+          type="button"
+          title="Delete order"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowConfirm(true);
+          }}
+          disabled={busy}
+          className={`${baseClasses} h-9 w-9 border border-line-strong text-muted hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30`}
+        >
+          <TrashIcon className="h-4 w-4" />
+        </button>
+      </>
     );
   }
 
   return (
-    <button
-      type="button"
-      title="Delete order"
-      onClick={cancelOrder}
-      disabled={busy}
-      className={`${baseClasses} h-8 w-8 rounded-full text-muted hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30`}
-    >
-      <TrashIcon className="h-5 w-5" />
-    </button>
+    <>
+      {confirmDialog}
+      <button
+        type="button"
+        title="Delete order"
+        onClick={() => setShowConfirm(true)}
+        disabled={busy}
+        className={`${baseClasses} h-8 w-8 rounded-full text-muted hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30`}
+      >
+        <TrashIcon className="h-5 w-5" />
+      </button>
+    </>
   );
 }
