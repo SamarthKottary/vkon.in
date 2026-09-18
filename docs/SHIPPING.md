@@ -347,9 +347,8 @@ option (delivery mode and price)".
   lock with the row as it is at that moment, and refuses (`"moved"`) if the
   order was paid between pricing and writing, so an unpaid total is never
   written onto a paid order.
-- **The billing address is different: always editable** (client, same day —
-  "we will always generate invoice using the current details"), on any order
-  in any state, with no quote and no effect on the amount
+- **The billing address follows the same window** (client, same day — briefly
+  "always editable" before that), with no quote and no effect on the amount
   (`OrderBillingDialog`, `changeOrderBillingAction`). A booked shipment keeps
   the billing address it was sent; the parcel does not depend on it.
 - `orders.delivery_service` records "Standard" / "Faster" / "Express" at

@@ -164,6 +164,7 @@ src/
     account/   AccountShell, AccountNavLink (client), AccountMenu (client),
                AddressBook (client), AddressForm (client), AddressPicker (client),
                OrderAddressEdit (client), DeliveryOutcome (client),
+               EditCountdown (client),
                ProfileForm (client),
                OrderStatusBadge
     checkout/  CheckoutForm, DeliveryPicker, PayNowButton,
@@ -260,6 +261,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `checkout/DeliveryPicker` | The chosen delivery service collapsed, the others on demand |
 | `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, announces the payment, then refreshes. On a 409 shows the price-change dialog, whose one button (Update) reprices the order without charging |
 | `account/OrderAddressEdit` | Edit on an order's billing or delivery address: a `Modal` listing the address book (scrolling, the order's own address first, marked "On this order"), with Add; Use this address, or Edit/Add → `AddressForm` → Save and use. Delivery shows the quote before using |
+| `account/EditCountdown` | `useTimeLeft` and the "Time left to edit — 17h 42m 05s" readout in the address pop-up; "No time limit until you pay" for an unpaid order, "Editing has closed" at zero |
 | `account/DeliveryOutcome` | `useDeliveryQuote` and the view of what a new PIN does to delivery (same PIN / services and new total if unpaid / kept service if paid) — shared by the pop-up's list and form |
 | `checkout/PaymentSuccessDialog` | "Payment successful": amount and order number as aligned label/figure rows, and where the receipt is going. Shown by both paths that take money |
 | `checkout/PaymentSuccessOnArrival` | Shows that dialog once when checkout lands on a paid order, then strips `?placed=` from the URL |
@@ -1602,6 +1604,29 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-18 (orders) — Billing shares the delivery window; a countdown in the pop-up
+
+Client: "in same way the billing address edit button should go away at 12pm.
+Same as delivery address. Also, add the timer showing time left to edit" (with
+the spot marked beside the pop-up's buttons).
+
+- **Billing is no longer always editable.** Its Edit button follows
+  `addressEditWindow` like delivery's — open while unpaid, then until 12 pm the
+  day after confirmation, gone once booked/shipped/cancelled/refunded — and
+  `changeOrderBilling` now checks that window under a row lock, returning
+  `"ok" | "closed" | "missing"`, so a stale page or a hand-posted form is
+  refused. The page note now says "billing and delivery addresses".
+- **New client component `account/EditCountdown`** — `useTimeLeft(until)`
+  reads the clock in a timer, never in render (no server/browser mismatch, no
+  state set in an effect body, §9), ticking each second only while the pop-up
+  is open. Shown at the right of the pop-up's buttons and beside "Back to
+  addresses" on the form; "Use this address" disables at zero.
+- **Tested in the browser:** both buttons inside the window and neither after;
+  the countdown ticking and matching the deadline; a billing change refused
+  after the window closed under an open pop-up; "No time limit until you pay"
+  on an unpaid order; with the browser clock set 8 s before noon, "Editing has
+  closed" and the button disabled; 390px.
 
 ### 2026-09-18 (mail) — New-order alert in markup Teams will post
 

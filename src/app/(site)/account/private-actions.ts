@@ -851,7 +851,7 @@ export type OrderAddressQuote =
     };
 
 const ADDRESS_CLOSED =
-  "The delivery address on this order can no longer be changed. If it is wrong, please call us on " +
+  "The addresses on this order can no longer be changed. If one is wrong, please call us on " +
   `${site.phone.display}.`;
 
 /**
@@ -1058,12 +1058,14 @@ export async function changeOrderAddressAction(
 }
 
 /**
- * Replaces an order's billing address — always allowed (client, 2026-09-18:
- * "we will always generate invoice using the current details").
+ * Replaces an order's billing address — within the same window as the
+ * delivery address (client, 2026-09-18: first "always", then "in same way the
+ * billing address edit button should go away at 12pm"). `changeOrderBilling`
+ * checks the window under the row lock.
  *
  * The same fields and validation as the address book (`readAddress`), GSTIN
  * checksum included, because this is the address the tax invoice is made out
- * to. Delivery and the amount are untouched; the saved address book is too.
+ * to. Delivery and the amount are untouched.
  */
 export async function changeOrderBillingAction(
   _prev: AccountState,
@@ -1085,10 +1087,11 @@ export async function changeOrderBillingAction(
   }
 
   try {
-    const changed = orderId
+    const result = orderId
       ? await changeOrderBilling({ orderId, customerId: customer.id, billTo: { ...input } })
-      : false;
-    if (!changed) {
+      : "missing";
+    if (result === "closed") return { status: "error", message: ADDRESS_CLOSED, values: typed };
+    if (result === "missing") {
       return { status: "error", message: "That order could not be found.", values: typed };
     }
     await saveToAddressBook(customer.id, formData, input);
@@ -1146,9 +1149,9 @@ export async function applySavedBillingAction(input: {
   const saved = await getAddress(customer.id, String(input?.addressId ?? ""));
   if (!saved) return { status: "error", message: "That address could not be found." };
   try {
-    if (!(await changeOrderBilling({ orderId, customerId: customer.id, billTo: snapshot(saved) }))) {
-      return { status: "error", message: "That order could not be found." };
-    }
+    const result = await changeOrderBilling({ orderId, customerId: customer.id, billTo: snapshot(saved) });
+    if (result === "closed") return { status: "error", message: ADDRESS_CLOSED };
+    if (result === "missing") return { status: "error", message: "That order could not be found." };
   } catch (error) {
     console.error("[account] billing address choice failed:", error);
     return { status: "error", message: "Could not change the billing address just now. Please try again." };

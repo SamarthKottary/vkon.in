@@ -104,15 +104,20 @@ export default async function OrderPage({
   /* The address book, for the Edit pop-ups — the same list checkout chooses
      from (client, 2026-09-18). */
   const addresses = await listAddresses(customer.id);
-  const editBilling = (label?: string) => (
-    <OrderAddressEdit
-      role="billing"
-      orderId={order.id}
-      current={order.billTo}
-      addresses={addresses}
-      label={label}
-    />
-  );
+  /* Billing now shares the delivery address's window (client, 2026-09-18:
+     "in same way the billing address edit button should go away at 12pm"). */
+  const until = addressEdit.editable ? addressEdit.until : null;
+  const editBilling = (label?: string) =>
+    addressEdit.editable ? (
+      <OrderAddressEdit
+        role="billing"
+        orderId={order.id}
+        current={order.billTo}
+        addresses={addresses}
+        until={until}
+        label={label}
+      />
+    ) : null;
   const editDelivery = (label?: string) =>
     addressEdit.editable ? (
       <OrderAddressEdit
@@ -121,6 +126,7 @@ export default async function OrderPage({
         current={order.shipTo}
         addresses={addresses}
         delivery={deliveryNow}
+        until={until}
         label={label}
       />
     ) : null;
@@ -147,11 +153,11 @@ export default async function OrderPage({
         <p className="mt-4 border-t border-line pt-3 text-sm leading-relaxed text-body">
           {addressEdit.until ? (
             <>
-              You can change the delivery address until{" "}
+              You can change the billing and delivery addresses until{" "}
               <span className="font-semibold text-ink">{formatNoonDeadline(addressEdit.until)}</span>.
             </>
           ) : (
-            "You can change the delivery address until you pay, and after that until 12 pm the next day."
+            "You can change the billing and delivery addresses until you pay, and after that until 12 pm the next day."
           )}
         </p>
       )}

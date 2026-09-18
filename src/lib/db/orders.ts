@@ -950,28 +950,51 @@ export async function cancelOrder(orderId: string, customerId: string): Promise<
 }
 
 /**
- * Replaces an order's billing address, at the customer's request (client,
- * 2026-09-18).
+ * Replaces an order's billing address, at the customer's request.
  *
- * **No window and no money.** The invoice is generated from the order's
- * current billing details whenever it is made, so correcting them is always
- * allowed — before payment, after dispatch, after delivery. Nothing about
- * delivery or the amount depends on it: the courier works from `ship_to`, and
- * the price does not change with the billing address. Scoped to the owner in
- * the WHERE, so somebody else's order id changes nothing.
+ * **Within the same window as the delivery address** (client, 2026-09-18 —
+ * it was "always" earlier the same day): while the order is unpaid, then
+ * until 12 pm the day after it was confirmed, and never once it has shipped,
+ * been booked, cancelled or refunded. Checked here under the row lock, with the
+ * row as it is now, for the reason `changeOrderAddress` gives. No money moves:
+ * the amount does not depend on who is billed.
  */
 export async function changeOrderBilling(input: {
   orderId: string;
   customerId: string;
   billTo: ShipTo;
-}): Promise<boolean> {
-  const rows = await query<{ id: string }>(
-    `UPDATE orders SET bill_to = $3, updated_at = now()
-      WHERE id = $1 AND customer_id = $2
-      RETURNING id`,
-    [input.orderId, input.customerId, JSON.stringify(input.billTo)],
-  );
-  return rows.length > 0;
+  now?: Date;
+}): Promise<"ok" | "closed" | "missing"> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const found = await client.query<OrderRow>(
+      `SELECT ${ORDER_SELECT} FROM orders
+        WHERE id = $1 AND customer_id = $2
+          FOR UPDATE`,
+      [input.orderId, input.customerId],
+    );
+    const row = found.rows[0];
+    if (!row) {
+      await client.query("ROLLBACK");
+      return "missing";
+    }
+    if (!addressEditWindow(mapOrder(row, []), input.now ?? new Date()).editable) {
+      await client.query("ROLLBACK");
+      return "closed";
+    }
+    await client.query(`UPDATE orders SET bill_to = $2, updated_at = now() WHERE id = $1`, [
+      input.orderId,
+      JSON.stringify(input.billTo),
+    ]);
+    await client.query("COMMIT");
+    return "ok";
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /** Looks an order up by Razorpay's payment id — for a refund event that

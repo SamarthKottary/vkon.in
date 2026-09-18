@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { AlertIcon, ArrowRightIcon, PencilIcon, PlusIcon, SpinnerIcon, TrashIcon } from "@/components/icons/ui";
 import { AddressForm } from "@/components/account/AddressForm";
 import { AddressLines } from "@/components/account/AddressPicker";
+import { EditCountdown, useTimeLeft } from "@/components/account/EditCountdown";
 import { sameOrderAddress } from "@/components/account/OrderAddress";
 import {
   DeliveryOutcome,
@@ -53,8 +54,13 @@ type View =
  *    address, when it is not saved, is changed on the order only.
  *  - **Add an address** saves a new one to the book and uses it.
  *
- * The server re-checks all of it: the delivery window, the payment state and
- * the quote in `changeOrderAddressAction`; ownership everywhere.
+ * **Both addresses share one window** (client, 2026-09-18): open while the
+ * order is unpaid, then until 12 pm the day after it was confirmed — the page
+ * hides the button after that, and the pop-up counts down to it
+ * (`EditCountdown`).
+ *
+ * The server re-checks all of it: the window, the payment state and the quote
+ * in `changeOrderAddressAction` / `changeOrderBilling`; ownership everywhere.
  */
 export function OrderAddressEdit({
   role,
@@ -62,6 +68,7 @@ export function OrderAddressEdit({
   current,
   addresses,
   delivery,
+  until,
   label = "Edit",
 }: {
   role: "billing" | "delivery";
@@ -71,6 +78,9 @@ export function OrderAddressEdit({
   addresses: Address[];
   /** Required for `role="delivery"`. */
   delivery?: OrderDelivery;
+  /** When the window closes (ISO), or null while the order is unpaid — from
+   *  `addressEditWindow`, shown as a countdown in the pop-up. */
+  until: string | null;
   /** The button's words — "Edit billing" where two share a card. */
   label?: string;
 }) {
@@ -81,6 +91,9 @@ export function OrderAddressEdit({
   const [formPin, setFormPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  /* Ticks only while the pop-up is open: the hook's timer starts with it. */
+  const msLeft = useTimeLeft(open ? until : null);
+  const countdown = <EditCountdown until={until} msLeft={msLeft} />;
   const quote = useDeliveryQuote(
     delivery ?? {
       orderId,
@@ -189,14 +202,17 @@ export function OrderAddressEdit({
     const saveToBook = !view.onOrder;
     body = (
       <>
-        <button
-          type="button"
-          onClick={() => setView({ kind: "list" })}
-          className="-mt-1 mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
-        >
-          <ArrowRightIcon className="h-3.5 w-3.5 rotate-180" />
-          Back to addresses
-        </button>
+        <div className="-mt-1 mb-4 flex items-start justify-between gap-4">
+          <button
+            type="button"
+            onClick={() => setView({ kind: "list" })}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
+          >
+            <ArrowRightIcon className="h-3.5 w-3.5 rotate-180" />
+            Back to addresses
+          </button>
+          {countdown}
+        </div>
         <p className="mb-5 text-sm leading-relaxed text-muted">
           {view.onOrder
             ? "This changes the address on this order only."
@@ -244,7 +260,12 @@ export function OrderAddressEdit({
       </>
     );
   } else {
-    const canUse = changing && Boolean(chosen?.saved) && (!isDelivery || quote.ready(chosenPin)) && !pending;
+    const canUse =
+      changing &&
+      Boolean(chosen?.saved) &&
+      (!isDelivery || quote.ready(chosenPin)) &&
+      !pending &&
+      msLeft !== 0;
     body = (
       <>
         <p className="-mt-1 mb-4 text-sm leading-relaxed text-muted">
@@ -348,7 +369,9 @@ export function OrderAddressEdit({
           </p>
         )}
 
-        <div className="mt-5 flex flex-wrap gap-3">
+        {/* The countdown sits at the right of the buttons (client's mark-up,
+            2026-09-18), and drops under them on a phone. */}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
           <Button type="button" variant="accent" size="lg" onClick={use} disabled={!canUse} className="min-w-36">
             {pending && <SpinnerIcon className="h-4 w-4" />}
             {pending ? "Saving…" : "Use this address"}
@@ -356,6 +379,7 @@ export function OrderAddressEdit({
           <Button type="button" variant="outline" size="lg" onClick={() => setOpen(false)} className="min-w-36">
             Cancel
           </Button>
+          <div className="ml-auto">{countdown}</div>
         </div>
       </>
     );
