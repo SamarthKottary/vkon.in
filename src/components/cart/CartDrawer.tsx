@@ -7,7 +7,7 @@ import { CloseIcon, TrashIcon } from "@/components/icons/ui";
 import { QuantityStepper } from "@/components/cart/QuantityStepper";
 import { useCartLines } from "@/components/cart/useCart";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
-import { formatRupees, removeFromCart, subscribeCartDrawer } from "@/lib/cart";
+import { closeCartDrawer, formatRupees, removeFromCart, subscribeCartDrawer } from "@/lib/cart";
 import type { Product } from "@/lib/types";
 
 /**
@@ -27,7 +27,10 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
 
   // Prevent background scroll when open
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      closeCartDrawer();
+      return;
+    }
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 

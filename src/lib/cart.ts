@@ -237,6 +237,19 @@ export function subscribeCartDrawer(onChange: () => void): () => void {
   return () => window.removeEventListener(DRAWER_EVENT, onChange);
 }
 
+export const DRAWER_CLOSE_EVENT = "vkon-cart-drawer-close";
+
+export function closeCartDrawer(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(DRAWER_CLOSE_EVENT));
+}
+
+export function subscribeCartDrawerClose(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(DRAWER_CLOSE_EVENT, onChange);
+  return () => window.removeEventListener(DRAWER_CLOSE_EVENT, onChange);
+}
+
 /** Format currency in INR (e.g. ₹818.63) */
 export function formatRupees(amount: number): string {
   return "₹" + amount.toLocaleString("en-IN", {

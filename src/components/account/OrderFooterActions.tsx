@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CartIcon, CheckIcon, DownloadIcon } from "@/components/icons/ui";
-import { addToCart, openCartDrawer } from "@/lib/cart";
+import { addToCart, openCartDrawer, subscribeCartDrawerClose } from "@/lib/cart";
 
 /**
  * What to do with an order you are looking at (client, 2026-09-17): buy it
@@ -27,6 +27,12 @@ export function OrderFooterActions({
   items: { slug: string; qty: number }[];
 }) {
   const [added, setAdded] = useState(false);
+
+  useEffect(() => {
+    return subscribeCartDrawerClose(() => {
+      setAdded(false);
+    });
+  }, []);
 
   const repeat = () => {
     for (const item of items) {
