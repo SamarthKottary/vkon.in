@@ -7,12 +7,13 @@ export function Container({
 }: {
   children: ReactNode;
   className?: string;
-  size?: "default" | "narrow" | "wide";
+  size?: "default" | "narrow" | "wide" | "extrawide";
 }) {
   const widths = {
     narrow: "max-w-3xl",
     default: "max-w-6xl",
     wide: "max-w-7xl",
+    extrawide: "max-w-[90rem]",
   };
 
   return (

@@ -44,7 +44,7 @@ export function AccountShell({
 
       {/* Pushes the header up once the band is past — see `Header`. */}
       <section data-curtain className="relative bg-surface py-10 sm:py-12 lg:py-16">
-      <Container size="wide">
+      <Container size="extrawide">
         <div className="grid gap-8 lg:grid-cols-[15rem_1fr] lg:gap-12">
           {/* **`min-w-0` is load-bearing.** A grid item defaults to
               `min-width: auto`, which means it refuses to shrink below its

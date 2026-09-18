@@ -15,7 +15,7 @@ export function CancelOrderButton({
   const [busy, setBusy] = useState(false);
 
   async function cancelOrder() {
-    if (!window.confirm("Are you sure you want to cancel this order?")) {
+    if (!window.confirm("Are you sure you want to delete this order?")) {
       return;
     }
 
@@ -26,14 +26,19 @@ export function CancelOrderButton({
       });
 
       if (res.ok) {
-        router.refresh();
+        if (!compact) {
+          router.push("/account/orders");
+          router.refresh(); // Ensure the list is updated
+        } else {
+          router.refresh();
+        }
       } else {
-        alert("Could not cancel the order.");
+        alert("Could not delete the order.");
         setBusy(false);
       }
     } catch (err) {
       console.error(err);
-      alert("An error occurred while cancelling the order.");
+      alert("An error occurred while deleting the order.");
       setBusy(false);
     }
   }
@@ -45,7 +50,7 @@ export function CancelOrderButton({
     return (
       <button
         type="button"
-        title="Cancel order"
+        title="Delete order"
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -62,7 +67,7 @@ export function CancelOrderButton({
   return (
     <button
       type="button"
-      title="Cancel order"
+      title="Delete order"
       onClick={cancelOrder}
       disabled={busy}
       className={`${baseClasses} h-8 w-8 rounded-full text-muted hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30`}
