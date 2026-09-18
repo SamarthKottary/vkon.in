@@ -415,7 +415,10 @@ function PriceChangeDialog({
   const lines = change.lines ?? [];
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex items-end justify-center sm:items-center sm:p-6">
+    <div
+      className="fixed inset-0 z-[120] flex items-end justify-center sm:items-center sm:p-6"
+      onClick={(e) => e.stopPropagation()}
+    >
       <div aria-hidden onClick={onCancel} className="absolute inset-0 backdrop-blur-md" />
 
       <div

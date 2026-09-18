@@ -67,7 +67,10 @@ export function Modal({
   }, []);
 
   return createPortal(
-    <div className="fixed inset-0 z-[110] flex items-end justify-center sm:items-center sm:p-6">
+    <div
+      className="fixed inset-0 z-[110] flex items-end justify-center sm:items-center sm:p-6"
+      onClick={(e) => e.stopPropagation()}
+    >
       <div
         aria-hidden
         onClick={() => closeRef.current()}
