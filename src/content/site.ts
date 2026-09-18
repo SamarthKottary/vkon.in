@@ -35,14 +35,15 @@ export const site = {
   whatsapp: "918217086719",
 
   /* The address customers write to, shown on /contact, the footer, /terms and
-     /privacy, and where new-order and enquiry alerts are sent. Changed from
+     /privacy, and where enquiry alerts are sent (new-order alerts go to
+     `ordersEmail` since 2026-09-18). Changed from
      the Gmail address to the domain's own Microsoft 365 mailbox on 2026-09-17.
      Outgoing site mail still comes from no-reply@ (`MAIL_FROM`). */
   email: "support@vkon.in",
 
-  /* The orders inbox (client, 2026-09-18). Every email a customer gets about
-     an order is copied here and to `email` above, and new-order alerts go to
-     both — see `ORDER_INBOXES` in lib/mail.ts. Never shown to customers. */
+  /* The orders inbox (client, 2026-09-18): where new-order alerts go
+     (`sendNewOrderAlert`). Nothing else is sent here, and it is never shown
+     to customers — they write to `email` above. */
   ordersEmail: "orders@vkon.in",
 
   /**

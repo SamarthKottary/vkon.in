@@ -37,6 +37,7 @@ export function AddressForm({
   showDefault = true,
   onPostalCodeChange,
   saveLabel,
+  nameLabel = "Deliver to",
   children,
 }: {
   address?: Address;
@@ -70,6 +71,8 @@ export function AddressForm({
   /** Told what is in the PIN code box as it is typed, for a live quote. */
   onPostalCodeChange?: (value: string) => void;
   saveLabel?: string;
+  /** The first field's label — "Bill to" when the form is a billing address. */
+  nameLabel?: string;
   /** Rendered under the fields and above Save — the order editor's delivery. */
   children?: React.ReactNode;
 }) {
@@ -116,7 +119,7 @@ export function AddressForm({
     (address ? String(address[field] ?? "") : initial ? String(initial[field] ?? "") : "");
 
   const nameField = (
-    <Field id={`${uid}-name`} label="Deliver to" error={error("name")} required>
+    <Field id={`${uid}-name`} label={nameLabel} error={error("name")} required>
       <input
         id={`${uid}-name`}
         name="name"

@@ -18,12 +18,11 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
 - **From `no-reply@vkon.in`** (`MAIL_FROM`). Customer emails say replies are
   not read and point to support@vkon.in and the phone number instead. Alerts to
   the business carry the customer as Reply-To.
-- **Order emails are blind-copied to the business** (2026-09-18): every email
-  in 5–14 below goes to support@vkon.in and orders@vkon.in as **BCC**, so the
-  team sees exactly what the customer was told, and the customer never sees
-  those addresses. Account emails (1–4) are not copied — they carry codes and
-  reset links meant for the customer alone. The list is `ORDER_INBOXES` in
-  `lib/mail.ts`; the orders address is `site.ordersEmail`.
+- **Customer emails go to the customer only.** None is copied to the business
+  (client, 2026-09-18: "just the admin mail is enough"). The business follows
+  an order through its **own alerts** at orders@vkon.in instead — the
+  new-order alert (15) and an activity alert (17) for everything after —
+  written for the operator, not copies of what the customer was sent.
 - **Plain inline-styled HTML plus a text version** for every message, kept
   small for phones on weak connections.
 - **Never throws.** A failed send is logged and the action that triggered it
@@ -73,20 +72,20 @@ before 2026-09-17 has only the first two events.
 ### To the business
 
 Reply-To is the customer, so answering reaches them rather than `no-reply@`.
-New-order alerts go to **support@vkon.in and orders@vkon.in**; enquiries to
-support@ only. So each new order lands in both inboxes twice — the alert and
-the blind copy of the customer's confirmation. The alert is the one with the
-phone number, the admin link and a Reply-To that reaches the customer.
+New-order and order-activity alerts go to **orders@vkon.in**
+(`site.ordersEmail`); enquiries to **support@vkon.in** (`site.email`). The
+confirmation and the payment receipt have no separate alert: they go out at
+the same moment as the new-order alert, which is that event.
 
 | # | Email | When | Subject | Code |
 |---|---|---|---|---|
-| 15 | New order *(A)* — to support@ **and orders@** | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | New order VK-… — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
+| 15 | New order *(A)* — to **orders@vkon.in** | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | New order VK-… — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
+| 17 | Order activity — to **orders@vkon.in** | Everything after the order comes in, at the same points and under the same once-only gates as the customer's email: payment failed (7), refund issued (8), shipped, out for delivery, delivery attempt failed, being returned, delivered, cancelled (9–14) — and the customer changing a delivery or billing address on a confirmed order. Each says what happened and what to do (a cancelled paid order: "refund it from /admin/orders"), then customer, phone, email, total, payment, and the courier/AWB/latest scan, amounts or old→new address. Admin link except for an unpaid order, which admin does not list | VK-… — Shipped / Delivery attempt failed / Refund issued / Delivery address changed … | `sendOrderActivityAlert` ← `alertAdmin` / `notifyAddressChanged` in `lib/order-notifications.ts` |
 | 16 | New enquiry *(G)* | Contact form saved (bots caught by the honeypot are not sent) | New enquiry from {name} — vkon.in | `sendEnquiryAlert` ← `app/(site)/actions.ts` |
 
-**support@vkon.in and orders@vkon.in must both exist in Microsoft 365**
+**orders@vkon.in and support@vkon.in must both exist in Microsoft 365**
 (vkon.in's MX is `vkon-in.mail.protection.outlook.com`) as a mailbox, shared
-mailbox or alias, or these bounce. A bounced BCC does not stop the customer's
-copy, but Resend reports the bounce against the sending domain. Customers also write to it: it is the address on /contact, the
+mailbox or alias, or these alerts bounce. Customers also write to it: it is the address on /contact, the
 footer, /terms and /privacy.
 
 ---
@@ -121,6 +120,12 @@ footer, /terms and /privacy.
 
 ## 6. Change log
 
+- **2026-09-18 (latest)** — Order-activity alerts (17) to orders@vkon.in for
+  every later order event, and for address changes (client: "for the admin to
+  track the user, not just simply forwarding the customer's mail").
+- **2026-09-18 (later)** — Changed at the client's request: the new-order
+  alert goes to orders@vkon.in only (not support@), and customer emails are no
+  longer copied to the business at all. Enquiries stay at support@.
 - **2026-09-18** — Order emails (5–14) blind-copied to support@vkon.in and
   orders@vkon.in; the new-order alert addressed to both. Until now the
   customer's order emails went to the customer only — nothing reached the

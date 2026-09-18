@@ -324,6 +324,10 @@ option (delivery mode and price)".
   until 12:00 IST the next calendar day. Closed on a cancelled, shipped,
   delivered or fully refunded order, and as soon as a shipment is booked. The
   order page says until when, beside the address.
+- **Both addresses are checkout's dropdown** (client, same day): choose another
+  saved address, edit, or add one (`OrderAddressPicker`). Choosing a delivery
+  address opens the delivery dialog on it, with the quote below, before
+  anything changes. Originally:
 - **Edit** opens the same address form as the address book, posting to
   `changeOrderAddressAction`. It changes the order's `ship_to` only: the saved
   address book and the billing address are untouched, so a combined "Billing &
@@ -343,6 +347,11 @@ option (delivery mode and price)".
   lock with the row as it is at that moment, and refuses (`"moved"`) if the
   order was paid between pricing and writing, so an unpaid total is never
   written onto a paid order.
+- **The billing address is different: always editable** (client, same day —
+  "we will always generate invoice using the current details"), on any order
+  in any state, with no quote and no effect on the amount
+  (`OrderBillingDialog`, `changeOrderBillingAction`). A booked shipment keeps
+  the billing address it was sent; the parcel does not depend on it.
 - `orders.delivery_service` records "Standard" / "Faster" / "Express" at
   checkout, because the name comes from position in that day's shortlist and
   cannot be recovered from a courier id later. For older paid orders it is

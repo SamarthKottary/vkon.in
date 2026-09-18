@@ -163,7 +163,8 @@ src/
   components/
     account/   AccountShell, AccountNavLink (client), AccountMenu (client),
                AddressBook (client), AddressForm (client), AddressPicker (client),
-               OrderAddressEditor (client),
+               OrderAddressPicker (client), OrderDeliveryDialog (client),
+               OrderBillingDialog (client),
                ProfileForm (client),
                OrderStatusBadge
     checkout/  CheckoutForm, DeliveryPicker, PayNowButton,
@@ -256,10 +257,12 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
 | `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection |
 | `account/AddressBook` | The account page's card grid: radio sets the default (optimistic), Edit/Add open `AddressDialog`, `confirm()` before delete |
-| `account/AddressPicker` · `AddressDialog` | The chosen address collapsed; the list opens as a panel over the content below (outside click / Escape close it, default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout and the account page |
+| `account/AddressPicker` · `AddressDialog` | The chosen address collapsed; the list opens as a panel over the content below (outside click / Escape close it, default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout and, with `display`/`pinned`, an order's page |
 | `checkout/DeliveryPicker` | The chosen delivery service collapsed, the others on demand |
 | `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, announces the payment, then refreshes. On a 409 shows the price-change dialog, whose one button (Update) reprices the order without charging |
-| `account/OrderAddressEditor` | Edit on an order's delivery address: `AddressForm` in a `Modal`, a live delivery quote when the PIN code changes (choice and new total if unpaid; the kept service, no figure, if paid) |
+| `account/OrderAddressPicker` | An order's billing or delivery address as checkout's dropdown: shows the order's snapshot, lists the address book (the order's own address pinned "On this order" when not in it); choosing billing applies at once, choosing delivery opens `OrderDeliveryDialog` |
+| `account/OrderDeliveryDialog` | Puts an address on an order for delivery: `AddressForm` in a `Modal`, quoted on open and as the PIN changes (choice and new total if unpaid; the kept service, no figure, if paid); can update or add the saved copy |
+| `account/OrderBillingDialog` | Puts an address on an order for billing: `AddressForm` ("Bill to") in a `Modal`. No quote, no money; can update or add the saved copy |
 | `checkout/PaymentSuccessDialog` | "Payment successful": amount and order number as aligned label/figure rows, and where the receipt is going. Shown by both paths that take money |
 | `checkout/PaymentSuccessOnArrival` | Shows that dialog once when checkout lands on a paid order, then strips `?placed=` from the URL |
 | `checkout/CodConfirmDialog` | Confirms cash on delivery before the order form submits: what is due at the door, and that nothing is charged now |
@@ -1601,6 +1604,110 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-18 (mail) — Order-activity alerts to orders@
+
+Client: orders@ should hear of confirmation, payment, shipped, delivered,
+cancelled, refund "and the rest" — "for the admin to track the user, not just
+simply forwarding the customer's mail".
+
+- **New `sendOrderActivityAlert`** (`lib/mail.ts`): one operator-facing alert
+  for any event, to `site.ordersEmail`, Reply-To the customer, subject
+  `VK-… — {event}`.
+- **`lib/order-notifications.ts`:** `alertAdmin` is called inside
+  `notifyOrderUpdate`, `notifyPaymentFailed` and `notifyRefund` — so it fires at
+  exactly the points, and under exactly the once-only gates, the customer's
+  emails already do (§9: never sent twice for one event), and now even when the
+  customer has no email. New `notifyAddressChanged`, called from the three
+  order-address actions, only for confirmed orders and only when the address
+  really changed.
+- Confirmation and payment receipt need no alert of their own: the new-order
+  alert goes out at that same moment.
+- **Tested through the real triggers** with locally signed Razorpay and
+  Shiprocket webhooks (test secrets in the dev server's environment only):
+  payment failed, refund (and its redelivery sending nothing), out for
+  delivery, failed attempt, delivered; the admin status select cancelling a
+  paid order (alert carries the refund reminder); billing and delivery changes
+  from the pickers; no alert for an unpaid order's address change; no copies
+  of customer mail.
+
+### 2026-09-18 (mail) — New-order alerts to orders@ only; customer mail not copied
+
+Client: "The mail should be sent to the orders@vkon.in and not to
+support@vkon.in. The mail being sent to the customer, do not send it the
+orders@vkon.in, just the admin mail is enough."
+
+- `sendNewOrderAlert` now goes to `site.ordersEmail` alone. The BCC on the
+  five customer order emails, `ORDER_INBOXES`, and `sendMail`'s `bcc` and
+  array `to` (added earlier the same day for them) are removed. Enquiry alerts
+  still go to `site.email`, support@. EMAILS.md updated.
+- **Tested:** a COD order through checkout logs the confirmation to the
+  customer with no copy, and the alert to orders@vkon.in only.
+
+### 2026-09-18 (orders) — An order's addresses are checkout's dropdown
+
+Client: "the address edit should be like the drop down in checkout where we
+can choose other address or edit … for shipping and delivery address as well."
+
+- **New client component `account/OrderAddressPicker`**, one per address on
+  the order page (billing always; delivery while `addressEditWindow` is open,
+  a plain box after). It is checkout's `AddressPicker`, which gained three
+  optional props — `display` (the closed row shows the order's snapshot, with
+  its phone), `pinned` (the order's own address as a first row, "On this
+  order", when no saved address matches it) and `busy` — so checkout is
+  unchanged.
+- **The earlier Edit buttons are gone.** `OrderAddressEditor` became the
+  controlled `OrderDeliveryDialog` (which now also quotes on opening, for a
+  chosen address in another PIN code) and `OrderBillingEditor` became
+  `OrderBillingDialog`; the picker opens them.
+- **Behaviour:** choosing a billing address applies at once
+  (`applySavedBillingAction`); choosing a delivery address opens the dialog
+  on it, with the quote, and changes nothing until "Use this address". Edit on
+  the ticked address edits the order *and* the saved copy; Edit on any other
+  saved address is the address book only (`AddressDialog`), as at checkout;
+  "Use a different address" saves a new address and uses it. The pinned row's
+  Edit changes the order alone.
+- **Address-book writes follow the order change** (`saveToAddressBook`, driven
+  by hidden `saveToBook` / `bookAddressId`), so a refused change leaves the book
+  untouched. The three address-book actions now also revalidate
+  `/account/orders/[id]` (a pattern, so `"page"` — Next's `revalidatePath`
+  docs), since the order page lists the book.
+- **The combined "Billing & delivery" card is gone:** two sections, each a
+  picker, with "Same as billing" beside the delivery heading when they match.
+- **Tested in the browser:** billing choice applied at once with delivery
+  untouched; delivery choice confirmed first, prefilled, a paid order keeping
+  its service and total; editing the ticked address updated the order and the
+  saved copy; editing another saved address changed the book only; a new
+  billing address was saved and used; the pinned row appeared, ticked, when
+  the order's address was not in the book, and its edit left the book alone;
+  delete refreshed the list; delivery became a plain box once the window
+  closed; an unpaid order re-priced to the total the dialog showed; 390px; and
+  checkout's picker unchanged.
+
+### 2026-09-18 (orders) — The billing address can always be changed
+
+Client: "let the customer be able to edit billing address as well always. As,
+we will always generate invoice using the current details."
+
+- **New client component `account/OrderBillingEditor`**, `changeOrderBillingAction`
+  and `changeOrderBilling` (`lib/db/orders.ts`, scoped to the owner in the
+  `WHERE`). No window, no Shiprocket quote, no change to the amount, and the
+  saved address book untouched — only `orders.bill_to`. Validation is the
+  address book's, GSTIN checksum included.
+- **Order page:** separate cards each carry their own Edit; a combined
+  "Billing & delivery address" card shows **Edit billing** always and **Edit
+  delivery** while the delivery window is open. Changing either splits it.
+- `AddressForm` gained `nameLabel` ("Bill to" here); `OrderAddressEditor` a
+  `label` for its button.
+- **Not recorded:** a billing change is not stamped like `address_changed_at`
+  — the invoice is generated from the current details whenever it is made, so
+  there is nothing downstream to warn. Shiprocket keeps the billing address it
+  was sent at booking; the parcel does not depend on it.
+- **Tested in the browser:** both buttons on a combined card; a bad GSTIN
+  refused with nothing saved; a good one saved with delivery, total and the
+  delivery-change stamp untouched, and the card split with an Edit on each;
+  billing still editable (and delivery not) on a delivered order; admin shows
+  the new billing address, phone and GSTIN; 390px with no overflow.
 
 ### 2026-09-18 (admin, mail, Shiprocket) — Both addresses with phones; order mail copied to support@ and orders@
 

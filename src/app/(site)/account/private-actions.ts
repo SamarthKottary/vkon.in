@@ -21,6 +21,7 @@ import { confirmationProblem } from "@/lib/password-policy";
 import { trustThisDevice } from "@/lib/signin-challenge";
 import {
   changeOrderAddress,
+  changeOrderBilling,
   createOrder,
   getOrderForCustomer,
   repriceOrder,
@@ -42,7 +43,7 @@ import {
 } from "@/lib/shiprocket";
 import { packParcel } from "@/lib/parcel";
 import { sendOrderPlacedMail, sendPasswordChangedMail } from "@/lib/mail";
-import { notifyNewOrder } from "@/lib/order-notifications";
+import { notifyAddressChanged, notifyNewOrder } from "@/lib/order-notifications";
 import { formatPaise, priceLines, totals } from "@/lib/pricing";
 import { site } from "@/content/site";
 import type { Address, Order, ShipTo } from "@/lib/types";
@@ -379,6 +380,9 @@ export async function saveAddressAction(
   revalidatePath("/account");
   revalidatePath("/account/addresses");
   revalidatePath("/checkout");
+  /* An order's page lists the address book in its address pickers
+     (2026-09-18). A pattern needs "page" (Next's revalidatePath docs). */
+  revalidatePath("/account/orders/[id]", "page");
   return { status: "ok", message: id ? "Address updated." : "Address saved." };
 }
 
@@ -398,6 +402,9 @@ export async function deleteAddressAction(formData: FormData): Promise<void> {
   revalidatePath("/account");
   revalidatePath("/account/addresses");
   revalidatePath("/checkout");
+  /* An order's page lists the address book in its address pickers
+     (2026-09-18). A pattern needs "page" (Next's revalidatePath docs). */
+  revalidatePath("/account/orders/[id]", "page");
 }
 
 export async function setDefaultAddressAction(formData: FormData): Promise<void> {
@@ -416,6 +423,9 @@ export async function setDefaultAddressAction(formData: FormData): Promise<void>
   revalidatePath("/account");
   revalidatePath("/account/addresses");
   revalidatePath("/checkout");
+  /* An order's page lists the address book in its address pickers
+     (2026-09-18). A pattern needs "page" (Next's revalidatePath docs). */
+  revalidatePath("/account/orders/[id]", "page");
 }
 
 // ---------------------------------------------------------------------------
@@ -1031,6 +1041,9 @@ export async function changeOrderAddressAction(
         values: typed,
       };
     }
+    await saveToAddressBook(customer.id, formData, input);
+    /* The orders inbox hears of it (2026-09-18). Never throws. */
+    await notifyAddressChanged(order.id, "delivery", order.shipTo);
   } catch (error) {
     console.error("[account] order address change failed:", error);
     return {
@@ -1042,6 +1055,111 @@ export async function changeOrderAddressAction(
 
   revalidatePath(`/account/orders/${order.id}`);
   revalidatePath("/account/orders");
+  revalidatePath("/admin/orders");
+  return { status: "ok" };
+}
+
+/**
+ * Replaces an order's billing address — always allowed (client, 2026-09-18:
+ * "we will always generate invoice using the current details").
+ *
+ * The same fields and validation as the address book (`readAddress`), GSTIN
+ * checksum included, because this is the address the tax invoice is made out
+ * to. Delivery and the amount are untouched; the saved address book is too.
+ */
+export async function changeOrderBillingAction(
+  _prev: AccountState,
+  formData: FormData,
+): Promise<AccountState> {
+  const customer = await requireCustomer();
+
+  const orderId = String(formData.get("orderId") ?? "").trim();
+  const { input, fieldErrors } = readAddress(formData);
+  const typed: Record<string, string> = { ...input };
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return {
+      status: "error",
+      message: "Please check the highlighted fields.",
+      fieldErrors,
+      values: typed,
+    };
+  }
+
+  try {
+    const before = orderId ? await getOrderForCustomer(customer.id, orderId) : null;
+    const changed = before
+      ? await changeOrderBilling({ orderId, customerId: customer.id, billTo: { ...input } })
+      : false;
+    if (!before || !changed) {
+      return { status: "error", message: "That order could not be found.", values: typed };
+    }
+    await saveToAddressBook(customer.id, formData, input);
+    await notifyAddressChanged(orderId, "billing", before.billTo);
+  } catch (error) {
+    console.error("[account] billing address change failed:", error);
+    return {
+      status: "error",
+      message: `Could not change the billing address just now. Please try again, or call us on ${site.phone.display}.`,
+      values: typed,
+    };
+  }
+
+  revalidatePath(`/account/orders/${orderId}`);
+  revalidatePath("/admin/orders");
+  return { status: "ok" };
+}
+
+/**
+ * After an order has taken an address from the picker's dialog, keep the
+ * address book in step with it (2026-09-18): an edited saved address is
+ * updated, a new one is saved, and an order-only edit ("On this order")
+ * touches nothing. Runs after the order change, so a refused change never
+ * leaves a half-done edit in the book; a failure here is logged and does not
+ * undo what the order now says.
+ */
+async function saveToAddressBook(customerId: string, formData: FormData, input: AddressInput) {
+  if (formData.get("saveToBook") !== "1") return;
+  const bookId = String(formData.get("bookAddressId") ?? "").trim();
+  try {
+    if (bookId) {
+      if (await getAddress(customerId, bookId)) await updateAddress(customerId, bookId, input);
+    } else {
+      await createAddress(customerId, input, false);
+    }
+  } catch (error) {
+    console.error("[account] address book update after order change failed:", error);
+  }
+  revalidatePath("/account");
+  revalidatePath("/checkout");
+}
+
+/**
+ * Puts one of the customer's saved addresses on an order as its billing
+ * address — the picker's one-click choice (2026-09-18). Billing has no window
+ * and no money attached, so there is nothing to confirm first. The address is
+ * read from the book by id, scoped to the customer, and copied onto the order
+ * as a snapshot like every order address.
+ */
+export async function applySavedBillingAction(input: {
+  orderId: string;
+  addressId: string;
+}): Promise<{ status: "ok" } | { status: "error"; message: string }> {
+  const customer = await requireCustomer();
+  const orderId = String(input?.orderId ?? "");
+  const saved = await getAddress(customer.id, String(input?.addressId ?? ""));
+  if (!saved) return { status: "error", message: "That address could not be found." };
+  try {
+    const before = await getOrderForCustomer(customer.id, orderId);
+    if (!before || !(await changeOrderBilling({ orderId, customerId: customer.id, billTo: snapshot(saved) }))) {
+      return { status: "error", message: "That order could not be found." };
+    }
+    await notifyAddressChanged(orderId, "billing", before.billTo);
+  } catch (error) {
+    console.error("[account] billing address choice failed:", error);
+    return { status: "error", message: "Could not change the billing address just now. Please try again." };
+  }
+  revalidatePath(`/account/orders/${orderId}`);
   revalidatePath("/admin/orders");
   return { status: "ok" };
 }

@@ -949,6 +949,31 @@ export async function cancelOrder(orderId: string, customerId: string): Promise<
   }
 }
 
+/**
+ * Replaces an order's billing address, at the customer's request (client,
+ * 2026-09-18).
+ *
+ * **No window and no money.** The invoice is generated from the order's
+ * current billing details whenever it is made, so correcting them is always
+ * allowed — before payment, after dispatch, after delivery. Nothing about
+ * delivery or the amount depends on it: the courier works from `ship_to`, and
+ * the price does not change with the billing address. Scoped to the owner in
+ * the WHERE, so somebody else's order id changes nothing.
+ */
+export async function changeOrderBilling(input: {
+  orderId: string;
+  customerId: string;
+  billTo: ShipTo;
+}): Promise<boolean> {
+  const rows = await query<{ id: string }>(
+    `UPDATE orders SET bill_to = $3, updated_at = now()
+      WHERE id = $1 AND customer_id = $2
+      RETURNING id`,
+    [input.orderId, input.customerId, JSON.stringify(input.billTo)],
+  );
+  return rows.length > 0;
+}
+
 /** Looks an order up by Razorpay's payment id — for a refund event that
  *  arrives without the payment's order id. */
 export async function findOrderIdByPaymentId(paymentId: string): Promise<string | null> {

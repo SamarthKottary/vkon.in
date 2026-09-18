@@ -188,10 +188,11 @@ export default async function AdminOrdersPage({
           customer a refund promise, and nothing on this page issues it. */}
       <div className="mt-6 space-y-2 border-l-2 border-line-strong px-4 py-3 text-sm text-body">
         <p>
-          <span className="font-medium text-ink">New orders are emailed to support@vkon.in and orders@vkon.in</span>{" "}
+          <span className="font-medium text-ink">New orders are emailed to orders@vkon.in</span>{" "}
           — a cash-on-delivery order when it is placed, an online order once
-          it is paid — and both inboxes get a blind copy of every email the
-          customer is sent about their order.
+          it is paid — and so is everything that happens to an order after:
+          a failed payment, courier updates, delivery, cancellation, refunds
+          and the customer changing an address.
         </p>
         <p>
           <span className="font-medium text-ink">Only confirmed orders are listed:</span>{" "}

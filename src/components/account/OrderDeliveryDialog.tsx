@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { AlertIcon, PencilIcon } from "@/components/icons/ui";
+import { useEffect, useRef, useState } from "react";
+import { AlertIcon } from "@/components/icons/ui";
 import { AddressForm } from "@/components/account/AddressForm";
 import { DeliveryPicker } from "@/components/checkout/DeliveryPicker";
 import { Modal } from "@/components/ui/Modal";
@@ -17,39 +17,8 @@ import type { ShipTo } from "@/lib/types";
 /** Indian PIN codes: six digits, never a leading zero. The server re-checks. */
 const PIN = /^[1-9][0-9]{5}$/;
 
-/**
- * "Edit" on an order's delivery address, and the pop-up it opens (client,
- * 2026-09-18).
- *
- * The page decides *whether* this renders (`addressEditWindow`); the server
- * decides again when it saves. This only draws the form and the delivery the
- * new address would get.
- *
- * **Delivery is re-quoted when the PIN code changes, not otherwise.** A new
- * house number on the same street costs the same to reach, so a typo fix
- * leaves the courier and the charge alone and makes no Shiprocket call. A new
- * PIN code is a new quote, and what it means depends on the money:
- *
- *  - **unpaid, online or COD** — the services on offer at their prices, as at
- *    checkout, and the total the order will have;
- *  - **paid** — the same service it paid for, with no choice and no new
- *    figure: "keep what they paid" (client, same day). The admin still needs
- *    a courier that serves the new PIN, which is why it is quoted at all.
- *
- * The quote is display only. The save quotes again and stores its own answer
- * — see `changeOrderAddressAction` — and a stale answer for a PIN code already
- * typed over is dropped by the sequence number, as in `CheckoutForm`.
- */
-export function OrderAddressEditor({
-  orderId,
-  shipTo,
-  cod,
-  service,
-  courierName,
-  shipping,
-  total,
-  lineTotals,
-}: {
+/** What the order's delivery is now — what a new address is compared against. */
+export type OrderDelivery = {
   orderId: string;
   shipTo: ShipTo;
   cod: boolean;
@@ -59,28 +28,65 @@ export function OrderAddressEditor({
   total: number;
   /** The order's own line totals, so a new total goes through `totals()`. */
   lineTotals: number[];
+};
+
+/**
+ * Putting an address on an order as its delivery address — opened by
+ * `OrderAddressPicker` for each way of doing it (client, 2026-09-18): choosing
+ * a saved address, editing the one the order has, or adding a new one. The
+ * form is prefilled with `initial` and stays editable in every case.
+ *
+ * **Delivery is quoted whenever the PIN code differs from the order's** — on
+ * opening, for a chosen address somewhere else, and as the PIN is typed. A new
+ * house number on the same street costs the same to reach, so a typo fix
+ * leaves the courier and the charge alone and makes no Shiprocket call. What a
+ * new PIN means depends on the money:
+ *
+ *  - **unpaid, online or COD** — the services on offer at their prices, as at
+ *    checkout, and the total the order will have;
+ *  - **paid** — the same service it paid for, with no choice and no figure:
+ *    "keep what they paid" (client, same day). It is still quoted, because
+ *    the admin needs a courier that serves the new PIN.
+ *
+ * The quote is display only. `changeOrderAddressAction` quotes again and
+ * stores its own answer, and a stale answer for a PIN already typed over is
+ * dropped by the sequence number, as in `CheckoutForm`.
+ *
+ * `bookAddressId` / `saveToBook` say what happens to the address book once the
+ * order has taken the address: update that saved address, save a new one, or
+ * (neither) leave the book alone.
+ */
+export function OrderDeliveryDialog({
+  order,
+  initial,
+  title,
+  saveLabel,
+  bookAddressId,
+  saveToBook,
+  onClose,
+}: {
+  order: OrderDelivery;
+  /** Prefill; empty for a new address. */
+  initial?: ShipTo;
+  title: string;
+  saveLabel: string;
+  bookAddressId?: string;
+  saveToBook: boolean;
+  onClose: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [pin, setPin] = useState(shipTo.postalCode);
+  const orderPin = order.shipTo.postalCode;
+  const [pin, setPin] = useState(initial?.postalCode ?? "");
   const [quote, setQuote] = useState<{ pin: string; value: OrderAddressQuote } | null>(null);
   const [chosenId, setChosenId] = useState<number | null>(null);
   const seq = useRef(0);
 
-  const close = () => {
-    setOpen(false);
-    setPin(shipTo.postalCode);
-    setQuote(null);
-    setChosenId(null);
-    seq.current++;
-  };
-
-  /* Quoting from the change handler rather than an effect: it is the typing
-     that asks the question, and §9 keeps state writes out of effects. */
-  const onPostalCodeChange = (value: string) => {
-    setPin(value);
+  /** Asks for delivery to `value`; the answer is kept only if nothing newer
+   *  was asked in the meantime. State is written in the promise, never in the
+   *  body of an effect (§9). */
+  const ask = (value: string) => {
     const ticket = ++seq.current;
-    if (!PIN.test(value) || value === shipTo.postalCode) return;
-    quoteOrderAddressAction({ orderId, postalCode: value })
+    if (!PIN.test(value) || value === orderPin) return;
+    quoteOrderAddressAction({ orderId: order.orderId, postalCode: value })
       .then((result) => {
         if (ticket !== seq.current) return;
         setQuote({ pin: value, value: result });
@@ -91,8 +97,22 @@ export function OrderAddressEditor({
       });
   };
 
-  const current = [service, courierName].filter(Boolean).join(" · ");
-  const pinChanged = pin !== shipTo.postalCode;
+  /* A saved address chosen from the list may be in another PIN code: quote it
+     straight away, so the dialog opens on what the change would mean. Once,
+     on opening; after that the typing asks. */
+  const initialPin = useRef(initial?.postalCode ?? "");
+  const askRef = useRef(ask);
+  useEffect(() => {
+    askRef.current(initialPin.current);
+  }, []);
+
+  const onPostalCodeChange = (value: string) => {
+    setPin(value);
+    ask(value);
+  };
+
+  const current = [order.service, order.courierName].filter(Boolean).join(" · ");
+  const pinChanged = pin !== orderPin;
   const answer = quote && quote.pin === pin ? quote.value : null;
 
   let delivery: React.ReactNode;
@@ -144,31 +164,33 @@ export function OrderAddressEditor({
     );
   } else {
     const chosen = answer.options.find((o) => o.courierId === chosenId) ?? null;
-    const next = chosen ? totals(lineTotals.map((lineTotal) => ({ lineTotal })), chosen.ratePaise) : null;
+    const next = chosen
+      ? totals(order.lineTotals.map((lineTotal) => ({ lineTotal })), chosen.ratePaise)
+      : null;
     delivery = (
       <div className="space-y-3">
         <DeliveryPicker
           options={answer.options}
           chosenId={chosenId}
           onChoose={setChosenId}
-          group={`${orderId}-delivery`}
+          group={`${order.orderId}-delivery`}
         />
         {chosenId !== null && <input type="hidden" name="courierId" value={chosenId} />}
-        {next && next.total !== total && (
+        {next && next.total !== order.total && (
           <dl className="text-sm">
             <div className="flex items-baseline gap-4 border-b border-line py-2">
               <dt className="min-w-0 flex-1 text-body">Delivery</dt>
               <dd className="tabular-nums text-muted">
-                <span className="line-through">{formatPaise(shipping)}</span>{" "}
+                <span className="line-through">{formatPaise(order.shipping)}</span>{" "}
                 <span className="font-semibold text-ink">{formatPaise(next.shipping)}</span>
               </dd>
             </div>
             <div className="flex items-baseline gap-4 py-2">
               <dt className="min-w-0 flex-1 font-semibold text-ink">
-                {cod ? "To pay on delivery" : "New total"}
+                {order.cod ? "To pay on delivery" : "New total"}
               </dt>
               <dd className="tabular-nums text-muted">
-                <span className="line-through">{formatPaise(total)}</span>{" "}
+                <span className="line-through">{formatPaise(order.total)}</span>{" "}
                 <span className="text-base font-bold text-ink">{formatPaise(next.total)}</span>
               </dd>
             </div>
@@ -179,36 +201,32 @@ export function OrderAddressEditor({
   }
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
+    <Modal title={title} onClose={onClose} size="lg">
+      <p className="-mt-1 mb-5 text-sm leading-relaxed text-muted">
+        This order will be delivered here.
+        {saveToBook
+          ? bookAddressId
+            ? " Changes are saved to this address in your address book too."
+            : " It is also added to your saved addresses."
+          : " Your saved addresses stay as they are."}
+      </p>
+      <AddressForm
+        compact
+        initial={initial}
+        action={changeOrderAddressAction}
+        hiddenFields={{
+          orderId: order.orderId,
+          saveToBook: saveToBook ? "1" : "",
+          bookAddressId: bookAddressId ?? "",
+        }}
+        showDefault={false}
+        onPostalCodeChange={onPostalCodeChange}
+        saveLabel={saveLabel}
+        onDone={onClose}
+        onCancel={onClose}
       >
-        <PencilIcon className="h-3.5 w-3.5" />
-        Edit
-      </button>
-
-      {open && (
-        <Modal title="Change delivery address" onClose={close} size="lg">
-          <p className="-mt-1 mb-5 text-sm leading-relaxed text-muted">
-            This changes where this order goes. Your saved addresses stay as they are.
-          </p>
-          <AddressForm
-            compact
-            initial={shipTo}
-            action={changeOrderAddressAction}
-            hiddenFields={{ orderId }}
-            showDefault={false}
-            onPostalCodeChange={onPostalCodeChange}
-            saveLabel="Save address"
-            onDone={close}
-            onCancel={close}
-          >
-            <div className="border-t border-line pt-4">{delivery}</div>
-          </AddressForm>
-        </Modal>
-      )}
-    </>
+        <div className="border-t border-line pt-4">{delivery}</div>
+      </AddressForm>
+    </Modal>
   );
 }
