@@ -839,15 +839,56 @@ export async function sendPasswordChangedMail(input: {
  * on Teams' dark table cells was nearly unreadable. Left unset, text takes
  * each app's own colours — black in Outlook, light in Teams' dark mode.
  */
-function leanAlert(heading: string, summary: string, rows: [string, string][], adminUrl: string): string {
-  const cells = rows
-    .filter(([, value]) => value)
+type AlertRow = {
+  label: string;
+  value: string;
+  /** Right-aligned, for amounts. */
+  figure?: boolean;
+  strong?: boolean;
+};
+
+/** A heading and its rows. Rows with no value are dropped, and a section left
+ *  with none is dropped with them. */
+type AlertSection = { title: string; rows: AlertRow[] };
+
+function leanAlert(heading: string, intro: string, sections: AlertSection[], adminUrl: string): string {
+  /* A small table per section, so each lines up on its own: in one shared
+     table the longest item name set the label column for the addresses too. */
+  const body = sections
+    .map((section) => ({ ...section, rows: section.rows.filter((row) => row.value) }))
+    .filter((section) => section.rows.length > 0)
     .map(
-      ([label, value]) =>
-        `<tr><td valign="top" style="padding:3px 16px 3px 0;white-space:nowrap">${esc(label)}</td><td style="padding:3px 0"><b>${esc(value).replace(/\n/g, "<br>")}</b></td></tr>`,
+      (section) =>
+        `<p style="margin:14px 0 2px"><b>${esc(section.title)}</b></p><table cellpadding="2" cellspacing="0">` +
+        section.rows
+          .map((row) => {
+            /* Attributes, not a style per cell: ~40 bytes a row saved, which
+               is what keeps a long order clear of the size Teams drops. */
+            const value = esc(row.value).replace(/\n/g, "<br>");
+            const label = row.strong ? `<b>${esc(row.label)}</b>` : esc(row.label);
+            return `<tr><td valign="top"${row.figure ? "" : " nowrap"}>${label}</td><td width="16"></td><td valign="top"${row.figure ? ' align="right"' : ""}>${row.strong ? `<b>${value}</b>` : value}</td></tr>`;
+          })
+          .join("") +
+        "</table>",
     )
     .join("");
-  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5"><p style="font-size:17px;margin:0 0 6px"><b>${esc(heading)}</b></p><p style="margin:0 0 12px">${esc(summary)}</p><table cellpadding="0" cellspacing="0">${cells}</table><p style="margin:14px 0 0"><a href="${esc(adminUrl)}">Open in admin</a></p><p style="margin:10px 0 0;font-size:12px">Reply to this email to write to the customer.</p></div>`;
+  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5"><p style="font-size:17px;margin:0 0 2px"><b>${esc(heading)}</b></p><p style="margin:0">${esc(intro)}</p>${body}<p style="margin:16px 0 0"><a href="${esc(adminUrl)}">Open in admin</a></p><p style="margin:10px 0 0;font-size:12px">Reply to this email to write to the customer.</p></div>`;
+}
+
+/** The same sections as text, for the plain part. */
+function leanAlertText(heading: string, intro: string, sections: AlertSection[], adminUrl: string): string {
+  const out = [heading, intro];
+  for (const section of sections) {
+    const rows = section.rows.filter((row) => row.value);
+    if (rows.length === 0) continue;
+    out.push("", section.title.toUpperCase());
+    for (const row of rows) {
+      const [first, ...rest] = row.value.split("\n");
+      out.push(`  ${row.label ? `${row.label}: ` : ""}${first}`, ...rest.map((line) => `    ${line}`));
+    }
+  }
+  out.push("", `Open in admin: ${adminUrl}`);
+  return out.join("\n");
 }
 
 /**
@@ -861,46 +902,82 @@ function leanAlert(heading: string, summary: string, rows: [string, string][], a
  * payment for an online order (an unpaid, abandoned one is not news). Reply-To
  * is the customer, so answering it reaches them.
  */
+export type AlertAddress = {
+  name: string;
+  /** Street, area, town — one per line. */
+  lines: string[];
+  /** The number typed on this address. */
+  phone: string;
+  gstin?: string;
+};
+
 export async function sendNewOrderAlert(input: {
   orderNumber: string;
-  total: string;
+  /** When it was placed, already formatted in Indian time. */
+  placed: string;
   payment: string;
-  customerName: string;
-  customerEmail: string;
-  phone: string;
-  deliverTo: string;
-  delivery: string;
+  /** The account: its profile name, phone and email. */
+  customer: { name: string; phone: string; email: string };
+  deliverTo: AlertAddress;
+  billTo: AlertAddress;
   lines: { name: string; qty: number; amount: string }[];
+  /** All formatted: "₹1,124.00". */
+  subtotal: string;
+  cgst: string;
+  sgst: string;
+  /** "Delivery · Standard · Xpressbees Air" */
+  deliveryLabel: string;
+  /** "₹97.72", or words when no charge was quoted. */
+  delivery: string;
+  total: string;
   adminUrl: string;
 }): Promise<MailResult> {
-  const rows: [string, string][] = [
-    ["Total", input.total],
-    ["Payment", input.payment],
-    ["Customer", input.customerName],
-    ["Email", input.customerEmail],
-    ["Phone", input.phone],
-    ["Deliver to", input.deliverTo],
-    ["Delivery", input.delivery],
-    ...input.lines.map(
-      (line, index): [string, string] => [
-        index === 0 ? (input.lines.length === 1 ? "Item" : "Items") : "",
-        `${line.qty} x ${line.name} — ${line.amount}`,
-      ],
-    ),
+  /* Sections in the order the operator works through them (client,
+     2026-09-18): who ordered and how to reach them, where it goes, who it is
+     invoiced to, then the bill — items, tax and delivery adding up to the
+     total, rather than a total with nothing under it. Each address carries
+     the phone typed on that address, which is the number the courier (or the
+     accounts office) will actually ring; the profile's own number is under
+     Customer. */
+  const address = (a: AlertAddress): AlertRow[] => [
+    { label: "Name", value: a.name },
+    { label: "Address", value: a.lines.filter(Boolean).join("\n") },
+    { label: "Phone", value: a.phone },
+    { label: "GSTIN", value: a.gstin ?? "" },
   ];
-  const summary = `A new order is in: ${input.total}, ${input.payment.toLowerCase()}.`;
+  const sections: AlertSection[] = [
+    {
+      title: "Customer",
+      rows: [
+        { label: "Name", value: input.customer.name },
+        { label: "Phone", value: input.customer.phone },
+        { label: "Email", value: input.customer.email },
+      ],
+    },
+    { title: "Deliver to", rows: address(input.deliverTo) },
+    { title: "Billed to", rows: address(input.billTo) },
+    {
+      title: "Order",
+      rows: [
+        ...input.lines.map((line) => ({
+          label: `${line.qty} x ${line.name}`,
+          value: line.amount,
+          figure: true,
+        })),
+        { label: "Subtotal", value: input.subtotal, figure: true },
+        { label: "CGST 9%", value: input.cgst, figure: true },
+        { label: "SGST 9%", value: input.sgst, figure: true },
+        { label: input.deliveryLabel, value: input.delivery, figure: true },
+        { label: "Total", value: input.total, figure: true, strong: true },
+        { label: "Payment", value: input.payment, figure: true },
+      ],
+    },
+  ];
   const heading = `${input.orderNumber} — New order`;
+  const intro = `${input.payment} · placed ${input.placed}`;
 
-  const html = leanAlert(heading, summary, rows, input.adminUrl);
-  const text = [
-    heading,
-    "",
-    summary,
-    "",
-    ...rows.filter(([, value]) => value).map(([label, value]) => `  ${label || " "}: ${value}`),
-    "",
-    `Open in admin: ${input.adminUrl}`,
-  ].join("\n");
+  const html = leanAlert(heading, intro, sections, input.adminUrl);
+  const text = leanAlertText(heading, intro, sections, input.adminUrl);
 
   return sendMail({
     to: site.ordersEmail,
@@ -912,7 +989,7 @@ export async function sendNewOrderAlert(input: {
     subject: `${input.orderNumber} — New order — ${input.total} — ${input.payment}`,
     html,
     text,
-    replyTo: input.customerEmail,
+    replyTo: input.customer.email,
     from: orderAlertFromAddress(),
   });
 }

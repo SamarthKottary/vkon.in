@@ -82,7 +82,7 @@ order email the business receives; enquiries go to **support@vkon.in**
 
 | # | Email | When | Subject | Code |
 |---|---|---|---|---|
-| 15 | New order *(A)* — to **orders@vkon.in** | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | VK-… — New order — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
+| 15 | New order *(A)* — to **orders@vkon.in**, from **nivixsa@vkon.in** (`ORDER_ALERT_FROM`). Sections: **Customer** (profile name, phone, email), **Deliver to** and **Billed to** (each address with the phone typed on it; GSTIN when given), **Order** (each line, subtotal, CGST, SGST, delivery with service and courier, total, payment) | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | VK-… — New order — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
 | 16 | New enquiry *(G)* | Contact form saved (bots caught by the honeypot are not sent) | New enquiry from {name} — vkon.in | `sendEnquiryAlert` ← `app/(site)/actions.ts` |
 
 **orders@vkon.in and support@vkon.in must both exist in Microsoft 365**
@@ -122,6 +122,12 @@ footer, /terms and /privacy.
 
 ## 6. Change log
 
+- **2026-09-18 (new-order content)** — The new-order alert is laid out in
+  sections the client asked for: Customer (profile phone and email), Deliver
+  to and Billed to (each with its own phone, and the GSTIN), and the Order as a
+  bill — items, subtotal, CGST, SGST, delivery, total, payment — instead of a
+  total on the first line. Still `leanAlert`: ~2.9 KB for a two-line order,
+  ~5.3 KB at twenty lines.
 - **2026-09-18 (sender)** — The new-order alert has its own sender,
   `ORDER_ALERT_FROM` (nivixsa@vkon.in); customer mail stays on no-reply@.
 - **2026-09-18 (Teams fix, corrected)** — The one-table rebuild below did not

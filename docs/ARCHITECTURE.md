@@ -1603,6 +1603,28 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-18 (mail) — The new-order alert as sections and a bill
+
+Client: the admin email should show the profile's phone and email, the
+delivery address with its phone, the billing address with its phone and the
+GSTIN, and the tax — "properly structure this, instead of just putting total
+at top".
+
+- `sendNewOrderAlert` takes structured input (`customer`, `deliverTo`/`billTo`
+  as `AlertAddress`, the money lines) and renders four sections: Customer,
+  Deliver to, Billed to, Order (items, subtotal, CGST 9%, SGST 9%, delivery
+  with service and courier, total, payment). `notifyNewOrder` fills them from
+  the order and the customer's profile; each address's phone is the one typed
+  on that address.
+- `leanAlert` now renders sections — a small table each, so one section's long
+  labels do not widen another's — using cell attributes instead of a style per
+  cell to stay small: ~2.9 KB for two lines, ~5.3 KB at twenty (the size Teams
+  was seen to drop was 5.8 KB). `leanAlertText` gives the plain part the same
+  sections.
+- **Tested:** a COD order through checkout, billed to a firm with a GSTIN and
+  delivered elsewhere, logs every section with the right phones; rendered in
+  light and dark.
+
 ### 2026-09-18 (mail) — The new-order alert has its own sender
 
 Client: "keep the no-reply for the customer, and the mail being sent to the

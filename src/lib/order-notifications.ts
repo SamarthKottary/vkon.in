@@ -9,6 +9,7 @@ import {
   type OrderUpdateKind,
 } from "@/lib/mail";
 import { formatPaise } from "@/lib/pricing";
+import type { ShipTo } from "@/lib/types";
 import { trackingUrl } from "@/lib/shiprocket";
 import { isOutForDelivery, isReturnStatus, isUndelivered, trackingLabel } from "@/lib/tracking";
 
@@ -106,31 +107,41 @@ export async function notifyNewOrder(orderId: string): Promise<void> {
     const order = await getOrderForAdmin(orderId);
     if (!order) return;
     const customer = await findCustomerById(order.customerId);
-    const to = order.shipTo;
+    const address = (a: ShipTo) => ({
+      name: a.name,
+      lines: [a.line1, a.line2, `${a.city}, ${a.state} ${a.postalCode}`],
+      phone: a.phone,
+      gstin: a.gstin,
+    });
     const result = await sendNewOrderAlert({
       orderNumber: order.orderNumber,
-      total: formatPaise(order.total),
+      placed: formatMoment(order.createdAt),
       payment:
         order.paymentStatus === "paid"
           ? "Paid online"
           : order.paymentProvider === "cod"
             ? "Cash on delivery"
             : "Not yet paid",
-      customerName: customer?.name || to.name,
-      customerEmail: customer?.email ?? "",
-      phone: to.phone,
-      deliverTo: [to.name, to.line1, to.line2, `${to.city}, ${to.state} ${to.postalCode}`]
-        .filter(Boolean)
-        .join("\n"),
-      delivery:
-        order.shipping > 0
-          ? `${formatPaise(order.shipping)}${order.courierName ? ` · ${order.courierName}` : ""}`
-          : "Not quoted — call to agree it",
+      /* The account's own details — the profile — and each address's own
+         phone below: they are often different people. */
+      customer: {
+        name: customer?.name || order.billTo.name,
+        phone: customer?.phone ?? "",
+        email: customer?.email ?? "",
+      },
+      deliverTo: address(order.shipTo),
+      billTo: address(order.billTo),
       lines: order.items.map((item) => ({
         name: item.name,
         qty: item.qty,
         amount: formatPaise(item.lineTotal),
       })),
+      subtotal: formatPaise(order.subtotal),
+      cgst: formatPaise(order.cgst),
+      sgst: formatPaise(order.sgst),
+      deliveryLabel: ["Delivery", order.deliveryService, order.courierName].filter(Boolean).join(" · "),
+      delivery: order.shipping > 0 ? formatPaise(order.shipping) : "Not quoted — call to agree it",
+      total: formatPaise(order.total),
       adminUrl: `${site.url.replace(/\/$/, "")}/admin/orders#order-${order.id}`,
     });
     if (!result.ok) console.error("[orders] new-order alert not sent:", order.orderNumber);
