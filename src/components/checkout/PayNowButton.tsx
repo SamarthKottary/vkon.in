@@ -7,6 +7,7 @@ import { AlertIcon, ArrowRightIcon, SpinnerIcon } from "@/components/icons/ui";
 import { Button } from "@/components/ui/Button";
 import { PaymentSuccessDialog } from "@/components/checkout/PaymentSuccessDialog";
 import { formatPaise } from "@/lib/pricing";
+import type { DeliveryOption } from "@/lib/shiprocket";
 
 /**
  * "Pay now" on an unpaid order.
@@ -65,6 +66,8 @@ type PriceChange = {
     lineTotal: number;
     unavailable: boolean;
   }[];
+  shippingOptions?: DeliveryOption[];
+  currentCourierId?: number | null;
 };
 
 type CheckoutConfig = {
@@ -138,7 +141,7 @@ export function PayNowButton({
   /** Set when a payment has just succeeded: `{ orderNumber, amountLabel }`. */
   const [paid, setPaid] = useState<{ orderNumber: string; amountLabel: string } | null>(null);
 
-  const pay = useCallback(async (acceptTotal?: number) => {
+  const pay = useCallback(async (acceptTotal?: number, acceptCourierId?: number | null) => {
     setBusy(true);
     setError(null);
 
@@ -156,7 +159,7 @@ export function PayNowButton({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          acceptTotal === undefined ? { orderId } : { orderId, acceptTotal },
+          acceptTotal === undefined ? { orderId } : { orderId, acceptTotal, acceptCourierId },
         ),
       });
 
@@ -175,6 +178,8 @@ export function PayNowButton({
             previous: body.previous,
             next: body.next,
             lines: body.lines ?? [],
+            shippingOptions: body.shippingOptions,
+            currentCourierId: body.currentCourierId,
           });
           setBusy(false);
           return;
@@ -356,8 +361,19 @@ function PriceChangeDialog({
   change: PriceChange;
   busy: boolean;
   onCancel: () => void;
-  onAccept: () => void;
+  onAccept: (total: number, courierId: number | null) => void;
 }) {
+  const [selectedCourierId, setSelectedCourierId] = useState<number | null>(() => {
+    if (change.shippingOptions && change.shippingOptions.length > 0) {
+      if (change.currentCourierId) {
+        const found = change.shippingOptions.find((o) => o.courierId === change.currentCourierId);
+        if (found) return found.courierId;
+      }
+      return change.shippingOptions[0].courierId;
+    }
+    return change.currentCourierId ?? null;
+  });
+
   /* No `mounted` state: this renders only after a click, so `document` is
      there — and setting state in an effect is what §9 forbids. */
   const cancelRef = useRef(onCancel);
@@ -372,10 +388,26 @@ function PriceChangeDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const rose = change.newTotal > change.previousTotal;
-  const difference = Math.abs(change.newTotal - change.previousTotal);
+  let nextShipping = change.next?.shipping ?? 0;
+  if (change.shippingOptions && change.shippingOptions.length > 0 && selectedCourierId) {
+    const selected = change.shippingOptions.find((o) => o.courierId === selectedCourierId);
+    if (selected) {
+      nextShipping = selected.ratePaise;
+    }
+  }
+
+  const next = change.next
+    ? {
+        ...change.next,
+        shipping: nextShipping,
+        total: change.next.subtotal + change.next.cgst + change.next.sgst + nextShipping,
+      }
+    : undefined;
+  const newTotal = next ? next.total : change.newTotal;
+
+  const rose = newTotal > change.previousTotal;
+  const difference = Math.abs(newTotal - change.previousTotal);
   const previous = change.previous;
-  const next = change.next;
   const lines = change.lines ?? [];
 
   return createPortal(
@@ -428,7 +460,28 @@ function PriceChangeDialog({
               <Row label="Subtotal" was={previous.subtotal} now={next.subtotal} />
               <Row label="CGST 9%" was={previous.cgst} now={next.cgst} muted />
               <Row label="SGST 9%" was={previous.sgst} now={next.sgst} muted />
-              <Row label="Delivery" was={previous.shipping} now={next.shipping} muted />
+              {change.shippingOptions && change.shippingOptions.length > 0 ? (
+                <Row
+                  label={
+                    <select
+                      className="text-sm bg-surface text-ink border-0 border-b border-line py-0.5 px-0 min-w-0 max-w-full focus:ring-0 cursor-pointer"
+                      value={selectedCourierId ?? ""}
+                      onChange={(e) => setSelectedCourierId(Number(e.target.value))}
+                    >
+                      {change.shippingOptions.map((opt) => (
+                        <option key={opt.courierId} value={opt.courierId}>
+                          Delivery: {opt.courierName} {opt.estimatedDays ? `(${opt.estimatedDays}d)` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  }
+                  was={previous.shipping}
+                  now={next.shipping}
+                  muted
+                />
+              ) : (
+                <Row label="Delivery" was={previous.shipping} now={next.shipping} muted />
+              )}
             </div>
           )}
 
@@ -438,15 +491,15 @@ function PriceChangeDialog({
               {formatPaise(change.previousTotal)}
             </span>
             <span className="w-24 text-right text-base font-bold tabular-nums text-accent sm:w-28">
-              {formatPaise(change.newTotal)}
+              {formatPaise(newTotal)}
             </span>
           </div>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button type="button" variant="accent" size="lg" onClick={onAccept} disabled={busy}>
+          <Button type="button" variant="accent" size="lg" onClick={() => onAccept(newTotal, selectedCourierId)} disabled={busy}>
             {busy && <SpinnerIcon className="h-4 w-4" />}
-            {busy ? "Opening payment…" : `Pay ${formatPaise(change.newTotal)}`}
+            {busy ? "Opening payment…" : `Pay ${formatPaise(newTotal)}`}
           </Button>
           <Button type="button" variant="outline" size="lg" onClick={onCancel} disabled={busy}>
             Cancel

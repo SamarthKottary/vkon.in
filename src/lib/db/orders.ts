@@ -756,7 +756,8 @@ export async function releaseRefundRequest(orderId: string): Promise<void> {
 export async function repriceOrder(input: {
   orderId: string;
   lines: { id: string; unitPrice: number; lineTotal: number }[];
-  money: { subtotal: number; cgst: number; sgst: number; total: number };
+  money: { subtotal: number; cgst: number; sgst: number; shipping: number; total: number };
+  courierId?: number | null;
 }): Promise<boolean> {
   const client = await getPool().connect();
   try {
@@ -782,10 +783,18 @@ export async function repriceOrder(input: {
 
     await client.query(
       `UPDATE orders
-          SET subtotal = $2, cgst = $3, sgst = $4, total = $5,
+          SET subtotal = $2, cgst = $3, sgst = $4, shipping = $5, total = $6, courier_id = COALESCE($7, courier_id),
               repriced_at = now(), updated_at = now()
         WHERE id = $1`,
-      [input.orderId, input.money.subtotal, input.money.cgst, input.money.sgst, input.money.total],
+      [
+        input.orderId, 
+        input.money.subtotal, 
+        input.money.cgst, 
+        input.money.sgst, 
+        input.money.shipping, 
+        input.money.total, 
+        input.courierId ?? null
+      ],
     );
 
     await client.query("COMMIT");

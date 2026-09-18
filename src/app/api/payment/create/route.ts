@@ -66,10 +66,12 @@ export async function POST(request: NextRequest) {
 
   let orderId: string;
   let acceptTotal: number | null = null;
+  let acceptCourierId: number | null = null;
   try {
-    const body = (await request.json()) as { orderId?: unknown; acceptTotal?: unknown };
+    const body = (await request.json()) as { orderId?: unknown; acceptTotal?: unknown; acceptCourierId?: unknown };
     orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
     acceptTotal = typeof body.acceptTotal === "number" ? Math.round(body.acceptTotal) : null;
+    acceptCourierId = typeof body.acceptCourierId === "number" ? body.acceptCourierId : null;
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
@@ -104,6 +106,8 @@ export async function POST(request: NextRequest) {
     const { lines } = repriceOrderItems(order.items, products);
     
     let shipping = order.shipping;
+    let shippingOptions: any[] = [];
+    let chosenCourierId: number | null = null;
     try {
       const options = await quoteDelivery({
         deliveryPincode: order.shipTo.postalCode,
@@ -112,8 +116,16 @@ export async function POST(request: NextRequest) {
         isCOD: false,
       });
       const shortlist = shortlistDeliveryOptions(options);
+      shippingOptions = shortlist;
       if (shortlist.length > 0) {
-        shipping = shortlist[0].ratePaise;
+        let chosen = acceptCourierId !== null ? shortlist.find(o => o.courierId === acceptCourierId) : undefined;
+        if (!chosen && order.courierId !== null) {
+          chosen = shortlist.find(o => o.courierId === order.courierId);
+        }
+        if (!chosen) chosen = shortlist[0];
+        
+        shipping = chosen.ratePaise;
+        chosenCourierId = chosen.courierId;
       }
     } catch (error) {
       console.error("[payment] shipping requote failed:", error);
@@ -147,6 +159,8 @@ export async function POST(request: NextRequest) {
               shipping: money.shipping,
               total: money.total,
             },
+            shippingOptions,
+            currentCourierId: order.courierId,
             lines: lines.map((line) => ({
               name: line.name,
               qty: line.qty,
@@ -165,7 +179,7 @@ export async function POST(request: NextRequest) {
          in which case the row's own total is the one to charge — the guards
          above have already refused the paid and cancelled cases, so this is
          the narrow race between them and here. */
-      if (await repriceOrder({ orderId: order.id, lines, money })) {
+      if (await repriceOrder({ orderId: order.id, lines, money, courierId: chosenCourierId })) {
         amountPaise = money.total;
       }
     }
