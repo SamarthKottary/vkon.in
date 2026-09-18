@@ -79,7 +79,7 @@ the same moment as the new-order alert, which is that event.
 
 | # | Email | When | Subject | Code |
 |---|---|---|---|---|
-| 15 | New order *(A)* — to **orders@vkon.in** | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | New order VK-… — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
+| 15 | New order *(A)* — to **orders@vkon.in** | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | VK-… — New order — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
 | 17 | Order activity — to **orders@vkon.in** | Everything after the order comes in, at the same points and under the same once-only gates as the customer's email: payment failed (7), refund issued (8), shipped, out for delivery, delivery attempt failed, being returned, delivered, cancelled (9–14) — and the customer changing a delivery or billing address on a confirmed order. Each says what happened and what to do (a cancelled paid order: "refund it from /admin/orders"), then customer, phone, email, total, payment, and the courier/AWB/latest scan, amounts or old→new address. Admin link except for an unpaid order, which admin does not list | VK-… — Shipped / Delivery attempt failed / Refund issued / Delivery address changed … | `sendOrderActivityAlert` ← `alertAdmin` / `notifyAddressChanged` in `lib/order-notifications.ts` |
 | 16 | New enquiry *(G)* | Contact form saved (bots caught by the honeypot are not sent) | New enquiry from {name} — vkon.in | `sendEnquiryAlert` ← `app/(site)/actions.ts` |
 
@@ -120,6 +120,10 @@ footer, /terms and /privacy.
 
 ## 6. Change log
 
+- **2026-09-18 (Teams)** — The new-order alert's subject now starts with the
+  order number (`VK-… — New order — ₹total — payment`), like every activity
+  alert. Starting "New order VK-…", it was the one admin mail the client's
+  Teams integration did not pick up.
 - **2026-09-18 (latest)** — Order-activity alerts (17) to orders@vkon.in for
   every later order event, and for address changes (client: "for the admin to
   track the user, not just simply forwarding the customer's mail").

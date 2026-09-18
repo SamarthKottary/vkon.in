@@ -841,7 +841,7 @@ export async function sendNewOrderAlert(input: {
   const items = detailTable(input.lines.map((line) => [`${line.qty} ×`, `${line.name} — ${line.amount}`]));
 
   const html = shell(
-    `New order ${input.orderNumber}`,
+    `${input.orderNumber} — New order`,
     details.html +
       paragraph(`<strong style="color:${INK};">Items</strong>`) +
       items.html +
@@ -849,7 +849,7 @@ export async function sendNewOrderAlert(input: {
       smallPrint("Reply to this email to write to the customer."),
   );
   const text = [
-    `New order ${input.orderNumber}`,
+    `${input.orderNumber} — New order`,
     "",
     ...details.text,
     "",
@@ -861,7 +861,12 @@ export async function sendNewOrderAlert(input: {
 
   return sendMail({
     to: site.ordersEmail,
-    subject: `New order ${input.orderNumber} — ${input.total} — ${input.payment}`,
+    /* Order number first, the same shape as every activity alert
+       (`VK-… — Shipped`), so a rule or flow that picks order mail out by its
+       subject — the client's Teams integration, 2026-09-18 — catches new
+       orders too. It used to start "New order VK-…", and was the one alert
+       that did not reach Teams. */
+    subject: `${input.orderNumber} — New order — ${input.total} — ${input.payment}`,
     html,
     text,
     replyTo: input.customerEmail,

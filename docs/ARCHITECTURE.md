@@ -1603,6 +1603,14 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-18 (mail) — New-order alert subject starts with the order number
+
+Client: every admin mail showed in their Teams integration except new orders,
+which did reach the Outlook inbox. The only difference between it and the
+alerts that worked was the subject's shape: `New order VK-… — ₹… — …` against
+`VK-… — Shipped`. Now `VK-… — New order — ₹… — …` (and the heading to match),
+so all admin mail shares one subject form. EMAILS.md 15.
+
 ### 2026-09-18 (orders) — An order's addresses: Edit opens a pop-up list, not a dropdown
 
 Client: "instead of showing a drop down on shipping and billing address, show
