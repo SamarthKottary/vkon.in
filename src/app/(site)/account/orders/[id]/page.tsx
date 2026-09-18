@@ -11,6 +11,7 @@ import { CancelOrderButton } from "@/components/account/CancelOrderButton";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { AccountShell } from "@/components/account/AccountShell";
 import { OrderAddress, sameOrderAddress } from "@/components/account/OrderAddress";
+import { OrderAddressEditor } from "@/components/account/OrderAddressEditor";
 import { requireSignIn } from "@/lib/account";
 import { getOrderForCustomer } from "@/lib/db/orders";
 import { formatPaise } from "@/lib/pricing";
@@ -18,6 +19,7 @@ import { isRazorpayConfigured } from "@/lib/razorpay";
 import { trackingUrl } from "@/lib/shiprocket";
 import { trackingLabel } from "@/lib/tracking";
 import { isCod } from "@/lib/order-payment";
+import { addressEditWindow, formatNoonDeadline } from "@/lib/order-delivery";
 import { site } from "@/content/site";
 import type { Order } from "@/lib/types";
 import { pageMetadata } from "@/lib/seo";
@@ -93,6 +95,47 @@ export default async function OrderPage({
     !isCod(order) &&
     order.status === "pending" &&
     (order.paymentStatus === "unpaid" || order.paymentStatus === "failed");
+
+  /* The delivery address can be changed while the order waits to be paid,
+     and then until 12 pm the next day — after which the admin books the
+     courier (client, 2026-09-18). The save re-checks all of this. */
+  const addressEdit = addressEditWindow(order);
+  const editAddress = addressEdit.editable ? (
+    <OrderAddressEditor
+      orderId={order.id}
+      shipTo={order.shipTo}
+      cod={isCod(order)}
+      service={order.deliveryService}
+      courierName={order.courierName}
+      shipping={order.shipping}
+      total={order.total}
+      lineTotals={order.items.map((item) => item.lineTotal)}
+    />
+  ) : null;
+  /* Said on the page, not only in the pop-up: the deadline is the thing to
+     know *before* deciding whether to open it. */
+  const addressNote = (
+    <>
+      {order.addressChangedAt && (
+        <p className="mt-3 text-xs text-muted">
+          Address changed {formatMoment(order.addressChangedAt)}.
+        </p>
+      )}
+      {addressEdit.editable && (
+        <p className="mt-4 border-t border-line pt-3 text-sm leading-relaxed text-body">
+          {addressEdit.until ? (
+            <>
+              You can change the delivery address until{" "}
+              <span className="font-semibold text-ink">{formatNoonDeadline(addressEdit.until)}</span>.
+            </>
+          ) : (
+            "You can change the delivery address until you pay, and after that until 12 pm the next day."
+          )}
+        </p>
+      )}
+    </>
+  );
+  const deliveryDetail = [order.deliveryService, order.courierName].filter(Boolean).join(" · ");
 
   return (
     <AccountShell customer={customer}>
@@ -342,10 +385,17 @@ export default async function OrderPage({
               </section>
             )}
 
+            {/* Edit changes the delivery address only. On an order whose two
+                addresses were one, the card splits in two after a change —
+                which is the truth: the invoice still goes to the old one. */}
             {sameAddress ? (
               <section className="border border-line bg-surface-raised p-5 shadow-card">
-                <h3 className="label-tech text-muted">Billing &amp; delivery address</h3>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="label-tech text-muted">Billing &amp; delivery address</h3>
+                  {editAddress}
+                </div>
                 <OrderAddress address={order.shipTo} />
+                {addressNote}
               </section>
             ) : (
               <>
@@ -355,8 +405,12 @@ export default async function OrderPage({
                 </section>
 
                 <section className="border border-line bg-surface-raised p-5 shadow-card">
-                  <h3 className="label-tech text-muted">Delivering to</h3>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="label-tech text-muted">Delivering to</h3>
+                    {editAddress}
+                  </div>
                   <OrderAddress address={order.shipTo} />
+                  {addressNote}
                 </section>
               </>
             )}
@@ -367,11 +421,19 @@ export default async function OrderPage({
                 <Line label="Subtotal" value={formatPaise(order.subtotal)} />
                 <Line label="CGST 9%" value={formatPaise(order.cgst)} muted />
                 <Line label="SGST 9%" value={formatPaise(order.sgst)} muted />
-                <Line
-                  label={order.courierName ? `Delivery · ${order.courierName}` : "Delivery"}
-                  value={order.shipping > 0 ? formatPaise(order.shipping) : "To be advised"}
-                  muted
-                />
+                {/* The service by the name it was chosen under, and the courier
+                    under it — re-quoted when the address changes. */}
+                <div className="flex items-start justify-between gap-3 py-3">
+                  <dt className="min-w-0 text-muted">
+                    Delivery
+                    {deliveryDetail && (
+                      <span className="mt-0.5 block text-xs leading-snug">{deliveryDetail}</span>
+                    )}
+                  </dt>
+                  <dd className="shrink-0 tabular-nums text-body">
+                    {order.shipping > 0 ? formatPaise(order.shipping) : "To be advised"}
+                  </dd>
+                </div>
                 <div className="flex items-center justify-between py-3.5">
                   <dt className="font-bold text-ink">Total</dt>
                   <dd className="text-lg font-bold text-accent tabular-nums">

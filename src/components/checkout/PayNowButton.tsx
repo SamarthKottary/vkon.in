@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { AlertIcon, ArrowRightIcon, SpinnerIcon } from "@/components/icons/ui";
+import { useCallback, useState } from "react";
+import { AlertIcon, ArrowRightIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { PaymentSuccessDialog } from "@/components/checkout/PaymentSuccessDialog";
-import { formatPaise } from "@/lib/pricing";
+import { updateOrderPricesAction } from "@/app/(site)/account/private-actions";
+import { formatPaise, totals } from "@/lib/pricing";
 import type { DeliveryOption } from "@/lib/shiprocket";
 
 /**
@@ -39,13 +40,19 @@ import type { DeliveryOption } from "@/lib/shiprocket";
  * the widget in place rather than sending anybody to the order page first.
  *
  * **Prices are rechecked before the widget opens.** An order holds the prices
- * it was placed at; if the catalogue has moved since, `/api/payment/create`
- * answers 409 `price_changed` instead of creating anything, and the dialog
- * below shows what changed. Continuing sends the total *the customer was just
- * shown* back as `acceptTotal`, and the server proceeds only if that still
- * equals what it computes — so nobody is ever charged a figure they did not
- * see. Cancelling writes nothing: the order keeps its old prices and stays
- * payable.
+ * it was placed at; if the catalogue or the courier's rate has moved since,
+ * `/api/payment/create` answers 409 `price_changed` instead of creating
+ * anything, and the dialog below shows what changed.
+ *
+ * **Its one button is Update, and Update does not pay** (client, 2026-09-18:
+ * "remove the cancel button, instead lets have an update button which updates
+ * the total cost section … only then can we pay now"). It sends the total the
+ * customer was just shown to `updateOrderPricesAction` as `acceptTotal` — a
+ * receipt the server compares, never a price it charges — which rewrites the
+ * order and refreshes the page. The customer then sees the new total in the
+ * order's own totals panel and on this button, and pays it with Pay now. So
+ * what is charged is always a figure already on the page. Closing the dialog
+ * changes nothing; the order stays as it was, and Pay now will ask again.
  */
 
 type Money = { subtotal: number; cgst: number; sgst: number; shipping: number; total: number };
@@ -140,10 +147,24 @@ export function PayNowButton({
   const [priceChange, setPriceChange] = useState<PriceChange | null>(null);
   /** Set when a payment has just succeeded: `{ orderNumber, amountLabel }`. */
   const [paid, setPaid] = useState<{ orderNumber: string; amountLabel: string } | null>(null);
+  /** Bumped for every bill the server sends, so the dialog starts fresh from
+   *  it rather than keeping a courier chosen on the previous one. */
+  const [changeVersion, setChangeVersion] = useState(0);
+  const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  /** The new total once Update has rewritten the order — said under the button. */
+  const [updatedTo, setUpdatedTo] = useState<number | null>(null);
 
-  const pay = useCallback(async (acceptTotal?: number, acceptCourierId?: number | null) => {
+  const showPriceChange = (change: PriceChange) => {
+    setPriceChange(change);
+    setChangeVersion((v) => v + 1);
+    setUpdateError(null);
+  };
+
+  const pay = useCallback(async () => {
     setBusy(true);
     setError(null);
+    setUpdatedTo(null);
 
     try {
       const ready = await loadRazorpay();
@@ -158,9 +179,7 @@ export function PayNowButton({
       const response = await fetch("/api/payment/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          acceptTotal === undefined ? { orderId } : { orderId, acceptTotal, acceptCourierId },
-        ),
+        body: JSON.stringify({ orderId }),
       });
 
       if (!response.ok) {
@@ -170,7 +189,7 @@ export function PayNowButton({
 
         /* Prices moved since the order was placed. Ask, do not charge. */
         if (response.status === 409 && body?.error === "price_changed") {
-          setPriceChange({
+          showPriceChange({
             message: body.message ?? "Prices have changed since this order was placed.",
             orderNumber: body.orderNumber,
             previousTotal: body.previousTotal ?? 0,
@@ -247,12 +266,9 @@ export function PayNowButton({
           }
         },
         modal: {
-          /* Closing the widget is an ordinary thing to do, not an error. The
-             refresh is for the case where accepting new prices rewrote the
-             order a moment ago: the page should show what it now says. */
+          /* Closing the widget is an ordinary thing to do, not an error. */
           ondismiss: () => {
             setBusy(false);
-            router.refresh();
           },
         },
       });
@@ -263,7 +279,32 @@ export function PayNowButton({
       setError("Could not start the payment. Please try again.");
       setBusy(false);
     }
-  }, [orderId, router]);
+  }, [orderId]);
+
+  /** The dialog's Update: rewrite the order to the bill it showed, then let the
+   *  page redraw with the new totals. Nothing is charged here. */
+  const update = async (acceptTotal: number, courierId: number | null) => {
+    setUpdating(true);
+    setUpdateError(null);
+    try {
+      const result = await updateOrderPricesAction({ orderId, acceptTotal, courierId });
+      if (result.status === "ok") {
+        setPriceChange(null);
+        setUpdatedTo(result.total);
+        router.refresh();
+      } else if (result.status === "changed") {
+        /* Moved again between the dialog opening and the button: show the
+           newer bill rather than write one the customer has not seen. */
+        showPriceChange({ ...result.priceChange, lines: result.priceChange.lines ?? [] });
+      } else {
+        setUpdateError(result.message);
+      }
+    } catch {
+      setUpdateError("Could not update the prices just now. Please try again.");
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const success = paid && (
     <PaymentSuccessDialog
@@ -278,10 +319,12 @@ export function PayNowButton({
 
   const dialog = priceChange && (
     <PriceChangeDialog
+      key={changeVersion}
       change={priceChange}
-      busy={busy}
-      onCancel={() => setPriceChange(null)}
-      onAccept={() => pay(priceChange.newTotal)}
+      busy={updating}
+      error={updateError}
+      onClose={() => setPriceChange(null)}
+      onUpdate={update}
     />
   );
 
@@ -330,6 +373,17 @@ export function PayNowButton({
         {busy ? "Opening payment…" : `Pay ${amountLabel} now`}
       </Button>
 
+      {updatedTo !== null && !error && (
+        <p
+          role="status"
+          className="mt-3 flex items-start gap-2 border-l-2 border-accent bg-surface-subtle px-4 py-3 text-sm text-body"
+        >
+          <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+          Updated to today&rsquo;s prices. The total is now {formatPaise(updatedTo)} — press
+          Pay now when you are ready.
+        </p>
+      )}
+
       {error && (
         <p
           role="alert"
@@ -350,177 +404,170 @@ export function PayNowButton({
  * price, then subtotal, both GST lines and delivery, then the total — the same
  * order and the same wording as the order's own totals panel, so the customer
  * can check the new figure rather than take it on trust. A row that has not
- * moved (delivery, always; a line whose price held) shows one figure in the
- * "now" column and nothing in "was", so what changed stands out.
+ * moved shows one figure in the "now" column and nothing in "was", so what
+ * changed stands out.
  *
- * Cancel is the default — Escape, the backdrop and the X all cancel — because
- * saying nothing must never mean "charge me more".
+ * **It says what moved.** Since delivery is re-quoted too, a courier's new
+ * rate alone can open this — and "our prices have gone up" would then be
+ * untrue about the goods. The first sentence names the items, the delivery
+ * charge, or both.
+ *
+ * **Update is the only button** (client, 2026-09-18). It rewrites the order
+ * and does not take payment; the X, Escape and the backdrop close the dialog
+ * and change nothing. The delivery choice (Nishanth, 2026-09-18) re-totals
+ * through `totals()`, the one pricing implementation.
  */
 function PriceChangeDialog({
   change,
   busy,
-  onCancel,
-  onAccept,
+  error,
+  onClose,
+  onUpdate,
 }: {
   change: PriceChange;
   busy: boolean;
-  onCancel: () => void;
-  onAccept: (total: number, courierId: number | null) => void;
+  error: string | null;
+  onClose: () => void;
+  onUpdate: (total: number, courierId: number | null) => void;
 }) {
+  const options = change.shippingOptions ?? [];
   const [selectedCourierId, setSelectedCourierId] = useState<number | null>(() => {
-    if (change.shippingOptions && change.shippingOptions.length > 0) {
-      if (change.currentCourierId) {
-        const found = change.shippingOptions.find((o) => o.courierId === change.currentCourierId);
-        if (found) return found.courierId;
-      }
-      return change.shippingOptions[0].courierId;
+    if (options.length > 0) {
+      const found = options.find((o) => o.courierId === change.currentCourierId);
+      return (found ?? options[0]).courierId;
     }
     return change.currentCourierId ?? null;
   });
 
-  /* No `mounted` state: this renders only after a click, so `document` is
-     there — and setting state in an effect is what §9 forbids. */
-  const cancelRef = useRef(onCancel);
-  useEffect(() => {
-    cancelRef.current = onCancel;
-  });
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") cancelRef.current();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  let nextShipping = change.next?.shipping ?? 0;
-  if (change.shippingOptions && change.shippingOptions.length > 0 && selectedCourierId) {
-    const selected = change.shippingOptions.find((o) => o.courierId === selectedCourierId);
-    if (selected) {
-      nextShipping = selected.ratePaise;
-    }
-  }
-
-  const next = change.next
-    ? {
-        ...change.next,
-        shipping: nextShipping,
-        total: change.next.subtotal + change.next.cgst + change.next.sgst + nextShipping,
-      }
-    : undefined;
+  const lines = change.lines ?? [];
+  const previous = change.previous;
+  const selected = options.find((o) => o.courierId === selectedCourierId);
+  const nextShipping = selected ? selected.ratePaise : (change.next?.shipping ?? 0);
+  const next = change.next ? (lines.length > 0 ? totals(lines, nextShipping) : change.next) : undefined;
   const newTotal = next ? next.total : change.newTotal;
 
   const rose = newTotal > change.previousTotal;
   const difference = Math.abs(newTotal - change.previousTotal);
-  const previous = change.previous;
-  const lines = change.lines ?? [];
+  const itemsMoved = Boolean(previous && next && previous.subtotal !== next.subtotal);
+  const deliveryMoved = Boolean(previous && next && previous.shipping !== next.shipping);
+  const what =
+    itemsMoved && deliveryMoved
+      ? "Our prices and the delivery charge to your address have"
+      : deliveryMoved
+        ? "The delivery charge to your address has"
+        : "Our prices have";
+  const orderName = change.orderNumber ?? "this order";
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[120] flex items-end justify-center sm:items-center sm:p-6"
-      onClick={(e) => e.stopPropagation()}
+  return (
+    <Modal
+      title={rose ? "This order now costs more" : "This order now costs less"}
+      onClose={onClose}
+      size="lg"
     >
-      <div aria-hidden onClick={onCancel} className="absolute inset-0 backdrop-blur-md" />
+      <p className="text-sm leading-relaxed text-body">
+        {what} changed since you placed {orderName}, so the total is{" "}
+        <span className="font-semibold text-ink">
+          {formatPaise(difference)} {rose ? "more" : "less"}
+        </span>
+        . Nothing has been charged.
+      </p>
 
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="price-change-title"
-        className="relative max-h-[92svh] w-full max-w-xl overflow-y-auto border border-line-strong bg-surface-raised p-5 text-left shadow-2xl sm:p-6"
-      >
-        <h2 id="price-change-title" className="text-xl font-semibold text-ink">
-          {rose ? "This order costs more than when you placed it" : "This order costs less than when you placed it"}
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-body">
-          {rose
-            ? `Our prices have gone up since you placed ${change.orderNumber ?? "this order"}, by ${formatPaise(difference)} in total. Nothing has been charged yet — here is what you would pay now.`
-            : `Our prices have come down since you placed ${change.orderNumber ?? "this order"}, by ${formatPaise(difference)} in total. Nothing has been charged yet — here is what you would pay now.`}
-        </p>
-
-        <div className="mt-5 text-sm">
-          <div className="flex items-baseline gap-4 border-b border-line pb-2">
-            <span className="label-tech min-w-0 flex-1 text-muted">Item</span>
-            <span className="label-tech w-24 text-right text-muted sm:w-28">When ordered</span>
-            <span className="label-tech w-24 text-right text-muted sm:w-28">Now</span>
-          </div>
-
-          {lines.map((line) => (
-            <Row
-              key={`${line.name}-${line.qty}`}
-              label={
-                <>
-                  {line.name}
-                  <span className="text-muted"> × {line.qty}</span>
-                  {line.unavailable && (
-                    <span className="mt-0.5 block text-xs text-muted">
-                      No longer in the catalogue — price unchanged
-                    </span>
-                  )}
-                </>
-              }
-              was={line.wasLineTotal}
-              now={line.lineTotal}
-            />
-          ))}
-
-          {previous && next && (
-            <div className="mt-1 border-t border-line pt-1">
-              <Row label="Subtotal" was={previous.subtotal} now={next.subtotal} />
-              <Row label="CGST 9%" was={previous.cgst} now={next.cgst} muted />
-              <Row label="SGST 9%" was={previous.sgst} now={next.sgst} muted />
-              {change.shippingOptions && change.shippingOptions.length > 0 ? (
-                <Row
-                  label={
-                    <select
-                      className="text-sm bg-surface text-ink border-0 border-b border-line py-0.5 px-0 min-w-0 max-w-full focus:ring-0 cursor-pointer"
-                      value={selectedCourierId ?? ""}
-                      onChange={(e) => setSelectedCourierId(Number(e.target.value))}
-                    >
-                      {change.shippingOptions.map((opt) => (
-                        <option key={opt.courierId} value={opt.courierId}>
-                          Delivery: {opt.courierName} {opt.estimatedDays ? `(${opt.estimatedDays}d)` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  }
-                  was={previous.shipping}
-                  now={next.shipping}
-                  muted
-                />
-              ) : (
-                <Row label="Delivery" was={previous.shipping} now={next.shipping} muted />
-              )}
-            </div>
-          )}
-
-          <div className="mt-1 flex items-baseline gap-4 border-t border-line pt-3">
-            <span className="min-w-0 flex-1 font-bold text-ink">Total</span>
-            <span className="w-24 text-right text-muted line-through tabular-nums sm:w-28">
-              {formatPaise(change.previousTotal)}
-            </span>
-            <span className="w-24 text-right text-base font-bold tabular-nums text-accent sm:w-28">
-              {formatPaise(newTotal)}
-            </span>
-          </div>
+      <div className="mt-5 text-sm">
+        <div className="flex items-baseline gap-4 border-b border-line pb-2">
+          <span className="label-tech min-w-0 flex-1 text-muted">Item</span>
+          <span className="label-tech w-24 text-right text-muted sm:w-28">When ordered</span>
+          <span className="label-tech w-24 text-right text-muted sm:w-28">Now</span>
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Button type="button" variant="accent" size="lg" onClick={() => onAccept(newTotal, selectedCourierId)} disabled={busy}>
-            {busy && <SpinnerIcon className="h-4 w-4" />}
-            {busy ? "Opening payment…" : `Pay ${formatPaise(newTotal)}`}
-          </Button>
-          <Button type="button" variant="outline" size="lg" onClick={onCancel} disabled={busy}>
-            Cancel
-          </Button>
-        </div>
+        {lines.map((line) => (
+          <Row
+            key={`${line.name}-${line.qty}`}
+            label={
+              <>
+                {line.name}
+                <span className="text-muted"> × {line.qty}</span>
+                {line.unavailable && (
+                  <span className="mt-0.5 block text-xs text-muted">
+                    No longer in the catalogue — price unchanged
+                  </span>
+                )}
+              </>
+            }
+            was={line.wasLineTotal}
+            now={line.lineTotal}
+          />
+        ))}
 
-        <p className="mt-4 text-xs leading-relaxed text-muted">
-          Cancel and nothing changes: the order stays as it is, at{" "}
-          {formatPaise(change.previousTotal)}, and you can pay for it later. It is only
-          updated to the new prices if you pay now.
-        </p>
+        {previous && next && (
+          <div className="mt-1 border-t border-line pt-1">
+            <Row label="Subtotal" was={previous.subtotal} now={next.subtotal} />
+            <Row label="CGST 9%" was={previous.cgst} now={next.cgst} muted />
+            <Row label="SGST 9%" was={previous.sgst} now={next.sgst} muted />
+            {options.length > 1 ? (
+              <Row
+                label={
+                  <select
+                    aria-label="Delivery service"
+                    className="max-w-full min-w-0 cursor-pointer border-0 border-b border-line bg-surface px-0 py-0.5 text-sm text-ink focus:ring-0"
+                    value={selectedCourierId ?? ""}
+                    onChange={(e) => setSelectedCourierId(Number(e.target.value))}
+                  >
+                    {options.map((opt) => (
+                      <option key={opt.courierId} value={opt.courierId}>
+                        Delivery: {opt.courierName} {opt.estimatedDays ? `(${opt.estimatedDays}d)` : ""}
+                      </option>
+                    ))}
+                  </select>
+                }
+                was={previous.shipping}
+                now={next.shipping}
+                muted
+              />
+            ) : (
+              <Row label="Delivery" was={previous.shipping} now={next.shipping} muted />
+            )}
+          </div>
+        )}
+
+        <div className="mt-1 flex items-baseline gap-4 border-t border-line pt-3">
+          <span className="min-w-0 flex-1 font-bold text-ink">Total</span>
+          <span className="w-24 text-right text-muted line-through tabular-nums sm:w-28">
+            {formatPaise(change.previousTotal)}
+          </span>
+          <span className="w-24 text-right text-base font-bold tabular-nums text-accent sm:w-28">
+            {formatPaise(newTotal)}
+          </span>
+        </div>
       </div>
-    </div>,
-    document.body,
+
+      <p className="mt-5 text-sm leading-relaxed text-body">
+        Update the order to these prices, then pay the new total with Pay now.
+      </p>
+
+      {error && (
+        <p
+          role="alert"
+          className="mt-3 flex items-start gap-2 border-l-2 border-red-600 bg-surface-subtle px-4 py-3 text-sm text-red-700"
+        >
+          <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
+          {error}
+        </p>
+      )}
+
+      <div className="mt-5">
+        <Button
+          type="button"
+          variant="accent"
+          size="lg"
+          onClick={() => onUpdate(newTotal, selectedCourierId)}
+          disabled={busy}
+          className="min-w-36"
+        >
+          {busy && <SpinnerIcon className="h-4 w-4" />}
+          {busy ? "Updating…" : "Update order"}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 

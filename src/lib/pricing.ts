@@ -111,8 +111,12 @@ export function priceLines(
  * Tax is rounded once, on the whole subtotal, rather than per line — rounding
  * each line and adding them up gives a different number, and the invoice
  * convention is to tax the order.
+ *
+ * Takes anything with a `lineTotal`, so an order's own stored lines and the
+ * price-change dialog's rows go through this same arithmetic rather than a
+ * hand-written `subtotal + cgst + sgst + shipping` of their own.
  */
-export function totals(lines: PricedLine[], shipping = 0): Money {
+export function totals(lines: Pick<PricedLine, "lineTotal">[], shipping = 0): Money {
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
   const cgst = Math.round(subtotal * CGST_RATE);
   const sgst = Math.round(subtotal * SGST_RATE);

@@ -163,6 +163,7 @@ src/
   components/
     account/   AccountShell, AccountNavLink (client), AccountMenu (client),
                AddressBook (client), AddressForm (client), AddressPicker (client),
+               OrderAddressEditor (client),
                ProfileForm (client),
                OrderStatusBadge
     checkout/  CheckoutForm, DeliveryPicker, PayNowButton,
@@ -194,6 +195,10 @@ src/
     mail.ts      Resend over fetch; no nodemailer, no SMTP (§2)
     order-notifications.ts  which order emails a status change earns; never throws
     order-payment.ts  COD vs online, "confirmed order", payment labels; client-safe
+    order-delivery.ts service names, the address-edit window, the booking gate;
+                 client-safe — one module because they are the same moment
+    order-reprice.ts  what an unpaid order costs today (items + delivery); the
+                 payment route and the Update action share it — SERVER ONLY
     tracking.ts  courier status words → order status, customer labels, dates;
                  no `node:` imports, so the order list (client) shares it
     razorpay.ts  order creation + the two signature verifiers; no SDK
@@ -253,7 +258,8 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `account/AddressBook` | The account page's card grid: radio sets the default (optimistic), Edit/Add open `AddressDialog`, `confirm()` before delete |
 | `account/AddressPicker` · `AddressDialog` | The chosen address collapsed; the list opens as a panel over the content below (outside click / Escape close it, default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout and the account page |
 | `checkout/DeliveryPicker` | The chosen delivery service collapsed, the others on demand |
-| `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, announces the payment, then refreshes |
+| `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, announces the payment, then refreshes. On a 409 shows the price-change dialog, whose one button (Update) reprices the order without charging |
+| `account/OrderAddressEditor` | Edit on an order's delivery address: `AddressForm` in a `Modal`, a live delivery quote when the PIN code changes (choice and new total if unpaid; the kept service, no figure, if paid) |
 | `checkout/PaymentSuccessDialog` | "Payment successful": amount and order number as aligned label/figure rows, and where the receipt is going. Shown by both paths that take money |
 | `checkout/PaymentSuccessOnArrival` | Shows that dialog once when checkout lands on a paid order, then strips `?placed=` from the URL |
 | `checkout/CodConfirmDialog` | Confirms cash on delivery before the order form submits: what is due at the door, and that nothing is charged now |
@@ -932,12 +938,31 @@ when it is not. Cancelling is an operator action only. Check "undelivered"
 before "delivered": the substring match once marked failed attempts delivered.
 
 **The browser never sends a price, and `acceptTotal` is not an exception.**
-`/api/payment/create` re-prices the order from the catalogue itself and only
-proceeds when `acceptTotal` *equals* the figure it just computed; anything else
-is refused with a fresh 409. It is an "I saw this total" receipt, never an
+`updateOrderPricesAction` re-prices the order itself (`priceOrderNow`) and only
+writes when `acceptTotal` *equals* the figure it just computed; anything else
+goes back as a fresh bill. It is an "I saw this total" receipt, never an
 amount to charge. The moment it is read as a price, a customer can name what
 they pay — the rule `placeOrderAction` and `resolveChargedDelivery` already
 keep.
+
+**`/api/payment/create` never reprices; it charges `order.total` or answers
+409** (2026-09-18). Repricing is the dialog's Update button, a separate step
+that charges nothing, so the amount Razorpay asks for is always one the order
+page is already showing. Letting the payment route write new prices again
+would bring back "pay a figure you saw only in a dialog".
+
+**Booking a courier waits for the address window to close.**
+`shipmentBookable` and `addressEditWindow` live together in
+`lib/order-delivery.ts` and are computed from the same deadline, and
+`bookShipmentAction` checks it server-side as well as the page greying the
+button. Split them, or check only in the page, and a label can be printed with
+an address the customer changed afterwards.
+
+**An address change never alters a paid order's money.** `changeOrderAddress`
+re-checks the window *and* the payment state under the row lock, and refuses
+(`"moved"`) when the order was paid after the caller priced it — so an unpaid
+order's new delivery total can never land on a paid one. It also never writes
+`shipping` or `total` when the locked row is paid, whatever the caller sent.
 
 **A paid order is never repriced.** `repriceOrder` re-checks
 `payment_status <> 'paid' AND status <> 'cancelled'` under the row lock in the
@@ -1576,6 +1601,83 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-18 (admin, mail, Shiprocket) — Both addresses with phones; order mail copied to support@ and orders@
+
+Client: show billing and shipping in `/admin/orders` when they differ, "also
+the contact details in both"; which address and contact go to Shiprocket; and
+order emails to the customer should reach support@vkon.in (they did not) and
+orders@vkon.in.
+
+- **Admin card:** `AdminAddress` renders each address with its own
+  tap-to-call phone and GSTIN — "Deliver to" and "Bill to" when they differ,
+  one "Bill & deliver to" when not — and the account email as a `mailto:`
+  line, from the new `listCustomerEmails` (`lib/db/customers.ts`, one query
+  per page). The billing address used to have no phone on the card.
+- **Mail:** `sendMail` takes `bcc` and an array `to`. `ORDER_INBOXES` in
+  `lib/mail.ts` (support@ and the new `site.ordersEmail`, orders@) is BCC'd on
+  every order email to a customer and addressed on the new-order alert.
+  Account mail is not copied.
+- **Shiprocket:** `shipping_is_billing` is now always false — it was true on a
+  name + first line + PIN match, which would have sent the courier to the
+  billing phone after a customer corrected only the delivery number.
+  SHIPPING.md 4.3a lists every field and where it comes from.
+- **Tested in the browser:** differing addresses show two blocks with both
+  phones as `tel:` links, the GSTIN and the account email; matching ones show
+  one block; a COD order placed through checkout logs its confirmation to the
+  customer with `bcc: support@vkon.in, orders@vkon.in`, and the alert to both.
+  The Shiprocket change was not exercised against the API — booking creates a
+  real parcel.
+
+### 2026-09-18 (orders) — Change the delivery address until noon next day; booking waits; Update replaces Cancel
+
+Client: an order's address should be editable while it is unpaid and, once it
+is successful, "until next day 12pm", saying so; admin's Book shipment only
+after that; the edit should "refresh the delivery option (delivery mode and
+price)"; and the price-change pop-up should lose Cancel for "an update button
+which updates the total cost section … only then can we pay now". For a paid
+order the client chose "keep what they paid".
+
+- **New `lib/order-delivery.ts`** (client-safe): `serviceName` (moved from
+  `DeliveryPicker`), `sameServiceIndex`, `nextDayNoonIST`, `addressEditWindow`,
+  `shipmentBookable`, `formatNoonDeadline`. One module because the end of the
+  customer's window and the start of booking are the same instant.
+- **New `lib/order-reprice.ts`** (server only): `priceOrderNow` and
+  `priceChangeBody`, lifted out of `/api/payment/create` — including
+  Nishanth's delivery re-quote from the same day — so the payment route and
+  the new Update action price an order identically.
+- **New client component `account/OrderAddressEditor`**, and `AddressForm`
+  gained `action`, `initial`, `hiddenFields`, `showDefault`,
+  `onPostalCodeChange`, `saveLabel` and `children`, so the order editor reuses
+  the address book's fields and validation rather than copying them.
+- **New actions** in `account/private-actions.ts`: `quoteOrderAddressAction`
+  (display only), `changeOrderAddressAction`, `updateOrderPricesAction`. New
+  `changeOrderAddress` in `lib/db/orders.ts`, row-locked.
+- **Schema:** `orders.delivery_service` (the service's name, recorded at
+  checkout — it cannot be derived from a courier id later) and
+  `orders.address_changed_at`. **Needs the schema applied on the server.**
+- **`repriceOrder` now writes `courier_name` and `delivery_service` with
+  `courier_id`**; before, a courier change on Pay now left the previous
+  courier's name on the order.
+- **`/api/payment/create` no longer takes `acceptTotal`** and never writes —
+  see the new §9 constraint. `PriceChangeDialog` moved onto `ui/Modal` (so it
+  has the X), names what moved (items, delivery or both), and re-totals the
+  courier choice through `totals()`, which now accepts anything with a
+  `lineTotal`.
+- **Admin:** Book shipment greyed with "Opens at 12 pm on …" until the window
+  closes, refused server-side (`?shipError=window`); the card shows the
+  delivery service and "Address changed by the customer".
+- **Tested in the browser** against the local database, Shiprocket's live
+  quote API and Razorpay test mode — COD placed at checkout records its
+  service and moves to a new PIN with the COD total re-quoted and saved as
+  shown; an unpaid online order re-prices with the chosen service (Express
+  picked and stored) and Pay now shows the new total; a paid order keeps its
+  service and its total untouched; same-PIN edits leave money alone; the Edit
+  button is gone once the window passes or a shipment exists; a window closing
+  mid-edit is refused with nothing written; admin's button is disabled in the
+  window and enabled after (not pressed — it books a real parcel); the Update
+  flow on the order page and the order-history row; and an online checkout
+  payment end to end. Dark mode and 390px checked.
 
 ### 2026-09-18 (checkout) — A dialog when the money lands, and one before cash on delivery
 

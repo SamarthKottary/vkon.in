@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { getPool, isDatabaseConfigured, query } from "./client";
+import { addressEditWindow } from "@/lib/order-delivery";
 import { CONFIRMED_ORDER_SQL } from "@/lib/order-payment";
 import { mapShipmentStatus, mergeTrackingEvents } from "@/lib/tracking";
 import type {
@@ -54,6 +55,8 @@ type OrderRow = {
   refunded_amount: number;
   refunded_at: Date | null;
   repriced_at: Date | null;
+  delivery_service: string | null;
+  address_changed_at: Date | null;
   tracking_status: string | null;
   tracking_updated_at: Date | null;
   tracking_eta: string | null;
@@ -78,6 +81,7 @@ const ORDER_SELECT = `id, order_number, customer_id, status, payment_status,
   payment_provider, payment_order_id, payment_id, paid_at,
   shipment_provider, shipment_order_id, shipment_id, awb, courier_name, courier_id,
   shipped_at, delivered_at, cancelled_at, refunded_amount, refunded_at, repriced_at,
+  delivery_service, address_changed_at,
   tracking_status, tracking_updated_at, tracking_eta::text AS tracking_eta, tracking_events,
   created_at`;
 
@@ -136,6 +140,8 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
     refundedAmount: Number(row.refunded_amount ?? 0),
     refundedAt: row.refunded_at ? row.refunded_at.toISOString() : null,
     repricedAt: row.repriced_at ? row.repriced_at.toISOString() : null,
+    deliveryService: row.delivery_service ?? null,
+    addressChangedAt: row.address_changed_at ? row.address_changed_at.toISOString() : null,
     trackingStatus: row.tracking_status,
     trackingUpdatedAt: row.tracking_updated_at ? row.tracking_updated_at.toISOString() : null,
     /* `::text` in the select: `pg` turns a DATE into a JS Date at the
@@ -179,6 +185,8 @@ export type NewOrder = {
    *  when no quote was possible and delivery is settled on the call. */
   courierId?: number | null;
   courierName?: string | null;
+  /** "Standard" / "Faster" / "Express" — what checkout called that service. */
+  deliveryService?: string | null;
   subtotal: number;
   cgst: number;
   sgst: number;
@@ -219,8 +227,8 @@ export async function createOrder(input: NewOrder): Promise<Order> {
         const id = randomUUID();
         const inserted = await client.query<OrderRow>(
           `INSERT INTO orders
-             (id, order_number, customer_id, subtotal, cgst, sgst, shipping, total, ship_to, bill_to, notes, courier_id, courier_name, payment_provider)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+             (id, order_number, customer_id, subtotal, cgst, sgst, shipping, total, ship_to, bill_to, notes, courier_id, courier_name, payment_provider, delivery_service)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
            RETURNING ${ORDER_SELECT}`,
           [
             id,
@@ -237,6 +245,7 @@ export async function createOrder(input: NewOrder): Promise<Order> {
             input.courierId ?? null,
             input.courierName ?? null,
             input.paymentProvider ?? null,
+            input.deliveryService ?? null,
           ],
         );
 
@@ -757,7 +766,10 @@ export async function repriceOrder(input: {
   orderId: string;
   lines: { id: string; unitPrice: number; lineTotal: number }[];
   money: { subtotal: number; cgst: number; sgst: number; shipping: number; total: number };
-  courierId?: number | null;
+  /** The delivery service the new shipping figure is for, when one was quoted.
+   *  All three move together: a courier id with the previous courier's name
+   *  on it would print the wrong company on the order page. */
+  delivery?: { courierId: number; courierName: string; service: string } | null;
 }): Promise<boolean> {
   const client = await getPool().connect();
   try {
@@ -783,22 +795,122 @@ export async function repriceOrder(input: {
 
     await client.query(
       `UPDATE orders
-          SET subtotal = $2, cgst = $3, sgst = $4, shipping = $5, total = $6, courier_id = COALESCE($7, courier_id),
+          SET subtotal = $2, cgst = $3, sgst = $4, shipping = $5, total = $6,
+              courier_id = COALESCE($7, courier_id),
+              courier_name = COALESCE($8, courier_name),
+              delivery_service = COALESCE($9, delivery_service),
               repriced_at = now(), updated_at = now()
         WHERE id = $1`,
       [
-        input.orderId, 
-        input.money.subtotal, 
-        input.money.cgst, 
-        input.money.sgst, 
-        input.money.shipping, 
-        input.money.total, 
-        input.courierId ?? null
+        input.orderId,
+        input.money.subtotal,
+        input.money.cgst,
+        input.money.sgst,
+        input.money.shipping,
+        input.money.total,
+        input.delivery?.courierId ?? null,
+        input.delivery?.courierName ?? null,
+        input.delivery?.service ?? null,
       ],
     );
 
     await client.query("COMMIT");
     return true;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Moves an order to a new delivery address, at the customer's request
+ * (client, 2026-09-18).
+ *
+ * **The window is re-checked here, under the row lock**, with the row as it is
+ * now — not as the page that offered the button saw it. The admin may have
+ * booked the courier since, the clock may have passed noon, or the payment may
+ * have landed; each of those changes the answer, and a check made before the
+ * lock would race all three.
+ *
+ * `pricedAs` is the payment state the caller priced the change for. An unpaid
+ * order's delivery charge moves with its address; a paid one's never does
+ * ("keep what they paid"). If the order was paid between the caller's read
+ * and this lock, writing the new total would rewrite a paid order — so it
+ * refuses with `"moved"` and the caller prices it again.
+ *
+ * `delivery` is null when the PIN code did not change: the same place costs
+ * the same to reach, so the courier and the charge are left as they are.
+ */
+export async function changeOrderAddress(input: {
+  orderId: string;
+  customerId: string;
+  shipTo: ShipTo;
+  pricedAs: "paid" | "unpaid";
+  delivery: {
+    courierId: number;
+    courierName: string;
+    service: string;
+    /** Only for an unpaid order: the new delivery charge and total. */
+    money: { shipping: number; total: number } | null;
+  } | null;
+  now?: Date;
+}): Promise<"ok" | "closed" | "moved"> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const found = await client.query<OrderRow>(
+      `SELECT ${ORDER_SELECT} FROM orders
+        WHERE id = $1 AND customer_id = $2
+          FOR UPDATE`,
+      [input.orderId, input.customerId],
+    );
+    const row = found.rows[0];
+    if (!row) {
+      await client.query("ROLLBACK");
+      return "closed";
+    }
+
+    const order = mapOrder(row, []);
+    if (!addressEditWindow(order, input.now ?? new Date()).editable) {
+      await client.query("ROLLBACK");
+      return "closed";
+    }
+    const paidNow = order.paymentStatus === "paid";
+    if (paidNow !== (input.pricedAs === "paid")) {
+      await client.query("ROLLBACK");
+      return "moved";
+    }
+
+    const delivery = input.delivery;
+    /* Belt and braces on the rule that matters most here: whatever the caller
+       sent, a paid order's charge is not touched. */
+    const money = paidNow ? null : (delivery?.money ?? null);
+
+    await client.query(
+      `UPDATE orders
+          SET ship_to = $2,
+              courier_id = COALESCE($3, courier_id),
+              courier_name = COALESCE($4, courier_name),
+              delivery_service = COALESCE($5, delivery_service),
+              shipping = COALESCE($6, shipping),
+              total = COALESCE($7, total),
+              address_changed_at = now(), updated_at = now()
+        WHERE id = $1`,
+      [
+        input.orderId,
+        JSON.stringify(input.shipTo),
+        delivery?.courierId ?? null,
+        delivery?.courierName ?? null,
+        delivery?.service ?? null,
+        money?.shipping ?? null,
+        money?.total ?? null,
+      ],
+    );
+
+    await client.query("COMMIT");
+    return "ok";
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

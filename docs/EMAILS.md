@@ -18,6 +18,12 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
 - **From `no-reply@vkon.in`** (`MAIL_FROM`). Customer emails say replies are
   not read and point to support@vkon.in and the phone number instead. Alerts to
   the business carry the customer as Reply-To.
+- **Order emails are blind-copied to the business** (2026-09-18): every email
+  in 5–14 below goes to support@vkon.in and orders@vkon.in as **BCC**, so the
+  team sees exactly what the customer was told, and the customer never sees
+  those addresses. Account emails (1–4) are not copied — they carry codes and
+  reset links meant for the customer alone. The list is `ORDER_INBOXES` in
+  `lib/mail.ts`; the orders address is `site.ordersEmail`.
 - **Plain inline-styled HTML plus a text version** for every message, kept
   small for phones on weak connections.
 - **Never throws.** A failed send is logged and the action that triggered it
@@ -64,18 +70,23 @@ Emails 7 and 8 need `payment.failed` and `refund.processed` ticked on the
 **live** Razorpay webhook (INTEGRATIONS-SETUP-GUIDE.md §6.3). A webhook created
 before 2026-09-17 has only the first two events.
 
-### To the business (`site.email`, support@vkon.in)
+### To the business
 
 Reply-To is the customer, so answering reaches them rather than `no-reply@`.
+New-order alerts go to **support@vkon.in and orders@vkon.in**; enquiries to
+support@ only. So each new order lands in both inboxes twice — the alert and
+the blind copy of the customer's confirmation. The alert is the one with the
+phone number, the admin link and a Reply-To that reaches the customer.
 
 | # | Email | When | Subject | Code |
 |---|---|---|---|---|
-| 15 | New order *(A)* | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | New order VK-… — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
+| 15 | New order *(A)* — to support@ **and orders@** | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | New order VK-… — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
 | 16 | New enquiry *(G)* | Contact form saved (bots caught by the honeypot are not sent) | New enquiry from {name} — vkon.in | `sendEnquiryAlert` ← `app/(site)/actions.ts` |
 
-**support@vkon.in must exist in Microsoft 365** (vkon.in's MX is
-`vkon-in.mail.protection.outlook.com`) as a mailbox, shared mailbox or alias, or
-these bounce. Customers also write to it: it is the address on /contact, the
+**support@vkon.in and orders@vkon.in must both exist in Microsoft 365**
+(vkon.in's MX is `vkon-in.mail.protection.outlook.com`) as a mailbox, shared
+mailbox or alias, or these bounce. A bounced BCC does not stop the customer's
+copy, but Resend reports the bounce against the sending domain. Customers also write to it: it is the address on /contact, the
 footer, /terms and /privacy.
 
 ---
@@ -110,6 +121,10 @@ footer, /terms and /privacy.
 
 ## 6. Change log
 
+- **2026-09-18** — Order emails (5–14) blind-copied to support@vkon.in and
+  orders@vkon.in; the new-order alert addressed to both. Until now the
+  customer's order emails went to the customer only — nothing reached the
+  business except the new-order alert.
 - **2026-09-17** — Document started. Emails 1–9 in place: 1–5 from the account
   and payment work (2026-09-06 onwards), 6–9 from Shiprocket tracking and
   order-status emails the same day. Gaps A–G recorded.

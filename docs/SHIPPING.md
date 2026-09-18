@@ -249,6 +249,44 @@ so instead of re-booking. Cancelled orders get no button at all: booking a
 parcel for an order that is not happening is the one mistake here that costs
 real money.
 
+**Booking waits until 12 pm the day after the order was confirmed** (client,
+2026-09-18) — from payment for an online order, from placing it for COD. Until
+then the customer can still change the delivery address (4.4b), and a label
+printed before they stop could carry an address that is no longer the order's.
+The button shows greyed out with "Opens at 12 pm on Sat, 19 Sep", and
+`bookShipmentAction` refuses with `?shipError=window` if posted anyway. Both
+read `shipmentBookable` in `lib/order-delivery.ts`, the same module the
+customer's window comes from, so the two cannot drift apart. The card also
+shows the service the customer chose ("Delivery · Standard · Xpressbees Air")
+and, when they changed the address, "Address changed by the customer · {time}"
+— the confirmation email has the old one.
+
+### 4.3a What Shiprocket is sent, name by name
+
+`bookShipment` sends **both** of the order's addresses, as they stand when
+Book shipment is pressed (so a delivery address the customer changed is the
+one that goes):
+
+| Shiprocket field | From |
+|---|---|
+| `shipping_*` — name, address, city, state, PIN | the **delivery** address (`ship_to`). The courier delivers here |
+| `shipping_phone` | the **delivery** address's phone — the number the courier rings |
+| `billing_*` — name, address, city, state, PIN | the **billing** address (`bill_to`), for the invoice |
+| `billing_phone` | the billing address's phone |
+| `billing_email`, `shipping_email` | **ours**, not the customer's: `SHIPROCKET_NOTIFY_EMAIL`, else support@vkon.in. Shiprocket's own tracking emails therefore come to us; the customer is told by the site (EMAILS.md 9–13) |
+| `shipping_is_billing` | always **false** (2026-09-18) |
+
+Phones are cut to their last ten digits (Shiprocket rejects `+91`). The GSTIN
+is not sent — it belongs on the tax invoice, not the parcel.
+
+**Why `shipping_is_billing` is always false.** When it is true, Shiprocket
+delivers to the billing details. It used to be set whenever name, first line
+and PIN code matched, which cannot see a different phone, landmark or town —
+and since 2026-09-18 a customer can correct the delivery address after
+ordering, where the likeliest correction is exactly one of those. The courier
+would have rung the old number. Sending both in full costs nothing when they
+are the same.
+
 ### 4.4 The customer's view
 
 `/account/orders/[id]` shows an "On its way" (or "Delivered") panel once a
@@ -275,6 +313,41 @@ At most one per update, the furthest along. Manual changes email only when they
 move the order forward, so correcting a mistaken "delivered" back to "shipped"
 sends nothing.
 
+### 4.4b Changing the delivery address (2026-09-18)
+
+Client: an order's address should be editable "until next day 12pm" once it is
+successful, and while it is unpaid; the edit should "refresh the delivery
+option (delivery mode and price)".
+
+- **The window** (`addressEditWindow`, `lib/order-delivery.ts`): open while an
+  online order waits for payment; after payment — or after placing, for COD —
+  until 12:00 IST the next calendar day. Closed on a cancelled, shipped,
+  delivered or fully refunded order, and as soon as a shipment is booked. The
+  order page says until when, beside the address.
+- **Edit** opens the same address form as the address book, posting to
+  `changeOrderAddressAction`. It changes the order's `ship_to` only: the saved
+  address book and the billing address are untouched, so a combined "Billing &
+  delivery" card splits in two afterwards.
+- **Same PIN code — delivery untouched**, no Shiprocket call. **New PIN code —
+  re-quoted** (as COD when the order is COD, since couriers charge more to
+  collect cash), shown live in the pop-up as the PIN is typed:
+  - **unpaid (online or COD):** the services on offer with prices, the same
+    picker as checkout, and the new delivery charge and total. Saved through
+    `totals()`; Pay now or the COD amount then uses the new figure.
+  - **paid:** the **same service** it paid for (`sameServiceIndex`), with no
+    choice and no figure — "keep what they paid" (client). The courier is
+    re-chosen so the admin books one that serves the new PIN; the charge and
+    total are not touched, whether the new rate is higher or lower.
+  - **no courier:** refused, with the PIN code field marked.
+- **Checked twice.** `changeOrderAddress` re-evaluates the window under a row
+  lock with the row as it is at that moment, and refuses (`"moved"`) if the
+  order was paid between pricing and writing, so an unpaid total is never
+  written onto a paid order.
+- `orders.delivery_service` records "Standard" / "Faster" / "Express" at
+  checkout, because the name comes from position in that day's shortlist and
+  cannot be recovered from a courier id later. For older paid orders it is
+  worked out once from a quote to the old address.
+
 ### 4.5 Schema
 
 ```sql
@@ -300,6 +373,10 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_updated_at TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_eta        DATE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_events     JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancelled_at        TIMESTAMPTZ;
+
+-- 2026-09-18
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_service    TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS address_changed_at  TIMESTAMPTZ;
 ```
 
 `orders.shipping` needed no change — it has been an integer-paise column

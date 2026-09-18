@@ -6,6 +6,7 @@ import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { sameOrderAddress } from "@/components/account/OrderAddress";
 import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
+import { listCustomerEmails } from "@/lib/db/customers";
 import { listAllOrders } from "@/lib/db/orders";
 import { formatPaise } from "@/lib/pricing";
 import type { Order } from "@/lib/types";
@@ -17,6 +18,7 @@ import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import { refundBlock, refundBlockMessage } from "@/lib/refunds";
 import { isCod } from "@/lib/order-payment";
+import { formatNoonDeadline, shipmentBookable } from "@/lib/order-delivery";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +67,7 @@ export default async function AdminOrdersPage({
   } = await searchParams;
   const canRefund = isRazorpayConfigured();
   const orders = await listAllOrders();
+  const emails = await listCustomerEmails([...new Set(orders.map((o) => o.customerId))]);
   const canShip = isShiprocketConfigured();
 
   /* "Needs action" is pending-or-confirmed, i.e. not yet out of the door and
@@ -171,7 +174,9 @@ export default async function AdminOrdersPage({
             ? "Shiprocket is not configured — set the SHIPROCKET_* variables in .env and restart. See docs/SHIPPING.md."
             : shipError === "already"
               ? "That order already has a shipment. Manage it in the Shiprocket dashboard."
-              : shipError
+              : shipError === "window"
+                ? "Not yet — the customer can still change that order's delivery address. Booking opens at 12 pm the day after the order was confirmed."
+                : shipError
                 ? "Shiprocket refused the booking. The reason is in the server log — usually the pickup location nickname or a missing PIN code."
                 : "Shipment booked."}
         </p>
@@ -183,9 +188,10 @@ export default async function AdminOrdersPage({
           customer a refund promise, and nothing on this page issues it. */}
       <div className="mt-6 space-y-2 border-l-2 border-line-strong px-4 py-3 text-sm text-body">
         <p>
-          <span className="font-medium text-ink">New orders are emailed to support@vkon.in</span>{" "}
+          <span className="font-medium text-ink">New orders are emailed to support@vkon.in and orders@vkon.in</span>{" "}
           — a cash-on-delivery order when it is placed, an online order once
-          it is paid. An unpaid or failed online order appears only here.
+          it is paid — and both inboxes get a blind copy of every email the
+          customer is sent about their order.
         </p>
         <p>
           <span className="font-medium text-ink">Only confirmed orders are listed:</span>{" "}
@@ -225,7 +231,13 @@ export default async function AdminOrdersPage({
           </div>
         ) : (
           orders.map((order) => (
-            <OrderCard key={order.id} order={order} canShip={canShip} canRefund={canRefund} />
+            <OrderCard
+              key={order.id}
+              order={order}
+              canShip={canShip}
+              canRefund={canRefund}
+              customerEmail={emails.get(order.customerId) ?? null}
+            />
           ))
         )}
       </div>
@@ -237,12 +249,20 @@ function OrderCard({
   order,
   canShip,
   canRefund,
+  customerEmail,
 }: {
   order: Order;
   canShip: boolean;
   canRefund: boolean;
+  customerEmail: string | null;
 }) {
   const settled = order.status === "delivered" || order.status === "cancelled";
+  const bookable = shipmentBookable(order);
+  /* The confirmation email carries the address as it was placed; this says
+     the one on the card is newer (2026-09-18). */
+  const changedNote = order.addressChangedAt
+    ? `Address changed by the customer · ${formatDate(order.addressChangedAt)}`
+    : null;
 
   return (
     <article
@@ -341,67 +361,49 @@ function OrderCard({
         </div>
 
         <div>
-          <p className="label-tech text-muted">
-            {sameOrderAddress(order.billTo, order.shipTo)
-              ? "Bill & deliver to"
-              : "Deliver to"}
-          </p>
-          <p className="mt-3 font-medium text-ink">{order.shipTo.name}</p>
-          <address className="mt-1 text-sm not-italic leading-relaxed text-body">
-            {order.shipTo.line1}
-            {order.shipTo.line2 && (
-              <>
-                <br />
-                {order.shipTo.line2}
-              </>
-            )}
-            <br />
-            {order.shipTo.city}, {order.shipTo.state} {order.shipTo.postalCode}
-          </address>
-
-          {/* Only when it differs. On the great majority of orders the two are
-              the same place and repeating it here would push the phone number,
-              which is what this card is actually used for, below the fold. */}
-          {!sameOrderAddress(order.billTo, order.shipTo) && (
-            <div className="mt-4 border-l-2 border-line pl-3">
-              <p className="label-tech text-muted">Bill to</p>
-              <p className="mt-1.5 font-medium text-ink">{order.billTo.name}</p>
-              <address className="mt-1 text-sm not-italic leading-relaxed text-body">
-                {order.billTo.line1}
-                {order.billTo.line2 && (
-                  <>
-                    <br />
-                    {order.billTo.line2}
-                  </>
-                )}
-                <br />
-                {order.billTo.city}, {order.billTo.state} {order.billTo.postalCode}
-              </address>
-            </div>
+          {/* Both addresses in full when they differ, each with its own phone
+              (client, 2026-09-18): the courier rings the delivery number, the
+              invoice carries the billing one, and they are often different
+              people — a site engineer receiving, an office paying. One block
+              when they are the same place, which is most orders. */}
+          {sameOrderAddress(order.billTo, order.shipTo) ? (
+            <AdminAddress label="Bill & deliver to" address={order.shipTo} note={changedNote} />
+          ) : (
+            <>
+              <AdminAddress label="Deliver to" address={order.shipTo} note={changedNote} />
+              <div className="mt-5 border-t border-line pt-4">
+                <AdminAddress label="Bill to" address={order.billTo} />
+              </div>
+            </>
           )}
 
-          {/* The invoice needs this and nothing else on this page carries it. */}
-          {order.billTo.gstin && (
-            <p className="label-tech mt-3 break-all text-ink">
-              GSTIN {order.billTo.gstin}
+          {/* The account's email — the addresses carry none. Order mail goes
+              here, so it is the one to write to. */}
+          {customerEmail && (
+            <p className="mt-4 border-t border-line pt-3 text-sm">
+              <span className="label-tech block text-muted">Account email</span>
+              <a href={`mailto:${customerEmail}`} className="mt-1 inline-block break-all text-accent hover:underline">
+                {customerEmail}
+              </a>
             </p>
           )}
-
-          {/* The most important control on the card while payment is settled
-              by telephone: a tap-to-call link, not a number to copy out. */}
-          <a
-            href={`tel:${(order.shipTo.phone || "").replace(/[^\d+]/g, "")}`}
-            className="mt-3 inline-flex items-center gap-2 border border-line-strong px-3 py-2 font-mono text-sm text-ink hover:border-ink hover:bg-surface-subtle"
-          >
-            {order.shipTo.phone}
-          </a>
 
           <dl className="mt-5 space-y-1.5 border-t border-line pt-4 text-sm">
             <Row label="Subtotal" value={formatPaise(order.subtotal)} />
             <Row label="CGST 9%" value={formatPaise(order.cgst)} />
             <Row label="SGST 9%" value={formatPaise(order.sgst)} />
             <Row
-              label="Delivery"
+              label={
+                [
+                  "Delivery",
+                  order.deliveryService,
+                  /* The courier the customer chose, before there is an AWB to
+                     name one — booking assigns this service. */
+                  order.awb ? null : order.courierName,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              }
               value={order.shipping > 0 ? formatPaise(order.shipping) : "Not quoted"}
             />
           </dl>
@@ -495,6 +497,25 @@ function OrderCard({
               </p>
             ) : order.status === "cancelled" ? (
               <p className="mt-2.5 text-sm text-muted">Order cancelled — not shipping.</p>
+            ) : canShip && !bookable.bookable ? (
+              /* The customer may still move the parcel until 12 pm the day
+                 after the order was confirmed (client, 2026-09-18). A label
+                 printed before then can carry an address that is no longer
+                 the order's — so the button waits, and says until when. The
+                 action refuses too; this is the explanation, not the guard. */
+              <div className="mt-2.5">
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex h-9 cursor-not-allowed items-center border border-line px-3 text-sm font-medium text-muted"
+                >
+                  Book shipment
+                </button>
+                <p className="mt-2 text-sm text-body">
+                  Opens at {formatNoonDeadline(bookable.from)} — until then the customer can
+                  change the delivery address.
+                </p>
+              </div>
             ) : canShip ? (
               <form action={bookShipmentAction} className="mt-2.5">
                 <input type="hidden" name="id" value={order.id} />
@@ -606,6 +627,52 @@ function formatDay(day: string): string {
     month: "short",
     timeZone: "Asia/Kolkata",
   }).format(new Date(`${day}T12:00:00+05:30`));
+}
+
+/**
+ * One address on an order card: who, where, the number to ring and, when
+ * there is one, the GSTIN. The phone is a tap-to-call link, not a number to
+ * copy out — ringing the customer is what this card is used for most.
+ */
+function AdminAddress({
+  label,
+  address,
+  note,
+}: {
+  label: string;
+  address: Order["shipTo"];
+  note?: string | null;
+}) {
+  const tel = (address.phone || "").replace(/[^\d+]/g, "");
+  return (
+    <div>
+      <p className="label-tech text-muted">{label}</p>
+      <p className="mt-2.5 font-medium text-ink">{address.name}</p>
+      <address className="mt-1 text-sm not-italic leading-relaxed text-body">
+        {address.line1}
+        {address.line2 && (
+          <>
+            <br />
+            {address.line2}
+          </>
+        )}
+        <br />
+        {address.city}, {address.state} {address.postalCode}
+      </address>
+      {note && <p className="mt-1.5 text-xs text-muted">{note}</p>}
+      {address.phone && (
+        <a
+          href={`tel:${tel}`}
+          className="mt-2.5 inline-flex items-center gap-2 border border-line-strong px-3 py-2 font-mono text-sm text-ink hover:border-ink hover:bg-surface-subtle"
+        >
+          {address.phone}
+        </a>
+      )}
+      {address.gstin && (
+        <p className="label-tech mt-2.5 break-all text-ink">GSTIN {address.gstin}</p>
+      )}
+    </div>
+  );
 }
 
 function Row({ label, value }: { label: string; value: string }) {

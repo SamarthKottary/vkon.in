@@ -71,6 +71,26 @@ export async function findCustomerById(id: string): Promise<Customer | null> {
 }
 
 /**
+ * Account emails for a set of customers, by id — the admin order list's
+ * contact line (2026-09-18). One query for the page rather than one per card.
+ * Fails soft, unlike the rest of this file: it is display on an admin page,
+ * not authentication, and a missing email must not hide the orders.
+ */
+export async function listCustomerEmails(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  try {
+    const rows = await query<{ id: string; email: string }>(
+      `SELECT id, email FROM customers WHERE id = ANY($1::text[])`,
+      [ids],
+    );
+    return new Map(rows.map((row) => [row.id, row.email]));
+  } catch (error) {
+    console.error("[db] customer email lookup failed:", error);
+    return new Map();
+  }
+}
+
+/**
  * Creates an account.
  *
  * Returns `null` when the email is already taken — `ON CONFLICT DO NOTHING`

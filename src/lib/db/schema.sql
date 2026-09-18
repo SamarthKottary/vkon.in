@@ -529,6 +529,20 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_requested_at TIMESTAMPTZ;
 -- "Pay now". A paid order is never repriced.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS repriced_at TIMESTAMPTZ;
 
+-- Added 2026-09-18: which delivery service the customer chose, by the name
+-- checkout showed it ('Standard' | 'Faster' | 'Express'). The courier id alone
+-- cannot say: the names come from a service's position in that day's shortlist
+-- (see `serviceName` in lib/order-delivery.ts), and the same courier is
+-- "Standard" to one PIN code and "Express" to another. Needed to keep a paid
+-- order on the service it paid for when its address changes. Null on orders
+-- placed before this column, and when no quote was possible.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_service TEXT;
+
+-- Added 2026-09-18: when the customer last changed the delivery address after
+-- ordering, so the admin card can say the label address is not the one in the
+-- confirmation email.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS address_changed_at TIMESTAMPTZ;
+
 -- Order history is read newest-first for one customer, and that is the only
 -- way a customer ever reads it.
 CREATE INDEX IF NOT EXISTS orders_customer_idx

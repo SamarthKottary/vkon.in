@@ -1,10 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentCustomer } from "@/lib/account";
-import { attachPaymentOrder, getOrderForCustomer, repriceOrder } from "@/lib/db/orders";
-import { listProducts } from "@/lib/db/products";
-import { formatPaise, repriceOrderItems, totals } from "@/lib/pricing";
-import { packParcel } from "@/lib/parcel";
-import { quoteDelivery, shortlistDeliveryOptions } from "@/lib/shiprocket";
+import { attachPaymentOrder, getOrderForCustomer } from "@/lib/db/orders";
+import { priceChangeBody, priceOrderNow } from "@/lib/order-reprice";
 import {
   checkoutConfig,
   createRazorpayOrder,
@@ -33,21 +30,21 @@ import {
  *     id and nothing else.
  *
  * **Prices are rechecked here, every time** (client, 2026-09-17). An order
- * keeps the prices it was placed at, so one left unpaid while the catalogue
- * moved would otherwise be paid at the old figure. Before the gateway order is
- * created, the lines are re-priced against today's catalogue:
+ * keeps the prices it was placed at, so one left unpaid while the catalogue —
+ * or the courier's rate — moved would otherwise be paid at the old figure.
+ * Before the gateway order is created, the order is priced again by
+ * `priceOrderNow`:
  *
  *  - unchanged — pay as normal, nothing is written;
- *  - changed, and the request did not accept it — **409 `price_changed`** with
- *    what moved and the new total, for the customer to accept or cancel;
- *  - changed, and `acceptTotal` equals what this route just computed — the
- *    order is rewritten to today's prices and paid at that.
+ *  - changed — **409 `price_changed`** with the whole bill then and now, and
+ *    **nothing is charged or written.**
  *
- * **`acceptTotal` is not a price the browser sets.** It is only compared for
- * equality with the figure computed here; anything else is refused with a
- * fresh 409. That is what stops a customer being charged a total they were
- * never shown — including when the price moves again between the dialog and
- * the button.
+ * **This route never reprices an order** (client, 2026-09-18). It used to,
+ * when the request carried an `acceptTotal`; now the dialog's only button is
+ * Update, which goes to `updateOrderPricesAction`, rewrites the order, and
+ * leaves the customer looking at the new total before they press Pay now
+ * again. So the amount charged here is always the row's own `total` — a
+ * figure the order page is already showing.
  */
 export const dynamic = "force-dynamic";
 
@@ -65,13 +62,9 @@ export async function POST(request: NextRequest) {
   }
 
   let orderId: string;
-  let acceptTotal: number | null = null;
-  let acceptCourierId: number | null = null;
   try {
-    const body = (await request.json()) as { orderId?: unknown; acceptTotal?: unknown; acceptCourierId?: unknown };
+    const body = (await request.json()) as { orderId?: unknown };
     orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
-    acceptTotal = typeof body.acceptTotal === "number" ? Math.round(body.acceptTotal) : null;
-    acceptCourierId = typeof body.acceptCourierId === "number" ? body.acceptCourierId : null;
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
@@ -97,97 +90,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This order has nothing to pay." }, { status: 409 });
   }
 
-  /* Today's prices for this order's own lines. */
-  let amountPaise = order.total;
+  /* Today's prices for this order's own lines and delivery. */
   try {
-    /* Every line, not only the ones that moved: the dialog shows the whole
-       bill, and an unchanged line is part of it. */
-    const products = await listProducts();
-    const { lines } = repriceOrderItems(order.items, products);
-    
-    let shipping = order.shipping;
-    let shippingOptions: any[] = [];
-    let chosenCourierId: number | null = null;
-    try {
-      const options = await quoteDelivery({
-        deliveryPincode: order.shipTo.postalCode,
-        parcel: packParcel(lines, products),
-        declaredValuePaise: lines.reduce((sum, line) => sum + line.lineTotal, 0),
-        isCOD: false,
-      });
-      const shortlist = shortlistDeliveryOptions(options);
-      shippingOptions = shortlist;
-      if (shortlist.length > 0) {
-        let chosen = acceptCourierId !== null ? shortlist.find(o => o.courierId === acceptCourierId) : undefined;
-        if (!chosen && order.courierId !== null) {
-          chosen = shortlist.find(o => o.courierId === order.courierId);
-        }
-        if (!chosen) chosen = shortlist[0];
-        
-        shipping = chosen.ratePaise;
-        chosenCourierId = chosen.courierId;
-      }
-    } catch (error) {
-      console.error("[payment] shipping requote failed:", error);
-    }
-    
-    const money = totals(lines, shipping);
-
-    if (money.total !== order.total) {
-      if (acceptTotal !== money.total) {
-        /* The whole bill, then and now — the customer is about to be asked to
-           pay a different figure, and "the total is now X" without the tax and
-           delivery it is made of is not enough to check it against. */
-        return NextResponse.json(
-          {
-            error: "price_changed",
-            message: `Prices have changed since this order was placed. The total is now ${formatPaise(money.total)}.`,
-            orderNumber: order.orderNumber,
-            previousTotal: order.total,
-            newTotal: money.total,
-            previous: {
-              subtotal: order.subtotal,
-              cgst: order.cgst,
-              sgst: order.sgst,
-              shipping: order.shipping,
-              total: order.total,
-            },
-            next: {
-              subtotal: money.subtotal,
-              cgst: money.cgst,
-              sgst: money.sgst,
-              shipping: money.shipping,
-              total: money.total,
-            },
-            shippingOptions,
-            currentCourierId: order.courierId,
-            lines: lines.map((line) => ({
-              name: line.name,
-              qty: line.qty,
-              wasUnitPrice: line.wasUnitPrice,
-              unitPrice: line.unitPrice,
-              wasLineTotal: line.wasUnitPrice * line.qty,
-              lineTotal: line.lineTotal,
-              unavailable: line.unavailable,
-            })),
-          },
-          { status: 409 },
-        );
-      }
-
-      /* Accepted. False means the order was paid or cancelled in the meantime,
-         in which case the row's own total is the one to charge — the guards
-         above have already refused the paid and cancelled cases, so this is
-         the narrow race between them and here. */
-      if (await repriceOrder({ orderId: order.id, lines, money, courierId: chosenCourierId })) {
-        amountPaise = money.total;
-      }
+    const now = await priceOrderNow(order, null);
+    if (now.money.total !== order.total) {
+      return NextResponse.json(priceChangeBody(order, now), { status: 409 });
     }
   } catch (error) {
     /* A catalogue read that fails must not block a payment: the order's own
        total is what it was placed at, and charging that is never wrong. */
     console.error("[payment] price recheck failed:", error);
   }
+
+  const amountPaise = order.total;
 
   const rzpOrder = await createRazorpayOrder({
     amountPaise,

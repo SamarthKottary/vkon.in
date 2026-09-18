@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isAdminConfigured, login, logout, requireAdmin } from "@/lib/auth";
+import { shipmentBookable } from "@/lib/order-delivery";
 import {
   createProduct,
   deleteProduct,
@@ -745,6 +746,11 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
   const order = await getOrderForAdmin(id);
   if (!order) redirect("/admin/orders?error=1");
   if (order.shipmentId) redirect("/admin/orders?shipError=already");
+  /* The customer may still change the delivery address until 12 pm the day
+     after the order was confirmed (client, 2026-09-18). The page greys the
+     button out until then; this is the check that holds when the page is
+     stale or the form is posted by hand. */
+  if (!shipmentBookable(order).bookable) redirect("/admin/orders?shipError=window");
 
   try {
     const products = await listProducts();

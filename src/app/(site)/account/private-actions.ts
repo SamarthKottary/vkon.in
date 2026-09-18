@@ -19,7 +19,20 @@ import {
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
 import { confirmationProblem } from "@/lib/password-policy";
 import { trustThisDevice } from "@/lib/signin-challenge";
-import { createOrder } from "@/lib/db/orders";
+import {
+  changeOrderAddress,
+  createOrder,
+  getOrderForCustomer,
+  repriceOrder,
+} from "@/lib/db/orders";
+import {
+  addressEditWindow,
+  sameServiceIndex,
+  serviceName,
+  type DeliveryServiceName,
+} from "@/lib/order-delivery";
+import { isCod } from "@/lib/order-payment";
+import { priceChangeBody, priceOrderNow, type PriceChangeBody } from "@/lib/order-reprice";
 import { listProducts } from "@/lib/db/products";
 import {
   isShiprocketConfigured,
@@ -32,7 +45,7 @@ import { sendOrderPlacedMail, sendPasswordChangedMail } from "@/lib/mail";
 import { notifyNewOrder } from "@/lib/order-notifications";
 import { formatPaise, priceLines, totals } from "@/lib/pricing";
 import { site } from "@/content/site";
-import type { Address, ShipTo } from "@/lib/types";
+import type { Address, Order, ShipTo } from "@/lib/types";
 import { getCustomerCart, saveCustomerCart, mergeCustomerCart } from "@/lib/db/cart";
 import type { CartLine } from "@/lib/cart";
 
@@ -501,13 +514,17 @@ async function resolveChargedDelivery(
   lines: { slug: string; qty: number }[],
   courierId: number | null,
   isCOD: boolean = false,
-): Promise<DeliveryOption | null> {
+): Promise<(DeliveryOption & { service: DeliveryServiceName }) | null> {
   const quote = await resolveDeliveryQuote(customerId, addressId, lines, isCOD);
   if (quote.status !== "quoted") return null;
 
-  const chosen =
-    courierId !== null ? quote.options.find((o) => o.courierId === courierId) : undefined;
-  return chosen ?? quote.options[0] ?? null;
+  const picked = courierId !== null ? quote.options.findIndex((o) => o.courierId === courierId) : -1;
+  const index = picked >= 0 ? picked : 0;
+  const chosen = quote.options[index];
+  /* The name the customer chose it by, stored with it: the same courier can be
+     "Standard" to one PIN code and "Express" to another, so it cannot be
+     worked out again later from the courier id. */
+  return chosen ? { ...chosen, service: serviceName(index, quote.options.length) } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -645,6 +662,7 @@ export async function placeOrderAction(
          the one way this feature can take money for something not delivered. */
       courierId: delivery?.courierId ?? null,
       courierName: delivery?.courierName ?? null,
+      deliveryService: delivery?.service ?? null,
       paymentProvider: paymentMode === "cod" ? "cod" : null,
       items: priced.map((line) => {
         const product = bySlug.get(line.slug);
@@ -799,4 +817,303 @@ function nowInIndia(): string {
     minute: "2-digit",
     timeZone: "Asia/Kolkata",
   }).format(new Date());
+}
+
+// ---------------------------------------------------------------------------
+// Changing an order after it is placed (client, 2026-09-18)
+// ---------------------------------------------------------------------------
+
+export type OrderAddressQuote =
+  /** Shiprocket is not set up, or the order cannot be changed — the editor
+   *  says nothing about delivery and the save leaves it as it is. */
+  | { status: "unavailable" }
+  /** No courier came back for this PIN code. `quoteDelivery` cannot tell an
+   *  unserviceable PIN from a timeout, so the wording has to allow for both. */
+  | { status: "no_courier" }
+  | {
+      status: "quoted";
+      options: DeliveryOption[];
+      /** A paid order keeps the service it paid for, so there is nothing to
+       *  choose; an unpaid one (online or COD) picks, and pays the new rate. */
+      paid: boolean;
+      /** The same service the order has now, in the new list. */
+      chosenId: number;
+    };
+
+const ADDRESS_CLOSED =
+  "The delivery address on this order can no longer be changed. If it is wrong, please call us on " +
+  `${site.phone.display}.`;
+
+/**
+ * The service a paid order from before `orders.delivery_service` existed was
+ * sent by, worked out again: its courier's place in today's shortlist to its
+ * current address, or failing that the service whose price is nearest what it
+ * paid. Only ever needed once per old order — the save stores the answer.
+ */
+async function recoverService(order: Order, products: Awaited<ReturnType<typeof listProducts>>): Promise<string> {
+  try {
+    const options = shortlistDeliveryOptions(
+      await quoteDelivery({
+        deliveryPincode: order.shipTo.postalCode,
+        parcel: packParcel(order.items.map((i) => ({ slug: i.slug, qty: i.qty })), products),
+        declaredValuePaise: order.subtotal,
+        isCOD: isCod(order),
+      }),
+    );
+    if (options.length === 0) return "Standard";
+    let index = options.findIndex((o) => o.courierId === order.courierId);
+    if (index < 0) {
+      index = options.reduce(
+        (best, o, i) =>
+          Math.abs(o.ratePaise - order.shipping) < Math.abs(options[best].ratePaise - order.shipping) ? i : best,
+        0,
+      );
+    }
+    return serviceName(index, options.length);
+  } catch {
+    return "Standard";
+  }
+}
+
+/**
+ * Delivery to a new PIN code for this order — the single implementation the
+ * editor's live figures and the save both come from, for the reason
+ * `resolveDeliveryQuote` gives at checkout.
+ *
+ * The parcel is this order's own lines, and it is quoted as COD when the
+ * order is: couriers charge more to collect cash (`shiprocket.ts` sends
+ * `cod: 1`), and a COD order's new delivery charge is what the courier will
+ * actually ask for at the door.
+ */
+async function quoteOrderAddress(order: Order, postalCode: string): Promise<OrderAddressQuote> {
+  if (!isShiprocketConfigured()) return { status: "unavailable" };
+
+  const products = await listProducts();
+  let options: DeliveryOption[];
+  try {
+    options = shortlistDeliveryOptions(
+      await quoteDelivery({
+        deliveryPincode: postalCode,
+        parcel: packParcel(order.items.map((i) => ({ slug: i.slug, qty: i.qty })), products),
+        declaredValuePaise: order.subtotal,
+        isCOD: isCod(order),
+      }),
+    );
+  } catch (error) {
+    console.error("[account] order address quote failed:", error);
+    return { status: "no_courier" };
+  }
+  if (options.length === 0) return { status: "no_courier" };
+
+  const paid = order.paymentStatus === "paid";
+  const service = order.deliveryService ?? (paid ? await recoverService(order, products) : null);
+  const index = sameServiceIndex(service, options.length);
+  return { status: "quoted", options, paid, chosenId: options[index].courierId };
+}
+
+/**
+ * What the order page's address editor calls as the PIN code is typed.
+ *
+ * **Display only**, like `quoteDeliveryAction`: the save quotes again and
+ * stores its own answer.
+ */
+export async function quoteOrderAddressAction(input: {
+  orderId: string;
+  postalCode: string;
+}): Promise<OrderAddressQuote> {
+  const customer = await requireCustomer();
+  const order = await getOrderForCustomer(customer.id, String(input?.orderId ?? ""));
+  const postalCode = String(input?.postalCode ?? "").trim();
+  if (!order || !addressEditWindow(order).editable || !PIN.test(postalCode)) {
+    return { status: "unavailable" };
+  }
+  return quoteOrderAddress(order, postalCode);
+}
+
+/**
+ * Moves an order to a new delivery address.
+ *
+ * Allowed while the order waits to be paid, and after that until 12 pm the
+ * next day (`addressEditWindow`) — re-checked under the row lock by
+ * `changeOrderAddress`, because this read and that write are not the same
+ * moment.
+ *
+ * **What happens to the delivery charge depends on whether money has changed
+ * hands** (client, 2026-09-18: "keep what they paid"):
+ *
+ *  - the PIN code did not change — the courier and charge stay as they are;
+ *  - unpaid (online or COD) — the customer's chosen service at its new rate,
+ *    and the total with it, through `totals()`;
+ *  - paid — the same *service* it paid for, re-quoted to the new PIN so the
+ *    admin books a courier that goes there, and **the charge and total left
+ *    untouched**: no extra charge, no refund. Nothing to choose, so the
+ *    posted `courierId` is ignored.
+ *
+ * The browser sends an address and a courier id, never a price — see
+ * `resolveChargedDelivery` on why that id can only pick a real service at its
+ * real price. The saved address book is not touched: this changes where one
+ * order goes, not where the next one will.
+ */
+export async function changeOrderAddressAction(
+  _prev: AccountState,
+  formData: FormData,
+): Promise<AccountState> {
+  const customer = await requireCustomer();
+
+  const orderId = String(formData.get("orderId") ?? "").trim();
+  const { input, fieldErrors } = readAddress(formData);
+  const typed: Record<string, string> = { ...input };
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return {
+      status: "error",
+      message: "Please check the highlighted fields.",
+      fieldErrors,
+      values: typed,
+    };
+  }
+
+  const order = orderId ? await getOrderForCustomer(customer.id, orderId) : null;
+  if (!order) {
+    return { status: "error", message: "That order could not be found.", values: typed };
+  }
+  if (!addressEditWindow(order).editable) {
+    return { status: "error", message: ADDRESS_CLOSED, values: typed };
+  }
+
+  const paid = order.paymentStatus === "paid";
+  let delivery: Parameters<typeof changeOrderAddress>[0]["delivery"] = null;
+
+  try {
+    if (input.postalCode !== order.shipTo.postalCode) {
+      const quote = await quoteOrderAddress(order, input.postalCode);
+
+      if (quote.status === "no_courier") {
+        return {
+          status: "error",
+          message: `We could not find a courier to deliver to ${input.postalCode}. Please check the PIN code, or call us on ${site.phone.display}.`,
+          fieldErrors: { postalCode: "No courier found for this PIN code." },
+          values: typed,
+        };
+      }
+
+      if (quote.status === "quoted") {
+        const rawCourier = Number(String(formData.get("courierId") ?? "").trim() || NaN);
+        const picked = paid ? -1 : quote.options.findIndex((o) => o.courierId === rawCourier);
+        const index = picked >= 0 ? picked : quote.options.findIndex((o) => o.courierId === quote.chosenId);
+        const chosen = quote.options[index];
+        delivery = {
+          courierId: chosen.courierId,
+          courierName: chosen.courierName,
+          service: serviceName(index, quote.options.length),
+          money: paid ? null : pick(totals(order.items, chosen.ratePaise)),
+        };
+      }
+    }
+
+    const result = await changeOrderAddress({
+      orderId: order.id,
+      customerId: customer.id,
+      shipTo: { ...input },
+      pricedAs: paid ? "paid" : "unpaid",
+      delivery,
+    });
+
+    if (result === "closed") {
+      return { status: "error", message: ADDRESS_CLOSED, values: typed };
+    }
+    if (result === "moved") {
+      /* Paid between the read above and the lock — the delivery charge that
+         was about to be written is no longer this order's to change. */
+      return {
+        status: "error",
+        message: "Your payment has just come through, so this order's delivery charge is now fixed. Please press Save again.",
+        values: typed,
+      };
+    }
+  } catch (error) {
+    console.error("[account] order address change failed:", error);
+    return {
+      status: "error",
+      message: `Could not change the address just now. Please try again, or call us on ${site.phone.display}.`,
+      values: typed,
+    };
+  }
+
+  revalidatePath(`/account/orders/${order.id}`);
+  revalidatePath("/account/orders");
+  revalidatePath("/admin/orders");
+  return { status: "ok" };
+}
+
+/** The two figures an address change may move on an unpaid order. */
+function pick(money: { shipping: number; total: number }): { shipping: number; total: number } {
+  return { shipping: money.shipping, total: money.total };
+}
+
+export type UpdatePricesResult =
+  | { status: "ok"; total: number }
+  /** Moved again since the dialog was drawn — here is the new bill. */
+  | { status: "changed"; priceChange: PriceChangeBody }
+  | { status: "error"; message: string };
+
+/**
+ * The price-change dialog's **Update** button (client, 2026-09-18: "remove the
+ * cancel button, instead lets have an update button which updates the total
+ * cost section … only then can we pay now").
+ *
+ * Rewrites an unpaid order to today's prices and delivery rate, and does
+ * nothing else — no payment starts. The customer sees the new total on the
+ * order page and presses Pay now for it, so what they are charged is always a
+ * figure already on the screen in front of them.
+ *
+ * **`acceptTotal` is a receipt, not a price** (§9): it is compared for equality
+ * with what `priceOrderNow` computes here, and anything else is sent back as a
+ * fresh bill instead of being written. `repriceOrder` refuses a paid or
+ * cancelled order under its row lock.
+ */
+export async function updateOrderPricesAction(input: {
+  orderId: string;
+  acceptTotal: number;
+  courierId: number | null;
+}): Promise<UpdatePricesResult> {
+  const customer = await requireCustomer();
+  const order = await getOrderForCustomer(customer.id, String(input?.orderId ?? ""));
+  if (!order) return { status: "error", message: "That order could not be found." };
+  if (order.paymentStatus === "paid") return { status: "error", message: "This order is already paid." };
+  if (order.status === "cancelled") return { status: "error", message: "This order was cancelled." };
+
+  const acceptTotal = typeof input?.acceptTotal === "number" ? Math.round(input.acceptTotal) : null;
+  const courierId =
+    typeof input?.courierId === "number" && Number.isFinite(input.courierId) ? input.courierId : null;
+
+  try {
+    const now = await priceOrderNow(order, courierId);
+    if (acceptTotal !== now.money.total) {
+      return { status: "changed", priceChange: priceChangeBody(order, now) };
+    }
+
+    const written = await repriceOrder({
+      orderId: order.id,
+      lines: now.lines,
+      money: now.money,
+      delivery: now.delivery,
+    });
+    if (!written) {
+      return {
+        status: "error",
+        message: "This order was paid or cancelled a moment ago. Please refresh the page.",
+      };
+    }
+
+    revalidatePath(`/account/orders/${order.id}`);
+    revalidatePath("/account/orders");
+    return { status: "ok", total: now.money.total };
+  } catch (error) {
+    console.error("[account] price update failed:", error);
+    return {
+      status: "error",
+      message: "Could not update the prices just now. Please try again.",
+    };
+  }
 }

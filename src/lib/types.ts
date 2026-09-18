@@ -299,6 +299,11 @@ export type Order = {
   cancelledAt: string | null;
   /** When the customer accepted new prices on an unpaid order at "Pay now". */
   repricedAt: string | null;
+  /** "Standard", "Faster" or "Express" — see `serviceName` in
+   *  `lib/order-delivery.ts`. Null on older orders and unquoted ones. */
+  deliveryService: string | null;
+  /** When the customer last changed the delivery address after ordering. */
+  addressChangedAt: string | null;
   /** Paise refunded so far, across every Razorpay refund. 0 for most orders. */
   refundedAmount: number;
   refundedAt: string | null;

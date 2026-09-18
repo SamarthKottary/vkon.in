@@ -32,7 +32,7 @@ const API_URL = "https://api.resend.com/emails";
 export type MailResult = { ok: boolean; skipped?: boolean; error?: string };
 
 type Mail = {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   text: string;
@@ -42,7 +42,22 @@ type Mail = {
    * none, and stays no-reply as the client asked.
    */
   replyTo?: string;
+  /**
+   * Blind copies — the business's inboxes on a customer's order mail, so the
+   * customer never sees them and a reply-all cannot reach them.
+   */
+  bcc?: string[];
 };
+
+/**
+ * Where the business reads order mail (client, 2026-09-18): the support inbox
+ * and the orders inbox. Every email a customer is sent about an order is
+ * blind-copied to both, so the team sees exactly what the customer was told;
+ * new-order alerts are addressed to both. Account mail (welcome, sign-in
+ * codes, password resets) is not copied — those carry codes and links meant
+ * for the customer alone.
+ */
+const ORDER_INBOXES = [site.email, site.ordersEmail];
 
 function isConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
@@ -84,7 +99,8 @@ function fromAddress(): string {
 export async function sendMail(mail: Mail): Promise<MailResult> {
   if (!isConfigured()) {
     console.info(
-      `[mail] not configured; would have sent to ${mail.to}: ${mail.subject}\n` +
+      `[mail] not configured; would have sent to ${[mail.to].flat().join(", ")}: ${mail.subject}\n` +
+        (mail.bcc?.length ? `[mail] bcc: ${mail.bcc.join(", ")}\n` : "") +
         (mail.replyTo ? `[mail] reply-to: ${mail.replyTo}\n` : "") +
         `[mail] ${mail.text.replace(/\n/g, "\n[mail] ")}`,
     );
@@ -103,10 +119,11 @@ export async function sendMail(mail: Mail): Promise<MailResult> {
       },
       body: JSON.stringify({
         from: fromAddress(),
-        to: [mail.to],
+        to: [mail.to].flat(),
         subject: mail.subject,
         html: mail.html,
         text: mail.text,
+        ...(mail.bcc?.length ? { bcc: mail.bcc } : {}),
         ...(mail.replyTo ? { reply_to: mail.replyTo } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
@@ -114,7 +131,7 @@ export async function sendMail(mail: Mail): Promise<MailResult> {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      console.error(`[mail] ${response.status} sending to ${mail.to}: ${detail}`);
+      console.error(`[mail] ${response.status} sending to ${[mail.to].flat().join(", ")}: ${detail}`);
       return { ok: false, error: `${response.status}` };
     }
 
@@ -402,6 +419,7 @@ export async function sendOrderPlacedMail(input: {
 
   return sendMail({
     to: input.to,
+    bcc: ORDER_INBOXES,
     subject: `Order ${input.orderNumber} — ${site.legalName}`,
     html,
     text,
@@ -435,6 +453,7 @@ export async function sendPaymentReceivedMail(input: {
 
   return sendMail({
     to: input.to,
+    bcc: ORDER_INBOXES,
     subject: `Payment received for Order ${input.orderNumber} — ${site.legalName}`,
     html,
     text,
@@ -593,6 +612,7 @@ export async function sendOrderUpdateMail(input: {
 
   return sendMail({
     to: input.to,
+    bcc: ORDER_INBOXES,
     subject: `${subject} — ${site.legalName}`,
     html,
     text,
@@ -671,6 +691,7 @@ export async function sendPaymentFailedMail(input: {
 
   return sendMail({
     to: input.to,
+    bcc: ORDER_INBOXES,
     subject: `Payment for order ${input.orderNumber} didn't go through — ${site.legalName}`,
     html,
     text,
@@ -738,6 +759,7 @@ export async function sendRefundMail(input: {
 
   return sendMail({
     to: input.to,
+    bcc: ORDER_INBOXES,
     subject: `Refund for order ${input.orderNumber} — ${site.legalName}`,
     html,
     text,
@@ -808,7 +830,8 @@ export async function sendPasswordChangedMail(input: {
 // ---------------------------------------------------------------------------
 
 /**
- * A new order, to the business inbox (`site.email`) — EMAILS.md A, 2026-09-17.
+ * A new order, to the business inboxes (`ORDER_INBOXES`: support@ and, since
+ * 2026-09-18, orders@) — EMAILS.md A, 2026-09-17.
  *
  * Sent when an order is real: at placement for cash on delivery, and on
  * payment for an online order (an unpaid, abandoned one is not news). Reply-To
@@ -857,7 +880,7 @@ export async function sendNewOrderAlert(input: {
   ].join("\n");
 
   return sendMail({
-    to: site.email,
+    to: ORDER_INBOXES,
     subject: `New order ${input.orderNumber} — ${input.total} — ${input.payment}`,
     html,
     text,

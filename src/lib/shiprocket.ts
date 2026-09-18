@@ -419,10 +419,6 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
 
   const [shipFirst, shipLast] = splitName(input.shipTo.name);
   const [billFirst, billLast] = splitName(input.billTo.name);
-  const sameAddress =
-    input.billTo.line1 === input.shipTo.line1 &&
-    input.billTo.postalCode === input.shipTo.postalCode &&
-    input.billTo.name === input.shipTo.name;
 
   const payload = {
     order_id: input.orderNumber,
@@ -440,7 +436,14 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
     billing_email: input.email,
     billing_phone: input.billTo.phone.replace(/\D/g, "").slice(-10),
 
-    shipping_is_billing: sameAddress,
+    /* Always false, with the delivery address sent in full (2026-09-18). When
+       true, Shiprocket delivers to the *billing* details. It used to be true
+       whenever name, first line and PIN code matched — blind to the phone,
+       the landmark and the town. Now that a customer can correct the delivery
+       address after ordering, the likeliest correction is exactly one of
+       those, and the courier would have rung the old number. Sending both in
+       full costs nothing when they are the same. */
+    shipping_is_billing: false,
     shipping_customer_name: shipFirst,
     shipping_last_name: shipLast,
     shipping_address: input.shipTo.line1,

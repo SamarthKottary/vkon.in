@@ -40,6 +40,11 @@ export const site = {
      Outgoing site mail still comes from no-reply@ (`MAIL_FROM`). */
   email: "support@vkon.in",
 
+  /* The orders inbox (client, 2026-09-18). Every email a customer gets about
+     an order is copied here and to `email` above, and new-order alerts go to
+     both — see `ORDER_INBOXES` in lib/mail.ts. Never shown to customers. */
+  ordersEmail: "orders@vkon.in",
+
   /**
    * The business address as registered with Razorpay (client, 2026-09-17).
    * Razorpay's website verification compares what the site shows against the

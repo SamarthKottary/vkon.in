@@ -258,23 +258,47 @@ now, with a dialog rather than a silent adjustment.
 - **Changed:** **409 `price_changed`** carrying the whole bill twice — every
   line, subtotal, both GST lines, delivery and total, as the order has them and
   as they are now. `PayNowButton` lays them out in two aligned columns ("When
-  ordered" and "Now"), naming the order and the difference, and offers *Pay
-  ₹new* or *Cancel*. A figure that has not moved (delivery, and any line whose
-  price held) is shown once, so what changed stands out. Cancel writes nothing;
-  the order stays payable at its old prices, and the dialog says so.
-- **Continue** re-sends the request with `acceptTotal` — the total the customer
-  was just shown. The server proceeds only if that still equals what it
-  computes, so a price that moves again between the dialog and the button
-  produces a fresh 409 rather than a surprise charge. See ARCHITECTURE.md §9.
-- **`repriceOrder`** then rewrites the lines and totals under a row lock,
-  refusing a paid or cancelled order, and stamps `orders.repriced_at`.
+  ordered" and "Now"), naming the order and the difference. A figure that has
+  not moved is shown once, so what changed stands out.
+- **Delivery is re-quoted too** (Nishanth, 2026-09-18), so a courier's new rate
+  alone can open the dialog. Its first sentence says which moved — "our
+  prices", "the delivery charge to your address", or both — and where the
+  address has more than one service, the delivery row is a choice.
+- **The dialog's only button is Update** (client, 2026-09-18 — it used to be
+  *Pay ₹new* / *Cancel*). Update calls `updateOrderPricesAction` with
+  `acceptTotal`, the total the customer was just shown. The action proceeds
+  only if that still equals what `priceOrderNow` computes — otherwise it sends
+  back the newer bill and the dialog redraws — then **`repriceOrder`** rewrites
+  the lines, totals and delivery service under a row lock (refusing a paid or
+  cancelled order) and stamps `orders.repriced_at`. **Nothing is charged.** The
+  page refreshes, the order's totals panel and the button show the new total,
+  and a note under the button says so; the customer then presses Pay now,
+  which finds nothing changed and opens Razorpay for exactly that figure.
+- **`/api/payment/create` never reprices.** It charges `order.total` or answers
+  409 — so the amount taken is always one the order page is already showing.
+  See ARCHITECTURE.md §9.
+- The X, Escape and the backdrop close the dialog and change nothing; Pay now
+  asks again next time.
 - A price *drop* takes the same path, with a lower total.
+- `lib/order-reprice.ts` holds `priceOrderNow` and the 409 body, so the payment
+  route and the Update action price an order the same way.
 - Checkout's own payment (`CheckoutForm`) cannot normally hit this — the order
   was priced seconds earlier — and if it does it says so and sends the customer
   to the order page, where the dialog lives.
 
-**Tested 2026-09-17** on the laptop against Razorpay test mode, by changing a
-product's price in the database (restored afterwards):
+**Tested 2026-09-18** (Update flow) on the laptop in Razorpay test mode, with
+an unpaid order whose line was ₹1,000 against today's ₹1,124: the dialog names
+prices *and* delivery, has no Cancel and no pay button; X leaves the order
+untouched; Update rewrites it to ₹1,376.04 with no gateway order created; the
+totals panel, the button and the note show ₹1,376.04; Pay now then opens
+Razorpay for 137604 paise. From the order-history row, Update refreshes the
+row's total without leaving the page, and clicking inside the dialog does not
+open the order. An order whose only change was delivery is described as a
+delivery change.
+
+**Tested 2026-09-17** (the earlier Pay/Cancel dialog) on the laptop against
+Razorpay test mode, by changing a product's price in the database (restored
+afterwards):
 
 | Check | Result |
 |---|---|

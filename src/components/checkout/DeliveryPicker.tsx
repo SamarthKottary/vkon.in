@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronDownIcon } from "@/components/icons/ui";
+import { serviceName } from "@/lib/order-delivery";
 import { formatPaise } from "@/lib/pricing";
 import type { DeliveryOption } from "@/lib/shiprocket";
 
@@ -158,19 +159,4 @@ export function DeliveryPicker({
 function summary(option: DeliveryOption, index: number, count: number): string {
   const name = serviceName(index, count);
   return option.estimatedDays ? `${name}, ~${option.estimatedDays} days` : name;
-}
-
-/**
- * What a delivery service is called: by its place in the shortlist, never by
- * whether it flies. `shortlistDeliveryOptions` returns them cheapest first and
- * each strictly quicker than the one before, so position *is* speed.
- *
- * Shiprocket's air/surface flag is not. Labelled from it, a Mangaluru order
- * offered "Express, ~2 days" for ₹49.72 above "Standard, ~1 day" for ₹73.44 —
- * Xpressbees by air against Blue Dart by road — and a Delhi one showed two
- * different services both called "Standard".
- */
-function serviceName(index: number, count: number): string {
-  if (index === 0) return "Standard";
-  return index === count - 1 ? "Express" : "Faster";
 }

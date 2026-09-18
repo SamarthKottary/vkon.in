@@ -10,7 +10,7 @@ import {
   saveAddressAction,
   type AccountState,
 } from "@/app/(site)/account/private-actions";
-import type { Address } from "@/lib/types";
+import type { Address, ShipTo } from "@/lib/types";
 
 /**
  * Add or edit a delivery address.
@@ -31,6 +31,13 @@ export function AddressForm({
   onDone,
   onCancel,
   compact = false,
+  action = saveAddressAction,
+  initial,
+  hiddenFields,
+  showDefault = true,
+  onPostalCodeChange,
+  saveLabel,
+  children,
 }: {
   address?: Address;
   /** Called after a successful save, so the page can close the form. */
@@ -47,9 +54,27 @@ export function AddressForm({
    * the address hint moves rather than stays.
    */
   compact?: boolean;
+  /**
+   * Where the form posts. The address book by default; the order page's
+   * editor posts the same eight fields to `changeOrderAddressAction` instead
+   * (2026-09-18), so the fields, the validation messages and the echo of what
+   * was typed stay one implementation.
+   */
+  action?: (state: AccountState, formData: FormData) => Promise<AccountState>;
+  /** Prefill when there is no saved `address` — an order's own snapshot. */
+  initial?: ShipTo;
+  /** Extra hidden inputs, e.g. the order id. */
+  hiddenFields?: Record<string, string>;
+  /** "Use this as my default address" — an address-book question only. */
+  showDefault?: boolean;
+  /** Told what is in the PIN code box as it is typed, for a live quote. */
+  onPostalCodeChange?: (value: string) => void;
+  saveLabel?: string;
+  /** Rendered under the fields and above Save — the order editor's delivery. */
+  children?: React.ReactNode;
 }) {
   const uid = useId();
-  const [state, formAction] = useActionState<AccountState, FormData>(saveAddressAction, {
+  const [state, formAction] = useActionState<AccountState, FormData>(action, {
     status: "idle",
   });
   /**
@@ -86,8 +111,9 @@ export function AddressForm({
    * exactly this and the action fills it on every error return; this is the
    * end of the wire that reads it.
    */
-  const value = (field: keyof Address) =>
-    state.values?.[field] ?? (address ? String(address[field] ?? "") : "");
+  const value = (field: keyof ShipTo) =>
+    state.values?.[field] ??
+    (address ? String(address[field] ?? "") : initial ? String(initial[field] ?? "") : "");
 
   const nameField = (
     <Field id={`${uid}-name`} label="Deliver to" error={error("name")} required>
@@ -200,6 +226,7 @@ export function AddressForm({
         name="postalCode"
         autoComplete="postal-code"
         defaultValue={value("postalCode")}
+        onChange={onPostalCodeChange ? (event) => onPostalCodeChange(event.target.value.trim()) : undefined}
         required
         maxLength={10}
         className={fieldInput(error("postalCode"))}
@@ -249,6 +276,10 @@ export function AddressForm({
   return (
     <form action={formAction} className={compact ? "space-y-4" : "space-y-5"}>
       {address && <input type="hidden" name="id" value={address.id} />}
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([name, fieldValue]) => (
+          <input key={name} type="hidden" name={name} value={fieldValue} />
+        ))}
 
       {state.status === "error" && state.message && (
         <p
@@ -291,30 +322,34 @@ export function AddressForm({
         </>
       )}
 
-      <label className="flex items-center gap-3 text-sm text-body">
-        <input
-          type="checkbox"
-          name="isDefault"
-          defaultChecked={address?.isDefault}
-          className="h-4 w-4 accent-[var(--color-accent)]"
-        />
-        Use this as my default address
-      </label>
+      {children}
+
+      {showDefault && (
+        <label className="flex items-center gap-3 text-sm text-body">
+          <input
+            type="checkbox"
+            name="isDefault"
+            defaultChecked={address?.isDefault}
+            className="h-4 w-4 accent-[var(--color-accent)]"
+          />
+          Use this as my default address
+        </label>
+      )}
 
       <div className={`flex flex-wrap items-center gap-3 ${compact ? "pt-1" : "pt-2"}`}>
-        <Save editing={Boolean(address)} />
+        <Save editing={Boolean(address)} label={saveLabel} />
         {onCancel && <CancelButton onCancel={onCancel} />}
       </div>
     </form>
   );
 }
 
-function Save({ editing }: { editing: boolean }) {
+function Save({ editing, label }: { editing: boolean; label?: string }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
       {pending && <SpinnerIcon className="h-4 w-4" />}
-      {pending ? "Saving…" : editing ? "Save changes" : "Save address"}
+      {pending ? "Saving…" : (label ?? (editing ? "Save changes" : "Save address"))}
     </Button>
   );
 }
