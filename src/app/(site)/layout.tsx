@@ -156,6 +156,8 @@ export default async function SiteLayout({
           featured cards need to pop above their row. */}
       <main id="main" className="relative z-10 flex-1 overflow-x-clip bg-surface">
         {children}
+        <FloatingContact />
+        <MobileActionBar />
       </main>
 
       {/* The footer is revealed rather than scrolled to — the page above
@@ -188,8 +190,6 @@ export default async function SiteLayout({
       <div className="sticky bottom-[min(0px,calc(100svh_-_86rem))] z-0 md:bottom-[min(0px,calc(100svh_-_51rem))] lg:bottom-[min(0px,calc(100svh_-_37rem))]">
         <Footer />
       </div>
-      <FloatingContact />
-      <MobileActionBar />
       <CartDrawer products={products} />
       <CartSync customerId={customer?.id ?? null} />
 
