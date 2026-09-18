@@ -807,16 +807,34 @@ export async function repriceOrder(input: {
   }
 }
 
-/** Cancels an unpaid order at the customer's request. */
+/** Deletes an unpaid order at the customer's request. */
 export async function cancelOrder(orderId: string, customerId: string): Promise<boolean> {
-  const rows = await query(
-    `UPDATE orders
-        SET status = 'cancelled', cancelled_at = now(), updated_at = now()
-      WHERE id = $1 AND customer_id = $2 AND status = 'pending' AND payment_status IN ('unpaid', 'failed')
-      RETURNING id`,
-    [orderId, customerId]
-  );
-  return rows.length > 0;
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const found = await client.query(
+      `SELECT id FROM orders
+       WHERE id = $1 AND customer_id = $2 AND status = 'pending' AND payment_status IN ('unpaid', 'failed')
+       FOR UPDATE`,
+      [orderId, customerId]
+    );
+
+    if (found.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    await client.query(`DELETE FROM order_items WHERE order_id = $1`, [orderId]);
+    await client.query(`DELETE FROM orders WHERE id = $1`, [orderId]);
+
+    await client.query("COMMIT");
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /** Looks an order up by Razorpay's payment id — for a refund event that

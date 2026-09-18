@@ -39,7 +39,7 @@ export function CancelOrderButton({
   }
 
   const baseClasses =
-    "inline-flex items-center justify-center text-muted transition-colors hover:text-red-600 disabled:opacity-50";
+    "inline-flex items-center justify-center transition-colors disabled:opacity-50";
 
   if (compact) {
     return (
@@ -52,7 +52,7 @@ export function CancelOrderButton({
           cancelOrder();
         }}
         disabled={busy}
-        className={`${baseClasses} h-9 px-2`}
+        className={`${baseClasses} h-9 w-9 border border-line-strong text-muted hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30`}
       >
         <TrashIcon className="h-4 w-4" />
       </button>
@@ -65,7 +65,7 @@ export function CancelOrderButton({
       title="Cancel order"
       onClick={cancelOrder}
       disabled={busy}
-      className={`${baseClasses} h-8 w-8 rounded-full hover:bg-red-50 dark:hover:bg-red-950/30`}
+      className={`${baseClasses} h-8 w-8 rounded-full text-muted hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30`}
     >
       <TrashIcon className="h-5 w-5" />
     </button>
