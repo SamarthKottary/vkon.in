@@ -9,9 +9,11 @@ import { Modal } from "@/components/ui/Modal";
 export function CancelOrderButton({
   orderId,
   compact = false,
+  redirectOnDelete = false,
 }: {
   orderId: string;
   compact?: boolean;
+  redirectOnDelete?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -26,7 +28,7 @@ export function CancelOrderButton({
       });
 
       if (res.ok) {
-        if (!compact) {
+        if (redirectOnDelete) {
           router.replace("/account/orders");
         } else {
           router.refresh();

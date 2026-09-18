@@ -166,7 +166,7 @@ export default async function OrderPage({
           </div>
           <div className="flex items-center gap-2">
             <OrderStatusBadge order={order} />
-            {isAwaitingPayment && <CancelOrderButton orderId={order.id} compact />}
+            {isAwaitingPayment && <CancelOrderButton orderId={order.id} compact redirectOnDelete />}
           </div>
         </div>
 

@@ -333,7 +333,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
             <div
               role="listbox"
               aria-label="Filter by status"
-              className="absolute right-0 top-full z-30 mt-1 min-w-full w-36 border border-line bg-surface-raised py-1 shadow-card sm:w-40"
+              className="absolute right-0 top-full z-50 mt-1 min-w-full w-36 border border-line bg-surface-raised py-1 shadow-card sm:w-40"
             >
               {STATUS_FILTERS.map((f) => {
                 const isSelected = statusFilter === f.value;
