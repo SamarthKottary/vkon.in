@@ -3,6 +3,8 @@ import { getCurrentCustomer } from "@/lib/account";
 import { attachPaymentOrder, getOrderForCustomer, repriceOrder } from "@/lib/db/orders";
 import { listProducts } from "@/lib/db/products";
 import { formatPaise, repriceOrderItems, totals } from "@/lib/pricing";
+import { packParcel } from "@/lib/parcel";
+import { quoteDelivery, shortlistDeliveryOptions } from "@/lib/shiprocket";
 import {
   checkoutConfig,
   createRazorpayOrder,
@@ -98,8 +100,26 @@ export async function POST(request: NextRequest) {
   try {
     /* Every line, not only the ones that moved: the dialog shows the whole
        bill, and an unchanged line is part of it. */
-    const { lines } = repriceOrderItems(order.items, await listProducts());
-    const money = totals(lines, order.shipping);
+    const products = await listProducts();
+    const { lines } = repriceOrderItems(order.items, products);
+    
+    let shipping = order.shipping;
+    try {
+      const options = await quoteDelivery({
+        deliveryPincode: order.shipTo.postalCode,
+        parcel: packParcel(lines, products),
+        declaredValuePaise: lines.reduce((sum, line) => sum + line.lineTotal, 0),
+        isCOD: false,
+      });
+      const shortlist = shortlistDeliveryOptions(options);
+      if (shortlist.length > 0) {
+        shipping = shortlist[0].ratePaise;
+      }
+    } catch (error) {
+      console.error("[payment] shipping requote failed:", error);
+    }
+    
+    const money = totals(lines, shipping);
 
     if (money.total !== order.total) {
       if (acceptTotal !== money.total) {
