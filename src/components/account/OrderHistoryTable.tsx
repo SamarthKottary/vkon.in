@@ -7,6 +7,7 @@ import { ArrowRightIcon } from "@/components/icons/ui";
 import { formatPaise } from "@/lib/pricing";
 import { trackingLabel, trackingUrl } from "@/lib/tracking";
 import { PayNowButton } from "@/components/checkout/PayNowButton";
+import { CancelOrderButton } from "@/components/account/CancelOrderButton";
 import {
   isCod,
   isPaymentFailed,
@@ -106,7 +107,12 @@ function canTrack(order: Order): boolean {
  */
 function OrderActions({ order }: { order: Order }) {
   if (awaitingPayment(order)) {
-    return <PayNowButton orderId={order.id} amountLabel={formatPaise(order.total)} compact />;
+    return (
+      <div className="flex items-center justify-end gap-2">
+        <CancelOrderButton orderId={order.id} compact />
+        <PayNowButton orderId={order.id} amountLabel={formatPaise(order.total)} compact />
+      </div>
+    );
   }
 
   if (canTrack(order)) {

@@ -807,6 +807,18 @@ export async function repriceOrder(input: {
   }
 }
 
+/** Cancels an unpaid order at the customer's request. */
+export async function cancelOrder(orderId: string, customerId: string): Promise<boolean> {
+  const rows = await query(
+    `UPDATE orders
+        SET status = 'cancelled', cancelled_at = now(), updated_at = now()
+      WHERE id = $1 AND customer_id = $2 AND status = 'pending' AND payment_status IN ('unpaid', 'failed')
+      RETURNING id`,
+    [orderId, customerId]
+  );
+  return rows.length > 0;
+}
+
 /** Looks an order up by Razorpay's payment id — for a refund event that
  *  arrives without the payment's order id. */
 export async function findOrderIdByPaymentId(paymentId: string): Promise<string | null> {

@@ -7,6 +7,7 @@ import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
 import { ClearCartOnPlaced } from "@/components/cart/ClearCartOnPlaced";
 import { PayNowButton } from "@/components/checkout/PayNowButton";
 import { PaymentSuccessOnArrival } from "@/components/checkout/PaymentSuccessOnArrival";
+import { CancelOrderButton } from "@/components/account/CancelOrderButton";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { AccountShell } from "@/components/account/AccountShell";
 import { OrderAddress, sameOrderAddress } from "@/components/account/OrderAddress";
@@ -16,6 +17,7 @@ import { formatPaise } from "@/lib/pricing";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import { trackingUrl } from "@/lib/shiprocket";
 import { trackingLabel } from "@/lib/tracking";
+import { isCod } from "@/lib/order-payment";
 import { site } from "@/content/site";
 import type { Order } from "@/lib/types";
 import { pageMetadata } from "@/lib/seo";
@@ -87,6 +89,11 @@ export default async function OrderPage({
   const payOnline = isRazorpayConfigured();
   const sameAddress = sameOrderAddress(order.billTo, order.shipTo);
 
+  const isAwaitingPayment =
+    !isCod(order) &&
+    order.status === "pending" &&
+    (order.paymentStatus === "unpaid" || order.paymentStatus === "failed");
+
   return (
     <AccountShell customer={customer}>
       <div>
@@ -157,7 +164,10 @@ export default async function OrderPage({
               Placed {formatDate(order.createdAt)}
             </p>
           </div>
-          <OrderStatusBadge order={order} />
+          <div className="flex items-center gap-2">
+            <OrderStatusBadge order={order} />
+            {isAwaitingPayment && <CancelOrderButton orderId={order.id} compact />}
+          </div>
         </div>
 
         <div className="mt-6 grid gap-6 sm:mt-8 lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-8">
