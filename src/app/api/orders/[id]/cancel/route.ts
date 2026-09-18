@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
-import { getCustomerServer } from "@/lib/account";
+import { getCurrentCustomer } from "@/lib/account";
 import { cancelOrder } from "@/lib/db/orders";
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const customer = await getCustomerServer();
+  const customer = await getCurrentCustomer();
   if (!customer) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const orderId = typeof params.id === "string" ? params.id : "";
+  const resolvedParams = await params;
+  const orderId = typeof resolvedParams.id === "string" ? resolvedParams.id : "";
   if (!orderId) {
     return NextResponse.json({ error: "Missing order ID" }, { status: 400 });
   }

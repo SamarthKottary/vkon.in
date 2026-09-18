@@ -51,13 +51,7 @@ export function ArrowRightIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
-export function TrashIcon({ className = "h-5 w-5" }: IconProps) {
-  return (
-    <svg {...base} className={className}>
-      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
-    </svg>
-  );
-}
+
 
 export function ArrowLeftIcon({ className = "h-5 w-5" }: IconProps) {
   return (

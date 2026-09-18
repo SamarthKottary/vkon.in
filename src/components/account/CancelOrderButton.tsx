@@ -15,7 +15,7 @@ export function CancelOrderButton({
   const [busy, setBusy] = useState(false);
 
   async function cancelOrder() {
-    if (!window.confirm("Do you want to delete this order?")) {
+    if (!window.confirm("Are you sure you want to cancel this order?")) {
       return;
     }
 
