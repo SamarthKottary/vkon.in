@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertIcon, CheckIcon, PinIcon } from "@/components/icons/ui";
+import { AlertIcon, CheckIcon } from "@/components/icons/ui";
 import { OrderFooterActions } from "@/components/account/OrderFooterActions";
 import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
 import { ClearCartOnPlaced } from "@/components/cart/ClearCartOnPlaced";
@@ -11,7 +11,7 @@ import { CancelOrderButton } from "@/components/account/CancelOrderButton";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { AccountShell } from "@/components/account/AccountShell";
 import { OrderAddress, sameOrderAddress } from "@/components/account/OrderAddress";
-import { OrderAddressPicker } from "@/components/account/OrderAddressPicker";
+import { OrderAddressEdit } from "@/components/account/OrderAddressEdit";
 import { requireSignIn } from "@/lib/account";
 import { listAddresses } from "@/lib/db/addresses";
 import { getOrderForCustomer } from "@/lib/db/orders";
@@ -101,9 +101,29 @@ export default async function OrderPage({
      and then until 12 pm the next day — after which the admin books the
      courier (client, 2026-09-18). The save re-checks all of this. */
   const addressEdit = addressEditWindow(order);
-  /* The address book, for the pickers — the same list checkout chooses from
-     (client, 2026-09-18). */
+  /* The address book, for the Edit pop-ups — the same list checkout chooses
+     from (client, 2026-09-18). */
   const addresses = await listAddresses(customer.id);
+  const editBilling = (label?: string) => (
+    <OrderAddressEdit
+      role="billing"
+      orderId={order.id}
+      current={order.billTo}
+      addresses={addresses}
+      label={label}
+    />
+  );
+  const editDelivery = (label?: string) =>
+    addressEdit.editable ? (
+      <OrderAddressEdit
+        role="delivery"
+        orderId={order.id}
+        current={order.shipTo}
+        addresses={addresses}
+        delivery={deliveryNow}
+        label={label}
+      />
+    ) : null;
   const deliveryNow = {
     orderId: order.id,
     shipTo: order.shipTo,
@@ -119,12 +139,12 @@ export default async function OrderPage({
   const addressNote = (
     <>
       {order.addressChangedAt && (
-        <p className="mt-2 text-xs text-muted">
+        <p className="mt-3 text-xs text-muted">
           Delivery address changed {formatMoment(order.addressChangedAt)}.
         </p>
       )}
       {addressEdit.editable && (
-        <p className="mt-2.5 text-sm leading-relaxed text-body">
+        <p className="mt-4 border-t border-line pt-3 text-sm leading-relaxed text-body">
           {addressEdit.until ? (
             <>
               You can change the delivery address until{" "}
@@ -387,44 +407,42 @@ export default async function OrderPage({
               </section>
             )}
 
-            {/* Both addresses as checkout's dropdowns (client, 2026-09-18):
-                choose another saved address, edit, or add one. Billing is
-                always open — the invoice uses the current details — and
-                delivery only while `addressEditWindow` says so; after that it
-                is the plain address, in the same box. */}
-            <section>
-              <h3 className="label-tech mb-2.5 text-muted">Billing address</h3>
-              <OrderAddressPicker
-                role="billing"
-                orderId={order.id}
-                current={order.billTo}
-                addresses={addresses}
-              />
-            </section>
-
-            <section>
-              <div className="mb-2.5 flex items-baseline justify-between gap-3">
-                <h3 className="label-tech text-muted">Delivery address</h3>
-                {sameAddress && <span className="text-xs text-muted">Same as billing</span>}
-              </div>
-              {addressEdit.editable ? (
-                <OrderAddressPicker
-                  role="delivery"
-                  orderId={order.id}
-                  current={order.shipTo}
-                  addresses={addresses}
-                  delivery={deliveryNow}
-                />
-              ) : (
-                <div className="flex items-start gap-3 border border-line bg-surface-raised p-4 shadow-card">
-                  <PinIcon className="mt-1 h-4 w-4 shrink-0 text-muted" />
-                  <div className="min-w-0 flex-1 [&>p:first-child]:mt-0">
-                    <OrderAddress address={order.shipTo} />
-                  </div>
+            {/* The addresses as cards with an Edit button (client,
+                2026-09-18), which opens a pop-up listing the address book —
+                choose one, edit one, or add one, as at checkout. Billing is
+                always editable (the invoice uses the current details);
+                delivery only while `addressEditWindow` says so. One card when
+                the two are the same place, with a button for each. */}
+            {sameAddress ? (
+              <section className="border border-line bg-surface-raised p-5 shadow-card">
+                <h3 className="label-tech text-muted">Billing &amp; delivery address</h3>
+                <OrderAddress address={order.shipTo} />
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+                  {editBilling("Edit billing")}
+                  {editDelivery("Edit delivery")}
                 </div>
-              )}
-              {addressNote}
-            </section>
+                {addressNote}
+              </section>
+            ) : (
+              <>
+                <section className="border border-line bg-surface-raised p-5 shadow-card">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="label-tech text-muted">Billed to</h3>
+                    {editBilling()}
+                  </div>
+                  <OrderAddress address={order.billTo} />
+                </section>
+
+                <section className="border border-line bg-surface-raised p-5 shadow-card">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="label-tech text-muted">Delivering to</h3>
+                    {editDelivery()}
+                  </div>
+                  <OrderAddress address={order.shipTo} />
+                  {addressNote}
+                </section>
+              </>
+            )}
 
             <section className="border border-line bg-surface-raised p-5 shadow-card">
               <h3 className="label-tech text-muted">Total</h3>

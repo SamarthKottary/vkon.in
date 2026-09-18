@@ -163,8 +163,7 @@ src/
   components/
     account/   AccountShell, AccountNavLink (client), AccountMenu (client),
                AddressBook (client), AddressForm (client), AddressPicker (client),
-               OrderAddressPicker (client), OrderDeliveryDialog (client),
-               OrderBillingDialog (client),
+               OrderAddressEdit (client), DeliveryOutcome (client),
                ProfileForm (client),
                OrderStatusBadge
     checkout/  CheckoutForm, DeliveryPicker, PayNowButton,
@@ -257,12 +256,11 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
 | `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection |
 | `account/AddressBook` | The account page's card grid: radio sets the default (optimistic), Edit/Add open `AddressDialog`, `confirm()` before delete |
-| `account/AddressPicker` · `AddressDialog` | The chosen address collapsed; the list opens as a panel over the content below (outside click / Escape close it, default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout and, with `display`/`pinned`, an order's page |
+| `account/AddressPicker` · `AddressDialog` | The chosen address collapsed; the list opens as a panel over the content below (outside click / Escape close it, default first); add and edit in a portalled dialog (Escape, backdrop, scroll lock). Used by checkout; its `AddressLines` also draws the order page's pop-up list |
 | `checkout/DeliveryPicker` | The chosen delivery service collapsed, the others on demand |
 | `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, announces the payment, then refreshes. On a 409 shows the price-change dialog, whose one button (Update) reprices the order without charging |
-| `account/OrderAddressPicker` | An order's billing or delivery address as checkout's dropdown: shows the order's snapshot, lists the address book (the order's own address pinned "On this order" when not in it); choosing billing applies at once, choosing delivery opens `OrderDeliveryDialog` |
-| `account/OrderDeliveryDialog` | Puts an address on an order for delivery: `AddressForm` in a `Modal`, quoted on open and as the PIN changes (choice and new total if unpaid; the kept service, no figure, if paid); can update or add the saved copy |
-| `account/OrderBillingDialog` | Puts an address on an order for billing: `AddressForm` ("Bill to") in a `Modal`. No quote, no money; can update or add the saved copy |
+| `account/OrderAddressEdit` | Edit on an order's billing or delivery address: a `Modal` listing the address book (scrolling, the order's own address first, marked "On this order"), with Add; Use this address, or Edit/Add → `AddressForm` → Save and use. Delivery shows the quote before using |
+| `account/DeliveryOutcome` | `useDeliveryQuote` and the view of what a new PIN does to delivery (same PIN / services and new total if unpaid / kept service if paid) — shared by the pop-up's list and form |
 | `checkout/PaymentSuccessDialog` | "Payment successful": amount and order number as aligned label/figure rows, and where the receipt is going. Shown by both paths that take money |
 | `checkout/PaymentSuccessOnArrival` | Shows that dialog once when checkout lands on a paid order, then strips `?placed=` from the URL |
 | `checkout/CodConfirmDialog` | Confirms cash on delivery before the order form submits: what is due at the door, and that nothing is charged now |
@@ -1604,6 +1602,40 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-18 (orders) — An order's addresses: Edit opens a pop-up list, not a dropdown
+
+Client: "instead of showing a drop down on shipping and billing address, show
+an edit button … it pops up … we see the multiple addresses and add an address
+button like in the checkout … we should be able to scroll among the multiple
+addresses, then when we click edit again we can change."
+
+- **New client components** `account/OrderAddressEdit` (the button and the
+  pop-up) and `account/DeliveryOutcome` (`useDeliveryQuote` plus the delivery
+  view, lifted out of the dialog so the pop-up's list and form share it).
+  **Removed:** `OrderAddressPicker`, `OrderDeliveryDialog`,
+  `OrderBillingDialog`; `AddressPicker` loses the `display`/`pinned`/`busy`
+  props added for them (checkout never used them) and exports `AddressLines`.
+- **The page is cards again** — "Billing & delivery address" with *Edit
+  billing* / *Edit delivery* when they match, "Billed to" / "Delivering to"
+  each with *Edit* when not; *Edit delivery* only inside `addressEditWindow`.
+- **The pop-up:** a scrolling list (`max-h-[45vh]`, buttons stay in view) —
+  the order's address first, "On this order" (pinned when not saved), then the
+  default and the rest — with Edit/Delete per row and *Add an address*.
+  *Use this address* applies a chosen one (billing directly; delivery through
+  `changeOrderAddressAction` fed the saved address, after showing the quote).
+  Edit or Add swaps in `AddressForm`, *Save and use*, *Back to addresses*.
+  Server side unchanged from the dropdown version.
+- **Closing steps back one level** (client, same day): on the form, the X,
+  Escape and the backdrop return to the list, as Cancel does; only on the list
+  do they close the pop-up.
+- **Tested in the browser (21 checks):** no dropdowns left; choosing billing
+  and delivery (the paid order's kept service shown first); Edit → form →
+  Back → list; edit updating order and saved copy; Add saving and using; the
+  list scrolling inside the pop-up with eight addresses and the buttons in
+  view, the order's address first; delete inside the pop-up without closing
+  it; the pinned "On this order" row and its order-only edit; an unpaid order
+  re-priced to the total shown; only billing editable after the window; 390px.
 
 ### 2026-09-18 (mail) — Order-activity alerts to orders@
 

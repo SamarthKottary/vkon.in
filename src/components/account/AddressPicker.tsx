@@ -58,14 +58,6 @@ import type { Address, ShipTo } from "@/lib/types";
  * below the address rather than beside it. They are outside the row's
  * `<label>`, because a label forwards its click to its radio and an Edit button
  * inside one would also change the selection on the way through.
- *
- * **On an order's page** (client, 2026-09-18: "like the drop down in checkout
- * where we can choose other address or edit") the closed row shows the
- * *order's* address — `display` — rather than a saved one, because that is
- * what the order says whether or not it is still in the address book. When it
- * is not, it is `pinned` as the first row of the list, marked "On this order",
- * with its own Edit and no Delete (there is nothing saved to delete). Checkout
- * passes neither and is unchanged.
  */
 export function AddressPicker({
   addresses,
@@ -76,9 +68,6 @@ export function AddressPicker({
   onAdd,
   addLabel = "Use a different address",
   showGstin = false,
-  display,
-  pinned,
-  busy = false,
 }: {
   addresses: Address[];
   selectedId: string;
@@ -90,14 +79,6 @@ export function AddressPicker({
   /** The link at the foot of the open list. */
   addLabel?: string;
   showGstin?: boolean;
-  /** Shown in the closed row instead of the selected saved address — an
-   *  order's own snapshot. The phone is shown with it. */
-  display?: ShipTo;
-  /** An address that is not in the book, listed first and selected when
-   *  `selectedId` is empty. */
-  pinned?: { address: ShipTo; label: string; onEdit: () => void } | null;
-  /** A choice is being saved: the closed row dims and cannot be opened. */
-  busy?: boolean;
 }) {
   const uid = useId();
   const listId = `${uid}-list`;
@@ -175,17 +156,13 @@ export function AddressPicker({
           ref={rowRef}
           type="button"
           onClick={() => setOpenAndFocus(true)}
-          disabled={busy}
-          aria-busy={busy}
           aria-expanded={open}
           aria-controls={listId}
-          className="relative flex w-full items-start gap-3 py-4 pl-4 pr-12 text-left transition-colors hover:bg-surface-subtle disabled:cursor-wait disabled:opacity-60"
+          className="relative flex w-full items-start gap-3 py-4 pl-4 pr-12 text-left transition-colors hover:bg-surface-subtle"
         >
           <PinIcon className="mt-1 h-4 w-4 shrink-0 text-muted" />
           <span className="min-w-0 flex-1">
-            {display ? (
-              <AddressLines address={display} showGstin={showGstin} withPhone />
-            ) : selected ? (
+            {selected ? (
               <AddressLines address={selected} showGstin={showGstin} />
             ) : (
               <span className="block text-sm text-muted">Choose an address</span>
@@ -216,39 +193,6 @@ export function AddressPicker({
           </button>
 
           <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto overscroll-contain">
-            {pinned && (
-              <li className={`py-4 pl-4 pr-12 ${selectedId === "" ? "bg-accent-soft/50" : ""}`}>
-                <label className="flex min-w-0 cursor-pointer items-start gap-3">
-                  <input
-                    type="radio"
-                    name={group}
-                    value=""
-                    checked={selectedId === ""}
-                    onChange={() => setOpenAndFocus(false)}
-                    onClick={() => setOpenAndFocus(false)}
-                    className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <AddressLines
-                      address={pinned.address}
-                      showGstin={showGstin}
-                      withPhone
-                      tag={pinned.label}
-                    />
-                  </span>
-                </label>
-                <div className="mt-2.5 flex items-center gap-5 pl-7 text-sm">
-                  <button
-                    type="button"
-                    onClick={pinned.onEdit}
-                    className="flex items-center gap-1.5 text-accent hover:underline"
-                  >
-                    <PencilIcon className="h-3.5 w-3.5" />
-                    Edit
-                  </button>
-                </div>
-              </li>
-            )}
             {ordered.map((address) => {
               const isSelected = address.id === selectedId;
               return (
@@ -337,7 +281,10 @@ export function AddressPicker({
   );
 }
 
-function AddressLines({
+/** One address as the picker and the order page's address pop-up list it:
+ *  name with a pill (Default, or `tag`), the address on one run, then the
+ *  phone and GSTIN when asked for. */
+export function AddressLines({
   address,
   showGstin,
   withPhone = false,

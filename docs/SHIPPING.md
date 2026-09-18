@@ -324,10 +324,10 @@ option (delivery mode and price)".
   until 12:00 IST the next calendar day. Closed on a cancelled, shipped,
   delivered or fully refunded order, and as soon as a shipment is booked. The
   order page says until when, beside the address.
-- **Both addresses are checkout's dropdown** (client, same day): choose another
-  saved address, edit, or add one (`OrderAddressPicker`). Choosing a delivery
-  address opens the delivery dialog on it, with the quote below, before
-  anything changes. Originally:
+- **Edit opens a pop-up of the address book** (client, same day; briefly a
+  dropdown before that): choose another saved address, edit one, or add one
+  (`OrderAddressEdit`). Choosing a delivery address shows the quote before
+  "Use this address" changes anything. Originally:
 - **Edit** opens the same address form as the address book, posting to
   `changeOrderAddressAction`. It changes the order's `ship_to` only: the saved
   address book and the billing address are untouched, so a combined "Billing &
