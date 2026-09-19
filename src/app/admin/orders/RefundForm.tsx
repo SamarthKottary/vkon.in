@@ -38,7 +38,7 @@ export function RefundForm({
         const full = Number(amount) === Number(remainingRupees);
         const ok = window.confirm(
           `Refund ₹${amount} for order ${orderNumber}${full ? " (the full amount left)" : ""}?\n\n` +
-            "The money goes back to the customer's original payment method through Razorpay, and they are emailed. This cannot be undone.",
+            "The money goes back to the customer's original payment method through Razorpay, which tells them. This cannot be undone.",
         );
         if (!ok) event.preventDefault();
       }}

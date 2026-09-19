@@ -5,7 +5,7 @@ import {
   markOrderPaid,
   markPaymentFailed,
 } from "@/lib/db/orders";
-import { sendOrderPlacedMail, sendPaymentReceivedMail } from "@/lib/mail";
+import { sendOrderPlacedMail } from "@/lib/mail";
 import { notifyNewOrder } from "@/lib/order-notifications";
 import { formatPaise } from "@/lib/pricing";
 import { isRazorpayConfigured, verifyCheckoutSignature } from "@/lib/razorpay";
@@ -131,20 +131,10 @@ export async function POST(request: NextRequest) {
       })),
       orderUrl: `${site.url.replace(/\/$/, "")}/account/orders/${order.id}`,
     });
-
-    await sendPaymentReceivedMail({
-      to: customer.email,
-      name: customer.name,
-      orderNumber: order.orderNumber,
-      total: formatPaise(order.total),
-      paymentId: razorpayPaymentId,
-      orderUrl: `${site.url.replace(/\/$/, "")}/account/orders/${order.id}`,
-    });
     /* The business hears about it once, from whichever path moved the row —
        this one or the webhook. */
     await notifyNewOrder(order.id);
   }
-
 
   return NextResponse.json({ ok: true });
 }

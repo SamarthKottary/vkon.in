@@ -422,182 +422,46 @@ export async function sendOrderPlacedMail(input: {
   });
 }
 
-export async function sendPaymentReceivedMail(input: {
-  to: string;
-  name: string;
-  orderNumber: string;
-  total: string;
-  paymentId: string;
-  orderUrl: string;
-}): Promise<MailResult> {
-  const html = shell(
-    `Payment received for order ${input.orderNumber}`,
-    paragraph(hello(input.name)) +
-      paragraph(`We have received your payment of ${input.total} for order ${input.orderNumber} (Payment ID: ${input.paymentId}).`) +
-      button(input.orderUrl, "View this order"),
-  );
-
-  const text = [
-    hello(input.name).replace(/<[^>]+>/g, ""),
-    "",
-    `We have received your payment of ${input.total} for order ${input.orderNumber} (Payment ID: ${input.paymentId}).`,
-    "",
-    input.orderUrl,
-    "",
-    `${site.legalName} · ${site.phone.display}`,
-  ].join("\n");
-
-  return sendMail({
-    to: input.to,
-    subject: `Payment received for Order ${input.orderNumber} — ${site.legalName}`,
-    html,
-    text,
-  });
-}
-
-
 /**
- * An order moved: shipped, out for delivery, delivered, or cancelled
- * (client, 2026-09-17).
+ * An order has been cancelled (EMAILS.md 14).
  *
- * One template for the four, because they are one message — "here is where
- * your order stands" — and four copies of the same table would drift. What
- * changes is the heading, the opening sentence, and whether there is a parcel
- * to track.
- *
- * **It says plainly that replies go nowhere.** Every message here is sent from
- * `no-reply@` (see `fromAddress`), and a customer whose parcel is late will hit
- * Reply anyway. So these carry the phone number as the way to reach a person,
- * where the other templates leave it to the footer.
- *
- * The courier's status is shown in customer words (`trackingLabel`), with the
- * latest scan beneath it, so the email is useful on its own for somebody who
- * never opens the tracking page.
+ * **The one order-status email the site still sends** (client, 2026-09-19).
+ * Shipped, out for delivery, failed attempts, returns and delivery come from
+ * Shiprocket, which has the customer's email and phone from the booking
+ * (`bookShipment`); payment receipts and refunds come from Razorpay. A
+ * cancellation is ours alone — no courier or payment event tells the customer
+ * — so it stays, with what happens to their money.
  */
-export type OrderUpdateKind =
-  | "shipped"
-  | "out_for_delivery"
-  | "delivery_failed"
-  | "returning"
-  | "delivered"
-  | "cancelled";
-
-export async function sendOrderUpdateMail(input: {
+export async function sendOrderCancelledMail(input: {
   to: string;
   name: string;
-  kind: OrderUpdateKind;
   orderNumber: string;
   orderUrl: string;
-  /** Customer wording, e.g. "Out for delivery". */
-  trackingStatus: string | null;
-  courierName: string | null;
-  awb: string | null;
-  trackingUrl: string | null;
-  /** Already formatted for display. */
-  eta: string | null;
-  latest: { activity: string; location: string; at: string | null } | null;
-  /** For a cancellation: whether money has been taken and needs returning. */
+  /** Whether money was taken and so has to go back. */
   paid: boolean;
 }): Promise<MailResult> {
-  const copy: Record<OrderUpdateKind, { subject: string; heading: string; lead: string }> = {
-    shipped: {
-      subject: `Order ${input.orderNumber} has shipped`,
-      heading: "Your order is on its way",
-      lead: `Order ${input.orderNumber} has been handed to the courier. You can follow it with the tracking link below.`,
-    },
-    out_for_delivery: {
-      subject: `Order ${input.orderNumber} is out for delivery`,
-      heading: "Out for delivery",
-      lead: `Order ${input.orderNumber} is out for delivery and should reach you today. Please keep your phone with you — the courier may call.`,
-    },
-    /* Written not to alarm: most failed attempts are "nobody home" and the
-       courier simply comes back. The courier's own reason is in the details
-       table ("Latest update"), not paraphrased here. */
-    delivery_failed: {
-      subject: `Order ${input.orderNumber} could not be delivered today`,
-      heading: "We couldn't deliver today",
-      lead: `The courier tried to deliver order ${input.orderNumber} but couldn't. They usually try again on the next working day, so please keep your phone with you. If your address or phone number needs correcting, call us on ${site.phone.display}.`,
-    },
-    /* A return to origin can often still be turned around by a phone call,
-       so this asks for one rather than announcing the order is over. */
-    returning: {
-      subject: `Order ${input.orderNumber} is being returned to us`,
-      heading: "Your order is on its way back to us",
-      lead: `The courier couldn't deliver order ${input.orderNumber} and has started returning it to us. If you still want it, please call us on ${site.phone.display} as soon as you can and we will try to arrange delivery again.`,
-    },
-    delivered: {
-      subject: `Order ${input.orderNumber} has been delivered`,
-      heading: "Delivered",
-      lead: `Order ${input.orderNumber} has been delivered. Thank you for buying from ${site.legalName}.`,
-    },
-    cancelled: {
-      subject: `Order ${input.orderNumber} has been cancelled`,
-      heading: "Your order has been cancelled",
-      lead: `Order ${input.orderNumber} has been cancelled and will not be delivered.`,
-    },
-  };
-  const { subject, heading, lead } = copy[input.kind];
-  const cancelled = input.kind === "cancelled";
-
-  const refund = cancelled
-    ? input.paid
-      ? "You paid for this order online, so the full amount will be refunded to the payment method you used. A refund takes 5–7 days to reach your account."
-      : "No payment was taken for this order."
-    : null;
-
-  const latestLine = input.latest
-    ? [input.latest.activity, input.latest.location, input.latest.at].filter(Boolean).join(" · ")
-    : null;
-
-  const details: [string, string][] = cancelled
-    ? []
-    : ([
-        ["Status", input.trackingStatus],
-        ["Latest update", latestLine],
-        /* Not once it is out for delivery — that mail already says "today",
-           and the courier's estimate from pickup may by then be in the past. */
-        ["Expected by", input.kind === "shipped" ? input.eta : null],
-        ["Courier", input.courierName],
-        ["Tracking number", input.awb],
-      ].filter((row): row is [string, string] => Boolean(row[1])));
-
-  const detailRows = details
-    .map(
-      ([label, value]) =>
-        `<tr><td style="padding:9px 12px 9px 0;border-bottom:1px solid ${LINE};font:400 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#5a636c;white-space:nowrap;vertical-align:top;">${esc(label)}</td>
-<td style="padding:9px 0;border-bottom:1px solid ${LINE};font:500 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${INK};">${esc(value)}</td></tr>`,
-    )
-    .join("");
-
+  const heading = "Your order has been cancelled";
+  const lead = `Order ${input.orderNumber} has been cancelled and will not be delivered.`;
+  const refund = input.paid
+    ? "You paid for this order online, so the full amount will be refunded to the payment method you used. A refund takes 5–7 days to reach your account."
+    : "No payment was taken for this order.";
   const noReply = noReplyNotice("this order");
 
   const html = shell(
     heading,
     paragraph(hello(input.name)) +
       paragraph(esc(lead)) +
-      (refund ? paragraph(esc(refund)) : "") +
-      (detailRows
-        ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">${detailRows}</table>`
-        : "") +
-      (input.trackingUrl && !cancelled
-        ? button(input.trackingUrl, "Track your parcel")
-        : button(input.orderUrl, "View your order")) +
-      (input.trackingUrl && !cancelled
-        ? paragraph(
-            `<a href="${input.orderUrl}" style="color:${ACCENT};text-decoration:none;">View your order on ${esc(site.domain)}</a>`,
-          )
-        : "") +
+      paragraph(esc(refund)) +
+      button(input.orderUrl, "View your order") +
       `<p style="margin:18px 0 0 0;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#5a636c;">${esc(noReply)}</p>`,
   );
-
   const text = [
     hello(input.name).replace(/<[^>]+>/g, ""),
     "",
     lead,
-    ...(refund ? ["", refund] : []),
-    ...(details.length ? ["", ...details.map(([label, value]) => `  ${label}: ${value}`)] : []),
     "",
-    ...(input.trackingUrl && !cancelled ? [`Track your parcel: ${input.trackingUrl}`] : []),
+    refund,
+    "",
     `Your order: ${input.orderUrl}`,
     "",
     noReply,
@@ -607,7 +471,7 @@ export async function sendOrderUpdateMail(input: {
 
   return sendMail({
     to: input.to,
-    subject: `${subject} — ${site.legalName}`,
+    subject: `Order ${input.orderNumber} has been cancelled — ${site.legalName}`,
     html,
     text,
   });
@@ -636,185 +500,6 @@ function detailTable(rows: [string, string | null | undefined][]): { html: strin
     )
     .join("")}</table>`;
   return { html, text: kept.map(([label, value]) => `  ${label}: ${value}`) };
-}
-
-// ---------------------------------------------------------------------------
-// Payments (EMAILS.md B and D)
-// ---------------------------------------------------------------------------
-
-/**
- * An online payment failed (EMAILS.md B, 2026-09-17). Sent from Razorpay's
- * `payment.failed` webhook, once per order — the first failure only, so a
- * customer retrying three times is not sent three of these.
- *
- * The order is still there and can be paid from its page, which is the point
- * of the mail: without it the customer may believe they ordered.
- */
-export async function sendPaymentFailedMail(input: {
-  to: string;
-  name: string;
-  orderNumber: string;
-  total: string;
-  orderUrl: string;
-}): Promise<MailResult> {
-  const lead = `We couldn't take the payment of ${input.total} for order ${input.orderNumber}. Your order is saved, and you can pay for it again from your order page by UPI, card or netbanking.`;
-  const debited = "If money left your account for the attempt that failed, your bank returns it automatically.";
-  const notice = noReplyNotice("this order");
-
-  const html = shell(
-    "Your payment didn't go through",
-    paragraph(hello(input.name)) +
-      paragraph(esc(lead)) +
-      button(input.orderUrl, "Pay for this order") +
-      paragraph(esc(debited)) +
-      smallPrint(notice),
-  );
-  const text = [
-    hello(input.name).replace(/<[^>]+>/g, ""),
-    "",
-    lead,
-    "",
-    `Pay for this order: ${input.orderUrl}`,
-    "",
-    debited,
-    "",
-    notice,
-    "",
-    `${site.legalName} · ${site.phone.display}`,
-  ].join("\n");
-
-  return sendMail({
-    to: input.to,
-    subject: `Payment for order ${input.orderNumber} didn't go through — ${site.legalName}`,
-    html,
-    text,
-  });
-}
-
-/**
- * A refund went through (EMAILS.md D, 2026-09-17). Sent from Razorpay's
- * `refund.processed` webhook, so it fires whether the refund was made in the
- * Razorpay dashboard or, later, from the admin — once per Razorpay refund id.
- *
- * The 5–7 days is the Terms' wording (/terms, "Refunds"); change them together.
- */
-export async function sendRefundMail(input: {
-  to: string;
-  name: string;
-  orderNumber: string;
-  orderUrl: string;
-  /** This refund. */
-  amount: string;
-  /** Every refund on the order so far, and the order total — for a partial. */
-  refundedTotal: string;
-  orderTotal: string;
-  full: boolean;
-  refundId: string;
-}): Promise<MailResult> {
-  const lead = `We've refunded ${input.amount} for order ${input.orderNumber} to the payment method you used. A refund takes 5–7 days to reach your account.`;
-  const partial = input.full
-    ? null
-    : `This is a partial refund: ${input.refundedTotal} of the ${input.orderTotal} you paid has now been refunded.`;
-  const details = detailTable([
-    ["Refund", input.amount],
-    ["Order", input.orderNumber],
-    ["Refund reference", input.refundId],
-  ]);
-  const help = "If it hasn't arrived after 7 days, your bank can trace it with the refund reference above.";
-  const notice = noReplyNotice("this refund");
-
-  const html = shell(
-    "Your refund is on its way",
-    paragraph(hello(input.name)) +
-      paragraph(esc(lead)) +
-      (partial ? paragraph(esc(partial)) : "") +
-      details.html +
-      paragraph(esc(help)) +
-      button(input.orderUrl, "View your order") +
-      smallPrint(notice),
-  );
-  const text = [
-    hello(input.name).replace(/<[^>]+>/g, ""),
-    "",
-    lead,
-    ...(partial ? ["", partial] : []),
-    "",
-    ...details.text,
-    "",
-    help,
-    "",
-    `Your order: ${input.orderUrl}`,
-    "",
-    notice,
-    "",
-    `${site.legalName} · ${site.phone.display}`,
-  ].join("\n");
-
-  return sendMail({
-    to: input.to,
-    subject: `Refund for order ${input.orderNumber} — ${site.legalName}`,
-    html,
-    text,
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Account security (EMAILS.md C)
-// ---------------------------------------------------------------------------
-
-/**
- * A password was set, changed or reset (EMAILS.md C, 2026-09-17).
- *
- * The one way somebody learns that another person changed their password, so
- * it says what happened, when, and what to do if it was not them — and it
- * contains no link that signs anybody in, only one to reset.
- */
-export async function sendPasswordChangedMail(input: {
-  to: string;
-  name: string;
-  kind: "changed" | "set" | "reset";
-  /** Already formatted, Indian time. */
-  when: string;
-}): Promise<MailResult> {
-  const heading =
-    input.kind === "set" ? "A password was added to your account" : "Your password was changed";
-  const lead =
-    input.kind === "set"
-      ? `A password was added to your ${site.legalName} account on ${input.when}. You can now sign in with your email address and this password, as well as with Google.`
-      : input.kind === "reset"
-        ? `The password for your ${site.legalName} account was reset on ${input.when}, using the link we emailed you. You have been signed out everywhere.`
-        : `The password for your ${site.legalName} account was changed on ${input.when}. Any other device you were signed in on has been signed out.`;
-  const warning = `If this wasn't you, reset your password straight away and call us on ${site.phone.display}.`;
-  const resetUrl = `${site.url.replace(/\/$/, "")}/account/forgot`;
-  const notice = noReplyNotice("your account");
-
-  const html = shell(
-    heading,
-    paragraph(hello(input.name)) +
-      paragraph(esc(lead)) +
-      paragraph(`<strong style="color:${INK};">${esc(warning)}</strong>`) +
-      button(resetUrl, "Reset my password") +
-      smallPrint(notice),
-  );
-  const text = [
-    hello(input.name).replace(/<[^>]+>/g, ""),
-    "",
-    lead,
-    "",
-    warning,
-    `Reset your password: ${resetUrl}`,
-    "",
-    notice,
-    "",
-    `${site.legalName} · ${site.phone.display}`,
-  ].join("\n");
-
-  return sendMail({
-    to: input.to,
-    subject: `${heading} — ${site.legalName}`,
-    html,
-    text,
-  });
 }
 
 // ---------------------------------------------------------------------------

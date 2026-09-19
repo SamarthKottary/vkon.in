@@ -27,8 +27,9 @@ export const metadata = pageMetadata({
  *    which had never been listed. What each processor receives was checked
  *    against the code: Razorpay gets name, email, phone, the order number and
  *    amount (`/api/payment/create`, `PayNowButton`); Shiprocket gets names,
- *    addresses, phone numbers, items and value but not the customer's email
- *    (`bookShipment` sends ours).
+ *    addresses, phone numbers, items and value — and, since 2026-09-19, the
+ *    customer's email, because Shiprocket now sends the delivery emails
+ *    (`bookShipmentAction`).
  *  - It exists once (this page and `/terms`) rather than as a client-facing
  *    doc elsewhere, so it is one thing to keep current, not two.
  */
@@ -174,9 +175,10 @@ export default function PrivacyPage() {
                 </Item>
                 <Item term="Shiprocket and its courier partners">
                   Book and deliver your order. They receive the billing and
-                  delivery names, addresses and phone numbers for that order, and
-                  the items and value in it, and send us its tracking updates.
-                  Your email address is not shared with them.
+                  delivery names, addresses and phone numbers for that order,
+                  your email address, and the items and value in it. They use
+                  your email and phone to send you delivery updates, and send
+                  us its tracking updates.
                 </Item>
                 <Item term="Resend">
                   Sends the emails the site sends you — a welcome message, sign-in

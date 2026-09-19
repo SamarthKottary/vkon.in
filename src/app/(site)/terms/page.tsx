@@ -21,7 +21,7 @@ export const metadata = pageMetadata({
  * refund terms are the client's own: cancel any time before dispatch, refunds
  * reach the customer in 5–7 days, and the customer pays return shipping on an
  * item ordered to the wrong specification. The cancellation email
- * (`sendOrderUpdateMail`) and the cancelled-order panel repeat the refund
+ * (`sendOrderCancelledMail`) and the cancelled-order panel repeat the refund
  * wording — change all three together.
  */
 export default function TermsPage() {
@@ -136,8 +136,9 @@ export default function TermsPage() {
                   dispatched.
                 </li>
                 <li>
-                  We email you when your order is dispatched, with a link to
-                  track it, and your order page shows where it is. Delivery
+                  Our delivery partner, Shiprocket, sends you updates by email
+                  and text message when your order is dispatched, with a link
+                  to track it, and your order page shows where it is. Delivery
                   times are the courier&rsquo;s estimates, not guarantees.
                 </li>
               </ul>

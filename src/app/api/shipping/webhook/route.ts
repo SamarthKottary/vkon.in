@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { applyTrackingUpdate } from "@/lib/db/orders";
-import { mailForTrackingChange, notifyOrderUpdate } from "@/lib/order-notifications";
 import { parseShippingWebhookEvent, verifyShippingWebhook } from "@/lib/shiprocket";
 
 /**
@@ -18,12 +17,11 @@ import { parseShippingWebhookEvent, verifyShippingWebhook } from "@/lib/shiprock
  * ours, a status word we do not map. The only 4xx here is a failed
  * authentication, which *should* be retried after the secret is corrected.
  *
- * **Every update is recorded, and some are emailed** (2026-09-17). The
+ * **Every update is recorded; none is emailed** (client, 2026-09-19). The
  * courier's own status, its scan history and its delivery estimate are stored
- * on the order for `/admin/orders` and the customer's order page; the customer
- * is emailed when the parcel ships, goes out for delivery, and is delivered.
- * The mail is decided from what the locked row changed from, so a redelivered
- * webhook sends nothing.
+ * on the order for `/admin/orders` and the customer's order page. Shiprocket
+ * itself tells the customer — it has their email and phone from the booking —
+ * so the site's own shipped/delivered emails (2026-09-17) were removed.
  *
  * Unconfigured is a supported state: with no `SHIPROCKET_WEBHOOK_TOKEN` set,
  * every request fails authentication and nothing can be moved by a stranger
@@ -60,11 +58,6 @@ export async function POST(request: NextRequest) {
         console.info("[shipping] no order for AWB", update.awb);
         continue;
       }
-
-      const mail = mailForTrackingChange(change);
-      /* Awaited, not fired and forgotten: a route handler's work can be cut
-         off once the response is sent. `notifyOrderUpdate` never throws. */
-      if (mail) await notifyOrderUpdate(change.orderId, mail);
     } catch (error) {
       /* Logged, not raised: one bad row in a batch must not cost the others,
          and Shiprocket would retry the whole batch. */

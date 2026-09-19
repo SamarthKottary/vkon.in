@@ -58,7 +58,7 @@ export function OrderStatusSelect({
             next === "cancelled"
               ? `Cancel order ${orderNumber}? The customer will be emailed, and a booked Shiprocket shipment will be cancelled. If it was paid online, use Refund on the order afterwards — cancelling does not refund.`
               : next === "shipped" || next === "delivered"
-                ? `Mark order ${orderNumber} as ${next}? The customer will be emailed.`
+                ? `Mark order ${orderNumber} as ${next}?`
                 : null;
           if (warning && !window.confirm(warning)) {
             event.currentTarget.value = status;

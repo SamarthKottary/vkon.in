@@ -14,7 +14,7 @@ import {
   updateProduct,
 } from "@/lib/db/products";
 import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
-import { setSigninCodeExempt } from "@/lib/db/customers";
+import { findCustomerById, setSigninCodeExempt } from "@/lib/db/customers";
 import {
   applyTrackingUpdate,
   claimRefundRequest,
@@ -26,9 +26,7 @@ import {
   setOrderStatus,
 } from "@/lib/db/orders";
 import {
-  mailForTrackingChange,
-  notifyOrderUpdate,
-  notifyRefund,
+  notifyOrderCancelled,
 } from "@/lib/order-notifications";
 import { refundPayment } from "@/lib/razorpay";
 import { refundBlock, refundBlockMessage } from "@/lib/refunds";
@@ -566,14 +564,9 @@ export async function setOrderStatusAction(formData: FormData): Promise<void> {
             : "&shipment=failed";
         }
       }
-      await notifyOrderUpdate(id, "cancelled");
-      outcome += "&mailed=1";
-    } else if (
-      (change.status === "shipped" || change.status === "delivered") &&
-      orderProgress(change.status) > orderProgress(previousStatus) &&
-      previousStatus !== "cancelled"
-    ) {
-      await notifyOrderUpdate(id, change.status);
+      /* The one status change the customer is emailed about (client,
+         2026-09-19): shipped and delivered come from Shiprocket. */
+      await notifyOrderCancelled(id);
       outcome += "&mailed=1";
     }
   }
@@ -656,8 +649,9 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
           refundId: result.refundId,
           amount: result.amount,
         });
-        /* Null: the webhook recorded this refund id first, and emailed. */
-        if (change) await notifyRefund(change, result.refundId);
+        /* Recorded, not emailed: Razorpay tells the customer about the
+           refund (client, 2026-09-19). Null: the webhook recorded it first. */
+        if (!change) console.info("[admin] refund already recorded:", result.refundId);
         outcome = `refunded=${result.amount}`;
       } catch (error) {
         /* The money has moved; only our record of it failed. The webhook will
@@ -682,8 +676,8 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
  * The webhook is how tracking normally arrives; this is for when it has not —
  * the webhook not yet set up in their dashboard, a delivery that failed on
  * their side, or an operator who wants to know before ringing a customer back.
- * It goes through the same `applyTrackingUpdate`, so it emails the customer on
- * exactly the same transitions a webhook would, and never twice for one.
+ * It goes through the same `applyTrackingUpdate` as the webhook. Nothing is
+ * emailed: Shiprocket tells the customer (client, 2026-09-19).
  */
 export async function refreshTrackingAction(formData: FormData): Promise<void> {
   await requireAdmin();
@@ -700,14 +694,7 @@ export async function refreshTrackingAction(formData: FormData): Promise<void> {
     const update = await fetchTracking(order.awb);
     if (update) {
       const change = await applyTrackingUpdate(update);
-      if (change) {
-        result = "1";
-        const mail = mailForTrackingChange(change);
-        if (mail) {
-          await notifyOrderUpdate(change.orderId, mail);
-          result = "mailed";
-        }
-      }
+      if (change) result = "1";
     }
   } catch (error) {
     console.error("[admin] tracking refresh failed:", error);
@@ -759,9 +746,16 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
       createdAt: order.createdAt,
       shipTo: order.shipTo,
       billTo: order.billTo,
-      /* The address snapshot carries no email — it is the account's, and the
-         courier uses it only for their own delivery notifications. */
-      email: process.env.SHIPROCKET_NOTIFY_EMAIL || site.email,
+      /* **The customer's own email** (client, 2026-09-19). Shiprocket now
+         sends the shipped / out-for-delivery / delivered / failed-attempt /
+         return emails in place of the site's, and sends them to this
+         address — so it has to be the customer's. It used to be ours
+         (`SHIPROCKET_NOTIFY_EMAIL`, else support@), which is now only the
+         fallback for an account with no email. */
+      email:
+        (await findCustomerById(order.customerId))?.email ||
+        process.env.SHIPROCKET_NOTIFY_EMAIL ||
+        site.email,
       items: order.items.map((item) => ({
         name: item.name,
         slug: item.slug,

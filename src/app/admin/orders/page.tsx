@@ -138,7 +138,7 @@ export default async function AdminOrdersPage({
             ? `Nothing was refunded. ${refundError}`
             : refundUnrecorded
               ? `Refund of ${formatPaise(Number(refunded))} sent through Razorpay, but it could not be recorded here yet. It will appear when Razorpay confirms it — do not refund again.`
-              : `Refund of ${formatPaise(Number(refunded))} sent through Razorpay. The customer has been emailed; it reaches them in 5–7 days.`}
+              : `Refund of ${formatPaise(Number(refunded))} sent through Razorpay, which tells the customer; it reaches them in 5–7 days.`}
         </p>
       )}
 
@@ -153,9 +153,7 @@ export default async function AdminOrdersPage({
             ? "Could not reach Shiprocket for tracking. The reason is in the server log."
             : tracked === "none"
               ? "Shiprocket has no tracking for that parcel yet. A new AWB usually shows its first scan within a few hours of pickup."
-              : tracked === "mailed"
-                ? "Tracking updated, and the customer has been emailed about the change."
-                : "Tracking updated."}
+              : "Tracking updated."}
         </p>
       )}
 
@@ -210,14 +208,14 @@ export default async function AdminOrdersPage({
           <span className="font-medium text-ink">Refund</span> on the order —
           full or partial — until its shipment is booked. A booked order is
           refunded by cancelling it first; a dispatched or returned one, in the
-          Razorpay dashboard. The customer is emailed either way, and the money
-          reaches them in 5–7 days. A cash-on-delivery refund is paid back in
-          person.
+          Razorpay dashboard. Razorpay tells the customer either way, and the
+          money reaches them in 5–7 days. A cash-on-delivery refund is paid
+          back in person.
         </p>
         <p>
-          The customer is emailed when you mark an order shipped, delivered or
-          cancelled, and when the courier reports it shipped, out for delivery
-          or delivered.
+          The site emails the customer their order confirmation and, if you
+          cancel, the cancellation. Shipping and delivery updates come from
+          Shiprocket; payment receipts and refunds from Razorpay.
         </p>
       </div>
 

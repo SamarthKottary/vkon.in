@@ -176,7 +176,8 @@ farmer browsing the catalogue should not be fetching a payment SDK.
 - `orders/[id]/page.tsx` — the "Pay now" button when `payment_status` is
   `unpaid` and the gateway is configured.
 - `lib/mail.ts` — a `sendPaymentReceivedMail`, alongside the three templates
-  already there.
+  already there. *(Removed 2026-09-19: Razorpay sends the customer's receipt,
+  failed-payment and refund emails — EMAILS.md §2a.)*
 - `.env.example` and `docker-compose.yml` — the three new variables, following
   the pattern the Resend and Google ones already set.
 - `docs/ARCHITECTURE.md` — §7a's "Payment / not implemented" paragraph, the
@@ -327,7 +328,7 @@ all passing:
 - A **correct signature** marks the order paid, advances it to `confirmed`,
   records the payment id and stamps `paid_at`.
 - **Repeat verify** and **repeat webhook** are both idempotent — Razorpay
-  redelivers by design, and the receipt sends exactly once.
+  redelivers by design, and the confirmation sends exactly once.
 - The webhook **rejects an unsigned request and the wrong secret** (401).
 - An **amount mismatch** is refused rather than marked paid.
 - An **unknown gateway order** is acknowledged with 200 so Razorpay stops

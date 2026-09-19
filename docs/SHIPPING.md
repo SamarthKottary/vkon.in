@@ -273,7 +273,7 @@ one that goes):
 | `shipping_phone` | the **delivery** address's phone — the number the courier rings |
 | `billing_*` — name, address, city, state, PIN | the **billing** address (`bill_to`), for the invoice |
 | `billing_phone` | the billing address's phone |
-| `billing_email`, `shipping_email` | **ours**, not the customer's: `SHIPROCKET_NOTIFY_EMAIL`, else support@vkon.in. Shiprocket's own tracking emails therefore come to us; the customer is told by the site (EMAILS.md 9–13) |
+| `billing_email`, `shipping_email` | **the customer's account email** (since 2026-09-19), so Shiprocket's delivery emails reach them — the site no longer sends its own (EMAILS.md §2a). `SHIPROCKET_NOTIFY_EMAIL`, else support@, only for an account with none. Orders booked before then carry ours |
 | `shipping_is_billing` | always **false** (2026-09-18) |
 
 Phones are cut to their last ten digits (Shiprocket rejects `+91`). The GSTIN
@@ -298,20 +298,17 @@ order list shows the courier status under "Shipped".
 
 ### 4.4a Emails
 
-`lib/order-notifications.ts` decides, `sendOrderUpdateMail` in `lib/mail.ts`
-writes. All from `no-reply@vkon.in` (`MAIL_FROM`), and each says so and gives
-the phone number instead.
+**Shiprocket sends the delivery emails now, not the site** (client,
+2026-09-19). Shipped, out for delivery, failed attempts, returns and delivered
+are Shiprocket's buyer notifications, sent to the customer's email and phone
+from the booking (4.3a). The webhook and **Refresh tracking** still record
+every update on the order for `/admin/orders` and the order page; they just do
+not email.
 
-| Mail | Sent when |
-|---|---|
-| Shipped | The order first reaches `shipped` — courier picks it up, or the operator marks it |
-| Out for delivery | The courier status becomes "out for delivery" — again after a failed attempt, since that is another day to be home |
-| Delivered | The order first reaches `delivered` |
-| Cancelled | The operator cancels it. Never from a courier status |
-
-At most one per update, the furthest along. Manual changes email only when they
-move the order forward, so correcting a mistaken "delivered" back to "shipped"
-sends nothing.
+The one status email the site still sends is **Cancelled** — the operator
+cancels it, no courier event covers it (`sendOrderCancelledMail` ←
+`notifyOrderCancelled`). EMAILS.md §2a has the full list and what has to be
+switched on in Shiprocket.
 
 ### 4.4b Changing the delivery address (2026-09-18)
 

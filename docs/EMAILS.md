@@ -1,11 +1,11 @@
-# Emails — what is sent, and what is still missing
+# Emails — what is sent, who sends the rest, and what is missing
 
 Started 2026-09-17. **This is the tracker.** When an email is built, move its
 row from §3 to §2 and add a dated line to §6. When a trigger or wording changes,
 update its row. Measured against what a typical e-commerce site sends.
 
-Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
-[PAYMENTS.md](PAYMENTS.md) (receipts, failed payments, refunds),
+Related: [SHIPPING.md](SHIPPING.md) §4.3a (what Shiprocket is sent),
+[PAYMENTS.md](PAYMENTS.md) (payments and refunds),
 [ADMIN.md](ADMIN.md) §7.6–7.8 (the operator alerts, and why they mattered).
 
 ---
@@ -15,6 +15,11 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
 - **All of it is in `src/lib/mail.ts`**, through Resend over plain HTTPS. There
   is no npm package (ARCHITECTURE.md §2). A new email is one function there
   plus a call from wherever the event happens.
+- **The site sends only what nobody else sends** (client, 2026-09-19). Payment
+  receipts, failed payments and refunds are Razorpay's to send; shipping,
+  delivery and return updates are Shiprocket's. The site keeps account mail,
+  the order confirmation, the cancellation, and the alerts to the business.
+  §2a lists what moved and what has to be switched on at their end.
 - **From `no-reply@vkon.in`** (`MAIL_FROM`). Customer emails say replies are
   not read and point to support@vkon.in and the phone number instead. Alerts to
   the business carry the customer as Reply-To.
@@ -28,20 +33,21 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
   new order mail is enough" (same day). Everything after it is followed in
   `/admin/orders`.
 - **Plain inline-styled HTML plus a text version** for every message, kept
-  small for phones on weak connections.
+  small for phones on weak connections. The new-order alert uses its own tiny
+  layout (`leanAlert`) because Teams skips larger or fancier HTML — see §6.
 - **Never throws.** A failed send is logged and the action that triggered it
   (registration, payment, cancellation) still succeeds.
-- **Never sent twice for one event.** Each trigger is gated on the database row
-  actually changing (`markOrderPaid`, `markPaymentFailed`, `recordRefund`,
-  `applyTrackingUpdate`, `setOrderStatus`), because Razorpay and Shiprocket both
-  redeliver webhooks.
+- **Never sent twice for one event.** The order emails are gated on the
+  database row actually changing (`markOrderPaid` for 5 and 15 on an online
+  order, `setOrderStatus` for 14), because Razorpay redelivers webhooks and
+  operators double-click.
 - **Without `RESEND_API_KEY`**, nothing is sent and each message is printed to
   the server log instead. To read an email's text locally, run
   `RESEND_API_KEY= npm run dev` and watch the terminal.
 
 ---
 
-## 2. Sent today
+## 2. Sent by the site
 
 ### To the customer
 
@@ -50,28 +56,8 @@ Related: [SHIPPING.md](SHIPPING.md) §4.4a (order status emails in detail),
 | 1 | Welcome + confirm email | Registers with email and password, or first Google sign-in (Google accounts get no confirm link — Google has confirmed the address) | Welcome to Vkon Automation | `sendWelcomeMail` ← `account/actions.ts`, `api/auth/google/callback` |
 | 2 | Sign-in code | Signs in on a browser not seen before (not for review accounts, see ARCHITECTURE.md §9) | `123456` is your Vkon Automation sign-in code | `sendSignInCodeMail` ← `account/actions.ts`, `api/auth/google/callback` |
 | 3 | Password reset link | "Forgot password", from the sign-in page or My account — **only for an account whose email is confirmed** | Reset your Vkon Automation password | `sendPasswordResetMail` ← `account/actions.ts` |
-| 4 | Password changed *(C)* | A password is changed or added in My account, or reset from the emailed link. Says when, and what to do if it wasn't them | Your password was changed / A password was added to your account | `sendPasswordChangedMail` ← `account/private-actions.ts` (`setPasswordAction`), `account/actions.ts` (`resetPasswordAction`) |
-| 5 | Order confirmation | **Cash on delivery:** when the order is placed. **Online:** only once payment succeeds | Order VK-… — Vkon Automation | `sendOrderPlacedMail` ← `account/private-actions.ts` (COD), `api/payment/verify`, `api/payment/webhook` |
-| 6 | Payment receipt | Online payment succeeds | Payment received for Order VK-… | `sendPaymentReceivedMail` ← `api/payment/verify`, `api/payment/webhook` |
-| 7 | Payment failed *(B)* | Razorpay's `payment.failed`, **first failure on the order only** — with a link to pay again | Payment for order VK-… didn't go through | `sendPaymentFailedMail` ← `notifyPaymentFailed` ← `api/payment/webhook` |
-| 8 | Refund issued *(D)* | The **Refund** button in `/admin/orders` — available until a shipment is booked, and again for an order cancelled before dispatch; never once dispatched (`lib/refunds.ts`) — or Razorpay's `refund.processed` for a refund made in the Razorpay dashboard, which is how a returned order is refunded. Once per Razorpay refund either way. Partial refunds say how much of the total is back | Refund for order VK-… | `sendRefundMail` ← `notifyRefund` ← `admin/actions.ts` (`refundOrderAction`), `api/payment/webhook` |
-| 9 | Shipped, with tracking link | Courier reports pickup / in transit, or admin marks Shipped | Order VK-… has shipped | `sendOrderUpdateMail("shipped")` ← `lib/order-notifications.ts` |
-| 10 | Out for delivery | Courier reports it (again after a failed attempt) | Order VK-… is out for delivery | `sendOrderUpdateMail("out_for_delivery")` |
-| 11 | Delivery attempt failed *(F)* | Courier reports UNDELIVERED / NDR — once per run of failed attempts, with the courier's reason | Order VK-… could not be delivered today | `sendOrderUpdateMail("delivery_failed")` |
-| 12 | Being returned *(F)* | Courier starts a return (RTO) — asks the customer to call if they still want it. Does **not** cancel the order | Order VK-… is being returned to us | `sendOrderUpdateMail("returning")` |
-| 13 | Delivered | Courier reports it, or admin marks Delivered | Order VK-… has been delivered | `sendOrderUpdateMail("delivered")` |
-| 14 | Cancelled | Admin marks Cancelled. Says a paid order is refunded to the original method in 5–7 days — cancelling does not refund by itself; the refund is the **Refund** button, which sends email 8 | Order VK-… has been cancelled | `sendOrderUpdateMail("cancelled")` |
-
-Emails 5 and 6 arrive together for an online order. Merging them into one is an
-option, not a fault.
-
-Emails 9–13 from the courier need the Shiprocket webhook set up
-(INTEGRATIONS-SETUP-GUIDE.md §4.3). Without it they are sent only when the
-operator presses **Refresh tracking** or changes the status by hand.
-
-Emails 7 and 8 need `payment.failed` and `refund.processed` ticked on the
-**live** Razorpay webhook (INTEGRATIONS-SETUP-GUIDE.md §6.3). A webhook created
-before 2026-09-17 has only the first two events.
+| 5 | Order confirmation | **Cash on delivery:** when the order is placed. **Online:** once payment succeeds (the one email the customer gets from the site for a paid order — no separate receipt) | Order VK-… — Vkon Automation | `sendOrderPlacedMail` ← `account/private-actions.ts` (COD), `api/payment/verify`, `api/payment/webhook` |
+| 14 | Cancelled | Admin marks Cancelled. Says a paid order is refunded to the original method in 5–7 days — cancelling does not refund by itself; the refund is the **Refund** button, and Razorpay tells the customer when it goes | Order VK-… has been cancelled | `sendOrderCancelledMail` ← `notifyOrderCancelled` ← `admin/actions.ts` (`updateOrderStatusAction`) |
 
 ### To the business
 
@@ -82,13 +68,46 @@ order email the business receives; enquiries go to **support@vkon.in**
 
 | # | Email | When | Subject | Code |
 |---|---|---|---|---|
-| 15 | New order *(A)* — to **orders@vkon.in**, from **nivixsa@vkon.in** (`ORDER_ALERT_FROM`). Sections: **Customer** (profile name, "Email:", then "Phone:" from My account — "Not in profile" when none), **Deliver to** and **Billed to** (each address with the phone typed on it; GSTIN when given), **Order** (each line, subtotal, CGST, SGST, delivery with service and courier, total, payment) | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | VK-… — New order — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
+| 15 | New order *(A)* — to **orders@vkon.in**, from **nivixsa@vkon.in** (`ORDER_ALERT_FROM`). Two plain tables: **Customer** (profile name, "Email:", then "Phone:" from My account — "Not in profile" when none), **Deliver to** and **Billed to** (each address with the phone typed on it; GSTIN when given); then the **Order** (each line, subtotal, CGST, SGST, delivery with service and courier, total, payment) | Cash on delivery: at placement. Online: on the first successful payment. An unpaid or failed online order is not sent | VK-… — New order — ₹total — Paid online / Cash on delivery | `sendNewOrderAlert` ← `notifyNewOrder` ← `account/private-actions.ts`, `api/payment/verify`, `api/payment/webhook` |
 | 16 | New enquiry *(G)* | Contact form saved (bots caught by the honeypot are not sent) | New enquiry from {name} — vkon.in | `sendEnquiryAlert` ← `app/(site)/actions.ts` |
 
 **orders@vkon.in and support@vkon.in must both exist in Microsoft 365**
 (vkon.in's MX is `vkon-in.mail.protection.outlook.com`) as a mailbox, shared
-mailbox or alias, or these alerts bounce. Customers also write to it: it is the address on /contact, the
-footer, /terms and /privacy.
+mailbox or alias, or these alerts bounce. Customers also write to support@: it
+is the address on /contact, the footer, /terms and /privacy.
+
+---
+
+## 2a. Left to Razorpay and Shiprocket (2026-09-19)
+
+Client: "no need to send online payment failure as razorpay handles it …
+order booked, shipped, delivered, deliver failed, being returned, mail to user
+is not needed as shiprocket sends it, payment related like payment success,
+refund should be sent by razorpay … no need for password changed mail".
+
+The site stopped sending these. The events are still **recorded** — payment
+status, refunds and courier tracking all still update the order, the order
+page and `/admin/orders` — only the site's email is gone.
+
+| # | Was | Now sent by | What has to be true for the customer to get it |
+|---|---|---|---|
+| 6 | Payment receipt | **Razorpay** — *verified* | Sent automatically ("Paid Successfully": amount, payment id, method, time), to the email checkout prefills (`checkoutConfig`). Nothing to switch on. |
+| 7 | Payment failed | **Razorpay** — *verified* | Sent automatically ("Payment Failed", with "if your money has been debited it will be credited in 5–7 business days"). The order history still shows "Payment failed" with Pay now. |
+| 8 | Refund issued | **Razorpay** — *verified* | Two emails, automatic: "Refund has been initiated", then one with the bank's RRN once the bank provides it. Covers refunds from the admin **Refund** button and from the Razorpay dashboard alike. |
+| 9 | Shipped (and booked) | **Shiprocket** | Buyer notifications switched on in Shiprocket (*done 2026-09-19*: Settings → Value Added Services → Notify — email and SMS for Packed, Picked Up, Shipped, Delivery Delayed, Out For Delivery, Arriving Early, Delivered, Reached At Destination). **Since 2026-09-19 the booking sends the customer's own email** (`bookShipmentAction`) — before, it sent ours, so Shiprocket's emails would have reached us, not them. Their phone was always the delivery address's. |
+| 10 | Out for delivery | **Shiprocket** | As 9. |
+| 11 | Delivery attempt failed | **Nobody — gap** | Shiprocket's notification list has **no stage for a failed attempt** (NDR). The customer is not told to be available or to fix their details. See §5. |
+| 12 | Being returned (RTO) | **Nobody — gap** | Shiprocket's list has **no stage for a return**. The customer is not told to call before the parcel is gone. The site still records it; the operator follows it in `/admin/orders`. See §5. |
+| 13 | Delivered | **Shiprocket** | As 9. |
+| 4 | Password changed / added / reset | **Nobody** | Dropped. The trade-off: this was the one email that told an account's owner their password changed when they did not change it themselves. The reset link (3) still goes only to the account's inbox. |
+
+**Verified 2026-09-19** by the client with real payments: Razorpay's
+payment-successful, payment-failed, refund-initiated and refund-RRN emails all
+reached the customer's inbox. (Razorpay's public documentation only describes
+the refund emails for this checkout — the others were confirmed by trying it.)
+Neither Razorpay's nor Shiprocket's customer emails are controlled from this
+site. Orders shipped before this change were booked with our email, so
+Shiprocket's updates for those go to us.
 
 ---
 
@@ -96,7 +115,7 @@ footer, /terms and /privacy.
 
 | # | Email | To | Status | Why it matters | What building it involves | Size |
 |---|---|---|---|---|---|---|
-| E | **GST tax invoice** | Customer | Not started | Business buyers who enter a GSTIN expect a tax invoice; many customers expect one anyway. | Invoice numbering (sequential, per financial year), a printable invoice page or PDF, and a link or attachment on email 5 or 13. Settle the GST treatment first: `lib/pricing.ts` always charges CGST + SGST, and its own note records that an inter-state sale should be a single IGST line. | Large |
+| E | **GST tax invoice** | Customer | Not started | Business buyers who enter a GSTIN expect a tax invoice; many customers expect one anyway. | Invoice numbering (sequential, per financial year), a printable invoice page or PDF, and a link or attachment on email 5. Settle the GST treatment first: `lib/pricing.ts` always charges CGST + SGST, and its own note records that an inter-state sale should be a single IGST line. | Large |
 
 ---
 
@@ -104,12 +123,14 @@ footer, /terms and /privacy.
 
 | Email | Why not |
 |---|---|
+| Everything in §2a | Razorpay and Shiprocket send them, or (4) not wanted (client, 2026-09-19). |
+| Order-activity alerts to the business | Built and removed the same day (2026-09-18): "only new order mail is enough". |
+| Copies of customer emails to the business | Built and removed the same day (2026-09-18): "just the admin mail is enough". |
 | Newsletters to the mailing list | The list collects addresses and sends nothing. Bulk mail needs an unsubscribe link and consent handling first (ADMIN.md §7.6). |
 | Abandoned-cart reminders | **Not wanted** (client, 2026-09-17). |
-| Unpaid-order reminder | **Not wanted** (client, 2026-09-17). An online order whose payment window was closed without paying gets no email; it stays in `/admin/orders` as Payment due, and the customer can pay from their order page. A payment that actually fails still gets email 7. |
+| Unpaid-order reminder | **Not wanted** (client, 2026-09-17). The customer can pay from their order page. |
 | Review request after delivery | Nowhere on the site to leave a review yet. |
-| "Order confirmed" when admin marks Confirmed | Email 5 already confirms the order; a second "confirmed" adds noise. Revisit if orders start being checked before acceptance. |
-| A second payment-failed email | Only the first failure on an order is emailed; a customer retrying and failing again is not sent more. |
+| "Order confirmed" when admin marks Confirmed | Email 5 already confirms the order; a second "confirmed" adds noise. |
 
 ---
 
@@ -117,11 +138,22 @@ footer, /terms and /privacy.
 
 - **E:** whether the business is GST-registered for invoicing, and whether
   out-of-state orders should be IGST.
+- **§2a, 11 and 12:** Shiprocket sends nothing for a failed delivery attempt
+  or a return to origin, so since 2026-09-19 nobody tells the customer. The
+  site's own two emails for these could be restored (they were in
+  `sendOrderUpdateMail` before this change) — awaiting the client.
 
 ---
 
 ## 6. Change log
 
+- **2026-09-19** — Payment receipt (6), payment failed (7), refund (8),
+  shipped / out for delivery / failed attempt / returning / delivered (9–13)
+  and password changed (4) are no longer sent by the site (§2a): Razorpay and
+  Shiprocket send theirs. Kept: welcome, sign-in code, reset link, order
+  confirmation, cancellation, and the new-order and enquiry alerts. The
+  Shiprocket booking now carries the customer's email so Shiprocket's updates
+  reach them; /privacy and /terms say so.
 - **2026-09-18 (Teams markup)** — The three-column version did not reach
   Teams despite being small: Teams also skips emails using table markup it
   cannot convert (`th`, `col`, `colspan`, table width/style). The alert now

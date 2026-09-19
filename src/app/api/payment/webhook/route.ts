@@ -8,8 +8,8 @@ import {
   markPaymentFailed,
   recordRefund,
 } from "@/lib/db/orders";
-import { sendOrderPlacedMail, sendPaymentReceivedMail } from "@/lib/mail";
-import { notifyNewOrder, notifyPaymentFailed, notifyRefund } from "@/lib/order-notifications";
+import { sendOrderPlacedMail } from "@/lib/mail";
+import { notifyNewOrder } from "@/lib/order-notifications";
 import { formatPaise } from "@/lib/pricing";
 import { isWebhookConfigured, verifyWebhookSignature } from "@/lib/razorpay";
 import { site } from "@/content/site";
@@ -121,10 +121,10 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error("[webhook] could not mark failed:", error);
     }
-    /* Only on the move from unpaid to failed: a customer who retries and
-       fails again is not sent another, and a failure reported after the order
-       was paid sends nothing. `notifyPaymentFailed` never throws. */
-    if (firstFailure) await notifyPaymentFailed(order.id);
+    /* Recorded, not emailed (client, 2026-09-19): Razorpay tells the customer
+       their payment failed, and the order history shows "Payment failed"
+       with Pay now. `firstFailure` is kept for the log. */
+    if (firstFailure) console.info("[webhook] payment failed:", order.orderNumber);
     return NextResponse.json({ ok: true });
   }
 
@@ -189,15 +189,6 @@ export async function POST(request: NextRequest) {
           })),
           orderUrl: `${site.url.replace(/\/$/, "")}/account/orders/${order.id}`,
         });
-
-        await sendPaymentReceivedMail({
-          to: customer.email,
-          name: customer.name,
-          orderNumber: order.orderNumber,
-          total: formatPaise(order.total),
-          paymentId,
-          orderUrl: `${site.url.replace(/\/$/, "")}/account/orders/${order.id}`,
-        });
       }
     } catch (error) {
       /* The payment is recorded; a failed receipt must not make Razorpay
@@ -246,7 +237,9 @@ async function handleRefund(refund: WebhookRefund, payment: WebhookPayment) {
     return NextResponse.json({ error: "Could not record refund." }, { status: 500 });
   }
 
-  /* Null means this refund id is already recorded — a redelivery. */
-  if (change) await notifyRefund(change, refundId);
+  /* Recorded on the order, not emailed (client, 2026-09-19): Razorpay tells
+     the customer about the refund. Null means a redelivery of one already
+     recorded. */
+  if (change) console.info("[webhook] refund recorded:", refundId);
   return NextResponse.json({ ok: true });
 }

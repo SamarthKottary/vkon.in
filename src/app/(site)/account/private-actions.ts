@@ -42,7 +42,7 @@ import {
   type DeliveryOption,
 } from "@/lib/shiprocket";
 import { packParcel } from "@/lib/parcel";
-import { sendOrderPlacedMail, sendPasswordChangedMail } from "@/lib/mail";
+import { sendOrderPlacedMail } from "@/lib/mail";
 import { notifyNewOrder } from "@/lib/order-notifications";
 import { formatPaise, priceLines, totals } from "@/lib/pricing";
 import { site } from "@/content/site";
@@ -248,15 +248,8 @@ export async function setPasswordAction(
     return { status: "error", message: "Could not save that just now. Please try again." };
   }
 
-  /* EMAILS.md C: the owner of the inbox hears about it even if somebody else
-     did it. After the change is saved, and never able to undo it. */
-  const sent = await sendPasswordChangedMail({
-    to: customer.email,
-    name: customer.name,
-    kind: customer.hasPassword ? "changed" : "set",
-    when: nowInIndia(),
-  });
-  if (!sent.ok) console.error("[account] password-changed mail failed:", sent.error);
+  /* No "password changed" email (client, 2026-09-19: "no need for password
+     changed mail"). EMAILS.md C records the trade-off. */
 
   revalidatePath("/account");
   revalidatePath("/", "layout");
@@ -814,19 +807,6 @@ export async function saveAccountCartAction(lines: CartLine[]): Promise<{ status
 export async function getAccountCartAction(): Promise<CartLine[]> {
   const customer = await requireCustomer();
   return getCustomerCart(customer.id);
-}
-
-/** "17 Sept 2026, 3:42 pm" in Indian time, for a security notice. Not
- *  exported — only exports of a "use server" file must be async (§9). */
-function nowInIndia(): string {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Asia/Kolkata",
-  }).format(new Date());
 }
 
 // ---------------------------------------------------------------------------

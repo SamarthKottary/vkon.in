@@ -15,8 +15,9 @@ import { Modal } from "@/components/ui/Modal";
  * names the amount and the order; it does not promise dispatch dates, and it
  * no longer promises a call to confirm the details (client, 2026-09-18) —
  * nothing in the system places that call, so it was a promise the site could
- * not keep. The receipt line stays because it is true: `/api/payment/verify`
- * and the webhook both send one — see EMAILS.md 6.
+ * not keep. It names the order **confirmation**, which `/api/payment/verify`
+ * and the webhook send (EMAILS.md 5) — not a receipt: the site stopped
+ * sending its own payment receipt on 2026-09-19; Razorpay's is theirs.
  *
  * **Figures in a column, not in a sentence** (client: "properly align this").
  * The green tick that used to sit beside the text is gone with it: it indented
@@ -33,7 +34,7 @@ export function PaymentSuccessDialog({
 }: {
   orderNumber: string;
   amountLabel: string;
-  /** Where the receipt is going, when the page knows it. */
+  /** Where the confirmation is going, when the page knows it. */
   email?: string;
   /** Shown as a link when the customer is not already on the order's page. */
   orderHref?: string;
@@ -57,7 +58,7 @@ export function PaymentSuccessDialog({
       </dl>
 
       <p className="mt-2 text-sm leading-relaxed text-body">
-        A receipt is on its way{email ? ` to ${email}` : ""}.
+        Your order confirmation is on its way{email ? ` to ${email}` : ""}.
       </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">

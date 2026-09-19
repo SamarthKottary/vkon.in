@@ -1605,6 +1605,39 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-19 (mail) — The site stops sending what Razorpay and Shiprocket send
+
+Client: no payment-failed, payment-success or refund emails ("razorpay"), no
+booked/shipped/out-for-delivery/failed/returning/delivered emails
+("shiprocket sends it"), no password-changed email; keep the order
+confirmation and the admin alert. EMAILS.md §2 / §2a is the authoritative list.
+
+- **Removed from `lib/mail.ts`:** `sendPaymentReceivedMail`,
+  `sendPaymentFailedMail`, `sendRefundMail`, `sendPasswordChangedMail`, and
+  `sendOrderUpdateMail` with its `OrderUpdateKind` — replaced by
+  `sendOrderCancelledMail`, the only status email left.
+- **`lib/order-notifications.ts`** is `notifyOrderCancelled` and
+  `notifyNewOrder`; `mailForTrackingChange`, `notifyPaymentFailed` and
+  `notifyRefund` are gone. The payment webhook, the verify route, the shipping
+  webhook, Refresh tracking, the refund action and the status action still
+  record everything — `markPaymentFailed`, `recordRefund`,
+  `applyTrackingUpdate`, `setOrderStatus` — and email only on a cancellation.
+- **`bookShipmentAction` now gives Shiprocket the customer's account email**
+  instead of ours, or Shiprocket's buyer emails would have gone to us.
+  `/privacy` said "your email address is not shared with them" and now says it
+  is, and why; `/terms` says Shiprocket sends the dispatch updates.
+- Admin wording follows: marking shipped/delivered no longer says "the
+  customer will be emailed", the refund confirmation says Razorpay tells the
+  customer, and the payment dialog promises an order confirmation, not a
+  receipt.
+- **Tested** with mail logged: a COD order sends the confirmation and the
+  alert only; admin shipped and delivered send nothing; admin cancel sends the
+  cancellation with the refund line; signed `payment.failed` and
+  `refund.processed` webhooks and five courier updates (in transit, out for
+  delivery, undelivered, RTO, delivered) send nothing but are all recorded;
+  setting a password sends nothing; a real Razorpay test payment sends the
+  confirmation and the alert, and no receipt.
+
 ### 2026-09-18 (orders) — Billing shares the delivery window; a countdown in the pop-up
 
 Client: "in same way the billing address edit button should go away at 12pm.

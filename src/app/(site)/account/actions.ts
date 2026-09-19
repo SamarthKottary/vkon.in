@@ -25,7 +25,6 @@ import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
 import { confirmationProblem } from "@/lib/password-policy";
 import {
   isMailConfigured,
-  sendPasswordChangedMail,
   sendPasswordResetMail,
   sendSignInCodeMail,
   sendWelcomeMail,
@@ -693,29 +692,8 @@ export async function resetPasswordAction(
     return unavailable("reset");
   }
 
-  /* EMAILS.md C. The reset link proves somebody could read the inbox, which
-     is exactly why the inbox's owner is told it was used. */
-  try {
-    const customer = await findCustomerById(customerId);
-    if (customer) {
-      const sent = await sendPasswordChangedMail({
-        to: customer.email,
-        name: customer.name,
-        kind: "reset",
-        when: new Intl.DateTimeFormat("en-IN", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-          timeZone: "Asia/Kolkata",
-        }).format(new Date()),
-      });
-      if (!sent.ok) console.error("[account] password-reset notice failed:", sent.error);
-    }
-  } catch (error) {
-    console.error("[account] password-reset notice failed:", error);
-  }
+  /* No "password changed" email after a reset (client, 2026-09-19). The
+     reset link itself went only to the inbox. EMAILS.md C. */
 
   /* **No session is issued here** (client, 2026-09-16: choosing a new
      password should not sign you in). Whoever opened the link proved they can
