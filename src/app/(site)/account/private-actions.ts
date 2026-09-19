@@ -13,9 +13,11 @@ import {
 } from "@/lib/db/addresses";
 import {
   getPasswordHash,
+  setCustomerAvatar,
   setCustomerPassword,
   updateCustomerProfile,
 } from "@/lib/db/customers";
+import { deleteAvatar, saveAvatar } from "@/lib/storage";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
 import { confirmationProblem } from "@/lib/password-policy";
 import { trustThisDevice } from "@/lib/signin-challenge";
@@ -174,6 +176,57 @@ export async function saveProfileAction(
   revalidatePath("/account");
   revalidatePath("/", "layout");
   return { status: "ok", message: "Saved." };
+}
+
+/**
+ * Saves the customer's profile picture, from My account (client, 2026-09-19).
+ *
+ * The browser has already cropped it square and shrunk it to 256px
+ * (`AvatarForm`), so what arrives is small — but nothing here trusts that:
+ * the size is capped, the type is read from the file's own bytes, and the name
+ * on disk is random (`saveAvatar`). Replaces a Google copy or an earlier
+ * upload, whose file is deleted.
+ */
+export async function uploadAvatarAction(formData: FormData): Promise<{ status: "ok" } | { status: "error"; message: string }> {
+  const customer = await requireCustomer();
+  const file = formData.get("avatar");
+  if (!(file instanceof File) || file.size === 0) {
+    return { status: "error", message: "Please choose a picture." };
+  }
+  if (file.size > 1024 * 1024) return { status: "error", message: "That picture is too large." };
+
+  const saved = await saveAvatar(Buffer.from(await file.arrayBuffer()));
+  if (!saved.ok) return { status: "error", message: saved.error };
+
+  try {
+    const previous = await setCustomerAvatar(customer.id, { avatar: saved.filename, source: "upload" });
+    await deleteAvatar(previous);
+  } catch (error) {
+    console.error("[account] avatar save failed:", error);
+    await deleteAvatar(saved.filename);
+    return { status: "error", message: "Could not save the picture just now. Please try again." };
+  }
+
+  /* The header shows it on every page: the layout, not just this page. */
+  revalidatePath("/", "layout");
+  return { status: "ok" };
+}
+
+/**
+ * Takes the picture off, back to the initial. Recorded as `removed`, so a
+ * Google sign-in does not quietly put the Google photo back.
+ */
+export async function removeAvatarAction(): Promise<{ status: "ok" } | { status: "error"; message: string }> {
+  const customer = await requireCustomer();
+  try {
+    const previous = await setCustomerAvatar(customer.id, { avatar: null, source: "removed" });
+    await deleteAvatar(previous);
+  } catch (error) {
+    console.error("[account] avatar remove failed:", error);
+    return { status: "error", message: "Could not remove the picture just now. Please try again." };
+  }
+  revalidatePath("/", "layout");
+  return { status: "ok" };
 }
 
 // ---------------------------------------------------------------------------

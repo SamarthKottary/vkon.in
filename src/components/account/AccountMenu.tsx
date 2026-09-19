@@ -10,6 +10,7 @@ import {
 } from "@/components/icons/ui";
 import { logoutAction } from "@/app/(site)/account/actions";
 import { handleUserLogout } from "@/lib/cart";
+import { Avatar } from "@/components/account/Avatar";
 
 /**
  * The header's account control: a link when signed out, a menu when signed in.
@@ -25,7 +26,7 @@ import { handleUserLogout } from "@/lib/cart";
  * or the account beyond what is drawn here is sent to the browser.
  */
 
-export type HeaderCustomer = { name: string; email: string };
+export type HeaderCustomer = { name: string; email: string; avatarUrl: string | null };
 
 export function AccountMenu({ customer }: { customer: HeaderCustomer | null }) {
   const [open, setOpen] = useState(false);
@@ -77,7 +78,6 @@ export function AccountMenu({ customer }: { customer: HeaderCustomer | null }) {
   }
 
   const first = customer.name.trim().split(/\s+/)[0] || "Account";
-  const initial = (customer.name.trim() || customer.email)[0]?.toUpperCase() ?? "?";
 
   return (
     <div ref={wrapRef} className="relative">
@@ -89,12 +89,8 @@ export function AccountMenu({ customer }: { customer: HeaderCustomer | null }) {
         aria-haspopup="menu"
         className="inline-flex h-11 items-center justify-center gap-2 px-1 text-ink transition-colors hover:text-accent md:px-2"
       >
-        <span
-          aria-hidden
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-surface"
-        >
-          {initial}
-        </span>
+        {/* Their picture, or the initial as before (2026-09-19). */}
+        <Avatar name={customer.name} email={customer.email} url={customer.avatarUrl} size={28} />
         {/* The visible text leads the accessible name — §9's rule about
             `aria-label` replacing visible text and breaking voice control.
             Below `lg` there is no visible text, so the name comes from the

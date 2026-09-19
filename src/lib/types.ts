@@ -216,6 +216,12 @@ export type Customer = {
   hasPassword: boolean;
   /** Whether this account is linked to Google. The `sub` itself is not exposed. */
   hasGoogle: boolean;
+  /** The profile picture's URL (`/media/…`), or null for the initial. */
+  avatarUrl: string | null;
+  /** "upload" | "google" | "removed" | null — see `customers.avatar_source`. */
+  avatarSource: string | null;
+  /** The Google picture URL last copied, so it is refetched only on change. */
+  googlePicture: string | null;
   createdAt: string;
 };
 
@@ -307,6 +313,9 @@ export type Order = {
   /** Paise refunded so far, across every Razorpay refund. 0 for most orders. */
   refundedAmount: number;
   refundedAt: string | null;
+  /** A refund has been sent to Razorpay and not yet confirmed processed
+   *  (2026-09-19) — "Refund processing" rather than "Refunded". */
+  refundPending: boolean;
   /**
    * What the courier last said, in its own words ("OUT FOR DELIVERY"). Shown
    * through `trackingLabel`; the order's `status` is this site's four-state

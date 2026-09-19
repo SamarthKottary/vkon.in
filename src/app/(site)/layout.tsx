@@ -131,7 +131,11 @@ export default async function SiteLayout({
         suggestionTerms={suggestionTerms}
         /* Only what the menu draws. The session, the id and everything else on
            the row stay on the server. */
-        customer={customer ? { name: customer.name, email: customer.email } : null}
+        customer={
+          customer
+            ? { name: customer.name, email: customer.email, avatarUrl: customer.avatarUrl }
+            : null
+        }
       />
       {/* `bg-surface` is load-bearing, not decoration: it is what hides
           the footer behind this while the footer is pinned (see below).

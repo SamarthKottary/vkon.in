@@ -145,6 +145,9 @@ export type GoogleProfile = {
   email: string;
   emailVerified: boolean;
   name: string;
+  /** The Google profile photo's URL, from the `profile` scope already asked
+   *  for — or null. Only a Google-hosted https URL is kept (2026-09-19). */
+  picture: string | null;
 };
 
 /**
@@ -234,7 +237,25 @@ export async function completeGoogleSignIn(
        silently treating a verified address as unverified. */
     emailVerified: payload.email_verified === true || payload.email_verified === "true",
     name: String(payload.name ?? "").trim().slice(0, 120),
+    picture: googlePictureUrl(payload.picture),
   };
+}
+
+/**
+ * The `picture` claim, if it is a Google-hosted https URL. The server fetches
+ * it (`lib/avatars.ts`), so it must never be a URL somebody else chose — the
+ * token comes straight from Google, but the check costs nothing.
+ */
+function googlePictureUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 2048) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname.endsWith(".googleusercontent.com")
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Base64url payload of a JWT, with no signature check. See the note above on

@@ -405,7 +405,7 @@ The webhook is Razorpay telling your server a payment succeeded, even if the cus
    ```
 
 4. **Secret:** the value you just made.
-5. **Active events:** tick `payment.captured`, `payment.failed` and `refund.processed`.
+5. **Active events:** tick `payment.captured`, `payment.failed`, `refund.processed` and `refund.failed`.
 6. **Create Webhook**.
 
 ### 5.3  Add all three to the server
@@ -475,7 +475,7 @@ You can also confirm the webhook exists and which events it sends without the da
    docker compose exec -T app node -e "const e=process.env,a='Basic '+Buffer.from(e.RAZORPAY_KEY_ID+':'+e.RAZORPAY_KEY_SECRET).toString('base64');fetch('https://api.razorpay.com/v1/webhooks',{headers:{Authorization:a}}).then(r=>r.json()).then(b=>b.items.forEach(w=>console.log(w.url,'|',w.service,'|active:',w.disabled_at===0,'|',Object.keys(w.events).filter(k=>w.events[k]).join(','))))"
    ```
 
-It should print your `https://vkon.in/api/payment/webhook`, `api-test`, `active: true`, and `payment.captured,payment.failed,refund.processed`.
+It should print your `https://vkon.in/api/payment/webhook`, `api-test`, `active: true`, and `payment.captured,payment.failed,refund.processed,refund.failed`.
 
 | Problem | Cause and fix |
 |---|---|
@@ -526,9 +526,9 @@ Live keys are gated. Razorpay: **"To generate API keys in Live Mode, you must pr
 
    - **Webhook URL** — `https://vkon.in/api/payment/webhook`
    - **Secret** — make a fresh one with `openssl rand -hex 32`. It may be the same string as the test one, but it must be typed in here as well.
-   - **Active events** — tick `payment.captured`, `payment.failed` and `refund.processed`, and nothing else.
+   - **Active events** — tick `payment.captured`, `payment.failed`, `refund.processed` and `refund.failed`, and nothing else.
 
-   > **Already created the live webhook with two events?** Open it, tick `refund.processed` as well, and save. Without it, refunds made in the Razorpay dashboard are not recorded on the order and the customer gets no refund email (docs/EMAILS.md).
+   > **Already created the live webhook with fewer events?** Open it, tick `refund.processed` and `refund.failed` as well, and save. Without `refund.processed`, a refund stays "Refund processing" in `/admin/orders` until someone presses **Check with Razorpay**, and refunds made in the Razorpay dashboard are not recorded on the order; without `refund.failed`, a refund the bank rejects stays "processing" instead of the Refund button coming back.
 
 ### 6.4  Put the three live values on the server
 

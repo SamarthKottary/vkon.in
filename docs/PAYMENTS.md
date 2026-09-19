@@ -191,6 +191,31 @@ with an index on `payment_order_id` for the webhook's lookup.
 
 ### 5.5 Refunds from `/admin/orders` (2026-09-17)
 
+> **Changed 2026-09-19** (client: "show the refund button only after the order
+> has been cancelled … when refund is processing it should say refund
+> processing and then after refund is done it should say refunded"):
+>
+> - **The Refund button appears only on a cancelled order** paid online and
+>   never dispatched (`refundBlock` → `not_cancelled`). Live orders show "Refund
+>   becomes available once the order is cancelled."
+> - **Each refund has a state** in `orders.refunds`: `pending` when the button
+>   sends it (Razorpay's test refund came back `pending`), `processed` from the
+>   `refund.processed` webhook or **Check with Razorpay** (`checkRefundsAction`,
+>   `fetchRefundStatus`), `failed` from the new `refund.failed` webhook event.
+>   The card, the customer's order page and order history show **Refund
+>   processing** until it is processed, then **Refunded**. `payment_status`
+>   becomes `refunded` only when the total is covered and nothing is pending;
+>   a failed refund stops counting and the button returns. `recordRefund`
+>   never moves a state backwards.
+> - **Tick `refund.failed`** on the Razorpay webhook (INTEGRATIONS-SETUP-GUIDE
+>   §6.3). Older refunds, recorded before states existed, read as processed.
+>
+> Tested in Razorpay test mode: a real refund (came back `pending`), Check with
+> Razorpay (→ `processed`, "Refunded"), and signed `refund.processed` /
+> `refund.failed` webhooks, including a redelivery.
+>
+> The rest of this section describes the original 2026-09-17 behaviour.
+
 Every order paid online has a **Payment** block with an amount (pre-filled with
 what is left to refund) and a **Refund** button. There is no need to open the
 Razorpay dashboard.

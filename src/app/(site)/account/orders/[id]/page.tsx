@@ -475,11 +475,14 @@ export default async function OrderPage({
                     {formatPaise(order.total)}
                   </dd>
                 </div>
-                {/* Recorded from Razorpay's refund webhook (2026-09-17). */}
+                {/* "Refund processing" until Razorpay confirms it, then
+                    "Refunded" (2026-09-19). */}
                 {order.refundedAmount > 0 && (
                   <div className="flex items-center justify-between py-3">
                     <dt className="text-muted">
-                      Refunded{order.refundedAt ? ` ${formatDate(order.refundedAt)}` : ""}
+                      {order.refundPending
+                        ? "Refund processing"
+                        : `Refunded${order.refundedAt ? ` ${formatDate(order.refundedAt)}` : ""}`}
                     </dt>
                     <dd className="font-semibold tabular-nums text-ink">
                       −{formatPaise(order.refundedAmount)}

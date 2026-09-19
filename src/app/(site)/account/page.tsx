@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CheckIcon, PackageIcon, PinIcon } from "@/components/icons/ui";
 import { PasswordCard } from "@/components/account/PasswordCard";
+import { AvatarForm } from "@/components/account/AvatarForm";
 import { ProfileForm } from "@/components/account/ProfileForm";
 import { AddressBook } from "@/components/account/AddressBook";
 import { AccountShell } from "@/components/account/AccountShell";
@@ -83,6 +84,17 @@ export default async function AccountPage({
           <p className="mt-2 text-sm leading-relaxed text-muted">
             The name and number we use when we call about an order.
           </p>
+          {/* The picture shown in the header (client, 2026-09-19). Its own
+              component with its own actions — not a field of the form below,
+              which would otherwise post a file with every name change. */}
+          <div className="mt-6">
+            <AvatarForm
+              name={customer.name}
+              email={customer.email}
+              url={customer.avatarUrl}
+              source={customer.avatarSource}
+            />
+          </div>
           <div className="mt-6 max-w-md">
             <ProfileForm
               name={customer.name}

@@ -88,6 +88,15 @@ export default function PrivacyPage() {
                   receive your name, email address and Google&rsquo;s internal
                   account identifier, not your Google password.
                 </Item>
+                <Item term="Your profile picture">
+                  Optional, and shown only to you, at the top of the site when
+                  you are signed in. If you sign in with Google, we keep a copy
+                  of your Google profile photo; if you upload one on My
+                  account, it is cropped and resized in your browser before it
+                  is sent. You can change or remove it there at any time, and
+                  removing it deletes our copy — a Google photo is then not put
+                  back.
+                </Item>
                 <Item term="Signing in">
                   When you sign in, and when you last did. The first time you
                   sign in on a browser, we email you a one-time code; once

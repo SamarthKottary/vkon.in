@@ -26,10 +26,14 @@ type CustomerRow = {
   password_hash: string | null;
   google_sub: string | null;
   email_verified: boolean;
+  avatar: string | null;
+  avatar_source: string | null;
+  google_picture: string | null;
   created_at: Date;
 };
 
-const SELECT = `id, email, name, phone, password_hash, google_sub, email_verified, created_at`;
+const SELECT = `id, email, name, phone, password_hash, google_sub, email_verified,
+  avatar, avatar_source, google_picture, created_at`;
 
 function mapRow(row: CustomerRow): Customer {
   return {
@@ -40,6 +44,9 @@ function mapRow(row: CustomerRow): Customer {
     emailVerified: row.email_verified,
     hasPassword: Boolean(row.password_hash),
     hasGoogle: Boolean(row.google_sub),
+    avatarUrl: row.avatar ? `/media/${row.avatar}` : null,
+    avatarSource: row.avatar_source ?? null,
+    googlePicture: row.google_picture ?? null,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -68,6 +75,35 @@ export async function findCustomerById(id: string): Promise<Customer | null> {
     [id],
   );
   return rows[0] ? mapRow(rows[0]) : null;
+}
+
+/**
+ * Sets, replaces or clears the profile picture, and returns the file it
+ * replaced so the caller can delete it from disk.
+ *
+ * The previous value is read in the same statement (the CTE sees the row as it
+ * was before the update), so two saves in quick succession each get the file
+ * the other one replaced rather than both getting the original.
+ */
+export async function setCustomerAvatar(
+  id: string,
+  input: {
+    avatar: string | null;
+    source: "upload" | "google" | "removed";
+    /** For a Google copy: the URL it came from. */
+    googlePicture?: string | null;
+  },
+): Promise<string | null> {
+  const rows = await query<{ previous: string | null }>(
+    `WITH before AS (SELECT avatar FROM customers WHERE id = $1)
+     UPDATE customers
+        SET avatar = $2, avatar_source = $3,
+            google_picture = COALESCE($4, google_picture), updated_at = now()
+      WHERE id = $1
+      RETURNING (SELECT avatar FROM before) AS previous`,
+    [id, input.avatar, input.source, input.googlePicture ?? null],
+  );
+  return rows[0]?.previous ?? null;
 }
 
 /**
@@ -211,8 +247,11 @@ export async function customerForSession(
   sessionId: string,
 ): Promise<Customer | null> {
   const rows = await query<CustomerRow>(
+    /* Every column `mapRow` reads, prefixed — this list is written out by
+       hand, so a new customer column has to be added here as well as to
+       SELECT (the profile picture was missing from it at first). */
     `SELECT c.id, c.email, c.name, c.phone, c.password_hash, c.google_sub,
-            c.email_verified, c.created_at
+            c.email_verified, c.avatar, c.avatar_source, c.google_picture, c.created_at
        FROM customer_sessions s
        JOIN customers c ON c.id = s.customer_id
       WHERE s.id = $1 AND s.expires_at > now()`,

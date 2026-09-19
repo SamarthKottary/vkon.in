@@ -164,7 +164,7 @@ src/
     account/   AccountShell, AccountNavLink (client), AccountMenu (client),
                AddressBook (client), AddressForm (client), AddressPicker (client),
                OrderAddressEdit (client), DeliveryOutcome (client),
-               EditCountdown (client),
+               EditCountdown (client), AvatarForm (client), Avatar,
                ProfileForm (client),
                OrderStatusBadge
     checkout/  CheckoutForm, DeliveryPicker, PayNowButton,
@@ -261,6 +261,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `checkout/DeliveryPicker` | The chosen delivery service collapsed, the others on demand |
 | `checkout/PayNowButton` | Loads Razorpay's widget on demand, verifies, announces the payment, then refreshes. On a 409 shows the price-change dialog, whose one button (Update) reprices the order without charging |
 | `account/OrderAddressEdit` | Edit on an order's billing or delivery address: a `Modal` listing the address book (scrolling, the order's own address first, marked "On this order"), with Add; Use this address, or Edit/Add → `AddressForm` → Save and use. Delivery shows the quote before using |
+| `account/AvatarForm` | The profile picture on My account: crops the chosen photo to the middle square and redraws it at 256px (WebP, else JPEG) in a canvas before `uploadAvatarAction`; Change and Remove |
 | `account/EditCountdown` | `useTimeLeft` and the "Time left to edit — 17h 42m 05s" readout in the address pop-up; "No time limit until you pay" for an unpaid order, "Editing has closed" at zero |
 | `account/DeliveryOutcome` | `useDeliveryQuote` and the view of what a new PIN does to delivery (same PIN / services and new total if unpaid / kept service if paid) — shared by the pop-up's list and form |
 | `checkout/PaymentSuccessDialog` | "Payment successful": amount and order number as aligned label/figure rows, and where the receipt is going. Shown by both paths that take money |
@@ -1604,6 +1605,61 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-19 (admin) — Refund only after cancelling; "Refund processing" then "Refunded"
+
+- `refundBlock` (`lib/refunds.ts`): refundable only when **cancelled**, paid
+  online and never dispatched (`not_cancelled` replaces `shipment_booked`).
+- **Refund states** in `orders.refunds` (`pending` / `processed` / `failed`,
+  no schema change — the entries are JSON), `Order.refundPending` derived from
+  them. `recordRefund` now takes the state, upgrades an existing entry rather
+  than only appending, never moves one backwards, counts only non-failed
+  refunds in `refunded_amount`, and sets `payment_status = 'refunded'` only when
+  covered with nothing pending.
+- **New:** `fetchRefundStatus` (`lib/razorpay.ts`), `listPendingRefunds`,
+  `checkRefundsAction` ("Check with Razorpay" on a processing refund); the
+  webhook handles `refund.failed` as well as `refund.processed`.
+- Admin card, header badges, the customer's order page and order history
+  (`paymentStateLabel`) read **Refund processing** while pending.
+- PAYMENTS.md §5.5 and INTEGRATIONS-SETUP-GUIDE §6.3 (tick `refund.failed`).
+
+### 2026-09-19 (account) — Profile pictures: Google's copied at sign-in, or uploaded
+
+Client: the header's initial should be the customer's picture — "if user has
+signed in using google … pull their google profile pic, and if manual
+registration … an upload profile pic in my accounts page."
+
+- **Schema:** `customers.avatar` (file name in the upload volume, served at
+  `/media/<avatar>`), `avatar_source` (`upload` | `google` | `removed`),
+  `google_picture` (the Google URL last copied). **Needs the schema applied on
+  the server.**
+- **Google:** `completeGoogleSignIn` now returns the `picture` claim (the
+  `profile` scope was already asked for), kept only if it is an https
+  `*.googleusercontent.com` URL. New `lib/avatars.ts` `refreshGoogleAvatar`,
+  called from the Google callback, **copies** it into the upload volume at
+  256px — every avatar is then same-origin, no visitor's browser contacts
+  Google for it, and no remote image pattern is needed. It never overrides an
+  upload or a removal, refetches only when Google's URL changes, gives up
+  after 4 s and never throws.
+- **Upload:** new client component `AvatarForm` in "Your details": the browser
+  crops and resizes to a 256px square (a 1.3 MB photo became 17.6 KB in test)
+  so a phone on a weak connection sends tens of kilobytes. Server side,
+  `uploadAvatarAction` caps it at 1 MB and `saveAvatar` (`lib/storage.ts`)
+  reads the type from the file's own bytes (`imageKind`: JPEG, PNG, WebP) and
+  writes a random `avatar-…` name; the replaced file is deleted.
+  `removeAvatarAction` deletes it and records `removed`.
+- **Display:** new `account/Avatar` (picture or initial, no hooks) in
+  `AccountMenu`; `HeaderCustomer` carries `avatarUrl` from the site layout.
+- **Found on the way:** `customerForSession` lists its columns by hand rather
+  than using `SELECT`, so the picture never reached a signed-in page until it
+  was added there too — the comment on it now says so.
+- `/privacy` gains "Your profile picture".
+- **Tested:** upload (stored as a 256×256 WebP, shown in the header on every
+  page), change (new file, old deleted), remove (initial back, file deleted,
+  `removed`), a non-image refused, 390px; and `refreshGoogleAvatar` against a
+  local image server with a real customer row — copied once, not refetched
+  for the same URL, replaced (old file deleted) for a new one, skipped over an
+  upload and after a removal, and quiet when unreachable.
 
 ### 2026-09-19 (mail) — The site stops sending what Razorpay and Shiprocket send
 

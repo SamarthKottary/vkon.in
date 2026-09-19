@@ -54,6 +54,7 @@ type OrderRow = {
   cancelled_at: Date | null;
   refunded_amount: number;
   refunded_at: Date | null;
+  refunds: StoredRefund[] | null;
   repriced_at: Date | null;
   delivery_service: string | null;
   address_changed_at: Date | null;
@@ -80,7 +81,7 @@ const ORDER_SELECT = `id, order_number, customer_id, status, payment_status,
   subtotal, cgst, sgst, shipping, total, currency, ship_to, bill_to, notes,
   payment_provider, payment_order_id, payment_id, paid_at,
   shipment_provider, shipment_order_id, shipment_id, awb, courier_name, courier_id,
-  shipped_at, delivered_at, cancelled_at, refunded_amount, refunded_at, repriced_at,
+  shipped_at, delivered_at, cancelled_at, refunded_amount, refunded_at, refunds, repriced_at,
   delivery_service, address_changed_at,
   tracking_status, tracking_updated_at, tracking_eta::text AS tracking_eta, tracking_events,
   created_at`;
@@ -139,6 +140,7 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
     cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
     refundedAmount: Number(row.refunded_amount ?? 0),
     refundedAt: row.refunded_at ? row.refunded_at.toISOString() : null,
+    refundPending: Array.isArray(row.refunds) && row.refunds.some((r) => r.status === "pending"),
     repricedAt: row.repriced_at ? row.repriced_at.toISOString() : null,
     deliveryService: row.delivery_service ?? null,
     addressChangedAt: row.address_changed_at ? row.address_changed_at.toISOString() : null,
@@ -1006,67 +1008,112 @@ export async function findOrderIdByPaymentId(paymentId: string): Promise<string 
   return rows[0]?.id ?? null;
 }
 
+export type RefundStatus = "pending" | "processed" | "failed";
+
+/** One refund as stored in `orders.refunds`. Entries from before 2026-09-19
+ *  have no `status`; they were recorded as done, so read as "processed". */
+type StoredRefund = { id: string; amount: number; at: string; status?: RefundStatus };
+
 export type RefundChange = {
   orderId: string;
   /** This refund, paise. */
   amount: number;
-  /** All refunds so far, paise. */
+  /** All refunds that have not failed, paise — pending ones included, so a
+   *  refund in flight cannot be sent twice. */
   refundedAmount: number;
   total: number;
   full: boolean;
+  status: RefundStatus;
 };
 
 /**
- * Records one Razorpay refund against an order (EMAILS.md D).
+ * Records a Razorpay refund on the order, or moves one already recorded on to
+ * its next state (EMAILS.md 8, 2026-09-17; states 2026-09-19).
  *
- * **Keyed on Razorpay's refund id**, under a row lock: a redelivered
- * `refund.processed` finds its id already stored and returns null, so the
- * refund email goes once; a second, partial refund has a new id and is
- * recorded and emailed on its own. The order becomes `refunded` only once the
- * refunds add up to its total.
+ * **Refunds have a state** (client, 2026-09-19: "when refund is processing it
+ * should say refund processing and then after refund is done it should say
+ * refunded"). The admin's Refund button records it as Razorpay answered —
+ * usually `pending`; the `refund.processed` webhook (or "Check with
+ * Razorpay") moves it to `processed`; `refund.failed` to `failed`. A refund
+ * made in the Razorpay dashboard first arrives already processed.
+ *
+ * - `refunded_amount` counts every refund that has not **failed**, so the
+ *   remaining refundable amount already excludes one in flight.
+ * - `payment_status` becomes `refunded` only when the whole total is covered
+ *   **and** nothing is still pending; a failure that uncovers it puts it back
+ *   to `paid`.
+ * - A state never moves backwards (a late `pending` after `processed` is
+ *   ignored), and an unchanged state returns null — the webhook redelivers.
+ *
+ * Row-locked, like every other money write on an order.
  */
 export async function recordRefund(input: {
   orderId: string;
   refundId: string;
   amount: number;
+  status: RefundStatus;
 }): Promise<RefundChange | null> {
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");
-    const found = await client.query<{
-      total: number;
-      refunds: { id: string; amount: number; at: string }[] | null;
-    }>(`SELECT total, refunds FROM orders WHERE id = $1 FOR UPDATE`, [input.orderId]);
+    const found = await client.query<{ total: number; payment_status: string; refunds: StoredRefund[] | null }>(
+      `SELECT total, payment_status, refunds FROM orders WHERE id = $1 FOR UPDATE`,
+      [input.orderId],
+    );
     const row = found.rows[0];
-    const refunds = Array.isArray(row?.refunds) ? row.refunds : [];
-    if (!row || refunds.some((r) => r.id === input.refundId)) {
+    if (!row) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    const refunds = (Array.isArray(row.refunds) ? row.refunds : []).map((r) => ({
+      ...r,
+      status: r.status ?? ("processed" as RefundStatus),
+    }));
+    const existing = refunds.find((r) => r.id === input.refundId);
+    const rank: Record<RefundStatus, number> = { pending: 0, processed: 1, failed: 1 };
+    if (existing && (existing.status === input.status || rank[input.status] <= rank[existing.status])) {
       await client.query("ROLLBACK");
       return null;
     }
 
+    const next = existing
+      ? refunds.map((r) => (r.id === input.refundId ? { ...r, status: input.status } : r))
+      : [...refunds, { id: input.refundId, amount: input.amount, at: new Date().toISOString(), status: input.status }];
+    const counted = next.filter((r) => r.status !== "failed");
+    const refundedAmount = counted.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    const pending = next.some((r) => r.status === "pending");
     const total = Number(row.total);
-    const next = [...refunds, { id: input.refundId, amount: input.amount, at: new Date().toISOString() }];
-    const refundedAmount = next.reduce((sum, r) => sum + Number(r.amount || 0), 0);
     const full = refundedAmount >= total;
+    const paymentStatus =
+      full && !pending ? "refunded" : row.payment_status === "refunded" ? "paid" : row.payment_status;
 
     await client.query(
       `UPDATE orders
           SET refunds = $2::jsonb,
               refunded_amount = $3::int,
-              refunded_at = now(),
-              payment_status = CASE WHEN $4::boolean THEN 'refunded' ELSE payment_status END,
+              refunded_at = CASE WHEN $5 = 'processed' OR refunded_at IS NULL THEN now() ELSE refunded_at END,
+              payment_status = $4,
               updated_at = now()
         WHERE id = $1`,
-      [input.orderId, JSON.stringify(next), refundedAmount, full],
+      [input.orderId, JSON.stringify(next), refundedAmount, paymentStatus, input.status],
     );
     await client.query("COMMIT");
-    return { orderId: input.orderId, amount: input.amount, refundedAmount, total, full };
+    const amount = existing ? Number(existing.amount) : input.amount;
+    return { orderId: input.orderId, amount, refundedAmount, total, full, status: input.status };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
   } finally {
     client.release();
   }
+}
+
+/** The refunds on an order still waiting on Razorpay — for "Check with
+ *  Razorpay" when the webhook has not said. */
+export async function listPendingRefunds(orderId: string): Promise<{ id: string; amount: number }[]> {
+  const rows = await query<{ refunds: StoredRefund[] | null }>(`SELECT refunds FROM orders WHERE id = $1`, [orderId]);
+  const refunds = Array.isArray(rows[0]?.refunds) ? rows[0].refunds : [];
+  return refunds.filter((r) => r.status === "pending").map((r) => ({ id: r.id, amount: Number(r.amount) }));
 }
 
 /** Looks an order up by the gateway's id — the only thing a webhook carries. */

@@ -106,6 +106,31 @@ export type RefundResult =
   | { ok: false; error: string };
 
 /**
+ * A refund's state at Razorpay right now — `pending`, `processed` or `failed`
+ * — for the admin's "Check with Razorpay" (2026-09-19), when the
+ * `refund.processed` webhook has not arrived. Null when Razorpay cannot be
+ * asked; the caller leaves the refund as it was.
+ */
+export async function fetchRefundStatus(paymentId: string, refundId: string): Promise<string | null> {
+  if (!isRazorpayConfigured()) return null;
+  try {
+    const response = await fetch(
+      `${API_BASE}/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`,
+      { headers: { Authorization: authHeader() }, signal: AbortSignal.timeout(15_000) },
+    );
+    if (!response.ok) {
+      console.error(`[razorpay] refund status ${response.status} for ${refundId}`);
+      return null;
+    }
+    const body = (await response.json().catch(() => null)) as { status?: string } | null;
+    return typeof body?.status === "string" ? body.status : null;
+  } catch (error) {
+    console.error("[razorpay] refund status failed:", error);
+    return null;
+  }
+}
+
+/**
  * Refunds a captured payment, from the admin's Refund button (client,
  * 2026-09-17: "I want to initiate refund from admin itself").
  *

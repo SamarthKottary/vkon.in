@@ -11,7 +11,8 @@ import type { Order } from "@/lib/types";
 type PaymentFields = Pick<
   Order,
   "paymentProvider" | "paymentStatus" | "refundedAmount" | "status"
->;
+> &
+  Partial<Pick<Order, "refundPending">>;
 
 export function isCod(order: Pick<Order, "paymentProvider">): boolean {
   return order.paymentProvider === "cod";
@@ -69,6 +70,9 @@ export type PaymentTone = "ok" | "neutral" | "bad";
  */
 export function paymentStateLabel(order: PaymentFields): { label: string; tone: PaymentTone } {
   if (isCod(order)) return { label: "COD", tone: "neutral" };
+  /* Sent to Razorpay, not yet confirmed (2026-09-19) — "Refunded" would
+     claim the money is back before it is. */
+  if (order.refundPending) return { label: "Refund processing", tone: "neutral" };
   switch (order.paymentStatus) {
     case "paid":
       return { label: "Paid", tone: "ok" };

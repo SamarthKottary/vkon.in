@@ -7,6 +7,7 @@ import {
   findCustomerByGoogleSub,
   linkGoogleAccount,
 } from "@/lib/db/customers";
+import { refreshGoogleAvatar } from "@/lib/avatars";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { isMailConfigured, sendSignInCodeMail, sendWelcomeMail } from "@/lib/mail";
 import {
@@ -130,6 +131,11 @@ export async function GET(request: NextRequest) {
     }
 
     customerId = customer.id;
+
+    /* Their Google photo as the profile picture, unless they chose their own
+       or removed it (2026-09-19). Fetched only when Google's has changed;
+       never throws, never waits more than a few seconds. */
+    await refreshGoogleAvatar(customer, profile.picture);
   } catch (error) {
     console.error("[google] account lookup failed:", error);
     return fail(request, "google");

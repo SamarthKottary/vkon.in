@@ -243,6 +243,16 @@ CREATE TABLE IF NOT EXISTS customers (
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS signin_code_exempt BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_sign_in_at    TIMESTAMPTZ;
 
+-- Added 2026-09-19: a profile picture, shown in the header (client).
+-- `avatar` is the file's name in the upload volume, served at /media/<avatar>.
+-- `avatar_source`: 'upload' (chosen on /account), 'google' (copied from the
+-- Google profile at sign-in), 'removed' (taken off by the customer — Google's
+-- is then not put back). `google_picture` is the Google URL last copied, so it
+-- is fetched again only when Google's changes.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar         TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_source  TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS google_picture TEXT;
+
 -- ---------------------------------------------------------------------------
 -- Customer sessions.
 --

@@ -20,6 +20,7 @@ import {
   claimRefundRequest,
   getOrderForAdmin,
   orderProgress,
+  listPendingRefunds,
   recordRefund,
   releaseRefundRequest,
   setOrderShipment,
@@ -28,7 +29,7 @@ import {
 import {
   notifyOrderCancelled,
 } from "@/lib/order-notifications";
-import { refundPayment } from "@/lib/razorpay";
+import { fetchRefundStatus, refundPayment } from "@/lib/razorpay";
 import { refundBlock, refundBlockMessage } from "@/lib/refunds";
 import { formatPaise } from "@/lib/pricing";
 import { listProducts } from "@/lib/db/products";
@@ -608,9 +609,9 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
   const fail = (message: string) =>
     redirect(back(`refundError=${encodeURIComponent(message.slice(0, 200))}`));
 
-  /* Paid online, something left, and not booked or dispatched — the same
-     rule the card uses to show the button, checked again because the page
-     may predate a booking. */
+  /* Cancelled, paid online, something left, never dispatched — the same rule
+     the card uses to show the button, checked again because the page may be
+     stale. */
   const block = refundBlock(order);
   if (block) fail(refundBlockMessage(block));
   const remaining = order.total - order.refundedAmount;
@@ -644,15 +645,19 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
       outcome = `refundError=${encodeURIComponent(`Razorpay refused the refund: ${result.error}`.slice(0, 200))}`;
     } else {
       try {
+        /* Recorded as Razorpay answered — nearly always `pending`, which the
+           card shows as "Refund processing" until the `refund.processed`
+           webhook (or Check with Razorpay) confirms it (client, 2026-09-19).
+           Not emailed: Razorpay tells the customer. */
+        const status = result.status === "processed" ? "processed" : "pending";
         const change = await recordRefund({
           orderId: order.id,
           refundId: result.refundId,
           amount: result.amount,
+          status,
         });
-        /* Recorded, not emailed: Razorpay tells the customer about the
-           refund (client, 2026-09-19). Null: the webhook recorded it first. */
         if (!change) console.info("[admin] refund already recorded:", result.refundId);
-        outcome = `refunded=${result.amount}`;
+        outcome = `refunded=${result.amount}${status === "pending" ? "&refundPending=1" : ""}`;
       } catch (error) {
         /* The money has moved; only our record of it failed. The webhook will
            record it when it arrives, so say so rather than inviting a retry
@@ -668,6 +673,35 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
   revalidatePath("/admin/orders");
   revalidatePath("/account/orders");
   redirect(back(outcome));
+}
+
+/**
+ * "Check with Razorpay" on a refund still processing (2026-09-19).
+ *
+ * The `refund.processed` webhook is what normally moves a refund from
+ * processing to refunded; this asks Razorpay directly, for when it has not —
+ * the webhook not set up, or delayed. Goes through the same `recordRefund`,
+ * so it cannot move a refund backwards or record it twice.
+ */
+export async function checkRefundsAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin/orders?error=1");
+  const order = await getOrderForAdmin(id);
+  if (!order?.paymentId) redirect("/admin/orders?error=1");
+
+  let settled = 0;
+  for (const refund of await listPendingRefunds(order.id)) {
+    const status = await fetchRefundStatus(order.paymentId, refund.id);
+    if (status === "processed" || status === "failed") {
+      await recordRefund({ orderId: order.id, refundId: refund.id, amount: refund.amount, status });
+      settled++;
+    }
+  }
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/account/orders");
+  redirect(`/admin/orders?refundChecked=${settled ? "settled" : "pending"}#order-${order.id}`);
 }
 
 /**

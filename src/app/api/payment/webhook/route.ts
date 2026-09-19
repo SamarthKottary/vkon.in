@@ -91,8 +91,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Bad payload." }, { status: 400 });
   }
 
-  if (event === "refund.processed") {
-    return handleRefund(refund, payment);
+  /* `refund.failed` too since 2026-09-19: a refund is shown as processing
+     until one of these says how it ended. */
+  if (event === "refund.processed" || event === "refund.failed") {
+    return handleRefund(refund, payment, event === "refund.processed" ? "processed" : "failed");
   }
 
   const gatewayOrderId = String(payment.order_id ?? "");
@@ -209,7 +211,11 @@ export async function POST(request: NextRequest) {
  * cannot be matched answers 200, for the same reason as above — a retry will
  * not make an unknown payment known.
  */
-async function handleRefund(refund: WebhookRefund, payment: WebhookPayment) {
+async function handleRefund(
+  refund: WebhookRefund,
+  payment: WebhookPayment,
+  status: "processed" | "failed",
+) {
   const refundId = String(refund.id ?? "");
   const amount = typeof refund.amount === "number" ? refund.amount : 0;
   if (!refundId || amount <= 0) {
@@ -230,7 +236,7 @@ async function handleRefund(refund: WebhookRefund, payment: WebhookPayment) {
 
   let change: Awaited<ReturnType<typeof recordRefund>> = null;
   try {
-    change = await recordRefund({ orderId, refundId, amount });
+    change = await recordRefund({ orderId, refundId, amount, status });
   } catch (error) {
     console.error("[webhook] could not record refund:", error);
     /* Retry: the refund is real and not yet on the order. */
@@ -240,6 +246,6 @@ async function handleRefund(refund: WebhookRefund, payment: WebhookPayment) {
   /* Recorded on the order, not emailed (client, 2026-09-19): Razorpay tells
      the customer about the refund. Null means a redelivery of one already
      recorded. */
-  if (change) console.info("[webhook] refund recorded:", refundId);
+  if (change) console.info(`[webhook] refund ${status}:`, refundId);
   return NextResponse.json({ ok: true });
 }

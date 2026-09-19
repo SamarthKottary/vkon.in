@@ -12,7 +12,7 @@ import { formatPaise } from "@/lib/pricing";
 import type { Order } from "@/lib/types";
 import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
 import { trackingLabel } from "@/lib/tracking";
-import { bookShipmentAction, refreshTrackingAction } from "@/app/admin/actions";
+import { bookShipmentAction, checkRefundsAction, refreshTrackingAction } from "@/app/admin/actions";
 import { OrderStatusSelect } from "./OrderStatusSelect";
 import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
@@ -49,6 +49,8 @@ export default async function AdminOrdersPage({
     refunded?: string;
     refundError?: string;
     refundUnrecorded?: string;
+    refundPending?: string;
+    refundChecked?: string;
   }>;
 }) {
   if (!(await isAuthenticated())) redirect("/admin");
@@ -64,6 +66,8 @@ export default async function AdminOrdersPage({
     refunded,
     refundError,
     refundUnrecorded,
+    refundPending,
+    refundChecked,
   } = await searchParams;
   const canRefund = isRazorpayConfigured();
   const orders = await listAllOrders();
@@ -138,7 +142,16 @@ export default async function AdminOrdersPage({
             ? `Nothing was refunded. ${refundError}`
             : refundUnrecorded
               ? `Refund of ${formatPaise(Number(refunded))} sent through Razorpay, but it could not be recorded here yet. It will appear when Razorpay confirms it — do not refund again.`
-              : `Refund of ${formatPaise(Number(refunded))} sent through Razorpay, which tells the customer; it reaches them in 5–7 days.`}
+              : refundPending
+                ? `Refund of ${formatPaise(Number(refunded))} started. Razorpay is processing it — the order shows "Refund processing" until Razorpay confirms, then "Refunded". Razorpay tells the customer; it reaches them in 5–7 days.`
+                : `Refund of ${formatPaise(Number(refunded))} done through Razorpay, which tells the customer; it reaches them in 5–7 days.`}
+        </p>
+      )}
+      {refundChecked && (
+        <p role="status" className="mt-6 border-l-2 border-accent bg-surface px-4 py-3 text-sm text-ink">
+          {refundChecked === "settled"
+            ? "Refund status updated from Razorpay."
+            : "Razorpay is still processing that refund. Check again later — the page also updates by itself when Razorpay confirms it."}
         </p>
       )}
 
@@ -204,13 +217,14 @@ export default async function AdminOrdersPage({
         </p>
         <p>
           <span className="font-medium text-ink">Cancelling does not refund.</span>{" "}
-          Customers may cancel until dispatch. For an order paid online, use{" "}
-          <span className="font-medium text-ink">Refund</span> on the order —
-          full or partial — until its shipment is booked. A booked order is
-          refunded by cancelling it first; a dispatched or returned one, in the
-          Razorpay dashboard. Razorpay tells the customer either way, and the
-          money reaches them in 5–7 days. A cash-on-delivery refund is paid
-          back in person.
+          Customers may cancel until dispatch. For an order paid online, cancel
+          it first, then use <span className="font-medium text-ink">Refund</span>{" "}
+          on the order — full or partial. It shows{" "}
+          <span className="font-medium text-ink">Refund processing</span> until
+          Razorpay confirms, then <span className="font-medium text-ink">Refunded</span>.
+          A dispatched or returned order is refunded in the Razorpay dashboard.
+          Razorpay tells the customer either way, and the money reaches them in
+          5–7 days. A cash-on-delivery refund is paid back in person.
         </p>
         <p>
           The site emails the customer their order confirmation and, if you
@@ -290,9 +304,14 @@ function OrderCard({
             ) : (
               <Badge>Settled by phone</Badge>
             )}
-            {order.paymentStatus === "paid" && order.refundedAmount > 0 && (
+            {/* A refund in flight reads as processing until Razorpay confirms
+                it (client, 2026-09-19); a finished partial refund shows how
+                much. A finished full one is the "Online · Refunded" badge. */}
+            {order.refundPending ? (
+              <Badge tone="warn">Refund processing</Badge>
+            ) : order.paymentStatus === "paid" && order.refundedAmount > 0 ? (
               <Badge tone="warn">Refunded {formatPaise(order.refundedAmount)}</Badge>
-            )}
+            ) : null}
           </div>
           <p className="label-tech mt-1.5 text-muted">{formatDate(order.createdAt)}</p>
         </div>
@@ -555,43 +574,72 @@ function PaymentBlock({ order, canRefund }: { order: Order; canRefund: boolean }
   const remaining = order.total - order.refundedAmount;
   const paidOnline = online && (order.paymentStatus === "paid" || order.refundedAmount > 0);
   const block = refundBlock(order);
-  const owed = order.status === "cancelled" && paidOnline && remaining > 0 && !block;
+  /* Only after cancelling (client, 2026-09-19), and not while one is already
+     on its way. */
+  const canRefundNow = block === null && !order.refundPending;
+  const owed = order.status === "cancelled" && paidOnline && remaining > 0 && canRefundNow;
 
   return (
     <div className="mt-5 border-t border-line pt-4">
       <p className="label-tech text-muted">Payment</p>
 
       {paidOnline ? (
-        <div className="mt-2.5 space-y-1.5 text-sm">
+        <div className="mt-2.5 space-y-2 text-sm">
           <p className="text-ink">
             Paid online ·{" "}
             <span className="break-all font-mono text-[0.8125rem]">{order.paymentId}</span>
           </p>
-          {order.refundedAmount > 0 && (
-            <p className="text-body">
-              Refunded {formatPaise(order.refundedAmount)}
+
+          {/* Refund processing → Refunded (client, 2026-09-19): processing from
+              the Refund button until Razorpay confirms — by the
+              `refund.processed` webhook, or "Check with Razorpay". */}
+          {order.refundPending ? (
+            <div className="space-y-2">
+              <p className="flex flex-wrap items-center gap-2 text-body">
+                <Badge tone="warn">Refund processing</Badge>
+                {formatPaise(order.refundedAmount)} sent to Razorpay
+                {order.refundedAt && <span className="text-muted">· {formatDate(order.refundedAt)}</span>}
+              </p>
+              <form action={checkRefundsAction}>
+                <input type="hidden" name="id" value={order.id} />
+                <button
+                  type="submit"
+                  className="inline-flex h-8 items-center border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+                >
+                  Check with Razorpay
+                </button>
+              </form>
+            </div>
+          ) : order.refundedAmount > 0 ? (
+            <p className="flex flex-wrap items-center gap-2 text-body">
+              <Badge tone="brand">Refunded</Badge>
+              {formatPaise(order.refundedAmount)}
               {remaining > 0 ? ` of ${formatPaise(order.total)}` : " — the full amount"}
-              {order.refundedAt && (
-                <span className="text-muted"> · {formatDate(order.refundedAt)}</span>
-              )}
+              {order.refundedAt && <span className="text-muted">· {formatDate(order.refundedAt)}</span>}
             </p>
-          )}
+          ) : null}
+
           {owed && (
             <p className="font-medium text-signal-700">
               Cancelled but not refunded — the customer was told a refund is on its way.
             </p>
           )}
-          {block === "shipment_booked" || block === "dispatched" ? (
+
+          {canRefundNow ? (
+            canRefund ? (
+              <RefundForm
+                id={order.id}
+                orderNumber={order.orderNumber}
+                remainingRupees={(remaining / 100).toFixed(2)}
+              />
+            ) : (
+              <p className="text-muted">Razorpay not configured — refunds are unavailable.</p>
+            )
+          ) : block === "not_cancelled" ? (
+            <p className="text-xs text-muted">Refund becomes available once the order is cancelled.</p>
+          ) : block === "dispatched" ? (
             <p className="text-muted">{refundBlockMessage(block)}</p>
-          ) : block ? null : canRefund ? (
-            <RefundForm
-              id={order.id}
-              orderNumber={order.orderNumber}
-              remainingRupees={(remaining / 100).toFixed(2)}
-            />
-          ) : (
-            <p className="text-muted">Razorpay not configured — refunds are unavailable.</p>
-          )}
+          ) : null}
         </div>
       ) : order.paymentProvider === "cod" ? (
         <p className="mt-2.5 text-sm text-body">
