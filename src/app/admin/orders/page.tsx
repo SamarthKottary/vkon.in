@@ -455,6 +455,7 @@ function OrderCard({
             ) : order.paymentStatus === "paid" && order.refundedAmount > 0 ? (
               <Badge tone="warn">Refunded {formatPaise(order.refundedAmount)}</Badge>
             ) : null}
+          </div>
           <div className="label-tech mt-1.5 text-muted space-y-0.5">
             <p>Ordered: {formatDate(order.createdAt)}</p>
             {order.status === "shipped" && order.shippedAt && (
