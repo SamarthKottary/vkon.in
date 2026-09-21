@@ -93,8 +93,8 @@ export async function GET(request: NextRequest) {
   // -------------------------------------------------------------------------
   if (destination.startsWith("/admin")) {
     try {
-      const { getAdminUserByEmail } = await import("@/lib/db/adminUsers");
-      const admin = await getAdminUserByEmail(profile.email);
+      const { findAdminByEmail } = await import("@/lib/db/adminUsers");
+      const admin = await findAdminByEmail(profile.email);
       if (!admin) {
         console.warn(`[google] Admin sign in attempted by non-admin: ${profile.email}`);
         return fail(request, "unauthorized");
