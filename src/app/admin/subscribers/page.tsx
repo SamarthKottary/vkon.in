@@ -3,6 +3,7 @@ import { Container } from "@/components/ui/Container";
 import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listSubscribers, listSubscribersPage } from "@/lib/db/subscribers";
+import { InfoNote } from "@/components/admin/InfoNote";
 import { ListPager, ListSearch } from "@/components/admin/ListControls";
 import { listSearch, readListQuery } from "@/lib/admin-list";
 import { DeleteSubscriberButton } from "./DeleteSubscriberButton";
@@ -85,12 +86,19 @@ export default async function AdminSubscribersPage({
 
       {/* Stated plainly rather than assumed. Someone opening this page for the
           first time will reasonably think the site is mailing these people. */}
-      <p className="mt-6 border-l-2 border-line-strong px-4 py-3 text-sm text-body">
-        <span className="font-medium text-ink">Nothing is sent from here.</span>{" "}
-        The site collects addresses; it does not mail them. Export the list into
-        whatever you send with — and add an unsubscribe link there, because this
-        page is the only way off the list at the moment.
-      </p>
+      <InfoNote title="How this page works">
+        <p>
+          <span className="font-medium text-ink">Nothing is sent from here.</span>{" "}
+          The site collects addresses; it does not mail them. Export the list
+          into whatever you send with — and add an unsubscribe link there,
+          because this page is the only way off the list at the moment.
+        </p>
+        <p>
+          Search by email address; ten addresses are shown at a time. Copy
+          addresses and Download CSV always export the whole list, not the page
+          or the search.
+        </p>
+      </InfoNote>
 
       <div className="mt-8 border border-line bg-surface">
         {rows.length === 0 ? (

@@ -4,6 +4,7 @@ import { Container } from "@/components/ui/Container";
 import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { enquiryCounts, listEnquiriesPage } from "@/lib/db/enquiries";
+import { InfoNote } from "@/components/admin/InfoNote";
 import { ListPager, ListSearch } from "@/components/admin/ListControls";
 import { listSearch, readListQuery } from "@/lib/admin-list";
 import { EnquiryActions } from "./EnquiryActions";
@@ -81,12 +82,19 @@ export default async function AdminEnquiriesPage({
         </p>
       )}
 
-      <p className="mt-6 border-l-2 border-line-strong px-4 py-3 text-sm text-body">
-        <span className="font-medium text-ink">Nothing is emailed to you.</span>{" "}
-        An enquiry appears here and nowhere else, so this page needs checking
-        through the day. Reply from your own phone or mail client using the
-        details on each one.
-      </p>
+      <InfoNote title="How this page works">
+        <p>
+          <span className="font-medium text-ink">Nothing is emailed to you.</span>{" "}
+          An enquiry appears here and nowhere else, so this page needs checking
+          through the day. Reply from your own phone or mail client using the
+          details on each one.
+        </p>
+        <p>
+          Search by name, email address or phone number; ten enquiries are
+          shown at a time. Marking one handled keeps it — it is a record of who
+          asked for what, and when.
+        </p>
+      </InfoNote>
 
       <div className="mt-8 space-y-4">
         {enquiries.length === 0 ? (

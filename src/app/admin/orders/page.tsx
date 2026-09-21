@@ -9,12 +9,14 @@ import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listCustomerEmails } from "@/lib/db/customers";
 import {
-  ADMIN_ORDER_STATUSES,
-  countOrdersByStatus,
+  ADMIN_ORDER_FILTERS,
+  countOrdersByFilter,
   listOrdersPage,
   orderSummary,
-  type AdminOrderStatus,
+  type AdminOrderFilter,
+  type OrderFilterCounts,
 } from "@/lib/db/orders";
+import { InfoNote } from "@/components/admin/InfoNote";
 import { ListPager, ListSearch } from "@/components/admin/ListControls";
 import { listHref, listSearch, readListQuery } from "@/lib/admin-list";
 import { formatPaise } from "@/lib/pricing";
@@ -85,21 +87,22 @@ export default async function AdminOrdersPage({
   const canRefund = isRazorpayConfigured();
   const canShip = isShiprocketConfigured();
 
-  /* Search by order number, email or phone, filter by status, ten a page
-     (client, 2026-09-19). An unknown `?status=` is ignored, not an error. */
+  /* Search by order number, email or phone, filter by status or the refund
+     queue, ten a page (client, 2026-09-19 and 2026-09-21). An unknown
+     `?status=` is ignored, not an error. */
   const query = readListQuery(params);
-  const status = (ADMIN_ORDER_STATUSES as readonly string[]).includes(params.status ?? "")
-    ? (params.status as AdminOrderStatus)
+  const filter = (ADMIN_ORDER_FILTERS as readonly string[]).includes(params.status ?? "")
+    ? (params.status as AdminOrderFilter)
     : "";
   const [{ orders, total, page }, counts, summary] = await Promise.all([
-    listOrdersPage({ q: query.q, status, page: query.page }),
-    countOrdersByStatus(query.q),
+    listOrdersPage({ q: query.q, filter, page: query.page }),
+    countOrdersByFilter(query.q),
     orderSummary(),
   ]);
   const emails = await listCustomerEmails([...new Set(orders.map((o) => o.customerId))]);
   /* Posted with every form on a card, so each action comes back here — the
      same search, filter and page — rather than to page 1. */
-  const view = listSearch({ q: query.q, status, page });
+  const view = listSearch({ q: query.q, status: filter, page });
 
   /* "Needs action" is pending-or-confirmed, i.e. not yet out of the door and
      not cancelled — across every order, not just this page. */
@@ -122,7 +125,7 @@ export default async function AdminOrdersPage({
           q={query.q}
           placeholder="Order number, email or phone"
           label="Search orders"
-          keep={{ status }}
+          keep={{ status: filter }}
         />
       </div>
 
@@ -224,8 +227,9 @@ export default async function AdminOrdersPage({
       {/* Rewritten 2026-09-17 when Razorpay went live: it used to say payment
           was not taken online and had to be settled by phone. The refund line
           is the one that costs money if missed — cancelling here emails the
-          customer a refund promise, and nothing on this page issues it. */}
-      <div className="mt-6 space-y-2 border-l-2 border-line-strong px-4 py-3 text-sm text-body">
+          customer a refund promise, and nothing on this page issues it.
+          Folded behind the info button 2026-09-21. */}
+      <InfoNote title="How this page works">
         <p>
           <span className="font-medium text-ink">New orders are emailed to orders@vkon.in</span>{" "}
           — a cash-on-delivery order when it is placed, an online order once
@@ -233,7 +237,12 @@ export default async function AdminOrdersPage({
           after it here.
         </p>
         <p>
-          <span className="font-medium text-ink">Only confirmed orders are listed:</span>{" "}
+          <span className="font-medium text-ink">An order arrives as New</span>{" "}
+          and stays there until you set it to Confirmed — paying online no
+          longer confirms an order by itself, so every order waits for you.
+        </p>
+        <p>
+          <span className="font-medium text-ink">Only paid orders are listed:</span>{" "}
           cash on delivery (<span className="font-medium text-ink">COD</span>) and
           orders paid online (<span className="font-medium text-ink">Paid online</span>).
           An online order that was never paid, or whose payment failed, is not
@@ -259,17 +268,19 @@ export default async function AdminOrdersPage({
           cancel, the cancellation. Shipping and delivery updates come from
           Shiprocket; payment receipts and refunds from Razorpay.
         </p>
-      </div>
+      </InfoNote>
 
-      <StatusFilter q={query.q} status={status} counts={counts} />
+      <OrderFilters q={query.q} filter={filter} counts={counts} />
 
       <div className="mt-4 space-y-4">
         {orders.length === 0 ? (
           <div className="border border-line bg-surface px-6 py-16 text-center">
-            {query.q || status ? (
+            {query.q || filter ? (
               <>
                 <p className="text-ink">
-                  No {status ? `${STATUS_LABELS[status].toLowerCase()} ` : ""}orders
+                  {filter === "refund"
+                    ? "No refunds are waiting"
+                    : `No ${filter ? `${FILTER_LABELS[filter].toLowerCase()} ` : ""}orders`}
                   {query.q ? ` match “${query.q}”` : ""}.
                 </p>
                 <Link href="/admin/orders" className="mt-2 inline-block text-sm text-accent hover:underline">
@@ -299,7 +310,7 @@ export default async function AdminOrdersPage({
         )}
         {total > 0 && (
           <div className="border border-line bg-surface">
-            <ListPager path="/admin/orders" page={page} total={total} keep={{ q: query.q, status }} />
+            <ListPager path="/admin/orders" page={page} total={total} keep={{ q: query.q, status: filter }} />
           </div>
         )}
       </div>
@@ -307,47 +318,57 @@ export default async function AdminOrdersPage({
   );
 }
 
-const STATUS_LABELS: Record<AdminOrderStatus, string> = {
+const FILTER_LABELS: Record<AdminOrderFilter, string> = {
   pending: "Pending",
   confirmed: "Confirmed",
   shipped: "Shipped",
   delivered: "Delivered",
   cancelled: "Cancelled",
+  refund: "Refund",
 };
 
 /**
- * All · Pending · Confirmed · Shipped · Delivered · Cancelled, each with how
- * many orders match the current search (client, 2026-09-19). Links, not a
- * select: one tap, no JavaScript, and the choice stays in the URL. Choosing
- * one keeps the search and goes back to page 1.
+ * All · Pending · Confirmed · Shipped · Delivered · Cancelled · Refund, each
+ * with how many orders match the current search (client, 2026-09-19, and the
+ * refund queue 2026-09-21). Links, not a select: one tap, no JavaScript, and
+ * the choice stays in the URL. Choosing one keeps the search and goes back to
+ * page 1.
+ *
+ * **Refund is not a status** — it is every cancelled order still owed money or
+ * waiting on Razorpay, so an order sits there while it is refunded and reads
+ * as plain Cancelled once it is done. It is last, and set apart, because it is
+ * a queue of work rather than a stage an order passes through.
  */
-function StatusFilter({
+function OrderFilters({
   q,
-  status,
+  filter,
   counts,
 }: {
   q: string;
-  status: AdminOrderStatus | "";
-  counts: Record<AdminOrderStatus, number>;
+  filter: AdminOrderFilter | "";
+  counts: OrderFilterCounts;
 }) {
-  const all = ADMIN_ORDER_STATUSES.reduce((sum, s) => sum + counts[s], 0);
-  const options: { value: AdminOrderStatus | ""; label: string; n: number }[] = [
-    { value: "", label: "All", n: all },
-    ...ADMIN_ORDER_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s], n: counts[s] })),
+  const options: { value: AdminOrderFilter | ""; label: string; n: number }[] = [
+    { value: "", label: "All", n: counts.all },
+    ...ADMIN_ORDER_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], n: counts[f] })),
   ];
   return (
-    <nav aria-label="Filter by status" className="mt-8 flex flex-wrap gap-2">
+    <nav aria-label="Filter orders" className="mt-8 flex flex-wrap gap-2">
       {options.map((option) => {
-        const current = option.value === status;
+        const current = option.value === filter;
         return (
           <Link
             key={option.label}
             href={listHref("/admin/orders", { q, status: option.value })}
             aria-current={current ? "page" : undefined}
             className={`inline-flex h-9 items-center gap-2 border px-3 text-sm font-medium transition-colors ${
+              option.value === "refund" ? "ml-2" : ""
+            } ${
               current
                 ? "border-ink bg-ink text-surface"
-                : "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
+                : option.value === "refund" && option.n > 0
+                  ? "border-signal-500 text-signal-700 hover:border-ink hover:bg-surface-subtle"
+                  : "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
             }`}
           >
             {option.label}

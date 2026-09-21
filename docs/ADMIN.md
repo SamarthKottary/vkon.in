@@ -17,7 +17,7 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. Search by name, URL, tagline or category; drag to reorder is off while a search is showing. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
-| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out. Search by order number, email or phone; filter by status; ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
+| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by status or by **Refund** (cancelled orders still owed money); ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
 | `/admin/users` | Customer accounts. Read, search, and turn the sign-in code off for a review account. |
 | `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Search by email, ten a page. Read, export (always the whole list), remove. |
@@ -428,6 +428,16 @@ Note also that a paid order arrives here already marked **Paid** and
 ---
 
 ## Change log
+
+**2026-09-21** — Three changes from the client. **Paying online no longer
+confirms an order**: it arrives as New and waits for the operator, as cash on
+delivery already did (`markOrderPaid` stops writing `status`). **A Refund
+filter** on `/admin/orders` — every cancelled order still owed money or
+waiting on Razorpay, so a refund can be found without hunting through
+Cancelled; it leaves the filter once the money is back. **The standing notes**
+on orders, enquiries and subscribers are folded behind an info button
+(`components/admin/InfoNote`, a `<details>` element) instead of sitting above
+the list.
 
 **2026-09-19** — Search and paging on the admin lists (client: "fixed number
 of emails per page … it moves to the next page", with a "1–10 of 23 ·

@@ -361,6 +361,28 @@ export async function getOrderForCustomer(
 export const ADMIN_ORDER_STATUSES = ["pending", "confirmed", "shipped", "delivered", "cancelled"] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 
+/** The list's filter: a status, or the refund queue (client, 2026-09-21). */
+export const ADMIN_ORDER_FILTERS = [...ADMIN_ORDER_STATUSES, "refund"] as const;
+export type AdminOrderFilter = (typeof ADMIN_ORDER_FILTERS)[number];
+
+/**
+ * The refund queue: a cancelled order with money still to send back, or one
+ * whose refund Razorpay is still processing (client, 2026-09-21 — "orders
+ * which are cancelled and have a refund button; refund processing is also
+ * shown there, then when refund is done it moves to cancelled").
+ *
+ * **The same rule as `refundBlock`**, which decides whether the card shows the
+ * button — cancelled, paid online, nothing dispatched, something left — plus
+ * the refunds already sent and awaiting Razorpay. Written twice, in TypeScript
+ * for one order and in SQL for the list; change both. Containment (`@>`) is
+ * how "any refund entry is pending" is asked of a JSONB array.
+ */
+const REFUND_DUE_SQL = `(status = 'cancelled'
+  AND payment_provider = 'razorpay' AND payment_id IS NOT NULL
+  AND (payment_status = 'paid' OR refunded_amount > 0)
+  AND shipped_at IS NULL
+  AND (total - refunded_amount > 0 OR refunds @> '[{"status": "pending"}]'::jsonb))`;
+
 /**
  * The search half of the admin order list's WHERE: order number, the
  * account's email, or a phone — the account's, or the one on either address —
@@ -391,13 +413,16 @@ function searchArgs(q: string): [string, string, string] {
  */
 export async function listOrdersPage(input: {
   q: string;
-  status: AdminOrderStatus | "";
+  filter: AdminOrderFilter | "";
   page: number;
 }): Promise<{ orders: Order[]; total: number; page: number }> {
   if (!isDatabaseConfigured()) return { orders: [], total: 0, page: 1 };
   try {
-    const where = `${CONFIRMED_ORDER_SQL} AND ($4 = '' OR status = $4) AND ${ORDER_SEARCH_SQL}`;
-    const args = [...searchArgs(input.q), input.status];
+    /* One clause for all three cases — no filter, a status, or the refund
+       queue — so $4 is always referenced and always supplied. */
+    const chosen = `($4 = '' OR ($4 = 'refund' AND ${REFUND_DUE_SQL}) OR status = $4)`;
+    const where = `${CONFIRMED_ORDER_SQL} AND ${chosen} AND ${ORDER_SEARCH_SQL}`;
+    const args = [...searchArgs(input.q), input.filter];
     const [{ n }] = await query<{ n: number }>(`SELECT count(*)::int AS n FROM orders WHERE ${where}`, args);
     const page = clampPage(input.page, n);
     const rows = await query<OrderRow>(
@@ -424,24 +449,31 @@ export async function listOrdersPage(input: {
   }
 }
 
-/** How many confirmed orders match the search, per status — the filter's counts. */
-export async function countOrdersByStatus(q: string): Promise<Record<AdminOrderStatus, number>> {
-  const counts = Object.fromEntries(ADMIN_ORDER_STATUSES.map((s) => [s, 0])) as Record<AdminOrderStatus, number>;
+export type OrderFilterCounts = Record<AdminOrderFilter | "all", number>;
+
+/** How many orders match the search, per filter — the number on each choice. */
+export async function countOrdersByFilter(q: string): Promise<OrderFilterCounts> {
+  const counts = Object.fromEntries(
+    [...ADMIN_ORDER_FILTERS, "all"].map((f) => [f, 0]),
+  ) as OrderFilterCounts;
   if (!isDatabaseConfigured()) return counts;
   try {
-    const rows = await query<{ status: string; n: number }>(
-      `SELECT status, count(*)::int AS n FROM orders
-        WHERE ${CONFIRMED_ORDER_SQL} AND ${ORDER_SEARCH_SQL}
-        GROUP BY status`,
+    const [row] = await query<Record<string, number>>(
+      `SELECT count(*)::int AS all,
+              count(*) FILTER (WHERE status = 'pending')::int   AS pending,
+              count(*) FILTER (WHERE status = 'confirmed')::int AS confirmed,
+              count(*) FILTER (WHERE status = 'shipped')::int   AS shipped,
+              count(*) FILTER (WHERE status = 'delivered')::int AS delivered,
+              count(*) FILTER (WHERE status = 'cancelled')::int AS cancelled,
+              count(*) FILTER (WHERE ${REFUND_DUE_SQL})::int    AS refund
+         FROM orders WHERE ${CONFIRMED_ORDER_SQL} AND ${ORDER_SEARCH_SQL}`,
       searchArgs(q),
     );
-    for (const row of rows) {
-      if ((ADMIN_ORDER_STATUSES as readonly string[]).includes(row.status)) {
-        counts[row.status as AdminOrderStatus] = row.n;
-      }
+    for (const key of Object.keys(counts) as (keyof OrderFilterCounts)[]) {
+      counts[key] = Number(row?.[key] ?? 0);
     }
   } catch (error) {
-    console.error("[db] order status counts failed:", error);
+    console.error("[db] order filter counts failed:", error);
   }
   return counts;
 }
@@ -769,6 +801,15 @@ export async function attachPaymentOrder(
  * browser redirect can arrive alongside it. Returns whether this call was the
  * one that changed the row, so the caller can send the confirmation mail
  * exactly once instead of once per delivery attempt.
+ *
+ * **Payment does not move the order's status** (client, 2026-09-21: "when I
+ * pay using online the order moves to confirmed, it should be in pending —
+ * only when admin confirms it, it moves to confirmed"). It used to set
+ * `status = 'confirmed'`, which made an online order look accepted before
+ * anybody had looked at it, while cash on delivery waited in `pending` for
+ * the operator. Both now wait. Paying still puts the order in the admin
+ * inbox and starts the delivery-address clock — `isConfirmedOrder` is about
+ * the money, not this column.
  */
 export async function markOrderPaid(input: {
   orderId: string;
@@ -777,7 +818,7 @@ export async function markOrderPaid(input: {
 }): Promise<boolean> {
   const rows = await query<{ id: string }>(
     `UPDATE orders
-        SET payment_status = 'paid', status = 'confirmed',
+        SET payment_status = 'paid',
             payment_id = $2, payment_signature = $3,
             paid_at = now(), updated_at = now()
       WHERE id = $1 AND payment_status <> 'paid'

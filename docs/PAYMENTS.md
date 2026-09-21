@@ -160,6 +160,14 @@ than once by design, and the confirmation email must go out exactly once.
 **The amount is read from the order row, never from the request.** Same rule as
 checkout: the browser has no say in what anything costs.
 
+**Paying does not confirm the order** (client, 2026-09-21). `markOrderPaid`
+sets `payment_status` and `paid_at` and leaves `status` at `pending`; the
+operator moves it to `confirmed` in `/admin/orders`, exactly as with a
+cash-on-delivery order. Everything that asks "is this a real order?" —
+whether it is in the admin inbox, when the delivery-address window closes,
+when a shipment may be booked — goes through `isConfirmedOrder`, which reads
+the payment, not this column.
+
 **The webhook needs the raw request body**, not `await request.json()` — the
 signature is over the exact bytes, and re-serialising changes them. Read it
 with `await request.text()` and parse afterwards.
@@ -350,8 +358,10 @@ all passing:
   This is the subtle one: a signature proves "Razorpay saw this payment", not
   "this payment belongs to *this* order", so the `payment_order_id` recorded at
   create time is checked as well.
-- A **correct signature** marks the order paid, advances it to `confirmed`,
-  records the payment id and stamps `paid_at`.
+- A **correct signature** marks the order paid, records the payment id and
+  stamps `paid_at`. It leaves `status` alone: since 2026-09-21 a paid order
+  waits at `pending` until the operator confirms it, exactly as a
+  cash-on-delivery one does.
 - **Repeat verify** and **repeat webhook** are both idempotent — Razorpay
   redelivers by design, and the confirmation sends exactly once.
 - The webhook **rejects an unsigned request and the wrong secret** (401).
@@ -386,7 +396,8 @@ three of these before going live:
   with **Success** and **Failure** buttons. Razorpay's own test-card page still
   describes entering an OTP, but that is not what test mode shows — checked by
   driving Checkout end to end on 2026-09-15. Verified on the live site the
-  same day: payment captured, order `confirmed`/`paid`.
+  same day: payment captured, order `pending`/`paid` (it was `confirmed`/`paid`
+  until 2026-09-21 — see the change log entry of that date).
   **Not `4111 1111 1111 1111`:** that is an international
   card, and an account that accepts domestic cards only refuses it with
   `international_transaction_not_allowed` — which is exactly what happened on

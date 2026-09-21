@@ -255,6 +255,16 @@ export function AlertIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+/** The dotted "i" of an information button — `AlertIcon` turned upside down. */
+export function InfoIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="8.75" />
+      <path d="M12 11v5.5M12 7.2v.6" />
+    </svg>
+  );
+}
+
 export function SunIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg {...base} className={className}>

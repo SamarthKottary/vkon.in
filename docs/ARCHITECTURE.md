@@ -163,7 +163,8 @@ src/
 
   components/
     admin/     ListControls — ListSearch (GET form) and ListPager ("1–10 of
-               23 · Previous · Next"), shared by the paged admin lists
+               23 · Previous · Next"), shared by the paged admin lists;
+               InfoNote — the standing explanation, behind an info button
     account/   AccountShell, AccountNavLink (client), AccountMenu (client),
                AddressBook (client), AddressForm (client), AddressPicker (client),
                OrderAddressEdit (client), DeliveryOutcome (client),
@@ -900,7 +901,7 @@ it can never become an open redirect or a forged outcome message.
 | `pageSeo.ts` | `getPageSeo`, `listPageSeo`, `upsertPageSeo`, `resolvePageMetadata` |
 | `customers.ts` | `findCustomerByEmail/ById/ByGoogleSub`, `createCustomer`, `getPasswordHash`, `updateCustomerProfile`, `setCustomerPassword`, `markEmailVerified`, `linkGoogleAccount`, `createSession`, `customerForSession`, `deleteSession(sForCustomer)`, `sweepExpiredSessions`, `createToken`, `consumeToken`, `invalidateTokens` |
 | `addresses.ts` | `listAddresses`, `getAddress`, `createAddress`, `updateAddress`, `deleteAddress`, `setDefaultAddress` |
-| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByStatus`, `orderSummary`, `setOrderStatus`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
+| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByFilter`, `orderSummary`, `setOrderStatus`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
 
 **`customers.ts` is the exception to "reads fail soft."** Everywhere else an
 empty list beats a 500 for a visitor; during a sign-in it would mean a database
@@ -1615,6 +1616,40 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-21 (orders, admin) — Paying no longer confirms; a Refund filter; the notes behind an info button
+
+Client: "when I pay using online the order moves to confirmed, it should be in
+pending — only when admin confirms it, it moves to confirmed. It works
+correctly for cash on delivery"; make the standing note on orders, enquiries
+and subscribers "an info button … where it will drop down and show info"; and
+"add another filter … called Refund. It shows orders which are cancelled and
+have a refund button, refund processing is also shown there, then when refund
+is done it moves to cancelled."
+
+- **`markOrderPaid` no longer writes `status`.** A paid online order stays
+  `pending` until the operator confirms it. Nothing else changes: the admin
+  inbox, the address-edit window and the booking gate all read
+  `isConfirmedOrder` (the money), never `status = 'confirmed'`. The customer
+  sees "Pending · Online · Paid", which `OrderStatusBadge` already handled —
+  the two badges exist because the two states genuinely disagree.
+- **`REFUND_DUE_SQL`** (`lib/db/orders.ts`) is `refundBlock` as a WHERE
+  clause: cancelled, paid through Razorpay, never dispatched, and either
+  something left to refund or a refund Razorpay is still processing. The two
+  are written twice, in TypeScript for one order and SQL for the list —
+  change both. `refunds @> '[{"status": "pending"}]'` is the containment test
+  for "any entry is pending".
+- **The list's filter is `AdminOrderFilter`** — the five statuses plus
+  `refund` — in one SQL clause (`$4 = '' OR ($4 = 'refund' AND …) OR status =
+  $4`) so the parameter is always referenced and always supplied.
+  `countOrdersByFilter` replaces `countOrdersByStatus` and counts every choice
+  in one query; the Refund chip stands apart and turns amber when it is not
+  empty.
+- **New `components/admin/InfoNote`** (server): a `<details>` element — opens
+  with no JavaScript, the browser handles the keyboard and the announcement.
+  The orders, enquiries and subscribers notes moved into it; the orders one
+  gained a line saying an order arrives as New.
+- No schema change. PAYMENTS.md §5.2, ADMIN.md §1.
 
 ### 2026-09-19 (admin) — Search and paging on orders, enquiries, subscribers; product search
 
