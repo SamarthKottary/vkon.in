@@ -924,7 +924,9 @@ export async function setSigninCodeAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/admin/users");
-  redirect(`/admin/users?updated=${on ? "on" : "off"}${search}`);
+  /* No `updated=`: the switch itself is the confirmation (client,
+     2026-09-21). `search` keeps the list filtered to whatever was typed. */
+  redirect(`/admin/users${search ? `?${search.slice(1)}` : ""}`);
 }
 
 // ---------------------------------------------------------------------------

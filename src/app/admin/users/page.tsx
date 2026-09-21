@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
+import { InfoNote } from "@/components/admin/InfoNote";
 import { getAdminSession } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listCustomersForAdmin, type AdminCustomer } from "@/lib/db/customers";
@@ -28,7 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; updated?: string; error?: string }>;
+  searchParams: Promise<{ q?: string; error?: string }>;
 }) {
   const admin = await getAdminSession();
   if (!admin) redirect("/admin");
@@ -36,7 +37,7 @@ export default async function AdminUsersPage({
      Support and viewer accounts read the list; they do not get either. */
   const canManage = admin.role === "super" || admin.role === "admin";
 
-  const { q = "", updated, error } = await searchParams;
+  const { q = "", error } = await searchParams;
   const [users, codeOn] = await Promise.all([listCustomersForAdmin(q), isSigninCodeOn()]);
   const withOrders = users.filter((u) => u.orderCount > 0).length;
 
@@ -78,20 +79,51 @@ export default async function AdminUsersPage({
         </div>
       )}
 
-      {(updated || error) && (
+      {/* Only failures are announced (client, 2026-09-21). A successful flip
+          needs no sentence: the switch beside it has already moved, which is
+          the same news said twice. A failure does, because the switch will
+          have stayed where it was and silence would read as "nothing
+          happened" either way. */}
+      {error && (
         <p
           role="status"
-          className={`mt-6 border-l-2 bg-surface px-4 py-3 text-sm text-ink ${
-            error ? "border-signal-500" : "border-accent"
-          }`}
+          className="mt-6 border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-ink"
         >
-          {error
-            ? "Could not change that."
-            : updated === "off"
-              ? "Sign-in code turned off. Every customer now signs in with their password alone — turn it back on as soon as the review is done."
-              : "Sign-in code turned back on. Customers signing in from a new browser are emailed a code again."}
+          Could not change that.
         </p>
       )}
+
+      <InfoNote title="How this page works">
+        <p>
+          <span className="font-medium text-ink">The emailed sign-in code</span>{" "}
+          is the second factor on a customer account: signing in from a browser
+          they have not used before, they are emailed a six-digit code. The
+          switch below turns it off for{" "}
+          <span className="font-medium text-ink">every customer at once</span>,
+          not one account — while it is off, everybody signs in with their
+          password alone.
+        </p>
+        <p>
+          Turn it off only for a review that needs it — the test login
+          Razorpay&rsquo;s website verification asks for, whose reviewers cannot
+          read the account&rsquo;s inbox —{" "}
+          <span className="font-medium text-ink">and turn it back on the moment
+          that is finished.</span>
+        </p>
+        <p>
+          <span className="font-medium text-ink">Sign in as</span> opens that
+          customer&rsquo;s account in a new tab, exactly as they see it. They are
+          not told, and it looks like their own sign-in, so treat it as
+          borrowing their account: it is recorded against the session and in
+          the server log. It also signs you out of any customer account you
+          were using in this browser — your admin login is unaffected.
+        </p>
+        <p>
+          Both are for super users and admins. Accounts cannot be deleted here:
+          an account owns orders, which are the business&rsquo;s records as much
+          as the customer&rsquo;s.
+        </p>
+      </InfoNote>
 
       <SigninCodeSwitch on={codeOn} q={q} canManage={canManage} />
 
@@ -112,7 +144,8 @@ export default async function AdminUsersPage({
 
 /**
  * The one switch for the emailed sign-in code (client, 2026-09-21: "a toggle
- * switch to turn code ON/OFF at the top").
+ * switch to turn code ON/OFF at the top", then "let there just be a switch
+ * with a short description, all info should be inside" the info note).
  *
  * A form and a button, not a checkbox with JavaScript behind it: the switch
  * has to work before any script arrives, and a security control that quietly
@@ -120,7 +153,8 @@ export default async function AdminUsersPage({
  * `aria-checked` is what makes it a switch to a screen reader; the track and
  * knob are the visual half of the same thing.
  *
- * Amber, and loud, while it is off — this is every customer's second factor.
+ * One line, and amber while it is off — the reasoning is in the info note
+ * above it, but *that it is off* has to be visible without opening anything.
  */
 function SigninCodeSwitch({
   on,
@@ -136,16 +170,12 @@ function SigninCodeSwitch({
       className={`mt-6 border-l-2 bg-surface px-4 py-3 ${on ? "border-line-strong" : "border-signal-500"}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0">
-          <p className="font-medium text-ink">
-            Emailed sign-in code {on ? "is on" : "is off"}
-          </p>
-          <p className="mt-1 text-sm text-body">
-            {on
-              ? "Customers signing in from a browser they have not used before are emailed a six-digit code."
-              : "Nobody is asked for a code — every customer signs in with their password alone. Turn this back on as soon as the review that needed it is finished."}
-          </p>
-        </div>
+        <p className="min-w-0 text-sm">
+          <span className="font-medium text-ink">Emailed sign-in code</span>
+          <span className="text-body">
+            {on ? " — on for every customer" : " — off for every customer, password only"}
+          </span>
+        </p>
 
         {canManage ? (
           <form action={setSigninCodeAction} className="shrink-0">
