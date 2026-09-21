@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
       orderNumber: order.orderNumber,
       customerName: customer.name,
       customerEmail: customer.email,
-      customerPhone: order.shipTo.phone || customer.phone,
+      customerPhone: customer.phone || order.billTo.phone,
     }),
     { headers: { "Cache-Control": "no-store" } },
   );
