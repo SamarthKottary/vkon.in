@@ -462,7 +462,15 @@ export async function listOrdersPage(input: {
     const page = clampPage(input.page, n);
     const rows = await query<OrderRow>(
       `SELECT ${ORDER_SELECT} FROM orders WHERE ${where}
-        ORDER BY created_at DESC LIMIT $4 OFFSET $5`,
+        ORDER BY
+          CASE WHEN status IN ('pending', 'confirmed') THEN created_at END ASC NULLS LAST,
+          CASE WHEN status = 'cancelled' AND payment_provider = 'razorpay' AND payment_id IS NOT NULL AND payment_status = 'paid' THEN created_at END ASC NULLS LAST,
+          CASE 
+            WHEN status = 'shipped' THEN COALESCE(shipped_at, created_at)
+            WHEN status = 'delivered' THEN COALESCE(delivered_at, shipped_at, created_at)
+            ELSE created_at
+          END DESC
+        LIMIT $4 OFFSET $5`,
       [...args, PER_PAGE, (page - 1) * PER_PAGE],
     );
     if (rows.length === 0) return { orders: [], total: n, page };

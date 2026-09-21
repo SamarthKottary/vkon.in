@@ -455,8 +455,21 @@ function OrderCard({
             ) : order.paymentStatus === "paid" && order.refundedAmount > 0 ? (
               <Badge tone="warn">Refunded {formatPaise(order.refundedAmount)}</Badge>
             ) : null}
+          <div className="label-tech mt-1.5 text-muted space-y-0.5">
+            <p>Ordered: {formatDate(order.createdAt)}</p>
+            {order.status === "shipped" && order.shippedAt && (
+              <p>Shipped: {formatDate(order.shippedAt)}</p>
+            )}
+            {order.status === "delivered" && (
+              <>
+                {order.shippedAt && <p>Shipped: {formatDate(order.shippedAt)}</p>}
+                {order.deliveredAt && <p>Delivered: {formatDate(order.deliveredAt)}</p>}
+              </>
+            )}
+            {order.status === "cancelled" && order.cancelledAt && (
+              <p>Cancelled: {formatDate(order.cancelledAt)}</p>
+            )}
           </div>
-          <p className="label-tech mt-1.5 text-muted">{formatDate(order.createdAt)}</p>
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-2">
