@@ -8,6 +8,7 @@ import {
   deleteAdminUserAction,
   clearAdminPasswordAction,
 } from "@/app/admin/actions";
+import { InfoIcon } from "@/components/icons/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -96,9 +97,12 @@ export default async function AdminAccessPage({
       )}
 
       {/* Role reference */}
-      <section className="border border-line bg-surface-raised p-6 shadow-card">
-        <h2 className="text-base font-semibold text-ink">Role permissions</h2>
-        <div className="mt-4 overflow-x-auto">
+      <details className="group border border-line bg-surface-raised shadow-card">
+        <summary className="flex cursor-pointer list-none items-center gap-2 p-6 marker:hidden">
+          <h2 className="text-base font-semibold text-ink">Role permissions</h2>
+          <InfoIcon className="h-5 w-5 text-muted transition-colors group-hover:text-ink" />
+        </summary>
+        <div className="overflow-x-auto px-6 pb-6 pt-0">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-line">
@@ -122,7 +126,7 @@ export default async function AdminAccessPage({
             </tbody>
           </table>
         </div>
-      </section>
+      </details>
 
       {/* Current users */}
       <section className="border border-line bg-surface-raised shadow-card">
