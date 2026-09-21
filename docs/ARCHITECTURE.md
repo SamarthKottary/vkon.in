@@ -1019,15 +1019,18 @@ constants unexported.
 code is emailed on any browser an account has not been seen on
 (`lib/signin-challenge.ts`), and the four deliberate exemptions are: a
 brand-new registration, a brand-new Google account, a deployment with no
-`RESEND_API_KEY`, and a password sign-in to an account the operator has marked
-as a review account in `/admin/users` (`customers.signin_code_exempt`,
-2026-09-17 — the login Razorpay's website verification asks for, used by
-reviewers who cannot read that account's inbox). The no-mail one is not a
-loophole to close casually — with no mail provider there is no way to deliver a
-code, and challenging anyway would lock every customer out of a working shop.
-The review flag removes the second factor from one account, so it is off by
-default, shown in amber, settable only by `setSigninCodeExemptAction` behind
-`requireAdmin()`, and meant to be turned back on after the review.
+`RESEND_API_KEY`, and the operator having switched the code off in
+`/admin/users` (`site_settings.signin_code`, 2026-09-21 — for the login
+Razorpay's website verification asks for, whose reviewers cannot read the
+account's inbox). The no-mail one is not a loophole to close casually — with
+no mail provider there is no way to deliver a code, and challenging anyway
+would lock every customer out of a working shop. The switch is off for every
+customer at once, so `isSigninCodeOn()` **fails safe towards on** (no row, no
+database, a thrown query — all mean the code is required), the page shows it
+in amber while it is off, only `setSigninCodeAction` behind `requireAdmin()`
+plus the super/admin role may change it, and it is meant to go back on the
+moment a review is finished. It replaced the per-account
+`customers.signin_code_exempt` flag, which nothing now reads.
 
 **`<main>` keeps `overflow-x-clip`, and it must be `clip` rather than
 `hidden`.** `FeaturedProducts` and `RecentlyViewed` bleed out of the centred
@@ -1616,6 +1619,37 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-21 (admin) — One sign-in-code switch, and signing in as a customer
+
+Client: "instead of having button on each account to turn off and on code,
+lets have a toggle switch to turn code ON/OFF at the top … also a login button
+on each user which lets us login to that users account in a new tab. These
+features are only for super users and admin."
+
+- **New table `site_settings`** (key/value, so the next switch is not a
+  migration) and **`lib/db/settings.ts`**, the only module that knows what a
+  key means. `isSigninCodeOn()` is the exception to "reads fail soft": every
+  failure returns *on*, because the failure direction of a second factor has
+  to be "still there". §9's sign-in constraint updated.
+- **`skipTheCode`** (`account/actions.ts`) reads the switch instead of
+  `customers.signin_code_exempt`; `isSigninCodeExempt` /
+  `setSigninCodeExempt` are gone and the column is left in the table as the
+  record of who was opened up for the review.
+- **`setSigninCodeAction`** replaces `setSigninCodeExemptAction`, behind
+  `requireAdmin()` + `requireAdminRole(["super", "admin"])`, and logs who
+  flipped it.
+- **New route `admin/users/[id]/signin` (POST)** starts an ordinary customer
+  session and redirects to `/account`; the button posts with
+  `target="_blank"`. POST rather than a link so a prefetch or an embedded URL
+  cannot start a session, and the role is re-checked in the handler because it
+  is an addressable endpoint. The session is deliberately indistinguishable
+  from the customer's own (client's choice) — it lasts as long as theirs and
+  shows them nothing — but the server log records it and `issueSession` now
+  takes a `userAgentOverride`, so the session row reads `admin <email>`.
+  It replaces any customer session in that browser; the `/admin` cookie is a
+  different one and is untouched.
+- **Schema change**, so a deploy runs `db-setup` before the app restarts.
 
 ### 2026-09-21 (admin, later) — The order card rearranged; Cancelled-refund; a dark-mode background
 

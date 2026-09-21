@@ -1,5 +1,6 @@
 "use server";
 
+import { isSigninCodeOn } from "@/lib/db/settings";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -14,7 +15,6 @@ import {
   findCustomerById,
   getPasswordHash,
   invalidateTokens,
-  isSigninCodeExempt,
   markEmailVerified,
   setCustomerPassword,
   untrustAllDevices,
@@ -307,16 +307,17 @@ const CODE_PAGE = "/account/verify-code";
  * only as present as the mail setup is, which is why the setup guide treats
  * Resend as the one integration to do first.
  *
- * **Also true for an account marked as a review account** in `/admin/users`
- * (2026-09-17). Razorpay's website verification asks for a test login, and
- * its reviewers sign in from a browser this site has never seen with no way
- * to read the code. The flag is per account, off by default, set only by the
- * operator, and meant to be turned off once the review is done. Password
- * sign-in only: a review account has no Google login to exempt.
+ * **Also true while the operator has the code switched off** — one switch at
+ * the top of `/admin/users` (client, 2026-09-21), in place of the per-account
+ * exemption that came before it (2026-09-17, for Razorpay's website
+ * verification: their reviewers sign in from a browser this site has never
+ * seen, with no way to read the code). It is off for everybody or on for
+ * everybody, `isSigninCodeOn` fails safe towards on, and it is meant to be
+ * switched back the moment a review is finished.
  */
 async function skipTheCode(customerId: string): Promise<boolean> {
   if (!isMailConfigured()) return true;
-  if (await isSigninCodeExempt(customerId)) return true;
+  if (!(await isSigninCodeOn())) return true;
   return isTrustedDevice(customerId);
 }
 

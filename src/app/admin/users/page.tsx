@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
-import { isAuthenticated } from "@/lib/auth";
+import { getAdminSession } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listCustomersForAdmin, type AdminCustomer } from "@/lib/db/customers";
+import { isSigninCodeOn } from "@/lib/db/settings";
 import { formatPaise } from "@/lib/pricing";
-import { setSigninCodeExemptAction } from "@/app/admin/actions";
+import { setSigninCodeAction } from "@/app/admin/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,12 @@ export const dynamic = "force-dynamic";
  * Every customer account (client, 2026-09-17: "add user section to the admin
  * to know all users").
  *
- * Read-only apart from one switch: whether the account is asked for the
- * emailed sign-in code. Turning that off is for review accounts — the login
- * Razorpay's website verification asks for — and nothing else, so an account
- * without the code is shown in amber at the top of its row.
+ * Read-only apart from two things, both of them super-user and admin only
+ * (client, 2026-09-21):
+ *
+ *  - **the sign-in code switch** at the top, which is on or off for every
+ *    customer at once — it replaced a button per account;
+ *  - **Sign in as**, which opens that customer's account in a new tab.
  *
  * No delete. An account owns orders, which are the business's records as much
  * as the customer's, and removing one is a decision with consequences this
@@ -27,12 +30,15 @@ export default async function AdminUsersPage({
 }: {
   searchParams: Promise<{ q?: string; updated?: string; error?: string }>;
 }) {
-  if (!(await isAuthenticated())) redirect("/admin");
+  const admin = await getAdminSession();
+  if (!admin) redirect("/admin");
+  /* Both controls on this page change how customers sign in, or act as one.
+     Support and viewer accounts read the list; they do not get either. */
+  const canManage = admin.role === "super" || admin.role === "admin";
 
   const { q = "", updated, error } = await searchParams;
-  const users = await listCustomersForAdmin(q);
+  const [users, codeOn] = await Promise.all([listCustomersForAdmin(q), isSigninCodeOn()]);
   const withOrders = users.filter((u) => u.orderCount > 0).length;
-  const reviewAccounts = users.filter((u) => u.signinCodeExempt).length;
 
   return (
     <Container size="wide">
@@ -41,7 +47,6 @@ export default async function AdminUsersPage({
           <h1 className="text-2xl">Users</h1>
           <p className="mt-1 text-sm text-muted">
             {users.length} {q ? "matching" : "total"} · {withOrders} with orders
-            {reviewAccounts > 0 && ` · ${reviewAccounts} without the sign-in code`}
           </p>
         </div>
 
@@ -81,12 +86,14 @@ export default async function AdminUsersPage({
           }`}
         >
           {error
-            ? "Could not update that account."
+            ? "Could not change that."
             : updated === "off"
-              ? "Sign-in code turned off for that account. It now signs in with its password alone — turn the code back on once the review is done."
-              : "Sign-in code turned back on for that account."}
+              ? "Sign-in code turned off. Every customer now signs in with their password alone — turn it back on as soon as the review is done."
+              : "Sign-in code turned back on. Customers signing in from a new browser are emailed a code again."}
         </p>
       )}
+
+      <SigninCodeSwitch on={codeOn} q={q} canManage={canManage} />
 
       <div className="mt-8 space-y-3">
         {users.length === 0 ? (
@@ -94,21 +101,82 @@ export default async function AdminUsersPage({
             <p className="text-ink">{q ? `No users match “${q}”.` : "No users yet."}</p>
           </div>
         ) : (
-          users.map((user) => <UserCard key={user.id} user={user} q={q} />)
+          users.map((user) => (
+            <UserCard key={user.id} user={user} canManage={canManage} />
+          ))
         )}
       </div>
     </Container>
   );
 }
 
-function UserCard({ user, q }: { user: AdminCustomer; q: string }) {
+/**
+ * The one switch for the emailed sign-in code (client, 2026-09-21: "a toggle
+ * switch to turn code ON/OFF at the top").
+ *
+ * A form and a button, not a checkbox with JavaScript behind it: the switch
+ * has to work before any script arrives, and a security control that quietly
+ * fails to submit is worse than a plain button. `role="switch"` with
+ * `aria-checked` is what makes it a switch to a screen reader; the track and
+ * knob are the visual half of the same thing.
+ *
+ * Amber, and loud, while it is off — this is every customer's second factor.
+ */
+function SigninCodeSwitch({
+  on,
+  q,
+  canManage,
+}: {
+  on: boolean;
+  q: string;
+  canManage: boolean;
+}) {
   return (
-    <article
-      id={`user-${user.id}`}
-      className={`scroll-mt-24 border bg-surface p-5 ${
-        user.signinCodeExempt ? "border-signal-500" : "border-line"
-      }`}
+    <section
+      className={`mt-6 border-l-2 bg-surface px-4 py-3 ${on ? "border-line-strong" : "border-signal-500"}`}
     >
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0">
+          <p className="font-medium text-ink">
+            Emailed sign-in code {on ? "is on" : "is off"}
+          </p>
+          <p className="mt-1 text-sm text-body">
+            {on
+              ? "Customers signing in from a browser they have not used before are emailed a six-digit code."
+              : "Nobody is asked for a code — every customer signs in with their password alone. Turn this back on as soon as the review that needed it is finished."}
+          </p>
+        </div>
+
+        {canManage ? (
+          <form action={setSigninCodeAction} className="shrink-0">
+            <input type="hidden" name="q" value={q} />
+            <input type="hidden" name="on" value={on ? "0" : "1"} />
+            <button
+              type="submit"
+              role="switch"
+              aria-checked={on}
+              aria-label="Emailed sign-in code"
+              className={`inline-flex h-7 w-12 items-center border p-0.5 transition-colors ${
+                on ? "justify-end border-accent bg-accent" : "justify-start border-line-strong bg-surface-subtle"
+              }`}
+            >
+              <span
+                aria-hidden
+                className={`block h-5 w-5 transition-colors ${on ? "bg-surface" : "bg-line-strong"}`}
+              />
+            </button>
+          </form>
+        ) : (
+          <p className="shrink-0 text-sm text-muted">Super users and admins can change this.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function UserCard({ user, canManage }: { user: AdminCustomer; canManage: boolean }) {
+  return (
+    <article id={`user-${user.id}`} className="scroll-mt-24 border border-line bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -116,7 +184,6 @@ function UserCard({ user, q }: { user: AdminCustomer; q: string }) {
             {user.hasPassword && <Badge>Password</Badge>}
             {user.hasGoogle && <Badge>Google</Badge>}
             {user.emailVerified ? <Badge tone="brand">Email confirmed</Badge> : <Badge>Unconfirmed</Badge>}
-            {user.signinCodeExempt && <Badge tone="warn">No sign-in code</Badge>}
           </div>
           <p className="mt-1.5 break-all text-sm text-body">
             <a href={`mailto:${user.email}`} className="hover:text-accent hover:underline">
@@ -151,25 +218,18 @@ function UserCard({ user, q }: { user: AdminCustomer; q: string }) {
             : `${user.addressCount} saved address${user.addressCount === 1 ? "" : "es"}`}
         </p>
 
-        <form
-          action={setSigninCodeExemptAction}
-          className="flex flex-wrap items-center gap-x-3 gap-y-2"
-        >
-          <input type="hidden" name="id" value={user.id} />
-          <input type="hidden" name="q" value={q} />
-          <input type="hidden" name="exempt" value={user.signinCodeExempt ? "0" : "1"} />
-          <span className="text-muted">
-            {user.signinCodeExempt
-              ? "Signs in with password only"
-              : "Asked for an emailed code on new browsers"}
-          </span>
-          <button
-            type="submit"
-            className="h-9 whitespace-nowrap border border-line-strong px-3 font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
-          >
-            {user.signinCodeExempt ? "Turn code back on" : "Turn off code (review account)"}
-          </button>
-        </form>
+        {/* Opens the customer's own account in a new tab. A POST, because it
+            starts a session — see the route. */}
+        {canManage && (
+          <form action={`/admin/users/${user.id}/signin`} method="post" target="_blank">
+            <button
+              type="submit"
+              className="h-9 whitespace-nowrap border border-line-strong px-3 font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+            >
+              Sign in as {user.name?.split(" ")[0] || "this customer"}
+            </button>
+          </form>
+        )}
       </div>
     </article>
   );

@@ -648,3 +648,27 @@ CREATE INDEX IF NOT EXISTS admin_tokens_admin_idx
   ON admin_tokens (admin_id);
 CREATE INDEX IF NOT EXISTS admin_tokens_expiry_idx
   ON admin_tokens (expires_at);
+
+-- ---------------------------------------------------------------------------
+-- Site settings — one row per switch the operator can flip at runtime.
+--
+-- Added 2026-09-21 for the sign-in code toggle in /admin/users: the emailed
+-- second factor is either on for every customer or off for every customer, and
+-- that has to be changeable without a deploy, so it cannot be an env var.
+--
+-- Key/value on purpose. The alternative — a column per setting on a settings
+-- row — means a migration for every new switch, and there will be more of
+-- them. Values are read through `lib/db/settings.ts`, which is the only module
+-- that knows what a key means.
+--
+-- `customers.signin_code_exempt` is retired by this: exempting one account at
+-- a time was replaced by the single switch. The column is left in place rather
+-- than dropped, because dropping it would lose the record of which accounts
+-- were opened up for the Razorpay review, and nothing reads it now.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS site_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

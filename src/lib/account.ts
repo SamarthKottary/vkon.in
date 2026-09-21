@@ -232,13 +232,17 @@ export type SessionCookie = {
 export async function issueSession(
   customerId: string,
   isHttpsOverride?: boolean,
+  /** What to record against the session instead of the browser's own string.
+   *  `/admin/users/[id]/signin` passes the admin who opened it, so a session
+   *  one person started for another can be told apart afterwards. */
+  userAgentOverride?: string,
 ): Promise<SessionCookie> {
   const secret = getSecret();
   if (!secret) throw new Error("AUTH_SECRET is not configured.");
 
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
   const h = await headers();
-  const userAgent = h.get("user-agent") ?? "";
+  const userAgent = userAgentOverride ?? h.get("user-agent") ?? "";
   const isHttps = isHttpsOverride !== undefined ? isHttpsOverride : isRequestHttps(h);
   const id = await createSession({ customerId, userAgent, expiresAt });
 

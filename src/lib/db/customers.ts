@@ -528,26 +528,10 @@ export async function sweepExpiredTrustedDevices(): Promise<void> {
 // Admin
 // ---------------------------------------------------------------------------
 
-/**
- * Whether this account signs in without the emailed code. Only a review
- * account should — see `signin_code_exempt` in schema.sql and §9 of
- * ARCHITECTURE.md.
- */
-export async function isSigninCodeExempt(customerId: string): Promise<boolean> {
-  const rows = await query<{ signin_code_exempt: boolean }>(
-    `SELECT signin_code_exempt FROM customers WHERE id = $1`,
-    [customerId],
-  );
-  return rows[0]?.signin_code_exempt === true;
-}
-
-/** Called only from an authenticated admin action. */
-export async function setSigninCodeExempt(customerId: string, exempt: boolean): Promise<void> {
-  await query(
-    `UPDATE customers SET signin_code_exempt = $2, updated_at = now() WHERE id = $1`,
-    [customerId, exempt],
-  );
-}
+/* `isSigninCodeExempt` / `setSigninCodeExempt` were removed 2026-09-21: the
+   emailed code is now one switch for every customer (`lib/db/settings.ts`),
+   not a flag per account. `customers.signin_code_exempt` is left in the table
+   as a record of who was opened up for the Razorpay review; nothing reads it. */
 
 export type AdminCustomer = Customer & {
   signinCodeExempt: boolean;

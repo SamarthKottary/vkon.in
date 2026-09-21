@@ -23,7 +23,8 @@ import {
   updateProduct,
 } from "@/lib/db/products";
 import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
-import { findCustomerById, setSigninCodeExempt } from "@/lib/db/customers";
+import { findCustomerById } from "@/lib/db/customers";
+import { setSigninCodeOn } from "@/lib/db/settings";
 import {
   applyTrackingUpdate,
   claimRefundRequest,
@@ -898,30 +899,32 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
 /**
  * Turns the emailed sign-in code off or on for one account.
  *
- * Off is for review accounts only — the login Razorpay's website verification
- * asks for, used by reviewers who cannot read the account's inbox. It removes
- * the second factor for that account, so `/admin/users` shows it in amber and
- * it should be turned back on when the review is finished.
+ * **One switch for every customer** (client, 2026-09-21), replacing the
+ * per-account exemption this used to be. Off is for a review — the login
+ * Razorpay's website verification asks for, used by reviewers who cannot read
+ * the account's inbox — and while it is off, nobody is asked for the code, so
+ * the page says so in amber and it is meant to go back on straight after.
+ *
+ * Super users and admins only: it is the customers' second factor.
  */
-export async function setSigninCodeExemptAction(formData: FormData): Promise<void> {
+export async function setSigninCodeAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   requireAdminRole(admin, ["super", "admin"]);
 
-  const id = String(formData.get("id") ?? "").trim();
-  const exempt = formData.get("exempt") === "1";
+  const on = formData.get("on") === "1";
   const back = String(formData.get("q") ?? "").trim();
   const search = back ? `&q=${encodeURIComponent(back)}` : "";
-  if (!id) redirect(`/admin/users?error=1${search}`);
 
   try {
-    await setSigninCodeExempt(id, exempt);
+    await setSigninCodeOn(on);
+    console.info(`[admin] ${admin.email} turned the sign-in code ${on ? "on" : "off"}`);
   } catch (error) {
     console.error("[admin] sign-in code setting failed:", error);
     redirect(`/admin/users?error=1${search}`);
   }
 
   revalidatePath("/admin/users");
-  redirect(`/admin/users?updated=${exempt ? "off" : "on"}${search}#user-${id}`);
+  redirect(`/admin/users?updated=${on ? "on" : "off"}${search}`);
 }
 
 // ---------------------------------------------------------------------------

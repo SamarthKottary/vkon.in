@@ -18,7 +18,7 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
 | `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by status, by **Pending-not quoted** (waiting orders with no delivery price), or by **Refund-cancelled** — cancelled, paid online, money not back yet. A refund completing moves that order to **Cancelled**; ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
-| `/admin/users` | Customer accounts. Read, search, and turn the sign-in code off for a review account. |
+| `/admin/users` | Customer accounts. Read and search. Super users and admins also get the **sign-in code switch** (on or off for every customer) and **Sign in as**, which opens a customer's account in a new tab. |
 | `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Search by email, ten a page. Read, export (always the whole list), remove. |
 | `/admin/seo` | Static page SEO overrides. |
@@ -428,6 +428,15 @@ Note also that a paid order arrives here already marked **Paid** and
 ---
 
 ## Change log
+
+**2026-09-21 (users)** — The emailed sign-in code is now one switch at the top
+of `/admin/users` rather than a button on each account: off means no customer
+is asked for a code, and it is meant to go back on as soon as the review that
+needed it is done (it reads amber while off, and fails safe towards on if the
+database cannot be read). Each row also gained **Sign in as**, which opens that
+customer's account in a new tab — an ordinary session, invisible to them,
+recorded in the server log and on the session row. Both are super-user and
+admin only, checked in the action and the route rather than only in the page.
 
 **2026-09-21 (later)** — The order card was rearranged to the client's sketch:
 items across the left, and under them a row with the payment note on the left
