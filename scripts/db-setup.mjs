@@ -50,15 +50,24 @@ const client = new pg.Client({
 try {
   await client.connect();
   await client.query(schema);
+
+  const adminEmail = process.env.ADMIN_EMAIL || "vkonautomation@gmail.com";
+  await client.query(
+    "INSERT INTO admin_users (id, email, name, role) VALUES (gen_random_uuid()::text, $1, 'Vkon Admin', 'super') ON CONFLICT (email) DO NOTHING;",
+    [adminEmail]
+  );
+
   const { rows } = await client.query(
     "SELECT (SELECT count(*)::int FROM products) AS products," +
       " (SELECT count(*)::int FROM subscribers) AS subscribers," +
-      " (SELECT count(*)::int FROM enquiries) AS enquiries",
+      " (SELECT count(*)::int FROM enquiries) AS enquiries," +
+      " (SELECT count(*)::int FROM admin_users) AS admins"
   );
   console.log(
     `Schema applied. products: ${rows[0].products} row(s), ` +
       `subscribers: ${rows[0].subscribers} row(s), ` +
-      `enquiries: ${rows[0].enquiries} row(s).`,
+      `enquiries: ${rows[0].enquiries} row(s), ` +
+      `admin_users: ${rows[0].admins} row(s).`
   );
 } catch (error) {
   console.error("Setup failed:", error.message);

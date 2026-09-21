@@ -584,3 +584,53 @@ CREATE TABLE IF NOT EXISTS order_items (
 
 CREATE INDEX IF NOT EXISTS order_items_order_idx
   ON order_items (order_id);
+
+-- ---------------------------------------------------------------------------
+-- Admin users — the people who log in at /admin.
+--
+-- Added 2026-09-21. Replaces the single ADMIN_PASSWORD env-var approach with
+-- a proper table: one row per operator, email+password auth (same scrypt
+-- format as customers), role-based access, optional profile picture.
+--
+-- **The two auth systems stay separate.** `lib/auth.ts` reads only this table;
+-- `lib/account.ts` reads only `customers`. Neither module touches the other's
+-- table. The admin cookie (`vkon_admin`) and the customer cookie (`vkon_session`)
+-- are different names, signed by the same AUTH_SECRET.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS admin_users (
+  id            TEXT PRIMARY KEY,
+
+  -- Stored lower-cased and trimmed, so the UNIQUE constraint means what it
+  -- looks like it means. Verified at create time, not by a trigger.
+  email         TEXT NOT NULL UNIQUE,
+  name          TEXT NOT NULL DEFAULT '',
+
+  -- 'super' | 'admin' | 'support' | 'viewer'. Checked in application code,
+  -- not by a constraint, so adding a new role is a code change and not a
+  -- migration.
+  role          TEXT NOT NULL DEFAULT 'viewer',
+
+  -- NULL until the user sets a password on their first login. Same scrypt
+  -- format as `customers.password_hash` (lib/password.ts): parameters travel
+  -- inside the stored value so they can be raised later without invalidating
+  -- existing rows.
+  password_hash TEXT,
+
+  -- Profile picture, stored in UPLOAD_DIR, served at /media/<avatar>.
+  -- 'upload' | 'removed' — unlike customers there is no Google source.
+  avatar        TEXT,
+  avatar_source TEXT,
+
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The super user is seeded here so the table is never empty on a fresh deploy.
+-- ON CONFLICT DO NOTHING makes this safe to re-run: an existing super user
+-- keeps their name, role and password unchanged.
+--
+-- password_hash is NULL: on first login they are redirected to /admin/profile
+-- to set one. Once set, normal email+password login works.
+-- The initial super admin user is now seeded dynamically by scripts/db-setup.mjs
+-- using the ADMIN_EMAIL environment variable.

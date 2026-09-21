@@ -85,6 +85,40 @@ export async function GET(request: NextRequest) {
      trusted. */
   if (!profile.emailVerified) return fail(request, "unverified");
 
+  const isHttps = isRequestHttps(request.headers, request.nextUrl);
+  const destination = safeNext(handshake.next);
+
+  // -------------------------------------------------------------------------
+  // Admin Login Flow
+  // -------------------------------------------------------------------------
+  if (destination.startsWith("/admin")) {
+    try {
+      const { getAdminUserByEmail } = await import("@/lib/db/adminUsers");
+      const admin = await getAdminUserByEmail(profile.email);
+      if (!admin) {
+        console.warn(`[google] Admin sign in attempted by non-admin: ${profile.email}`);
+        return fail(request, "unauthorized");
+      }
+
+      const { issueAdminSession } = await import("@/lib/auth");
+      const session = await issueAdminSession(admin.id);
+      if (!session) {
+        return fail(request, "not-configured");
+      }
+
+      const response = NextResponse.redirect(new URL(destination, getSafeRedirectBase(request.headers, request.nextUrl)));
+      response.cookies.set(session.name, session.value, session.options);
+      response.cookies.delete(OAUTH_COOKIE);
+      return response;
+    } catch (error) {
+      console.error("[google] Admin account lookup failed:", error);
+      return fail(request, "google");
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Customer Login Flow
+  // -------------------------------------------------------------------------
   let customerId: string;
   let isNew = false;
 
@@ -141,9 +175,7 @@ export async function GET(request: NextRequest) {
     return fail(request, "google");
   }
 
-  const isHttps = isRequestHttps(request.headers, request.nextUrl);
   const deviceCookie = request.cookies.get(DEVICE_COOKIE)?.value;
-  const destination = safeNext(handshake.next);
 
   /**
    * Google has proved who this is; the code proves it is happening on a

@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { LogoutIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { isAuthenticated } from "@/lib/auth";
+import { getAdminSession } from "@/lib/auth";
+import { Avatar } from "@/components/account/Avatar";
 import { logoutAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -19,7 +20,13 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const authed = await isAuthenticated();
+  const admin = await getAdminSession();
+  const authed = Boolean(admin);
+
+  // SEO link: hidden for everyone except super users (role rule 2026-09-21).
+  const showSeo = admin?.role === "super";
+  // User Access Levels: only super and admin.
+  const showAccess = admin?.role === "super" || admin?.role === "admin";
 
   return (
     <div className="flex min-h-full flex-col bg-surface-subtle">
@@ -72,12 +79,22 @@ export default async function AdminLayout({
                   >
                     Subscribers
                   </Link>
-                  <Link
-                    href="/admin/seo"
-                    className="text-sm text-muted hover:text-ink"
-                  >
-                    SEO
-                  </Link>
+                  {showSeo && (
+                    <Link
+                      href="/admin/seo"
+                      className="text-sm text-muted hover:text-ink"
+                    >
+                      SEO
+                    </Link>
+                  )}
+                  {showAccess && (
+                    <Link
+                      href="/admin/users/access"
+                      className="text-sm text-muted hover:text-ink"
+                    >
+                      Access
+                    </Link>
+                  )}
                 </nav>
               )}
             </div>
@@ -91,16 +108,28 @@ export default async function AdminLayout({
               >
                 View site
               </Link>
-              {authed && (
-                <form action={logoutAction}>
-                  <button
-                    type="submit"
-                    className="flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+              {authed && admin && (
+                <>
+                  {/* Profile avatar / link */}
+                  <Link
+                    href="/admin/profile"
+                    className="flex items-center gap-2 text-sm text-muted hover:text-ink"
+                    title="My profile"
                   >
-                    <LogoutIcon className="h-4 w-4" />
-                    Sign out
-                  </button>
-                </form>
+                    <Avatar name={admin.name} email={admin.email} url={admin.avatarUrl} size={28} />
+                    <span className="hidden sm:inline">{admin.name || "Profile"}</span>
+                  </Link>
+
+                  <form action={logoutAction}>
+                    <button
+                      type="submit"
+                      className="flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+                    >
+                      <LogoutIcon className="h-4 w-4" />
+                      Sign out
+                    </button>
+                  </form>
+                </>
               )}
             </div>
           </div>
