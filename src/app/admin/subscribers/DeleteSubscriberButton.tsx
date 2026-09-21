@@ -13,9 +13,12 @@ import { deleteSubscriberAction } from "../actions";
 export function DeleteSubscriberButton({
   id,
   email,
+  view,
 }: {
   id: string;
   email: string;
+  /** The search and page this row is on, to come back to — see `returnView`. */
+  view: string;
 }) {
   const [confirming, setConfirming] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,6 +45,7 @@ export function DeleteSubscriberButton({
   return (
     <form action={deleteSubscriberAction} className="flex items-center gap-1">
       <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="view" value={view} />
       <ConfirmButton email={email} />
       <button
         type="button"

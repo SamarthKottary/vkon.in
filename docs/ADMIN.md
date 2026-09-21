@@ -14,13 +14,13 @@ opinion — decisions not yet made, with a recommendation for each.
 | Route | Purpose |
 |---|---|
 | `/admin` | Password form. Redirects to the product list once signed in. |
-| `/admin/products` | Every product, published or not, with edit and delete. |
+| `/admin/products` | Every product, published or not, with edit and delete. Search by name, URL, tagline or category; drag to reorder is off while a search is showing. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
-| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out. Read, move an order along its status (emails the customer), courier tracking, cancel, and refund an online payment in full or in part. |
+| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out. Search by order number, email or phone; filter by status; ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
 | `/admin/users` | Customer accounts. Read, search, and turn the sign-in code off for a review account. |
-| `/admin/enquiries` | Contact-form inbox. Read, mark handled, remove. |
-| `/admin/subscribers` | The mailing list. Read, export, remove. |
+| `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
+| `/admin/subscribers` | The mailing list. Search by email, ten a page. Read, export (always the whole list), remove. |
 | `/admin/seo` | Static page SEO overrides. |
 
 One operator, one password, five things to manage: **products**, **orders**
@@ -428,6 +428,15 @@ Note also that a paid order arrives here already marked **Paid** and
 ---
 
 ## Change log
+
+**2026-09-19** — Search and paging on the admin lists (client: "fixed number
+of emails per page … it moves to the next page", with a "1–10 of 23 ·
+Previous · Next" footer as the reference). Orders, enquiries and subscribers
+show ten a page; orders also filter by status with a count on each choice.
+The view lives in the URL, and every button on a card posts it back, so an
+action returns to the same page, search and filter. Products gained a search
+only — there are too few to page. §1 updated; details in ARCHITECTURE.md's
+2026-09-19 (admin) entry.
 
 **2026-09-11** — Checkout gained a billing address distinct from the shipping
 one, with an optional GSTIN. `/admin/orders` now shows a "Bill to" block

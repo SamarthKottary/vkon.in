@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
@@ -7,7 +8,15 @@ import { sameOrderAddress } from "@/components/account/OrderAddress";
 import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listCustomerEmails } from "@/lib/db/customers";
-import { listAllOrders } from "@/lib/db/orders";
+import {
+  ADMIN_ORDER_STATUSES,
+  countOrdersByStatus,
+  listOrdersPage,
+  orderSummary,
+  type AdminOrderStatus,
+} from "@/lib/db/orders";
+import { ListPager, ListSearch } from "@/components/admin/ListControls";
+import { listHref, listSearch, readListQuery } from "@/lib/admin-list";
 import { formatPaise } from "@/lib/pricing";
 import type { Order } from "@/lib/types";
 import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
@@ -51,10 +60,14 @@ export default async function AdminOrdersPage({
     refundUnrecorded?: string;
     refundPending?: string;
     refundChecked?: string;
+    q?: string;
+    page?: string;
+    status?: string;
   }>;
 }) {
   if (!(await isAuthenticated())) redirect("/admin");
 
+  const params = await searchParams;
   const {
     updated,
     error,
@@ -68,22 +81,29 @@ export default async function AdminOrdersPage({
     refundUnrecorded,
     refundPending,
     refundChecked,
-  } = await searchParams;
+  } = params;
   const canRefund = isRazorpayConfigured();
-  const orders = await listAllOrders();
-  const emails = await listCustomerEmails([...new Set(orders.map((o) => o.customerId))]);
   const canShip = isShiprocketConfigured();
 
-  /* "Needs action" is pending-or-confirmed, i.e. not yet out of the door and
-     not cancelled. Deliberately not "unpaid" — while payment is settled on a
-     call, every open order is unpaid and the count would be noise. */
-  const open = orders.filter(
-    (o) => o.status === "pending" || o.status === "confirmed",
-  ).length;
+  /* Search by order number, email or phone, filter by status, ten a page
+     (client, 2026-09-19). An unknown `?status=` is ignored, not an error. */
+  const query = readListQuery(params);
+  const status = (ADMIN_ORDER_STATUSES as readonly string[]).includes(params.status ?? "")
+    ? (params.status as AdminOrderStatus)
+    : "";
+  const [{ orders, total, page }, counts, summary] = await Promise.all([
+    listOrdersPage({ q: query.q, status, page: query.page }),
+    countOrdersByStatus(query.q),
+    orderSummary(),
+  ]);
+  const emails = await listCustomerEmails([...new Set(orders.map((o) => o.customerId))]);
+  /* Posted with every form on a card, so each action comes back here — the
+     same search, filter and page — rather than to page 1. */
+  const view = listSearch({ q: query.q, status, page });
 
-  const revenue = orders
-    .filter((o) => o.status !== "cancelled")
-    .reduce((sum, o) => sum + o.total, 0);
+  /* "Needs action" is pending-or-confirmed, i.e. not yet out of the door and
+     not cancelled — across every order, not just this page. */
+  const { open, revenue } = summary;
 
   return (
     <Container size="wide">
@@ -91,11 +111,19 @@ export default async function AdminOrdersPage({
         <div>
           <h1 className="text-2xl">Orders</h1>
           <p className="mt-1 text-sm text-muted">
-            {orders.length} total ·{" "}
+            {summary.total} total ·{" "}
             {open === 0 ? "none waiting" : `${open} still to fulfil`} ·{" "}
             {formatPaise(revenue)} booked
           </p>
         </div>
+
+        <ListSearch
+          path="/admin/orders"
+          q={query.q}
+          placeholder="Order number, email or phone"
+          label="Search orders"
+          keep={{ status }}
+        />
       </div>
 
       {!isDatabaseConfigured() && (
@@ -233,13 +261,29 @@ export default async function AdminOrdersPage({
         </p>
       </div>
 
-      <div className="mt-8 space-y-4">
+      <StatusFilter q={query.q} status={status} counts={counts} />
+
+      <div className="mt-4 space-y-4">
         {orders.length === 0 ? (
           <div className="border border-line bg-surface px-6 py-16 text-center">
-            <p className="text-ink">No orders yet.</p>
-            <p className="mt-1 text-sm text-muted">
-              Orders placed at checkout appear here.
-            </p>
+            {query.q || status ? (
+              <>
+                <p className="text-ink">
+                  No {status ? `${STATUS_LABELS[status].toLowerCase()} ` : ""}orders
+                  {query.q ? ` match “${query.q}”` : ""}.
+                </p>
+                <Link href="/admin/orders" className="mt-2 inline-block text-sm text-accent hover:underline">
+                  Show all orders
+                </Link>
+              </>
+            ) : (
+              <>
+                <p className="text-ink">No orders yet.</p>
+                <p className="mt-1 text-sm text-muted">
+                  Orders placed at checkout appear here.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           orders.map((order) => (
@@ -249,11 +293,69 @@ export default async function AdminOrdersPage({
               canShip={canShip}
               canRefund={canRefund}
               customerEmail={emails.get(order.customerId) ?? null}
+              view={view}
             />
           ))
         )}
+        {total > 0 && (
+          <div className="border border-line bg-surface">
+            <ListPager path="/admin/orders" page={page} total={total} keep={{ q: query.q, status }} />
+          </div>
+        )}
       </div>
     </Container>
+  );
+}
+
+const STATUS_LABELS: Record<AdminOrderStatus, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
+
+/**
+ * All · Pending · Confirmed · Shipped · Delivered · Cancelled, each with how
+ * many orders match the current search (client, 2026-09-19). Links, not a
+ * select: one tap, no JavaScript, and the choice stays in the URL. Choosing
+ * one keeps the search and goes back to page 1.
+ */
+function StatusFilter({
+  q,
+  status,
+  counts,
+}: {
+  q: string;
+  status: AdminOrderStatus | "";
+  counts: Record<AdminOrderStatus, number>;
+}) {
+  const all = ADMIN_ORDER_STATUSES.reduce((sum, s) => sum + counts[s], 0);
+  const options: { value: AdminOrderStatus | ""; label: string; n: number }[] = [
+    { value: "", label: "All", n: all },
+    ...ADMIN_ORDER_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s], n: counts[s] })),
+  ];
+  return (
+    <nav aria-label="Filter by status" className="mt-8 flex flex-wrap gap-2">
+      {options.map((option) => {
+        const current = option.value === status;
+        return (
+          <Link
+            key={option.label}
+            href={listHref("/admin/orders", { q, status: option.value })}
+            aria-current={current ? "page" : undefined}
+            className={`inline-flex h-9 items-center gap-2 border px-3 text-sm font-medium transition-colors ${
+              current
+                ? "border-ink bg-ink text-surface"
+                : "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
+            }`}
+          >
+            {option.label}
+            <span className={`tabular-nums ${current ? "text-surface/80" : "text-muted"}`}>{option.n}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -262,11 +364,14 @@ function OrderCard({
   canShip,
   canRefund,
   customerEmail,
+  view,
 }: {
   order: Order;
   canShip: boolean;
   canRefund: boolean;
   customerEmail: string | null;
+  /** The list view the card is on, posted with each of its forms. */
+  view: string;
 }) {
   const settled = order.status === "delivered" || order.status === "cancelled";
   const bookable = shipmentBookable(order);
@@ -324,6 +429,7 @@ function OrderCard({
             id={order.id}
             status={order.status}
             orderNumber={order.orderNumber}
+            view={view}
           />
         </div>
       </div>
@@ -492,6 +598,7 @@ function OrderCard({
                   {canShip && (
                     <form action={refreshTrackingAction}>
                       <input type="hidden" name="id" value={order.id} />
+                      <input type="hidden" name="view" value={view} />
                       <button
                         type="submit"
                         className="inline-flex h-8 items-center border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
@@ -536,6 +643,7 @@ function OrderCard({
             ) : canShip ? (
               <form action={bookShipmentAction} className="mt-2.5">
                 <input type="hidden" name="id" value={order.id} />
+                <input type="hidden" name="view" value={view} />
                 <button
                   type="submit"
                   className="inline-flex h-9 items-center border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
@@ -550,7 +658,7 @@ function OrderCard({
             )}
           </div>
 
-          <PaymentBlock order={order} canRefund={canRefund} />
+          <PaymentBlock order={order} canRefund={canRefund} view={view} />
         </div>
       </div>
     </article>
@@ -569,7 +677,7 @@ function OrderCard({
  * cancelled order that is still owed a refund is called out in amber — the
  * cancellation email has already promised the customer one.
  */
-function PaymentBlock({ order, canRefund }: { order: Order; canRefund: boolean }) {
+function PaymentBlock({ order, canRefund, view }: { order: Order; canRefund: boolean; view: string }) {
   const online = order.paymentProvider === "razorpay" && Boolean(order.paymentId);
   const remaining = order.total - order.refundedAmount;
   const paidOnline = online && (order.paymentStatus === "paid" || order.refundedAmount > 0);
@@ -602,6 +710,7 @@ function PaymentBlock({ order, canRefund }: { order: Order; canRefund: boolean }
               </p>
               <form action={checkRefundsAction}>
                 <input type="hidden" name="id" value={order.id} />
+                <input type="hidden" name="view" value={view} />
                 <button
                   type="submit"
                   className="inline-flex h-8 items-center border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
@@ -631,6 +740,7 @@ function PaymentBlock({ order, canRefund }: { order: Order; canRefund: boolean }
                 id={order.id}
                 orderNumber={order.orderNumber}
                 remainingRupees={(remaining / 100).toFixed(2)}
+                view={view}
               />
             ) : (
               <p className="text-muted">Razorpay not configured — refunds are unavailable.</p>

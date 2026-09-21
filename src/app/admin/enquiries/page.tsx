@@ -3,7 +3,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
 import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
-import { listEnquiries } from "@/lib/db/enquiries";
+import { enquiryCounts, listEnquiriesPage } from "@/lib/db/enquiries";
+import { ListPager, ListSearch } from "@/components/admin/ListControls";
+import { listSearch, readListQuery } from "@/lib/admin-list";
 import { EnquiryActions } from "./EnquiryActions";
 
 export const dynamic = "force-dynamic";
@@ -20,13 +22,23 @@ export const dynamic = "force-dynamic";
 export default async function AdminEnquiriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ removed?: string; error?: string }>;
+  searchParams: Promise<{ removed?: string; error?: string; q?: string; page?: string }>;
 }) {
   if (!(await isAuthenticated())) redirect("/admin");
 
-  const { removed, error } = await searchParams;
-  const enquiries = await listEnquiries();
-  const open = enquiries.filter((e) => !e.handled).length;
+  const params = await searchParams;
+  const { removed, error } = params;
+  /* Search by name, email or phone, a fixed number per page (client,
+     2026-09-19). The header still counts every enquiry. */
+  const query = readListQuery(params);
+  const [{ rows: enquiries, total, page }, counts] = await Promise.all([
+    listEnquiriesPage(query),
+    enquiryCounts(),
+  ]);
+  const open = counts.open;
+  const keep = { q: query.q };
+  /* Posted with each card's buttons, so they come back to this page. */
+  const view = listSearch({ q: query.q, page });
 
   return (
     <Container size="wide">
@@ -34,10 +46,17 @@ export default async function AdminEnquiriesPage({
         <div>
           <h1 className="text-2xl">Enquiries</h1>
           <p className="mt-1 text-sm text-muted">
-            {enquiries.length} total ·{" "}
+            {counts.total} total ·{" "}
             {open === 0 ? "none waiting" : `${open} waiting for a reply`}
           </p>
         </div>
+
+        <ListSearch
+          path="/admin/enquiries"
+          q={query.q}
+          placeholder="Name, email or phone"
+          label="Search enquiries"
+        />
       </div>
 
       {!isDatabaseConfigured() && (
@@ -72,16 +91,23 @@ export default async function AdminEnquiriesPage({
       <div className="mt-8 space-y-4">
         {enquiries.length === 0 ? (
           <div className="border border-line bg-surface px-6 py-16 text-center">
-            <p className="text-ink">No enquiries yet.</p>
-            <p className="mt-1 text-sm text-muted">
-              Messages sent from the contact page appear here.
-            </p>
+            {query.q ? (
+              <p className="text-ink">No enquiries match “{query.q}”.</p>
+            ) : (
+              <>
+                <p className="text-ink">No enquiries yet.</p>
+                <p className="mt-1 text-sm text-muted">
+                  Messages sent from the contact page appear here.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           enquiries.map((enquiry) => (
             <article
               key={enquiry.id}
-              className={`border bg-surface p-5 ${
+              id={`enquiry-${enquiry.id}`}
+              className={`scroll-mt-24 border bg-surface p-5 ${
                 enquiry.handled ? "border-line opacity-70" : "border-line-strong"
               }`}
             >
@@ -105,6 +131,7 @@ export default async function AdminEnquiriesPage({
                   id={enquiry.id}
                   name={enquiry.name}
                   handled={enquiry.handled}
+                  view={view}
                 />
               </div>
 
@@ -144,6 +171,11 @@ export default async function AdminEnquiriesPage({
               </p>
             </article>
           ))
+        )}
+        {total > 0 && (
+          <div className="border border-line bg-surface">
+            <ListPager path="/admin/enquiries" page={page} total={total} keep={keep} />
+          </div>
         )}
       </div>
     </Container>

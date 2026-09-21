@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { getPool, isDatabaseConfigured, query } from "./client";
+import { PER_PAGE, clampPage, containsPattern, phoneDigits } from "@/lib/admin-list";
 import { addressEditWindow } from "@/lib/order-delivery";
 import { CONFIRMED_ORDER_SQL } from "@/lib/order-payment";
 import { mapShipmentStatus, mergeTrackingEvents } from "@/lib/tracking";
@@ -353,40 +354,112 @@ export async function getOrderForCustomer(
   }
 }
 
-/** Every order, newest first — the admin inbox. */
+// ---------------------------------------------------------------------------
+// `/admin/orders`, paged and searched (2026-09-19)
+// ---------------------------------------------------------------------------
+
+export const ADMIN_ORDER_STATUSES = ["pending", "confirmed", "shipped", "delivered", "cancelled"] as const;
+export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
+
 /**
- * Orders for `/admin/orders`: **confirmed orders only** (client, 2026-09-17) —
- * cash on delivery, or paid online (including since refunded or cancelled).
- * An online order that was never paid is the customer's business, not the
- * operator's; it stays in their order history. See `isConfirmedOrder`.
+ * The search half of the admin order list's WHERE: order number, the
+ * account's email, or a phone — the account's, or the one on either address —
+ * compared on digits only. Parameters $1 (the search), $2 (its ILIKE pattern)
+ * and $3 (its phone digits, or "").
  */
-export async function listAllOrders(limit = 200): Promise<Order[]> {
-  if (!isDatabaseConfigured()) return [];
+const ORDER_SEARCH_SQL = `($1 = '' OR order_number ILIKE $2
+  OR customer_id IN (
+    SELECT id FROM customers
+     WHERE email ILIKE $2
+        OR ($3 <> '' AND regexp_replace(phone, '[^0-9]', '', 'g') LIKE '%' || $3 || '%'))
+  OR ($3 <> '' AND (
+        regexp_replace(ship_to->>'phone', '[^0-9]', '', 'g') LIKE '%' || $3 || '%'
+     OR regexp_replace(bill_to->>'phone', '[^0-9]', '', 'g') LIKE '%' || $3 || '%')))`;
+
+function searchArgs(q: string): [string, string, string] {
+  return [q, containsPattern(q), phoneDigits(q)];
+}
+
+/**
+ * One page of `/admin/orders`, newest first, searched and filtered by status.
+ *
+ * **Confirmed orders only** (client, 2026-09-17) — cash on delivery, or paid
+ * online (including since refunded or cancelled). An online order that was
+ * never paid is the customer's business, not the operator's; it stays in their
+ * order history. See `isConfirmedOrder`. Replaced the unpaged `listAllOrders`,
+ * which stopped at the newest 200.
+ */
+export async function listOrdersPage(input: {
+  q: string;
+  status: AdminOrderStatus | "";
+  page: number;
+}): Promise<{ orders: Order[]; total: number; page: number }> {
+  if (!isDatabaseConfigured()) return { orders: [], total: 0, page: 1 };
   try {
-    const orders = await query<OrderRow>(
-      `SELECT ${ORDER_SELECT} FROM orders
-        WHERE ${CONFIRMED_ORDER_SQL}
-        ORDER BY created_at DESC LIMIT $1`,
-      [limit],
+    const where = `${CONFIRMED_ORDER_SQL} AND ($4 = '' OR status = $4) AND ${ORDER_SEARCH_SQL}`;
+    const args = [...searchArgs(input.q), input.status];
+    const [{ n }] = await query<{ n: number }>(`SELECT count(*)::int AS n FROM orders WHERE ${where}`, args);
+    const page = clampPage(input.page, n);
+    const rows = await query<OrderRow>(
+      `SELECT ${ORDER_SELECT} FROM orders WHERE ${where}
+        ORDER BY created_at DESC LIMIT $5 OFFSET $6`,
+      [...args, PER_PAGE, (page - 1) * PER_PAGE],
     );
-    if (orders.length === 0) return [];
+    if (rows.length === 0) return { orders: [], total: n, page };
 
     const items = await query<ItemRow>(
       `SELECT ${ITEM_SELECT} FROM order_items WHERE order_id = ANY($1::text[])`,
-      [orders.map((o) => o.id)],
+      [rows.map((o) => o.id)],
     );
-
     const byOrder = new Map<string, OrderItem[]>();
     for (const row of items) {
       const list = byOrder.get(row.order_id) ?? [];
       list.push(mapItem(row));
       byOrder.set(row.order_id, list);
     }
-
-    return orders.map((row) => mapOrder(row, byOrder.get(row.id) ?? []));
+    return { orders: rows.map((row) => mapOrder(row, byOrder.get(row.id) ?? [])), total: n, page };
   } catch (error) {
-    console.error("[db] order list failed:", error);
-    return [];
+    console.error("[db] order page query failed:", error);
+    return { orders: [], total: 0, page: 1 };
+  }
+}
+
+/** How many confirmed orders match the search, per status — the filter's counts. */
+export async function countOrdersByStatus(q: string): Promise<Record<AdminOrderStatus, number>> {
+  const counts = Object.fromEntries(ADMIN_ORDER_STATUSES.map((s) => [s, 0])) as Record<AdminOrderStatus, number>;
+  if (!isDatabaseConfigured()) return counts;
+  try {
+    const rows = await query<{ status: string; n: number }>(
+      `SELECT status, count(*)::int AS n FROM orders
+        WHERE ${CONFIRMED_ORDER_SQL} AND ${ORDER_SEARCH_SQL}
+        GROUP BY status`,
+      searchArgs(q),
+    );
+    for (const row of rows) {
+      if ((ADMIN_ORDER_STATUSES as readonly string[]).includes(row.status)) {
+        counts[row.status as AdminOrderStatus] = row.n;
+      }
+    }
+  } catch (error) {
+    console.error("[db] order status counts failed:", error);
+  }
+  return counts;
+}
+
+/** The header line of `/admin/orders` — all confirmed orders, not the page. */
+export async function orderSummary(): Promise<{ total: number; open: number; revenue: number }> {
+  if (!isDatabaseConfigured()) return { total: 0, open: 0, revenue: 0 };
+  try {
+    const [row] = await query<{ total: number; open: number; revenue: string }>(
+      `SELECT count(*)::int AS total,
+              count(*) FILTER (WHERE status IN ('pending', 'confirmed'))::int AS open,
+              COALESCE(sum(total) FILTER (WHERE status <> 'cancelled'), 0)::bigint AS revenue
+         FROM orders WHERE ${CONFIRMED_ORDER_SQL}`,
+    );
+    return { total: row.total, open: row.open, revenue: Number(row.revenue) };
+  } catch (error) {
+    console.error("[db] order summary failed:", error);
+    return { total: 0, open: 0, revenue: 0 };
   }
 }
 

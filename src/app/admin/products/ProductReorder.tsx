@@ -33,7 +33,15 @@ import { DeleteProductButton } from "./DeleteProductButton";
  * single-axis, single-list reorder, exactly what the browser's own drag
  * source/drop target model is for.
  */
-export function ProductReorder({ products }: { products: Product[] }) {
+export function ProductReorder({
+  products,
+  reorderable = true,
+}: {
+  products: Product[];
+  /** False for search results (2026-09-19): reordering a filtered subset
+   *  would send only those ids, scrambling the rest of the catalogue order. */
+  reorderable?: boolean;
+}) {
   const [items, setItems] = useState(products);
   const [isPending, startTransition] = useTransition();
   const dragIndex = useRef<number | null>(null);
@@ -59,28 +67,33 @@ export function ProductReorder({ products }: { products: Product[] }) {
       {items.map((product, index) => (
         <li
           key={product.id}
-          draggable
-          onDragStart={() => {
-            dragIndex.current = index;
-          }}
-          onDragEnter={() => setOverIndex(index)}
-          onDragOver={(event) => event.preventDefault()}
-          onDragEnd={() => {
-            dragIndex.current = null;
-            setOverIndex(null);
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            const from = dragIndex.current;
-            dragIndex.current = null;
-            setOverIndex(null);
-            if (from === null || from === index) return;
-            move(from, index);
-          }}
+          {...(reorderable
+            ? {
+                draggable: true,
+                onDragStart: () => {
+                  dragIndex.current = index;
+                },
+                onDragEnter: () => setOverIndex(index),
+                onDragOver: (event: React.DragEvent) => event.preventDefault(),
+                onDragEnd: () => {
+                  dragIndex.current = null;
+                  setOverIndex(null);
+                },
+                onDrop: (event: React.DragEvent) => {
+                  event.preventDefault();
+                  const from = dragIndex.current;
+                  dragIndex.current = null;
+                  setOverIndex(null);
+                  if (from === null || from === index) return;
+                  move(from, index);
+                },
+              }
+            : {})}
           className={`flex flex-wrap items-center gap-4 border-b border-line bg-surface p-4 last:border-b-0 sm:flex-nowrap ${
             overIndex === index ? "bg-surface-subtle" : ""
           }`}
         >
+          {reorderable && (
           <div className="flex shrink-0 flex-col items-center gap-1 self-stretch justify-center text-muted">
             <button
               type="button"
@@ -108,6 +121,7 @@ export function ProductReorder({ products }: { products: Product[] }) {
               <ArrowDownIcon className="h-3.5 w-3.5" />
             </button>
           </div>
+          )}
 
           <div className="relative h-14 w-14 shrink-0 border border-line bg-surface-subtle">
             {product.images[0] ? (

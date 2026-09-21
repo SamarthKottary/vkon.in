@@ -1,5 +1,6 @@
 import { isDatabaseConfigured, query } from "./client";
 import type { Enquiry } from "@/lib/types";
+import { PER_PAGE, clampPage, containsPattern, phoneDigits } from "@/lib/admin-list";
 
 /**
  * Contact enquiries. The only module that touches the `enquiries` table.
@@ -58,17 +59,47 @@ export async function createEnquiry(input: {
   );
 }
 
-/** Reads fail soft: an admin page with an empty inbox beats a 500. */
-export async function listEnquiries(): Promise<Enquiry[]> {
-  if (!isDatabaseConfigured()) return [];
+/**
+ * One page of `/admin/enquiries` — unhandled first, then newest — optionally
+ * narrowed by name, email or phone (2026-09-19). A phone search matches on
+ * digits, so "82170 86719" finds "+91 8217086719". Clamped to the last page;
+ * fails soft.
+ */
+export async function listEnquiriesPage(input: {
+  q: string;
+  page: number;
+}): Promise<{ rows: Enquiry[]; total: number; page: number }> {
+  if (!isDatabaseConfigured()) return { rows: [], total: 0, page: 1 };
   try {
+    const where = `($1 = '' OR name ILIKE $2 OR email ILIKE $2
+      OR ($3 <> '' AND regexp_replace(phone, '[^0-9]', '', 'g') LIKE '%' || $3 || '%'))`;
+    const args = [input.q, containsPattern(input.q), phoneDigits(input.q)];
+    const [{ n }] = await query<{ n: number }>(`SELECT count(*)::int AS n FROM enquiries WHERE ${where}`, args);
+    const page = clampPage(input.page, n);
     const rows = await query<EnquiryRow>(
-      `SELECT ${SELECT} FROM enquiries ORDER BY handled ASC, created_at DESC`,
+      `SELECT ${SELECT} FROM enquiries WHERE ${where}
+        ORDER BY handled ASC, created_at DESC LIMIT $4 OFFSET $5`,
+      [...args, PER_PAGE, (page - 1) * PER_PAGE],
     );
-    return rows.map(mapRow);
+    return { rows: rows.map(mapRow), total: n, page };
   } catch (error) {
-    console.error("[db] enquiry query failed:", error);
-    return [];
+    console.error("[db] enquiry page query failed:", error);
+    return { rows: [], total: 0, page: 1 };
+  }
+}
+
+/** All enquiries, and how many are unhandled — the page header, without
+ *  loading every row now that the list is paged. */
+export async function enquiryCounts(): Promise<{ total: number; open: number }> {
+  if (!isDatabaseConfigured()) return { total: 0, open: 0 };
+  try {
+    const [row] = await query<{ total: number; open: number }>(
+      `SELECT count(*)::int AS total, count(*) FILTER (WHERE NOT handled)::int AS open FROM enquiries`,
+    );
+    return row;
+  } catch (error) {
+    console.error("[db] enquiry counts failed:", error);
+    return { total: 0, open: 0 };
   }
 }
 

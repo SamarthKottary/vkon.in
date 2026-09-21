@@ -16,19 +16,23 @@ export function EnquiryActions({
   id,
   name,
   handled,
+  view,
 }: {
   id: string;
   name: string;
   handled: boolean;
+  /** The search and page this card is on, to come back to — see `returnView`. */
+  view: string;
 }) {
   return (
     <div className="flex shrink-0 items-center gap-1">
       <form action={setEnquiryHandledAction}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="handled" value={handled ? "0" : "1"} />
+        <input type="hidden" name="view" value={view} />
         <HandledButton handled={handled} name={name} />
       </form>
-      <DeleteButton id={id} name={name} />
+      <DeleteButton id={id} name={name} view={view} />
     </div>
   );
 }
@@ -57,7 +61,7 @@ function HandledButton({ handled, name }: { handled: boolean; name: string }) {
   );
 }
 
-function DeleteButton({ id, name }: { id: string; name: string }) {
+function DeleteButton({ id, name, view }: { id: string; name: string; view: string }) {
   const [confirming, setConfirming] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -83,6 +87,7 @@ function DeleteButton({ id, name }: { id: string; name: string }) {
   return (
     <form action={deleteEnquiryAction} className="flex items-center gap-1">
       <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="view" value={view} />
       <ConfirmDelete name={name} />
       <button
         type="button"

@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
 import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
-import { listSubscribers } from "@/lib/db/subscribers";
+import { listSubscribers, listSubscribersPage } from "@/lib/db/subscribers";
+import { ListPager, ListSearch } from "@/components/admin/ListControls";
+import { listSearch, readListQuery } from "@/lib/admin-list";
 import { DeleteSubscriberButton } from "./DeleteSubscriberButton";
 import { SubscriberTools } from "./SubscriberTools";
 
@@ -21,12 +23,21 @@ export const dynamic = "force-dynamic";
 export default async function AdminSubscribersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ removed?: string; error?: string }>;
+  searchParams: Promise<{ removed?: string; error?: string; q?: string; page?: string }>;
 }) {
   if (!(await isAuthenticated())) redirect("/admin");
 
-  const { removed, error } = await searchParams;
-  const subscribers = await listSubscribers();
+  const params = await searchParams;
+  const { removed, error } = params;
+  const query = readListQuery(params);
+  /* The whole list for the export, one page of it for the screen
+     (client, 2026-09-19: search by email, a fixed number per page). */
+  const [subscribers, { rows, total, page }] = await Promise.all([
+    listSubscribers(),
+    listSubscribersPage(query),
+  ]);
+  const keep = { q: query.q };
+  const view = listSearch({ q: query.q, page });
 
   return (
     <Container size="wide">
@@ -38,6 +49,8 @@ export default async function AdminSubscribersPage({
             collected from the sign-up above the footer
           </p>
         </div>
+
+        <ListSearch path="/admin/subscribers" q={query.q} placeholder="Email address" label="Search subscribers" />
 
         <SubscriberTools
           subscribers={subscribers.map((s) => ({
@@ -80,16 +93,22 @@ export default async function AdminSubscribersPage({
       </p>
 
       <div className="mt-8 border border-line bg-surface">
-        {subscribers.length === 0 ? (
+        {rows.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <p className="text-ink">No sign-ups yet.</p>
-            <p className="mt-1 text-sm text-muted">
-              Addresses entered in the panel above the footer appear here.
-            </p>
+            {query.q ? (
+              <p className="text-ink">No addresses match “{query.q}”.</p>
+            ) : (
+              <>
+                <p className="text-ink">No sign-ups yet.</p>
+                <p className="mt-1 text-sm text-muted">
+                  Addresses entered in the panel above the footer appear here.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <ul>
-            {subscribers.map((subscriber) => (
+            {rows.map((subscriber) => (
               <li
                 key={subscriber.id}
                 className="flex flex-wrap items-center gap-4 border-b border-line p-4 last:border-b-0 sm:flex-nowrap"
@@ -107,10 +126,16 @@ export default async function AdminSubscribersPage({
                 <DeleteSubscriberButton
                   id={subscriber.id}
                   email={subscriber.email}
+                  view={view}
                 />
               </li>
             ))}
           </ul>
+        )}
+        {total > 0 && (
+          <div className="border-t border-line">
+            <ListPager path="/admin/subscribers" page={page} total={total} keep={keep} />
+          </div>
         )}
       </div>
     </Container>

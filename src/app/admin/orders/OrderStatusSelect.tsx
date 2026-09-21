@@ -31,16 +31,20 @@ export function OrderStatusSelect({
   id,
   status,
   orderNumber,
+  view,
 }: {
   id: string;
   status: OrderStatus;
   orderNumber: string;
+  /** The search, filter and page this card is on — see `returnView`. */
+  view: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
     <form ref={formRef} action={setOrderStatusAction} className="flex items-center gap-2">
       <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="view" value={view} />
       <label className="sr-only" htmlFor={`status-${id}`}>
         Status for order {orderNumber}
       </label>
@@ -49,10 +53,11 @@ export function OrderStatusSelect({
         name="status"
         defaultValue={status}
         onChange={(event) => {
-          /* Shipped, delivered and cancelled email the customer, and
-             cancelling also cancels a booked Shiprocket shipment. Submitting
-             on change made a slip of the mouse enough to send one, so those
-             three ask first; a declined prompt puts the select back. */
+          /* Cancelling emails the customer and cancels a booked Shiprocket
+             shipment; shipped and delivered change what the customer sees.
+             Submitting on change made a slip of the mouse enough to do any of
+             them, so those three ask first; a declined prompt puts the select
+             back. */
           const next = event.currentTarget.value;
           const warning =
             next === "cancelled"

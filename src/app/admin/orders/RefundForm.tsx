@@ -22,11 +22,14 @@ export function RefundForm({
   id,
   orderNumber,
   remainingRupees,
+  view,
 }: {
   id: string;
   orderNumber: string;
   /** What is still unrefunded, as a plain rupee figure: "1424.04". */
   remainingRupees: string;
+  /** The search, filter and page this card is on — see `returnView`. */
+  view: string;
 }) {
   const amountRef = useRef<HTMLInputElement>(null);
 
@@ -45,6 +48,7 @@ export function RefundForm({
       className="mt-2.5 flex flex-wrap items-center gap-2"
     >
       <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="view" value={view} />
       <label className="sr-only" htmlFor={`refund-${id}`}>
         Amount to refund for order {orderNumber}, in rupees
       </label>

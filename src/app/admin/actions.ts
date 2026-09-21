@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isAdminConfigured, login, logout, requireAdmin } from "@/lib/auth";
 import { shipmentBookable } from "@/lib/order-delivery";
+import { returnView } from "@/lib/admin-list";
 import {
   createProduct,
   deleteProduct,
@@ -72,6 +73,17 @@ export type ActionState = {
   fieldErrors?: Record<string, string>;
   ok?: boolean;
 };
+
+/**
+ * Where an action on a paged list sends the admin afterwards: the same list,
+ * with the outcome (`updated=1`) and the view the form was posted from — its
+ * hidden `view` field, see `returnView` — so a change made on page 3 of a
+ * search lands back on page 3 of that search (2026-09-19).
+ */
+function backTo(path: string, formData: FormData, outcome = "", anchor = ""): string {
+  const qs = [outcome, returnView(formData.get("view"))].filter(Boolean).join("&");
+  return `${path}${qs ? `?${qs}` : ""}${anchor ? `#${anchor}` : ""}`;
+}
 
 // ---------------------------------------------------------------------------
 // Auth
@@ -447,10 +459,10 @@ export async function deleteSubscriberAction(formData: FormData): Promise<void> 
     await deleteSubscriber(id);
   } catch (error) {
     console.error("[admin] subscriber delete failed:", error);
-    redirect("/admin/subscribers?error=1");
+    redirect(backTo("/admin/subscribers", formData, "error=1"));
   }
 
-  redirect("/admin/subscribers?removed=1");
+  redirect(backTo("/admin/subscribers", formData, "removed=1"));
 }
 
 // ---------------------------------------------------------------------------
@@ -470,10 +482,10 @@ export async function setEnquiryHandledAction(formData: FormData): Promise<void>
     await setEnquiryHandled(id, formData.get("handled") === "1");
   } catch (error) {
     console.error("[admin] enquiry update failed:", error);
-    redirect("/admin/enquiries?error=1");
+    redirect(backTo("/admin/enquiries", formData, "error=1"));
   }
 
-  redirect("/admin/enquiries");
+  redirect(backTo("/admin/enquiries", formData, "", `enquiry-${id}`));
 }
 
 export async function deleteEnquiryAction(formData: FormData): Promise<void> {
@@ -486,10 +498,10 @@ export async function deleteEnquiryAction(formData: FormData): Promise<void> {
     await deleteEnquiry(id);
   } catch (error) {
     console.error("[admin] enquiry delete failed:", error);
-    redirect("/admin/enquiries?error=1");
+    redirect(backTo("/admin/enquiries", formData, "error=1"));
   }
 
-  redirect("/admin/enquiries?removed=1");
+  redirect(backTo("/admin/enquiries", formData, "removed=1"));
 }
 
 // ---------------------------------------------------------------------------
@@ -526,18 +538,17 @@ export async function setOrderStatusAction(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
 
-  if (!id || !(ORDER_STATUSES as readonly string[]).includes(status)) {
-    redirect("/admin/orders?error=1");
-  }
+  const failed = backTo("/admin/orders", formData, "error=1");
+  if (!id || !(ORDER_STATUSES as readonly string[]).includes(status)) redirect(failed);
 
   let change: Awaited<ReturnType<typeof setOrderStatus>> = null;
   try {
     change = await setOrderStatus(id, status as OrderStatus);
   } catch (error) {
     console.error("[admin] order status failed:", error);
-    redirect("/admin/orders?error=1");
+    redirect(failed);
   }
-  if (!change) redirect("/admin/orders?error=1");
+  if (!change) redirect(failed);
 
   /**
    * What the customer hears about it (client, 2026-09-17), decided from the
@@ -576,7 +587,7 @@ export async function setOrderStatusAction(formData: FormData): Promise<void> {
   /* The customer's own copy shows the same status, and both routes are
      `force-dynamic` — but the client-side router cache is not. */
   revalidatePath("/account/orders");
-  redirect(`/admin/orders?updated=1${outcome}`);
+  redirect(backTo("/admin/orders", formData, `updated=1${outcome}`));
 }
 
 /**
@@ -600,11 +611,11 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "").trim();
-  const back = (query: string) => `/admin/orders?${query}#order-${id}`;
-  if (!id) redirect("/admin/orders?error=1");
+  const back = (query: string) => backTo("/admin/orders", formData, query, `order-${id}`);
+  if (!id) redirect(back("error=1"));
 
   const order = await getOrderForAdmin(id);
-  if (!order) redirect("/admin/orders?error=1");
+  if (!order) redirect(back("error=1"));
 
   const fail = (message: string) =>
     redirect(back(`refundError=${encodeURIComponent(message.slice(0, 200))}`));
@@ -686,9 +697,10 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
 export async function checkRefundsAction(formData: FormData): Promise<void> {
   await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
-  if (!id) redirect("/admin/orders?error=1");
+  const back = (query: string) => backTo("/admin/orders", formData, query, `order-${id}`);
+  if (!id) redirect(back("error=1"));
   const order = await getOrderForAdmin(id);
-  if (!order?.paymentId) redirect("/admin/orders?error=1");
+  if (!order?.paymentId) redirect(back("error=1"));
 
   let settled = 0;
   for (const refund of await listPendingRefunds(order.id)) {
@@ -701,7 +713,7 @@ export async function checkRefundsAction(formData: FormData): Promise<void> {
 
   revalidatePath("/admin/orders");
   revalidatePath("/account/orders");
-  redirect(`/admin/orders?refundChecked=${settled ? "settled" : "pending"}#order-${order.id}`);
+  redirect(back(`refundChecked=${settled ? "settled" : "pending"}`));
 }
 
 /**
@@ -717,11 +729,12 @@ export async function refreshTrackingAction(formData: FormData): Promise<void> {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "").trim();
-  if (!id) redirect("/admin/orders?error=1");
-  if (!isShiprocketConfigured()) redirect("/admin/orders?shipError=unconfigured");
+  const back = (query: string) => backTo("/admin/orders", formData, query, `order-${id}`);
+  if (!id) redirect(back("error=1"));
+  if (!isShiprocketConfigured()) redirect(back("shipError=unconfigured"));
 
   const order = await getOrderForAdmin(id);
-  if (!order?.awb) redirect("/admin/orders?error=1");
+  if (!order?.awb) redirect(back("error=1"));
 
   let result = "none";
   try {
@@ -737,7 +750,7 @@ export async function refreshTrackingAction(formData: FormData): Promise<void> {
 
   revalidatePath("/admin/orders");
   revalidatePath("/account/orders");
-  redirect(`/admin/orders?tracked=${result}#order-${order.id}`);
+  redirect(back(`tracked=${result}`));
 }
 
 /**
@@ -760,18 +773,19 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "").trim();
-  if (!id) redirect("/admin/orders?error=1");
+  const back = (query: string) => backTo("/admin/orders", formData, query);
+  if (!id) redirect(back("error=1"));
 
-  if (!isShiprocketConfigured()) redirect("/admin/orders?shipError=unconfigured");
+  if (!isShiprocketConfigured()) redirect(back("shipError=unconfigured"));
 
   const order = await getOrderForAdmin(id);
-  if (!order) redirect("/admin/orders?error=1");
-  if (order.shipmentId) redirect("/admin/orders?shipError=already");
+  if (!order) redirect(back("error=1"));
+  if (order.shipmentId) redirect(back("shipError=already"));
   /* The customer may still change the delivery address until 12 pm the day
      after the order was confirmed (client, 2026-09-18). The page greys the
      button out until then; this is the check that holds when the page is
      stale or the form is posted by hand. */
-  if (!shipmentBookable(order).bookable) redirect("/admin/orders?shipError=window");
+  if (!shipmentBookable(order).bookable) redirect(back("shipError=window"));
 
   try {
     const products = await listProducts();
@@ -814,12 +828,12 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
     });
   } catch (error) {
     console.error("[admin] shipment booking failed:", error);
-    redirect("/admin/orders?shipError=failed");
+    redirect(back("shipError=failed"));
   }
 
   revalidatePath("/admin/orders");
   revalidatePath("/account/orders");
-  redirect("/admin/orders?shipped=1");
+  redirect(back("shipped=1"));
 }
 
 // ---------------------------------------------------------------------------

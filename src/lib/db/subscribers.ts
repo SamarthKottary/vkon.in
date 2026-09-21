@@ -1,5 +1,6 @@
 import { isDatabaseConfigured, query } from "./client";
 import type { Subscriber } from "@/lib/types";
+import { PER_PAGE, clampPage, containsPattern } from "@/lib/admin-list";
 
 /**
  * The mailing list. The only module that touches the `subscribers` table.
@@ -82,6 +83,33 @@ export async function listSubscribers(): Promise<Subscriber[]> {
   } catch (error) {
     console.error("[db] subscriber query failed:", error);
     return [];
+  }
+}
+
+/**
+ * One page of the list for `/admin/subscribers`, newest first, optionally
+ * narrowed to addresses containing `q` (2026-09-19). The page is clamped to the
+ * last one there is. Fails soft, like the full list.
+ */
+export async function listSubscribersPage(input: {
+  q: string;
+  page: number;
+}): Promise<{ rows: Subscriber[]; total: number; page: number }> {
+  if (!isDatabaseConfigured()) return { rows: [], total: 0, page: 1 };
+  try {
+    const where = `($1 = '' OR email ILIKE $2)`;
+    const args = [input.q, containsPattern(input.q)];
+    const [{ n }] = await query<{ n: number }>(`SELECT count(*)::int AS n FROM subscribers WHERE ${where}`, args);
+    const page = clampPage(input.page, n);
+    const rows = await query<SubscriberRow>(
+      `SELECT id, email, source, created_at FROM subscribers WHERE ${where}
+        ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+      [...args, PER_PAGE, (page - 1) * PER_PAGE],
+    );
+    return { rows: rows.map(mapRow), total: n, page };
+  } catch (error) {
+    console.error("[db] subscriber page query failed:", error);
+    return { rows: [], total: 0, page: 1 };
   }
 }
 

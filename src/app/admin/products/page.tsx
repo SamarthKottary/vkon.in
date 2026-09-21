@@ -6,18 +6,34 @@ import { isAuthenticated } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listProducts } from "@/lib/db/products";
 import { ProductReorder } from "./ProductReorder";
+import { ListSearch } from "@/components/admin/ListControls";
+import { categoryLabel } from "@/content/taxonomy";
+import { readListQuery } from "@/lib/admin-list";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; deleted?: string }>;
+  searchParams: Promise<{ saved?: string; deleted?: string; q?: string }>;
 }) {
   if (!(await isAuthenticated())) redirect("/admin");
 
-  const { saved, deleted } = await searchParams;
+  const params = await searchParams;
+  const { saved, deleted } = params;
+  const { q } = readListQuery(params);
   const products = await listProducts({ includeUnpublished: true });
+  /* Searched here rather than in SQL: the whole catalogue is loaded anyway
+     for the reorder list, and it is tens of rows (client, 2026-09-19). Name,
+     slug, tagline or category, any case. */
+  const needle = q.toLowerCase();
+  const shown = needle
+    ? products.filter((p) =>
+        [p.name, p.slug, p.tagline, categoryLabel(p.category)].some((field) =>
+          field.toLowerCase().includes(needle),
+        ),
+      )
+    : products;
 
   return (
     <Container size="wide">
@@ -25,10 +41,19 @@ export default async function AdminProductsPage({
         <div>
           <h1 className="text-2xl">Products</h1>
           <p className="mt-1 text-sm text-muted">
-            {products.length} product{products.length === 1 ? "" : "s"} · changes
-            go live immediately
+            {q
+              ? `${shown.length} of ${products.length} match “${q}”`
+              : `${products.length} product${products.length === 1 ? "" : "s"}`}{" "}
+            · changes go live immediately
           </p>
         </div>
+
+        <ListSearch
+          path="/admin/products"
+          q={q}
+          placeholder="Name, slug or category"
+          label="Search products"
+        />
 
         <Link
           href="/admin/products/new"
@@ -67,13 +92,20 @@ export default async function AdminProductsPage({
               Add your first product to see it on the site.
             </p>
           </div>
+        ) : shown.length === 0 ? (
+          <div className="px-6 py-16 text-center">
+            <p className="text-ink">No products match “{q}”.</p>
+          </div>
         ) : (
           <>
             <p className="border-b border-line px-4 py-2 text-sm text-muted">
-              Drag a row (or use its up/down arrows) to set the order the
-              catalogue lists these in.
+              {q
+                ? "Search results. Clear the search to drag products into a new order."
+                : "Drag a row (or use its up/down arrows) to set the order the catalogue lists these in."}
             </p>
-            <ProductReorder products={products} />
+            {/* Keyed on the search, so the list's own order state starts
+                again from the rows shown. */}
+            <ProductReorder key={q} products={shown} reorderable={!q} />
           </>
         )}
       </div>

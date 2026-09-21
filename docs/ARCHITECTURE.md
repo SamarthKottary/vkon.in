@@ -151,16 +151,19 @@ src/
       page.tsx              login
       LoginForm.tsx
       actions.ts            ALL admin server actions — the security boundary
-      products/             list, ProductForm, new/, [id]/
-      orders/               order inbox: read, advance status, tracking, cancel
+      products/             list (searchable), ProductForm, new/, [id]/
+      orders/               order inbox: search, status filter, paged; advance
+                            status, tracking, shipment, refund
       users/                customer accounts: read, search, review-account switch
-      enquiries/            contact inbox: read, mark handled, remove
-      subscribers/          mailing list: read, export, remove
+      enquiries/            contact inbox: search, paged; mark handled, remove
+      subscribers/          mailing list: search, paged; export, remove
     not-found.tsx           renders its own chrome (outside the (site) group)
     globals.css             design tokens + the contrast table
     sitemap.ts robots.ts opengraph-image.tsx icon.svg
 
   components/
+    admin/     ListControls — ListSearch (GET form) and ListPager ("1–10 of
+               23 · Previous · Next"), shared by the paged admin lists
     account/   AccountShell, AccountNavLink (client), AccountMenu (client),
                AddressBook (client), AddressForm (client), AddressPicker (client),
                OrderAddressEdit (client), DeliveryOutcome (client),
@@ -189,6 +192,8 @@ src/
     db/          client.ts, products.ts, subscribers.ts, enquiries.ts,
                  customers.ts, addresses.ts, orders.ts, cart.ts, schema.sql
     auth.ts      ADMIN session + requireAdmin — one operator, no user table
+    admin-list.ts  the admin lists' URL view (`?q=&page=&status=`): PER_PAGE,
+                 page clamping, LIKE escaping, phone digits, `returnView`
     account.ts   CUSTOMER sessions + requireCustomer/requireSignIn (§7a)
     password.ts  scrypt hash/verify on node:crypto — SERVER ONLY
     password-policy.ts  the rules; no `node:` imports, so the browser shares it
@@ -867,6 +872,11 @@ privileged.
 | `uploadImageAction` | `(prev: UploadState, formData) → UploadState` — `{uploaded?: {url, pathname, alt}}` |
 | `deleteSubscriberAction` | `(formData) → void` |
 | `setEnquiryHandledAction` / `deleteEnquiryAction` | `(formData) → void` |
+
+The actions behind a paged list (subscribers, enquiries, every order-card
+action) read an optional `view` field — the page's `q`/`page`/`status` — and
+redirect back to it through `backTo`. `returnView` rebuilds it key by key, so
+it can never become an open redirect or a forged outcome message.
 | `setOrderStatusAction` | `(formData) → void` — status re-validated against a fixed list, never trusted from the `<select>`; cannot set `payment_status` |
 
 `ActionState = { error?, fieldErrors?: Record<string,string>, ok? }`, consumed by
@@ -885,12 +895,12 @@ privileged.
 | Module | Exports |
 |---|---|
 | `products.ts` | `listProducts`, `getProductBySlug`, `getProductById`, `listFeaturedProducts`, `fuzzySearchProducts`, `createProduct`, `updateProduct`, `deleteProduct`, `slugExists`, `nextSortOrder`, `reorderProducts` |
-| `subscribers.ts` | `normaliseEmail`, `addSubscriber`, `listSubscribers`, `deleteSubscriber` |
-| `enquiries.ts` | `createEnquiry`, `listEnquiries`, `setEnquiryHandled`, `deleteEnquiry` |
+| `subscribers.ts` | `normaliseEmail`, `addSubscriber`, `listSubscribers` (the export), `listSubscribersPage`, `deleteSubscriber` |
+| `enquiries.ts` | `createEnquiry`, `listEnquiriesPage`, `enquiryCounts`, `setEnquiryHandled`, `deleteEnquiry` |
 | `pageSeo.ts` | `getPageSeo`, `listPageSeo`, `upsertPageSeo`, `resolvePageMetadata` |
 | `customers.ts` | `findCustomerByEmail/ById/ByGoogleSub`, `createCustomer`, `getPasswordHash`, `updateCustomerProfile`, `setCustomerPassword`, `markEmailVerified`, `linkGoogleAccount`, `createSession`, `customerForSession`, `deleteSession(sForCustomer)`, `sweepExpiredSessions`, `createToken`, `consumeToken`, `invalidateTokens` |
 | `addresses.ts` | `listAddresses`, `getAddress`, `createAddress`, `updateAddress`, `deleteAddress`, `setDefaultAddress` |
-| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listAllOrders`, `setOrderStatus`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
+| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByStatus`, `orderSummary`, `setOrderStatus`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
 
 **`customers.ts` is the exception to "reads fail soft."** Everywhere else an
 empty list beats a 500 for a visitor; during a sign-in it would mean a database
@@ -1605,6 +1615,41 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-19 (admin) — Search and paging on orders, enquiries, subscribers; product search
+
+Client: products need a search bar; subscribers an email search and "fixed
+number of emails per page … it moves to the next page"; enquiries a name,
+email and contact search, paged the same way; orders a search by order id,
+email and contact, paged, with a status filter (Pending, Confirmed, Shipped,
+Delivered, Cancelled). The footer to copy: "1–10 of 23" left, Previous and
+Next right.
+
+- **New `lib/admin-list.ts`**: `PER_PAGE` (10), `readListQuery`, `clampPage`
+  (a page past the end shows the last one), `containsPattern` (`%`, `_` and
+  `\` typed in a search match literally), `phoneDigits` (phone searches
+  compare digits only, last ten, at least four), `listSearch` / `listHref`,
+  and `returnView`.
+- **New `components/admin/ListControls.tsx`** (server): `ListSearch`, a GET
+  form in the `/admin/users` search's style, and `ListPager`. Plain form and
+  links — no client component, works before JavaScript.
+- **The view is in the URL** (`?q=&page=&status=`), and each card's forms post
+  it as a hidden `view` field; `backTo` in `app/admin/actions.ts` redirects to
+  it, so marking an enquiry handled on page 2 of a search, or changing an
+  order's status inside the Pending filter, comes back to exactly that view.
+  Enquiry cards gained an `enquiry-<id>` anchor for it.
+- **Orders**: `listOrdersPage` replaces `listAllOrders` (which stopped at the
+  newest 200); `countOrdersByStatus` feeds the filter's counts (for the
+  current search); `orderSummary` keeps the header's totals across every order
+  rather than the page. Search matches the order number, the account email,
+  and — on digits — the account phone and both addresses' phones.
+- **Enquiries**: `listEnquiriesPage` (name, email, phone) and `enquiryCounts`
+  replace `listEnquiries`. **Subscribers**: `listSubscribersPage`; the export
+  still takes the whole list.
+- **Products**: filtered in the page (a few dozen rows — no paging); while a
+  search is showing, `ProductReorder` gets `reorderable={false}`, because
+  dragging within a filtered subset would write a partial order.
+- No schema change; ADMIN.md §1.
 
 ### 2026-09-19 (admin) — Refund only after cancelling; "Refund processing" then "Refunded"
 
