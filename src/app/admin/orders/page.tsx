@@ -264,6 +264,14 @@ export default async function AdminOrdersPage({
           5–7 days. A cash-on-delivery refund is paid back in person.
         </p>
         <p>
+          <span className="font-medium text-ink">Cancelled orders split in two:</span>{" "}
+          the ones paid online are under{" "}
+          <span className="font-medium text-ink">Cancelled-refund</span>, where
+          the money is dealt with; <span className="font-medium text-ink">Cancelled</span>{" "}
+          holds the cash-on-delivery ones, which owe nothing back through the
+          site.
+        </p>
+        <p>
           The site emails the customer their order confirmation and, if you
           cancel, the cancellation. Shipping and delivery updates come from
           Shiprocket; payment receipts and refunds from Razorpay.
@@ -279,8 +287,10 @@ export default async function AdminOrdersPage({
               <>
                 <p className="text-ink">
                   {filter === "refund"
-                    ? "No refunds are waiting"
-                    : `No ${filter ? `${FILTER_LABELS[filter].toLowerCase()} ` : ""}orders`}
+                    ? "No cancelled order was paid online"
+                    : filter === "cancelled"
+                      ? "No cash-on-delivery order has been cancelled"
+                      : `No ${filter ? `${FILTER_LABELS[filter].toLowerCase()} ` : ""}orders`}
                   {query.q ? ` match “${query.q}”` : ""}.
                 </p>
                 <Link href="/admin/orders" className="mt-2 inline-block text-sm text-accent hover:underline">
@@ -324,20 +334,22 @@ const FILTER_LABELS: Record<AdminOrderFilter, string> = {
   shipped: "Shipped",
   delivered: "Delivered",
   cancelled: "Cancelled",
-  refund: "Refund",
+  refund: "Cancelled-refund",
 };
 
 /**
- * All · Pending · Confirmed · Shipped · Delivered · Cancelled · Refund, each
- * with how many orders match the current search (client, 2026-09-19, and the
- * refund queue 2026-09-21). Links, not a select: one tap, no JavaScript, and
- * the choice stays in the URL. Choosing one keeps the search and goes back to
- * page 1.
+ * All · Pending · Confirmed · Shipped · Delivered · Cancelled ·
+ * Cancelled-refund, each with how many orders match the current search
+ * (client, 2026-09-19 and 2026-09-21). Links, not a select: one tap, no
+ * JavaScript, and the choice stays in the URL. Choosing one keeps the search
+ * and goes back to page 1.
  *
- * **Refund is not a status** — it is every cancelled order still owed money or
- * waiting on Razorpay, so an order sits there while it is refunded and reads
- * as plain Cancelled once it is done. It is last, and set apart, because it is
- * a queue of work rather than a stage an order passes through.
+ * **The last one is not a status.** It is the money side of a cancellation:
+ * the cancelled orders that were paid online. `Cancelled` holds the rest —
+ * cash on delivery — so the two divide the cancelled orders between them
+ * rather than overlapping (client, 2026-09-21). It is set apart for that
+ * reason. Its URL value stays `status=refund`: short, and `returnView` keeps
+ * letters only.
  */
 function OrderFilters({
   q,
@@ -366,9 +378,7 @@ function OrderFilters({
             } ${
               current
                 ? "border-ink bg-ink text-surface"
-                : option.value === "refund" && option.n > 0
-                  ? "border-signal-500 text-signal-700 hover:border-ink hover:bg-surface-subtle"
-                  : "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
+                : "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
             }`}
           >
             {option.label}
@@ -455,8 +465,17 @@ function OrderCard({
         </div>
       </div>
 
+      {/* Two columns (client, 2026-09-21): everything about the order on the
+          left, the people and places on the right. The left column is a flex
+          column so its bottom row — payment, the bill, the shipment — sits on
+          the card's floor when the addresses are the taller side, and is
+          pushed down by a long list of items rather than the items scrolling
+          past it. */}
       <div className="mt-5 grid gap-6 border-t border-line pt-5 lg:grid-cols-[1fr_18rem]">
-        <div>
+        {/* `min-w-0`: a grid column will not shrink below its content without
+            it, and a six-figure line total then pushes the card sideways on a
+            phone. */}
+        <div className="flex min-w-0 flex-col">
           <p className="label-tech text-muted">Items</p>
           <ul className="mt-3 space-y-3">
             {order.items.map((item) => (
@@ -502,6 +521,40 @@ function OrderCard({
               </p>
             </div>
           )}
+
+          {/* `mt-auto` is what puts this on the floor of the card. Payment
+              takes the rest of the width, so its rule runs from the card's
+              left edge to the bill's — the client's sketch. */}
+          <div className="mt-auto grid gap-6 pt-5 sm:grid-cols-[1fr_20rem]">
+            {/* Sits on the floor of the row, level with the shipment beside
+                it rather than with the bill above it — the client's sketch. */}
+            <div className="order-2 sm:order-1 sm:self-end">
+              <PaymentBlock order={order} canRefund={canRefund} view={view} />
+            </div>
+
+            <div className="order-1 sm:order-2">
+              <dl className="space-y-1.5 border-t border-line pt-4 text-sm">
+                <Row label="Subtotal" value={formatPaise(order.subtotal)} />
+                <Row label="CGST 9%" value={formatPaise(order.cgst)} />
+                <Row label="SGST 9%" value={formatPaise(order.sgst)} />
+                <Row
+                  label={
+                    [
+                      "Delivery",
+                      order.deliveryService,
+                      /* The courier the customer chose, before there is an AWB
+                         to name one — booking assigns this service. */
+                      order.awb ? null : order.courierName,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  }
+                  value={order.shipping > 0 ? formatPaise(order.shipping) : "Not quoted"}
+                />
+              </dl>
+              <ShipmentBlock order={order} canShip={canShip} bookable={bookable} view={view} />
+            </div>
+          </div>
         </div>
 
         <div>
@@ -531,158 +584,154 @@ function OrderCard({
               </a>
             </p>
           )}
+        </div>
+      </div>
+    </article>
+  );
+}
 
-          <dl className="mt-5 space-y-1.5 border-t border-line pt-4 text-sm">
-            <Row label="Subtotal" value={formatPaise(order.subtotal)} />
-            <Row label="CGST 9%" value={formatPaise(order.cgst)} />
-            <Row label="SGST 9%" value={formatPaise(order.sgst)} />
-            <Row
-              label={
-                [
-                  "Delivery",
-                  order.deliveryService,
-                  /* The courier the customer chose, before there is an AWB to
-                     name one — booking assigns this service. */
-                  order.awb ? null : order.courierName,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")
-              }
-              value={order.shipping > 0 ? formatPaise(order.shipping) : "Not quoted"}
-            />
-          </dl>
+/**
+ * The parcel, or the button that creates one (moved out of the card's markup
+ * 2026-09-21, when the bill and the shipment became the card's own column).
+ */
+function ShipmentBlock({
+  order,
+  canShip,
+  bookable,
+  view,
+}: {
+  order: Order;
+  canShip: boolean;
+  bookable: ReturnType<typeof shipmentBookable>;
+  view: string;
+}) {
+  /* The shipment, once there is one — and the button to make one when there
+     is not. Cancelled orders get neither: booking a parcel for an order that
+     is not happening is the one mistake this button can make that costs real
+     money. */
+  return (
+    <div className="mt-5 border-t border-line pt-4">
+      <p className="label-tech text-muted">Shipment</p>
 
-          {/* The shipment, once there is one — and the button to make one when
-              there is not. Cancelled orders get neither: booking a parcel for
-              an order that is not happening is the one mistake this button can
-              make that costs real money. */}
-          <div className="mt-5 border-t border-line pt-4">
-            <p className="label-tech text-muted">Shipment</p>
+      {order.awb ? (
+        <div className="mt-2.5 space-y-1.5 text-sm">
+          <p className="text-ink">
+            {order.courierName || "Courier"} ·{" "}
+            <span className="font-mono">{order.awb}</span>
+          </p>
 
-            {order.awb ? (
-              <div className="mt-2.5 space-y-1.5 text-sm">
-                <p className="text-ink">
-                  {order.courierName || "Courier"} ·{" "}
-                  <span className="font-mono">{order.awb}</span>
-                </p>
-
-                {/* The courier's status in the words the customer sees, with
-                    Shiprocket's own beneath it — the one to quote when talking
-                    to their support. Returns and failed attempts are the ones
-                    that need the operator, so they stand out. */}
-                {order.trackingStatus ? (
-                  <div className="pt-1">
-                    <p
-                      className={`font-semibold ${
-                        needsAttention(order.trackingStatus) ? "text-signal-700" : "text-ink"
-                      }`}
-                    >
-                      {trackingLabel(order.trackingStatus)}
-                    </p>
-                    <p className="label-tech text-muted">
-                      {order.trackingStatus}
-                      {order.trackingUpdatedAt &&
-                        ` · checked ${formatDate(order.trackingUpdatedAt)}`}
-                    </p>
-                    {order.trackingEta && order.status !== "delivered" && (
-                      <p className="mt-1 text-body">
-                        Expected by {formatDay(order.trackingEta)}
-                      </p>
-                    )}
-                    {order.trackingEvents[0] && (
-                      <p className="mt-1 text-body">
-                        {order.trackingEvents[0].activity}
-                        {order.trackingEvents[0].location &&
-                          ` — ${order.trackingEvents[0].location}`}
-                        {order.trackingEvents[0].at && (
-                          <span className="text-muted">
-                            {" "}
-                            · {formatDate(order.trackingEvents[0].at)}
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-muted">No tracking update yet.</p>
-                )}
-
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
-                  <a
-                    href={trackingUrl(order.awb)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:underline"
-                  >
-                    Track this parcel
-                  </a>
-                  {canShip && (
-                    <form action={refreshTrackingAction}>
-                      <input type="hidden" name="id" value={order.id} />
-                      <input type="hidden" name="view" value={view} />
-                      <button
-                        type="submit"
-                        className="inline-flex h-8 items-center border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
-                      >
-                        Refresh tracking
-                      </button>
-                    </form>
-                  )}
-                </div>
-              </div>
-            ) : order.shipmentId ? (
-              /* Created at Shiprocket but no AWB came back — recoverable from
-                 their dashboard, and re-pressing the button here would only
-                 try to create a duplicate order. Says so rather than offering
-                 a button that cannot help. */
-              <p className="mt-2.5 text-sm text-body">
-                Created at Shiprocket (shipment{" "}
-                <span className="font-mono">{order.shipmentId}</span>) but no AWB was
-                assigned. Assign a courier in their dashboard.
+          {/* The courier's status in the words the customer sees, with
+              Shiprocket's own beneath it — the one to quote when talking
+              to their support. Returns and failed attempts are the ones
+              that need the operator, so they stand out. */}
+          {order.trackingStatus ? (
+            <div className="pt-1">
+              <p
+                className={`font-semibold ${
+                  needsAttention(order.trackingStatus) ? "text-signal-700" : "text-ink"
+                }`}
+              >
+                {trackingLabel(order.trackingStatus)}
               </p>
-            ) : order.status === "cancelled" ? (
-              <p className="mt-2.5 text-sm text-muted">Order cancelled — not shipping.</p>
-            ) : canShip && !bookable.bookable ? (
-              /* The customer may still move the parcel until 12 pm the day
-                 after the order was confirmed (client, 2026-09-18). A label
-                 printed before then can carry an address that is no longer
-                 the order's — so the button waits, and says until when. The
-                 action refuses too; this is the explanation, not the guard. */
-              <div className="mt-2.5">
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex h-9 cursor-not-allowed items-center border border-line px-3 text-sm font-medium text-muted"
-                >
-                  Book shipment
-                </button>
-                <p className="mt-2 text-sm text-body">
-                  Opens at {formatNoonDeadline(bookable.from)} — until then the customer can
-                  change the delivery address.
+              <p className="label-tech text-muted">
+                {order.trackingStatus}
+                {order.trackingUpdatedAt &&
+                  ` · checked ${formatDate(order.trackingUpdatedAt)}`}
+              </p>
+              {order.trackingEta && order.status !== "delivered" && (
+                <p className="mt-1 text-body">
+                  Expected by {formatDay(order.trackingEta)}
                 </p>
-              </div>
-            ) : canShip ? (
-              <form action={bookShipmentAction} className="mt-2.5">
+              )}
+              {order.trackingEvents[0] && (
+                <p className="mt-1 text-body">
+                  {order.trackingEvents[0].activity}
+                  {order.trackingEvents[0].location &&
+                    ` — ${order.trackingEvents[0].location}`}
+                  {order.trackingEvents[0].at && (
+                    <span className="text-muted">
+                      {" "}
+                      · {formatDate(order.trackingEvents[0].at)}
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-muted">No tracking update yet.</p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+            <a
+              href={trackingUrl(order.awb)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent hover:underline"
+            >
+              Track this parcel
+            </a>
+            {canShip && (
+              <form action={refreshTrackingAction}>
                 <input type="hidden" name="id" value={order.id} />
                 <input type="hidden" name="view" value={view} />
                 <button
                   type="submit"
-                  className="inline-flex h-9 items-center border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+                  className="inline-flex h-8 items-center border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
                 >
-                  Book shipment
+                  Refresh tracking
                 </button>
               </form>
-            ) : (
-              <p className="mt-2.5 text-sm text-muted">
-                Shiprocket not configured — see docs/SHIPPING.md.
-              </p>
             )}
           </div>
-
-          <PaymentBlock order={order} canRefund={canRefund} view={view} />
         </div>
-      </div>
-    </article>
+      ) : order.shipmentId ? (
+        /* Created at Shiprocket but no AWB came back — recoverable from
+           their dashboard, and re-pressing the button here would only
+           try to create a duplicate order. Says so rather than offering
+           a button that cannot help. */
+        <p className="mt-2.5 text-sm text-body">
+          Created at Shiprocket (shipment{" "}
+          <span className="font-mono">{order.shipmentId}</span>) but no AWB was
+          assigned. Assign a courier in their dashboard.
+        </p>
+      ) : order.status === "cancelled" ? (
+        <p className="mt-2.5 text-sm text-muted">Order cancelled — not shipping.</p>
+      ) : canShip && !bookable.bookable ? (
+        /* The customer may still move the parcel until 12 pm the day
+           after the order was confirmed (client, 2026-09-18). A label
+           printed before then can carry an address that is no longer
+           the order's — so the button waits, and says until when. The
+           action refuses too; this is the explanation, not the guard. */
+        <div className="mt-2.5">
+          <button
+            type="button"
+            disabled
+            className="inline-flex h-9 cursor-not-allowed items-center border border-line px-3 text-sm font-medium text-muted"
+          >
+            Book shipment
+          </button>
+          <p className="mt-2 text-sm text-body">
+            Opens at {formatNoonDeadline(bookable.from)} — until then the customer can
+            change the delivery address.
+          </p>
+        </div>
+      ) : canShip ? (
+        <form action={bookShipmentAction} className="mt-2.5">
+          <input type="hidden" name="id" value={order.id} />
+          <input type="hidden" name="view" value={view} />
+          <button
+            type="submit"
+            className="inline-flex h-9 items-center border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+          >
+            Book shipment
+          </button>
+        </form>
+      ) : (
+        <p className="mt-2.5 text-sm text-muted">
+          Shiprocket not configured — see docs/SHIPPING.md.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -709,7 +758,9 @@ function PaymentBlock({ order, canRefund, view }: { order: Order; canRefund: boo
   const owed = order.status === "cancelled" && paidOnline && remaining > 0 && canRefundNow;
 
   return (
-    <div className="mt-5 border-t border-line pt-4">
+    /* No top margin: this is a cell of the card's bottom row, and its rule
+       has to line up with the bill's beside it. */
+    <div className="border-t border-line pt-4">
       <p className="label-tech text-muted">Payment</p>
 
       {paidOnline ? (

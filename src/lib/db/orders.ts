@@ -361,27 +361,28 @@ export async function getOrderForCustomer(
 export const ADMIN_ORDER_STATUSES = ["pending", "confirmed", "shipped", "delivered", "cancelled"] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 
-/** The list's filter: a status, or the refund queue (client, 2026-09-21). */
+/** The list's filter: a status, or the cancelled-refund list (2026-09-21). */
 export const ADMIN_ORDER_FILTERS = [...ADMIN_ORDER_STATUSES, "refund"] as const;
 export type AdminOrderFilter = (typeof ADMIN_ORDER_FILTERS)[number];
 
 /**
- * The refund queue: a cancelled order with money still to send back, or one
- * whose refund Razorpay is still processing (client, 2026-09-21 — "orders
- * which are cancelled and have a refund button; refund processing is also
- * shown there, then when refund is done it moves to cancelled").
+ * Cancelled-refund: a cancelled order that was paid online (client,
+ * 2026-09-21 — "in cancelled section there should be only cash on delivery
+ * orders, online payments should be in cancelled-refund section").
  *
- * **The same rule as `refundBlock`**, which decides whether the card shows the
- * button — cancelled, paid online, nothing dispatched, something left — plus
- * the refunds already sent and awaiting Razorpay. Written twice, in TypeScript
- * for one order and in SQL for the list; change both. Containment (`@>`) is
- * how "any refund entry is pending" is asked of a JSONB array.
+ * **The two cancelled filters split the same orders by how they were paid**,
+ * so every cancelled order is in exactly one of them. This one holds the ones
+ * with money to account for: owed a refund, one in flight, one already made,
+ * and the dispatched-then-cancelled order whose refund has to be made in the
+ * Razorpay dashboard. `Cancelled` keeps the rest — cash on delivery, refunded
+ * in person, and the old phone-settled orders.
+ *
+ * Deliberately wider than `refundBlock`, which decides whether the *card*
+ * offers a Refund button: an order can belong here with nothing left to do.
  */
-const REFUND_DUE_SQL = `(status = 'cancelled'
+const CANCELLED_REFUND_SQL = `(status = 'cancelled'
   AND payment_provider = 'razorpay' AND payment_id IS NOT NULL
-  AND (payment_status = 'paid' OR refunded_amount > 0)
-  AND shipped_at IS NULL
-  AND (total - refunded_amount > 0 OR refunds @> '[{"status": "pending"}]'::jsonb))`;
+  AND (payment_status IN ('paid', 'refunded') OR refunded_amount > 0))`;
 
 /**
  * The search half of the admin order list's WHERE: order number, the
@@ -420,7 +421,12 @@ export async function listOrdersPage(input: {
   try {
     /* One clause for all three cases — no filter, a status, or the refund
        queue — so $4 is always referenced and always supplied. */
-    const chosen = `($4 = '' OR ($4 = 'refund' AND ${REFUND_DUE_SQL}) OR status = $4)`;
+    /* `Cancelled` is every cancelled order the refund filter does not take,
+       so the two never show the same order twice. */
+    const chosen = `($4 = ''
+      OR ($4 = 'refund' AND ${CANCELLED_REFUND_SQL})
+      OR ($4 = 'cancelled' AND status = 'cancelled' AND NOT ${CANCELLED_REFUND_SQL})
+      OR ($4 <> 'cancelled' AND status = $4))`;
     const where = `${CONFIRMED_ORDER_SQL} AND ${chosen} AND ${ORDER_SEARCH_SQL}`;
     const args = [...searchArgs(input.q), input.filter];
     const [{ n }] = await query<{ n: number }>(`SELECT count(*)::int AS n FROM orders WHERE ${where}`, args);
@@ -464,8 +470,8 @@ export async function countOrdersByFilter(q: string): Promise<OrderFilterCounts>
               count(*) FILTER (WHERE status = 'confirmed')::int AS confirmed,
               count(*) FILTER (WHERE status = 'shipped')::int   AS shipped,
               count(*) FILTER (WHERE status = 'delivered')::int AS delivered,
-              count(*) FILTER (WHERE status = 'cancelled')::int AS cancelled,
-              count(*) FILTER (WHERE ${REFUND_DUE_SQL})::int    AS refund
+              count(*) FILTER (WHERE status = 'cancelled' AND NOT ${CANCELLED_REFUND_SQL})::int AS cancelled,
+              count(*) FILTER (WHERE ${CANCELLED_REFUND_SQL})::int AS refund
          FROM orders WHERE ${CONFIRMED_ORDER_SQL} AND ${ORDER_SEARCH_SQL}`,
       searchArgs(q),
     );

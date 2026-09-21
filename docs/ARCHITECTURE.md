@@ -1617,6 +1617,42 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-21 (admin, later) — The order card rearranged; Cancelled-refund; a dark-mode background
+
+Client, with a sketch: the card should put the bill and the shipment in their
+own column with the payment note stretched "from left corner to left corner of
+book shipment"; a long list of items should "push the payment, total and book
+shipment down … but keep the right side as is"; the Refund filter should be
+"cancelled-refund … where all orders that are refunded after cancellation are
+there"; and the password-reset link's page is unreadable in dark mode.
+
+- **The card is two columns, and the left one is a flex column.** Items at the
+  top; a bottom row (`mt-auto`) holding the payment note (`1fr`, so its rule
+  spans to the bill) and, beside it, the bill above the shipment (`20rem`).
+  The payment cell is `sm:self-end` — level with the shipment, as sketched.
+  The addresses and account email keep the right-hand `18rem` column, so they
+  stay put while items grow. `ShipmentBlock` was lifted out of the card's
+  markup as its own component; `min-w-0` on the left column stops a six-figure
+  line total widening the page on a phone.
+- **`CANCELLED_REFUND_SQL` replaces `REFUND_DUE_SQL`**: a cancelled order
+  that was paid online, at any stage — owed a refund, one processing, one
+  already made, or dispatched and refundable only in the Razorpay dashboard.
+  **The two cancelled filters divide the same orders by how they were paid**
+  (client: "in cancelled section there should be only cash on delivery
+  orders"), so `Cancelled` is `status = 'cancelled' AND NOT
+  CANCELLED_REFUND_SQL` and nothing appears under both. It is deliberately
+  wider than `refundBlock`, which decides whether the *card* offers a Refund
+  button. The label is **Cancelled-refund** and the chip is no longer amber,
+  because it is a record as much as a queue; the URL value stays
+  `status=refund` — `returnView` keeps letters only.
+- **`/admin/reset` and `/admin/forgot` used `bg-[#f7faf8]`**, the light
+  surface as a literal, against §6's rule that colour comes from tokens. In
+  dark mode the page stayed light while `text-ink` went white, so the heading
+  vanished and the white-ink logo washed out. Both now use `bg-surface`.
+  (`ProductMedia` and `ProductCard` keep their literals deliberately — see
+  their own notes.)
+- No schema change; ADMIN.md §1.
+
 ### 2026-09-21 (orders, admin) — Paying no longer confirms; a Refund filter; the notes behind an info button
 
 Client: "when I pay using online the order moves to confirmed, it should be in

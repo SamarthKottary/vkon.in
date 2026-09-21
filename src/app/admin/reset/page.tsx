@@ -20,7 +20,7 @@ export default async function AdminResetPage({
   const token = (await searchParams).token;
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#f7faf8] px-4 py-12">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 py-12">
       <div className="mb-8">
         <Link href="/">
           <Logo />
