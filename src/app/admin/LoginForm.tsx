@@ -28,9 +28,18 @@ export function LoginForm({ googleEnabled }: { googleEnabled?: boolean }) {
       </div>
 
       <div>
-        <label htmlFor="password" className="label-tech block text-muted">
-          Password
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="password" className="label-tech block text-muted">
+            Password
+          </label>
+          <a
+            href="/admin/forgot"
+            className="text-xs text-accent hover:underline"
+            tabIndex={-1}
+          >
+            Forgotten password?
+          </a>
+        </div>
         <input
           id="password"
           name="password"

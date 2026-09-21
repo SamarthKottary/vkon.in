@@ -56,7 +56,7 @@ export default async function AdminProfilePage() {
         </div>
 
         <div className="mt-8">
-          <AdminPasswordCard hasPassword={admin.hasPassword} />
+          <AdminPasswordCard hasPassword={admin.hasPassword} role={admin.role} />
         </div>
       </section>
     </div>

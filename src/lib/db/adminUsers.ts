@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { query } from "./client";
 import type { AdminRole, AdminUser } from "@/lib/types";
 
@@ -73,9 +73,16 @@ export async function getAdminPasswordHash(id: string): Promise<string | null> {
 
 /** Every admin user, ordered by role gravity then name, for the access-levels
  *  page. Capped at 200 — a table this size will never need paging. */
-export async function listAdminUsers(): Promise<AdminUser[]> {
+export async function listAdminUsers(q: string = ""): Promise<AdminUser[]> {
+  const queryStr = q.trim();
+  const where = queryStr
+    ? `WHERE name ILIKE $1 OR email ILIKE $1`
+    : "";
+  const params = queryStr ? [`%${queryStr}%`] : [];
+
   const rows = await query<AdminUserRow>(
     `SELECT ${SELECT} FROM admin_users
+     ${where}
      ORDER BY CASE role
        WHEN 'super'   THEN 1
        WHEN 'admin'   THEN 2
@@ -84,7 +91,7 @@ export async function listAdminUsers(): Promise<AdminUser[]> {
        ELSE 5
      END, name, email
      LIMIT 200`,
-    [],
+    params,
   );
   return rows.map(mapRow);
 }
@@ -140,6 +147,13 @@ export async function setAdminPassword(id: string, hash: string): Promise<void> 
   );
 }
 
+export async function clearAdminPassword(id: string): Promise<void> {
+  await query(
+    `UPDATE admin_users SET password_hash = NULL, updated_at = now() WHERE id = $1`,
+    [id],
+  );
+}
+
 /**
  * Stores a new avatar filename and returns the previous one (so the caller can
  * delete the old file from disk). The CTE reads the old value before the
@@ -163,4 +177,56 @@ export async function setAdminAvatar(
 
 export async function deleteAdminUser(id: string): Promise<void> {
   await query(`DELETE FROM admin_users WHERE id = $1`, [id]);
+}
+
+// ---------------------------------------------------------------------------
+// One-time tokens
+// ---------------------------------------------------------------------------
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export async function createAdminToken(input: {
+  adminId: string;
+  kind: "reset";
+  expiresAt: Date;
+}): Promise<string> {
+  const token = randomUUID();
+  const id = hashToken(token);
+  await query(
+    `INSERT INTO admin_tokens (id, admin_id, kind, expires_at)
+     VALUES ($1, $2, $3, $4)`,
+    [id, input.adminId, input.kind, input.expiresAt],
+  );
+  return token;
+}
+
+export async function consumeAdminToken(
+  token: string,
+  kind: "reset",
+): Promise<AdminUser | null> {
+  const id = hashToken(token);
+  // Delete the token so it can only be used once, RETURNING the admin ID
+  // to fetch the user details.
+  const deleted = await query<{ admin_id: string }>(
+    `DELETE FROM admin_tokens
+      WHERE id = $1 AND kind = $2 AND expires_at > now()
+  RETURNING admin_id`,
+    [id, kind],
+  );
+  const row = deleted[0];
+  if (!row) return null;
+
+  return findAdminById(row.admin_id);
+}
+
+export async function invalidateAdminTokens(
+  adminId: string,
+  kind: "reset",
+): Promise<void> {
+  await query(`DELETE FROM admin_tokens WHERE admin_id = $1 AND kind = $2`, [
+    adminId,
+    kind,
+  ]);
 }

@@ -6,6 +6,7 @@ import type { AdminUser } from "@/lib/types";
 import {
   updateAdminRoleAction,
   deleteAdminUserAction,
+  clearAdminPasswordAction,
 } from "@/app/admin/actions";
 
 export const dynamic = "force-dynamic";
@@ -37,18 +38,40 @@ export default async function AdminAccessPage({
     redirect("/admin/products");
   }
 
-  const users = await listAdminUsers();
   const params = await searchParams;
+  const q = params.q || "";
+  const users = await listAdminUsers(q);
 
   const errorMsg = params.error ? ERROR_MESSAGES[params.error] : null;
 
   return (
     <div className="space-y-10 p-6 sm:p-8 lg:p-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink">User Access Levels</h1>
-        <p className="mt-1 text-sm text-muted">
-          Manage who can access the admin panel and at what permission level.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink">User Access Levels</h1>
+          <p className="mt-1 text-sm text-muted">
+            Manage who can access the admin panel and at what permission level.
+          </p>
+        </div>
+
+        <form action="/admin/users/access" className="flex w-full gap-2 sm:w-auto">
+          <label htmlFor="user-search" className="sr-only">
+            Search admin users
+          </label>
+          <input
+            id="user-search"
+            name="q"
+            defaultValue={q}
+            placeholder="Name or email"
+            className="h-10 min-w-0 flex-1 border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink sm:w-72"
+          />
+          <button
+            type="submit"
+            className="h-10 border border-line-strong px-4 text-sm font-medium text-ink hover:border-ink hover:bg-surface-subtle"
+          >
+            Search
+          </button>
+        </form>
       </div>
 
       {params.updated && (
@@ -59,6 +82,11 @@ export default async function AdminAccessPage({
       {params.deleted && (
         <div className="border border-accent bg-accent-soft px-4 py-3 text-sm text-ink">
           User removed.
+        </div>
+      )}
+      {params.cleared && (
+        <div className="border border-accent bg-accent-soft px-4 py-3 text-sm text-ink">
+          Password cleared. The user will be asked to set a new password on their next sign-in.
         </div>
       )}
       {errorMsg && (
@@ -104,14 +132,20 @@ export default async function AdminAccessPage({
           </h2>
         </div>
         <ul className="divide-y divide-line">
-          {users.map((u) => (
-            <UserRow
-              key={u.id}
-              user={u}
-              currentAdminId={admin.id}
-              currentAdminRole={admin.role}
-            />
-          ))}
+          {users.length === 0 ? (
+            <li className="px-6 py-8 text-center text-sm text-ink">
+              {q ? `No users match “${q}”.` : "No users yet."}
+            </li>
+          ) : (
+            users.map((u) => (
+              <UserRow
+                key={u.id}
+                user={u}
+                currentAdminId={admin.id}
+                currentAdminRole={admin.role}
+              />
+            ))
+          )}
         </ul>
       </section>
 
@@ -180,6 +214,19 @@ function UserRow({
               Save role
             </button>
           </form>
+
+          {/* Clear Password form */}
+          {user.hasPassword && (
+            <form action={clearAdminPasswordAction}>
+              <input type="hidden" name="id" value={user.id} />
+              <button
+                type="submit"
+                className="border border-line-strong bg-surface px-3 py-1 text-xs font-medium text-ink transition-colors hover:bg-surface-subtle"
+              >
+                Clear password
+              </button>
+            </form>
+          )}
 
           {/* Delete form */}
           <form action={deleteAdminUserAction}>

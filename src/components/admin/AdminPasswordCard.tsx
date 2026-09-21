@@ -14,7 +14,7 @@ import { setAdminPasswordAction, type ProfileState } from "@/app/admin/profile/a
  * Collapsed behind a button — open only when needed, like the customer version.
  * No "Forgot password?" link: admin accounts are managed by the super user.
  */
-export function AdminPasswordCard({ hasPassword }: { hasPassword: boolean }) {
+export function AdminPasswordCard({ hasPassword, role }: { hasPassword: boolean, role: string }) {
   const uid = useId();
   const [open, setOpen] = useState(false);
   const [state, formAction] = useActionState<ProfileState, FormData>(
@@ -101,6 +101,14 @@ export function AdminPasswordCard({ hasPassword }: { hasPassword: boolean }) {
             >
               Cancel
             </button>
+            {role === "super" && (
+              <a
+                href="/admin/forgot"
+                className="text-sm text-accent underline-offset-4 hover:underline ml-auto"
+              >
+                Forgot password?
+              </a>
+            )}
           </div>
 
           <p className="text-sm leading-relaxed text-muted">

@@ -8,6 +8,7 @@ import {
   deleteAdminUser,
   listAdminUsers,
   updateAdminRole,
+  clearAdminPassword,
   ADMIN_ROLES,
 } from "@/lib/db/adminUsers";
 import { shipmentBookable } from "@/lib/order-delivery";
@@ -136,6 +137,27 @@ export async function loginAction(
 export async function logoutAction(): Promise<void> {
   await logout();
   redirect("/admin");
+}
+
+export async function clearAdminPasswordAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super"]);
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  if (id === admin.id) {
+    redirect("/admin/users/access?error=self");
+  }
+
+  try {
+    await clearAdminPassword(id);
+  } catch (error) {
+    console.error("[admin] password clear failed:", error);
+    redirect("/admin/users/access?error=1");
+  }
+
+  redirect("/admin/users/access?cleared=1");
 }
 
 // ---------------------------------------------------------------------------

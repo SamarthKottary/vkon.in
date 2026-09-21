@@ -634,3 +634,17 @@ CREATE TABLE IF NOT EXISTS admin_users (
 -- to set one. Once set, normal email+password login works.
 -- The initial super admin user is now seeded dynamically by scripts/db-setup.mjs
 -- using the ADMIN_EMAIL environment variable.
+
+CREATE TABLE IF NOT EXISTS admin_tokens (
+  id          TEXT PRIMARY KEY,
+  admin_id    TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+  -- 'reset' only for now, but kept extensible like customer_tokens
+  kind        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS admin_tokens_admin_idx
+  ON admin_tokens (admin_id);
+CREATE INDEX IF NOT EXISTS admin_tokens_expiry_idx
+  ON admin_tokens (expires_at);
