@@ -387,9 +387,7 @@ const REFUND_CANCELLED_SQL = `(status = 'cancelled'
 
 /**
  * Every choice in the filter row, and the WHERE clause behind each one
- * (client, 2026-09-21: the three ways a pending order can need attention —
- * "pending-online contains online payment orders, pending-cod contains cash
- * on delivery orders, pending-not quoted contains not quoted in delivery").
+ * (client, 2026-09-21).
  *
  * **The list and the counts are built from this one map**, so a filter cannot
  * show a different set of orders from the number on its button. The clauses
@@ -397,15 +395,14 @@ const REFUND_CANCELLED_SQL = `(status = 'cancelled'
  * they are these fixed strings — the page validates `?status=` against the
  * keys before anything reaches here.
  *
- * The three pending views deliberately overlap: a cash-on-delivery order with
- * no delivery quote is in `pending-cod` and `pending-unquoted` both. They are
- * ways of reading the same pile, not stages — and between them they cover it,
- * which is why there is no plain `pending` (client, 2026-09-21: "remove the
- * just pending section, why do we need that").
+ * `pending-unquoted` is a subset of `pending`, not a stage beside it: the
+ * waiting orders checkout could not price delivery for, which someone has to
+ * agree a charge for before dispatch. Cash on delivery and online orders sit
+ * together under `pending` — how they are paid is on each card, and splitting
+ * the button by it earned nothing (client, 2026-09-21).
  */
 export const ADMIN_ORDER_FILTER_SQL = {
-  "pending-online": `(status = 'pending' AND payment_provider = 'razorpay')`,
-  "pending-cod": `(status = 'pending' AND payment_provider = 'cod')`,
+  pending: `status = 'pending'`,
   /* `shipping = 0` is "Not quoted" on the card: checkout could not get a
      delivery price, so somebody has to agree one before dispatch. */
   "pending-unquoted": `(status = 'pending' AND shipping <= 0)`,

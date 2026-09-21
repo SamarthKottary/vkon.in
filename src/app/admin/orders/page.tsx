@@ -272,14 +272,10 @@ export default async function AdminOrdersPage({
           completes, which is also where cash-on-delivery cancellations sit.
         </p>
         <p>
-          <span className="font-medium text-ink">Waiting orders read three ways:</span>{" "}
-          <span className="font-medium text-ink">Pending-online</span> is paid
-          and waiting on you,{" "}
-          <span className="font-medium text-ink">Pending-COD</span> is collected
-          at the door, and{" "}
           <span className="font-medium text-ink">Pending-not quoted</span> is
-          the ones checkout could not price delivery for — ring the customer to
-          agree it before dispatch. An order can be in more than one.
+          part of <span className="font-medium text-ink">Pending</span>, not a
+          separate pile: the waiting orders checkout could not price delivery
+          for — ring the customer to agree a charge before dispatch.
         </p>
         <p>
           The site emails the customer their order confirmation and, if you
@@ -339,8 +335,7 @@ export default async function AdminOrdersPage({
 }
 
 const FILTER_LABELS: Record<AdminOrderFilter, string> = {
-  "pending-online": "Pending-online",
-  "pending-cod": "Pending-COD",
+  pending: "Pending",
   "pending-unquoted": "Pending-not quoted",
   confirmed: "Confirmed",
   shipped: "Shipped",
@@ -357,9 +352,8 @@ const FILTER_LABELS: Record<AdminOrderFilter, string> = {
  *
  * Two of them are not statuses:
  *
- *  - **the three Pending views** cut the waiting orders three ways — paid
- *    online, cash on delivery, and the ones with no delivery price on them —
- *    so an order can be in more than one;
+ *  - **Pending-not quoted** is a slice of Pending, not a stage beside it:
+ *    the waiting orders with no delivery price on them;
  *  - **Refund-cancelled** is the money side of a cancellation: cancelled,
  *    paid online, not refunded yet. It empties as refunds land, and those
  *    orders then read as plain Cancelled.

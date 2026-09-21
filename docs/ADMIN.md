@@ -17,7 +17,7 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. Search by name, URL, tagline or category; drag to reorder is off while a search is showing. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
-| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by how a waiting order is paid (**Pending-online**, **Pending-COD**, **Pending-not quoted**), by status, or by **Refund-cancelled** — cancelled, paid online, money not back yet. A refund completing moves that order to **Cancelled**; ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
+| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by status, by **Pending-not quoted** (waiting orders with no delivery price), or by **Refund-cancelled** — cancelled, paid online, money not back yet. A refund completing moves that order to **Cancelled**; ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
 | `/admin/users` | Customer accounts. Read, search, and turn the sign-in code off for a review account. |
 | `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Search by email, ten a page. Read, export (always the whole list), remove. |
@@ -437,11 +437,10 @@ items pushes the bill, payment and Book shipment down instead of squeezing
 them. The **Refund** filter became **Refund-cancelled**: cancelled orders paid
 online whose money is not back yet, owed or being processed. Each leaves for
 **Cancelled** as its refund completes, so the two never hold the same order.
-The plain **Pending** filter gave way to three readings of the waiting
-orders — **Pending-online**, **Pending-COD** and **Pending-not quoted** (no
-delivery price, so somebody has to agree one before dispatch). They overlap,
-and between them they cover every pending order, so the undivided one earned
-nothing. Also fixed: /admin/reset
+**Pending** gained one companion, **Pending-not quoted** — a slice of it, the
+waiting orders checkout could not price delivery for, which need a charge
+agreed before dispatch. Cash on delivery and online orders stay together under
+Pending; how an order is paid is on its card. Also fixed: /admin/reset
 and /admin/forgot hardcoded the light page background, so in dark mode the
 heading was dark-on-dark.
 

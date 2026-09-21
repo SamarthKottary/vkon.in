@@ -1647,11 +1647,11 @@ there"; and the password-reset link's page is unreadable in dark mode.
   been refunded move to the cancelled section"). Wider than `refundBlock`,
   which decides whether the *card* offers the button: a dispatched
   cancellation belongs here while it is unrefunded.
-- **Three readings of the waiting orders** — `pending-online`, `pending-cod`
-  and `pending-unquoted` (`shipping <= 0`, the "Not quoted" card), overlapping
-  by design. There is no undivided `pending`: the three cover it between them
-  ("remove the just pending section, why do we need that"). A stale
-  `?status=pending` is not a key, so it falls back to All.
+- **`pending-unquoted`** (`shipping <= 0`, the "Not quoted" card) sits beside
+  `pending` as a subset of it, not a stage: the waiting orders nobody has
+  agreed a delivery charge for. Splitting the button by payment method was
+  tried the same day and dropped — that is on each card already. A
+  `?status=` that is not one of the map's keys falls back to All.
 - **`returnView` keeps hyphens** (`[^a-z-]`), because the filter values now
   have them and an action has to return to the same one.
 - **`/admin/reset` and `/admin/forgot` used `bg-[#f7faf8]`**, the light
