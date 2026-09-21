@@ -374,26 +374,33 @@ function OrderFilters({
     ...ADMIN_ORDER_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], n: counts[f] })),
   ];
   return (
-    <nav aria-label="Filter orders" className="mt-8 flex flex-wrap gap-2">
-      {options.map((option) => {
-        const current = option.value === filter;
-        return (
-          <Link
-            key={option.label}
-            href={listHref("/admin/orders", { q, status: option.value })}
-            aria-current={current ? "page" : undefined}
-            className={`inline-flex h-9 items-center gap-2 border px-3 text-sm font-medium transition-colors ${
-              current
-                ? "border-ink bg-ink text-surface"
-                : "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
-            }`}
-          >
-            {option.label}
-            <span className={`tabular-nums ${current ? "text-surface/80" : "text-muted"}`}>{option.n}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <nav aria-label="Filter orders" className="mt-8 flex flex-wrap gap-2">
+        {options.map((option) => {
+          const current = option.value === filter;
+          return (
+            <Link
+              key={option.label}
+              href={listHref("/admin/orders", { q, status: option.value })}
+              aria-current={current ? "page" : undefined}
+              className={`inline-flex h-9 items-center gap-2 border px-3 text-sm font-medium transition-colors ${
+                current
+                  ? "border-ink bg-ink text-surface"
+                  : "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
+              }`}
+            >
+              {option.label}
+              <span className={`tabular-nums ${current ? "text-surface/80" : "text-muted"}`}>{option.n}</span>
+            </Link>
+          );
+        })}
+      </nav>
+      {filter === "" && (
+        <p className="mt-3 text-sm text-muted">
+          Showing all orders sorted from newest to oldest by order date.
+        </p>
+      )}
+    </>
   );
 }
 
