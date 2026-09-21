@@ -460,16 +460,23 @@ export async function listOrdersPage(input: {
     const args = searchArgs(input.q);
     const [{ n }] = await query<{ n: number }>(`SELECT count(*)::int AS n FROM orders WHERE ${where}`, args);
     const page = clampPage(input.page, n);
+    let orderSql = "ORDER BY created_at DESC";
+    if (
+      input.filter === "pending" ||
+      input.filter === "pending-unquoted" ||
+      input.filter === "confirmed" ||
+      input.filter === "refund-cancelled"
+    ) {
+      orderSql = "ORDER BY created_at ASC NULLS LAST";
+    } else if (input.filter === "shipped") {
+      orderSql = "ORDER BY COALESCE(shipped_at, created_at) DESC NULLS LAST";
+    } else if (input.filter === "delivered") {
+      orderSql = "ORDER BY COALESCE(delivered_at, shipped_at, created_at) DESC NULLS LAST";
+    }
+
     const rows = await query<OrderRow>(
       `SELECT ${ORDER_SELECT} FROM orders WHERE ${where}
-        ORDER BY
-          CASE WHEN status IN ('pending', 'confirmed') THEN created_at END ASC NULLS LAST,
-          CASE WHEN status = 'cancelled' AND payment_provider = 'razorpay' AND payment_id IS NOT NULL AND payment_status = 'paid' THEN created_at END ASC NULLS LAST,
-          CASE 
-            WHEN status = 'shipped' THEN COALESCE(shipped_at, created_at)
-            WHEN status = 'delivered' THEN COALESCE(delivered_at, shipped_at, created_at)
-            ELSE created_at
-          END DESC
+        ${orderSql}
         LIMIT $4 OFFSET $5`,
       [...args, PER_PAGE, (page - 1) * PER_PAGE],
     );
