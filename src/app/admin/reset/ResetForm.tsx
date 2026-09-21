@@ -2,8 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Field } from "@/components/ui/Field";
-import { Input } from "@/components/ui/Input";
+import { Field, fieldInput } from "@/components/ui/Field";
 import { resetAdminPasswordAction } from "../forgot/actions";
 
 export function ResetForm({ token }: { token: string }) {
@@ -14,29 +13,35 @@ export function ResetForm({ token }: { token: string }) {
       <input type="hidden" name="token" value={token} />
 
       <Field
+        id="password"
         label="New password"
         error={state.fieldErrors?.password}
         className="mb-6"
       >
-        <Input
+        <input
+          id="password"
           type="password"
           name="password"
           required
           autoComplete="new-password"
           autoFocus
+          className={fieldInput(state.fieldErrors?.password)}
         />
       </Field>
 
       <Field
+        id="confirmPassword"
         label="Confirm new password"
         error={state.fieldErrors?.confirmPassword}
         className="mb-6"
       >
-        <Input
+        <input
+          id="confirmPassword"
           type="password"
           name="confirmPassword"
           required
           autoComplete="new-password"
+          className={fieldInput(state.fieldErrors?.confirmPassword)}
         />
       </Field>
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { pageMetadata } from "@/lib/seo";
 import { ForgotForm } from "./ForgotForm";
-import { Logo } from "@/components/layout/Logo";
+import { Logo } from "@/components/icons/Logo";
 
 export const metadata = pageMetadata({
   title: "Forgotten password",

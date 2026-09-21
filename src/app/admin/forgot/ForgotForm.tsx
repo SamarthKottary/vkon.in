@@ -2,8 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Field } from "@/components/ui/Field";
-import { Input } from "@/components/ui/Input";
+import { Field, fieldInput } from "@/components/ui/Field";
 import { forgotAdminPasswordAction } from "./actions";
 
 export function ForgotForm() {
@@ -21,17 +20,20 @@ export function ForgotForm() {
   return (
     <form action={action}>
       <Field
+        id="email"
         label="Email address"
         error={state.fieldErrors?.email}
         className="mb-6"
       >
-        <Input
+        <input
+          id="email"
           type="email"
           name="email"
           required
           autoComplete="email"
           autoFocus
           defaultValue={state.values?.email}
+          className={fieldInput(state.fieldErrors?.email)}
         />
       </Field>
 
