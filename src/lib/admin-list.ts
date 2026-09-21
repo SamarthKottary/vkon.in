@@ -78,6 +78,9 @@ export function listHref(path: string, params: Record<string, string | number | 
 export function returnView(value: FormDataEntryValue | null): string {
   const raw = new URLSearchParams(typeof value === "string" ? value : "");
   const { q, page } = readListQuery({ q: raw.get("q") ?? "", page: raw.get("page") ?? "" });
-  const status = (raw.get("status") ?? "").replace(/[^a-z]/g, "").slice(0, 20);
+  /* Letters and hyphens: the filter values are `pending-cod`,
+     `refund-cancelled` and the like. Anything else is dropped, so the field
+     can neither redirect elsewhere nor smuggle in another parameter. */
+  const status = (raw.get("status") ?? "").replace(/[^a-z-]/g, "").slice(0, 24);
   return listSearch({ q, status, page });
 }

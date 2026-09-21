@@ -1634,23 +1634,34 @@ there"; and the password-reset link's page is unreadable in dark mode.
   stay put while items grow. `ShipmentBlock` was lifted out of the card's
   markup as its own component; `min-w-0` on the left column stops a six-figure
   line total widening the page on a phone.
-- **`CANCELLED_REFUND_SQL` replaces `REFUND_DUE_SQL`**: a cancelled order
-  that was paid online, at any stage — owed a refund, one processing, one
-  already made, or dispatched and refundable only in the Razorpay dashboard.
-  **The two cancelled filters divide the same orders by how they were paid**
-  (client: "in cancelled section there should be only cash on delivery
-  orders"), so `Cancelled` is `status = 'cancelled' AND NOT
-  CANCELLED_REFUND_SQL` and nothing appears under both. It is deliberately
-  wider than `refundBlock`, which decides whether the *card* offers a Refund
-  button. The label is **Cancelled-refund** and the chip is no longer amber,
-  because it is a record as much as a queue; the URL value stays
-  `status=refund` — `returnView` keeps letters only.
+- **`ADMIN_ORDER_FILTER_SQL`** is now the one map from a filter to its WHERE
+  clause, and both the page query and `countOrdersByFilter` are built from it
+  — a button cannot list a different set from the number on it. The clauses
+  are interpolated, which is safe because the page validates `?status=`
+  against the map's keys first; the filter is no longer a query parameter.
+- **`REFUND_CANCELLED_SQL`**: cancelled, paid online, and **not refunded
+  yet** — something still owed, or a refund Razorpay is still processing
+  (`refunds @> '[{"status":"pending"}]'`). `Cancelled` is `status =
+  'cancelled' AND NOT` that, so a refund completing moves the order from one
+  to the other and nothing is in both (client, 2026-09-21: "orders which have
+  been refunded move to the cancelled section"). Wider than `refundBlock`,
+  which decides whether the *card* offers the button: a dispatched
+  cancellation belongs here while it is unrefunded.
+- **Three readings of the waiting orders** — `pending-online`, `pending-cod`
+  and `pending-unquoted` (`shipping <= 0`, the "Not quoted" card), overlapping
+  by design. There is no undivided `pending`: the three cover it between them
+  ("remove the just pending section, why do we need that"). A stale
+  `?status=pending` is not a key, so it falls back to All.
+- **`returnView` keeps hyphens** (`[^a-z-]`), because the filter values now
+  have them and an action has to return to the same one.
 - **`/admin/reset` and `/admin/forgot` used `bg-[#f7faf8]`**, the light
   surface as a literal, against §6's rule that colour comes from tokens. In
   dark mode the page stayed light while `text-ink` went white, so the heading
   vanished and the white-ink logo washed out. Both now use `bg-surface`.
   (`ProductMedia` and `ProductCard` keep their literals deliberately — see
   their own notes.)
+- **The bill ends in a Total**, with what has been refunded under it when
+  there is any — the same shape as the customer's own copy of the order.
 - No schema change; ADMIN.md §1.
 
 ### 2026-09-21 (orders, admin) — Paying no longer confirms; a Refund filter; the notes behind an info button

@@ -361,28 +361,63 @@ export async function getOrderForCustomer(
 export const ADMIN_ORDER_STATUSES = ["pending", "confirmed", "shipped", "delivered", "cancelled"] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 
-/** The list's filter: a status, or the cancelled-refund list (2026-09-21). */
-export const ADMIN_ORDER_FILTERS = [...ADMIN_ORDER_STATUSES, "refund"] as const;
-export type AdminOrderFilter = (typeof ADMIN_ORDER_FILTERS)[number];
+/**
+ * Refund-cancelled: a cancelled order that was paid online and whose money is
+ * not back yet — owed, or being processed by Razorpay (client, 2026-09-21:
+ * "orders which have been refunded move to the cancelled section;
+ * refund-cancelled contains orders which are yet to be refunded and where
+ * refund is being processed").
+ *
+ * **It empties as refunds finish.** A fully refunded order leaves for
+ * `Cancelled`, which is everything cancelled that is not here: cash on
+ * delivery, the refunds already made, and the old phone-settled orders. Every
+ * cancelled order is in exactly one of the two.
+ *
+ * A dispatched order belongs here too while it is unrefunded — it is refunded
+ * in the Razorpay dashboard, and the card says so. That is why this is wider
+ * than `refundBlock`, which decides whether the *card* offers the button.
+ * `refunds @> '[{"status":"pending"}]'` is the containment test for "a refund
+ * is on its way", and holds a fully refunded order here until Razorpay
+ * confirms it.
+ */
+const REFUND_CANCELLED_SQL = `(status = 'cancelled'
+  AND payment_provider = 'razorpay' AND payment_id IS NOT NULL
+  AND (payment_status IN ('paid', 'refunded') OR refunded_amount > 0)
+  AND (total - refunded_amount > 0 OR refunds @> '[{"status": "pending"}]'::jsonb))`;
 
 /**
- * Cancelled-refund: a cancelled order that was paid online (client,
- * 2026-09-21 — "in cancelled section there should be only cash on delivery
- * orders, online payments should be in cancelled-refund section").
+ * Every choice in the filter row, and the WHERE clause behind each one
+ * (client, 2026-09-21: the three ways a pending order can need attention —
+ * "pending-online contains online payment orders, pending-cod contains cash
+ * on delivery orders, pending-not quoted contains not quoted in delivery").
  *
- * **The two cancelled filters split the same orders by how they were paid**,
- * so every cancelled order is in exactly one of them. This one holds the ones
- * with money to account for: owed a refund, one in flight, one already made,
- * and the dispatched-then-cancelled order whose refund has to be made in the
- * Razorpay dashboard. `Cancelled` keeps the rest — cash on delivery, refunded
- * in person, and the old phone-settled orders.
+ * **The list and the counts are built from this one map**, so a filter cannot
+ * show a different set of orders from the number on its button. The clauses
+ * are interpolated rather than passed as a parameter, which is safe because
+ * they are these fixed strings — the page validates `?status=` against the
+ * keys before anything reaches here.
  *
- * Deliberately wider than `refundBlock`, which decides whether the *card*
- * offers a Refund button: an order can belong here with nothing left to do.
+ * The three pending views deliberately overlap: a cash-on-delivery order with
+ * no delivery quote is in `pending-cod` and `pending-unquoted` both. They are
+ * ways of reading the same pile, not stages — and between them they cover it,
+ * which is why there is no plain `pending` (client, 2026-09-21: "remove the
+ * just pending section, why do we need that").
  */
-const CANCELLED_REFUND_SQL = `(status = 'cancelled'
-  AND payment_provider = 'razorpay' AND payment_id IS NOT NULL
-  AND (payment_status IN ('paid', 'refunded') OR refunded_amount > 0))`;
+export const ADMIN_ORDER_FILTER_SQL = {
+  "pending-online": `(status = 'pending' AND payment_provider = 'razorpay')`,
+  "pending-cod": `(status = 'pending' AND payment_provider = 'cod')`,
+  /* `shipping = 0` is "Not quoted" on the card: checkout could not get a
+     delivery price, so somebody has to agree one before dispatch. */
+  "pending-unquoted": `(status = 'pending' AND shipping <= 0)`,
+  confirmed: `status = 'confirmed'`,
+  shipped: `status = 'shipped'`,
+  delivered: `status = 'delivered'`,
+  cancelled: `(status = 'cancelled' AND NOT ${REFUND_CANCELLED_SQL})`,
+  "refund-cancelled": REFUND_CANCELLED_SQL,
+} as const;
+
+export const ADMIN_ORDER_FILTERS = Object.keys(ADMIN_ORDER_FILTER_SQL) as AdminOrderFilter[];
+export type AdminOrderFilter = keyof typeof ADMIN_ORDER_FILTER_SQL;
 
 /**
  * The search half of the admin order list's WHERE: order number, the
@@ -421,19 +456,16 @@ export async function listOrdersPage(input: {
   try {
     /* One clause for all three cases — no filter, a status, or the refund
        queue — so $4 is always referenced and always supplied. */
-    /* `Cancelled` is every cancelled order the refund filter does not take,
-       so the two never show the same order twice. */
-    const chosen = `($4 = ''
-      OR ($4 = 'refund' AND ${CANCELLED_REFUND_SQL})
-      OR ($4 = 'cancelled' AND status = 'cancelled' AND NOT ${CANCELLED_REFUND_SQL})
-      OR ($4 <> 'cancelled' AND status = $4))`;
-    const where = `${CONFIRMED_ORDER_SQL} AND ${chosen} AND ${ORDER_SEARCH_SQL}`;
-    const args = [...searchArgs(input.q), input.filter];
+    /* The chosen filter's own clause, from the map above — never the value
+       itself, which the page has already checked is one of its keys. */
+    const chosen = input.filter ? `AND ${ADMIN_ORDER_FILTER_SQL[input.filter]}` : "";
+    const where = `${CONFIRMED_ORDER_SQL} ${chosen} AND ${ORDER_SEARCH_SQL}`;
+    const args = searchArgs(input.q);
     const [{ n }] = await query<{ n: number }>(`SELECT count(*)::int AS n FROM orders WHERE ${where}`, args);
     const page = clampPage(input.page, n);
     const rows = await query<OrderRow>(
       `SELECT ${ORDER_SELECT} FROM orders WHERE ${where}
-        ORDER BY created_at DESC LIMIT $5 OFFSET $6`,
+        ORDER BY created_at DESC LIMIT $4 OFFSET $5`,
       [...args, PER_PAGE, (page - 1) * PER_PAGE],
     );
     if (rows.length === 0) return { orders: [], total: n, page };
@@ -464,14 +496,12 @@ export async function countOrdersByFilter(q: string): Promise<OrderFilterCounts>
   ) as OrderFilterCounts;
   if (!isDatabaseConfigured()) return counts;
   try {
+    const columns = ADMIN_ORDER_FILTERS.map(
+      (f) => `count(*) FILTER (WHERE ${ADMIN_ORDER_FILTER_SQL[f]})::int AS "${f}"`,
+    ).join(",\n              ");
     const [row] = await query<Record<string, number>>(
       `SELECT count(*)::int AS all,
-              count(*) FILTER (WHERE status = 'pending')::int   AS pending,
-              count(*) FILTER (WHERE status = 'confirmed')::int AS confirmed,
-              count(*) FILTER (WHERE status = 'shipped')::int   AS shipped,
-              count(*) FILTER (WHERE status = 'delivered')::int AS delivered,
-              count(*) FILTER (WHERE status = 'cancelled' AND NOT ${CANCELLED_REFUND_SQL})::int AS cancelled,
-              count(*) FILTER (WHERE ${CANCELLED_REFUND_SQL})::int AS refund
+              ${columns}
          FROM orders WHERE ${CONFIRMED_ORDER_SQL} AND ${ORDER_SEARCH_SQL}`,
       searchArgs(q),
     );

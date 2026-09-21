@@ -265,11 +265,21 @@ export default async function AdminOrdersPage({
         </p>
         <p>
           <span className="font-medium text-ink">Cancelled orders split in two:</span>{" "}
-          the ones paid online are under{" "}
-          <span className="font-medium text-ink">Cancelled-refund</span>, where
-          the money is dealt with; <span className="font-medium text-ink">Cancelled</span>{" "}
-          holds the cash-on-delivery ones, which owe nothing back through the
-          site.
+          <span className="font-medium text-ink">Refund-cancelled</span> holds
+          the ones paid online whose money is not back yet — owed, or being
+          processed by Razorpay. Each one leaves for{" "}
+          <span className="font-medium text-ink">Cancelled</span> as its refund
+          completes, which is also where cash-on-delivery cancellations sit.
+        </p>
+        <p>
+          <span className="font-medium text-ink">Waiting orders read three ways:</span>{" "}
+          <span className="font-medium text-ink">Pending-online</span> is paid
+          and waiting on you,{" "}
+          <span className="font-medium text-ink">Pending-COD</span> is collected
+          at the door, and{" "}
+          <span className="font-medium text-ink">Pending-not quoted</span> is
+          the ones checkout could not price delivery for — ring the customer to
+          agree it before dispatch. An order can be in more than one.
         </p>
         <p>
           The site emails the customer their order confirmation and, if you
@@ -286,10 +296,10 @@ export default async function AdminOrdersPage({
             {query.q || filter ? (
               <>
                 <p className="text-ink">
-                  {filter === "refund"
-                    ? "No cancelled order was paid online"
-                    : filter === "cancelled"
-                      ? "No cash-on-delivery order has been cancelled"
+                  {filter === "refund-cancelled"
+                    ? "No cancelled order is waiting on a refund"
+                    : filter === "pending-unquoted"
+                      ? "Every pending order has a delivery price"
                       : `No ${filter ? `${FILTER_LABELS[filter].toLowerCase()} ` : ""}orders`}
                   {query.q ? ` match “${query.q}”` : ""}.
                 </p>
@@ -329,27 +339,32 @@ export default async function AdminOrdersPage({
 }
 
 const FILTER_LABELS: Record<AdminOrderFilter, string> = {
-  pending: "Pending",
+  "pending-online": "Pending-online",
+  "pending-cod": "Pending-COD",
+  "pending-unquoted": "Pending-not quoted",
   confirmed: "Confirmed",
   shipped: "Shipped",
   delivered: "Delivered",
   cancelled: "Cancelled",
-  refund: "Cancelled-refund",
+  "refund-cancelled": "Refund-cancelled",
 };
 
 /**
- * All · Pending · Confirmed · Shipped · Delivered · Cancelled ·
- * Cancelled-refund, each with how many orders match the current search
- * (client, 2026-09-19 and 2026-09-21). Links, not a select: one tap, no
- * JavaScript, and the choice stays in the URL. Choosing one keeps the search
- * and goes back to page 1.
+ * Every way of reading the list, each with how many orders match the current
+ * search (client, 2026-09-19 and 2026-09-21). Links, not a select: one tap,
+ * no JavaScript, and the choice stays in the URL. Choosing one keeps the
+ * search and goes back to page 1.
  *
- * **The last one is not a status.** It is the money side of a cancellation:
- * the cancelled orders that were paid online. `Cancelled` holds the rest —
- * cash on delivery — so the two divide the cancelled orders between them
- * rather than overlapping (client, 2026-09-21). It is set apart for that
- * reason. Its URL value stays `status=refund`: short, and `returnView` keeps
- * letters only.
+ * Two of them are not statuses:
+ *
+ *  - **the three Pending views** cut the waiting orders three ways — paid
+ *    online, cash on delivery, and the ones with no delivery price on them —
+ *    so an order can be in more than one;
+ *  - **Refund-cancelled** is the money side of a cancellation: cancelled,
+ *    paid online, not refunded yet. It empties as refunds land, and those
+ *    orders then read as plain Cancelled.
+ *
+ * What each one selects lives in `ADMIN_ORDER_FILTER_SQL`, beside the counts.
  */
 function OrderFilters({
   q,
@@ -374,8 +389,6 @@ function OrderFilters({
             href={listHref("/admin/orders", { q, status: option.value })}
             aria-current={current ? "page" : undefined}
             className={`inline-flex h-9 items-center gap-2 border px-3 text-sm font-medium transition-colors ${
-              option.value === "refund" ? "ml-2" : ""
-            } ${
               current
                 ? "border-ink bg-ink text-surface"
                 : "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
@@ -526,9 +539,9 @@ function OrderCard({
               takes the rest of the width, so its rule runs from the card's
               left edge to the bill's — the client's sketch. */}
           <div className="mt-auto grid gap-6 pt-5 sm:grid-cols-[1fr_20rem]">
-            {/* Sits on the floor of the row, level with the shipment beside
-                it rather than with the bill above it — the client's sketch. */}
-            <div className="order-2 sm:order-1 sm:self-end">
+            {/* Starts on the bill's line: with the shipment moved over to the
+                addresses, the bill is all that shares this row. */}
+            <div className="order-2 sm:order-1">
               <PaymentBlock order={order} canRefund={canRefund} view={view} />
             </div>
 
@@ -551,8 +564,30 @@ function OrderCard({
                   }
                   value={order.shipping > 0 ? formatPaise(order.shipping) : "Not quoted"}
                 />
+                {/* What the bill adds up to (client, 2026-09-21). Same shape
+                    as the customer's own copy: bold label, the figure in the
+                    accent, ruled off from the parts above it. The figure by
+                    the order number is the same number — this is the one at
+                    the end of the arithmetic. */}
+                <div className="flex items-center justify-between gap-4 border-t border-line pt-2.5">
+                  <dt className="font-bold text-ink">Total</dt>
+                  <dd className="text-base font-bold tabular-nums text-accent">
+                    {formatPaise(order.total)}
+                  </dd>
+                </div>
+                {/* Only once there is one: what has gone back, and whether
+                    Razorpay has finished sending it. */}
+                {order.refundedAmount > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-muted">
+                      {order.refundPending ? "Refund processing" : "Refunded"}
+                    </dt>
+                    <dd className="font-semibold tabular-nums text-ink">
+                      &minus;{formatPaise(order.refundedAmount)}
+                    </dd>
+                  </div>
+                )}
               </dl>
-              <ShipmentBlock order={order} canShip={canShip} bookable={bookable} view={view} />
             </div>
           </div>
         </div>
@@ -584,6 +619,10 @@ function OrderCard({
               </a>
             </p>
           )}
+
+          {/* Under the account email (client, 2026-09-21): the parcel belongs
+              with where it is going and who to tell about it. */}
+          <ShipmentBlock order={order} canShip={canShip} bookable={bookable} view={view} />
         </div>
       </div>
     </article>

@@ -17,7 +17,7 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. Search by name, URL, tagline or category; drag to reorder is off while a search is showing. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
-| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by status or by **Cancelled-refund**; ten a page. Cancelled orders divide between the two: **Cancelled** holds the cash-on-delivery ones, **Cancelled-refund** the ones paid online, whatever stage their refund is at. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
+| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by how a waiting order is paid (**Pending-online**, **Pending-COD**, **Pending-not quoted**), by status, or by **Refund-cancelled** — cancelled, paid online, money not back yet. A refund completing moves that order to **Cancelled**; ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
 | `/admin/users` | Customer accounts. Read, search, and turn the sign-in code off for a review account. |
 | `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Search by email, ten a page. Read, export (always the whole list), remove. |
@@ -434,10 +434,14 @@ items across the left, and under them a row with the payment note on the left
 — its rule running from the card's edge to the bill's — and the bill above the
 shipment on the right. The addresses keep their own column, so a long list of
 items pushes the bill, payment and Book shipment down instead of squeezing
-them. The **Refund** filter became **Cancelled-refund**: it holds every cancelled
-order that was paid online — owed a refund, one in flight, one already made,
-or dispatched and refundable only in Razorpay — while **Cancelled** keeps the
-cash-on-delivery ones. Each cancelled order is in exactly one of the two. Also fixed: /admin/reset
+them. The **Refund** filter became **Refund-cancelled**: cancelled orders paid
+online whose money is not back yet, owed or being processed. Each leaves for
+**Cancelled** as its refund completes, so the two never hold the same order.
+The plain **Pending** filter gave way to three readings of the waiting
+orders — **Pending-online**, **Pending-COD** and **Pending-not quoted** (no
+delivery price, so somebody has to agree one before dispatch). They overlap,
+and between them they cover every pending order, so the undivided one earned
+nothing. Also fixed: /admin/reset
 and /admin/forgot hardcoded the light page background, so in dark mode the
 heading was dark-on-dark.
 
