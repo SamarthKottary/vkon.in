@@ -341,3 +341,37 @@ export type TrackingEvent = {
   /** Shiprocket's normalised label for the scan, when it gave one. */
   status: string;
 };
+
+// ---------------------------------------------------------------------------
+// Admin users — the people who manage the site at /admin.
+//
+// Added 2026-09-21. Replaces the single ADMIN_PASSWORD env-var login with a
+// proper table: email + password, roles, profile picture. Two auth systems
+// remain separate: `lib/auth.ts` handles these; `lib/account.ts` handles shop
+// customers. Neither reads the other's cookie.
+// ---------------------------------------------------------------------------
+
+/**
+ * The four access levels for admin users.
+ *
+ *  - super: Full system access.
+ *  - admin: Full access except editing SEO settings.
+ *  - support: View-only on Subscribers, Enquiries, Users, Products; can advance
+ *    order status but cannot initiate refunds; SEO hidden entirely.
+ *  - viewer: Read-only access everywhere. No changes.
+ */
+export type AdminRole = "super" | "admin" | "support" | "viewer";
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: AdminRole;
+  /** Whether a password has been set — NULL means first-login setup required. */
+  hasPassword: boolean;
+  /** Profile picture URL (`/media/…`), or null when none is set. */
+  avatarUrl: string | null;
+  /** "upload" | "removed" | null */
+  avatarSource: string | null;
+  createdAt: string;
+};

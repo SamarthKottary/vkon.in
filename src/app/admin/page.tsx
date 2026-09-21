@@ -1,16 +1,25 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
-import { isAdminConfigured, isAuthenticated } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
+import { isGoogleConfigured } from "@/lib/google";
 import { LoginForm } from "./LoginForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminLoginPage() {
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   if (await isAuthenticated()) redirect("/admin/products");
 
-  const configured = isAdminConfigured();
+  const params = await searchParams;
   const insecureOrigin = await isInsecureOrigin();
+
+  const NOTICES: Record<string, string> = {
+    "auth-secret": "AUTH_SECRET is not configured. Sign-in is disabled.",
+  };
 
   return (
     <Container size="narrow">
@@ -20,15 +29,9 @@ export default async function AdminLoginPage() {
           Product management for vkon.in
         </p>
 
-        {!configured && (
+        {params.error && NOTICES[params.error] && (
           <div className="mt-6 border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-body">
-            <p className="font-medium text-ink">Not configured</p>
-            <p className="mt-1 leading-relaxed">
-              Set <code className="font-mono text-[0.8125rem]">ADMIN_PASSWORD</code>{" "}
-              and <code className="font-mono text-[0.8125rem]">AUTH_SECRET</code>{" "}
-              in <code className="font-mono text-[0.8125rem]">.env.local</code>,
-              then restart the server.
-            </p>
+            <p className="leading-relaxed">{NOTICES[params.error]}</p>
           </div>
         )}
 
@@ -54,7 +57,7 @@ export default async function AdminLoginPage() {
         )}
 
         <div className="mt-6">
-          <LoginForm />
+          <LoginForm googleEnabled={isGoogleConfigured()} />
         </div>
       </div>
     </Container>

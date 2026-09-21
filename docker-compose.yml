@@ -91,9 +91,12 @@ services:
         condition: service_healthy
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-vkonautomation@gmail.com}
     volumes:
       - ./src/lib/db/schema.sql:/schema.sql:ro
-    command: psql -h db -U vkon -d vkon -v ON_ERROR_STOP=1 -f /schema.sql
+    command: >
+      sh -c 'psql -h db -U vkon -d vkon -v ON_ERROR_STOP=1 -f /schema.sql &&
+      psql -h db -U vkon -d vkon -v ON_ERROR_STOP=1 -c "INSERT INTO admin_users (id, email, name, role) VALUES (gen_random_uuid()::text, '\''$$ADMIN_EMAIL'\'', '\''Vkon Admin'\'', '\''super'\'') ON CONFLICT (email) DO NOTHING;"'
 
   # ------------------------------------------------------------------------
   # Cloudflare Tunnel — the client's own Cloudflare account.

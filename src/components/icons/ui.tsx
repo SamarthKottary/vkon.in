@@ -255,12 +255,13 @@ export function AlertIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
-/** The dotted "i" of an information button — `AlertIcon` turned upside down. */
+/* Added on both sides of the 2026-09-21 merge — the access page's info mark
+   and the admin lists' info button. One icon, their proportions. */
 export function InfoIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg {...base} className={className}>
       <circle cx="12" cy="12" r="8.75" />
-      <path d="M12 11v5.5M12 7.2v.6" />
+      <path d="M12 11.5v4.5M12 8v.5" />
     </svg>
   );
 }

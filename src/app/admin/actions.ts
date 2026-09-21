@@ -2,7 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { isAdminConfigured, login, logout, requireAdmin } from "@/lib/auth";
+import { login, logout, requireAdmin, requireAdminRole } from "@/lib/auth";
+import {
+  createAdminUser,
+  deleteAdminUser,
+  listAdminUsers,
+  updateAdminRole,
+  clearAdminPassword,
+  ADMIN_ROLES,
+} from "@/lib/db/adminUsers";
 import { shipmentBookable } from "@/lib/order-delivery";
 import { returnView } from "@/lib/admin-list";
 import {
@@ -49,6 +57,7 @@ import { SEO_PAGES } from "@/lib/seo";
 import { site } from "@/content/site";
 import { parseVideoUrl } from "@/lib/video";
 import type {
+  AdminRole,
   OrderStatus,
   ProductCategory,
   ProductImage,
@@ -72,6 +81,8 @@ export type ActionState = {
   error?: string;
   fieldErrors?: Record<string, string>;
   ok?: boolean;
+  /** Typed values echoed back so the form can pre-fill on error. */
+  values?: Record<string, string>;
 };
 
 /**
@@ -93,21 +104,31 @@ export async function loginAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
-  if (!isAdminConfigured()) {
+  if (!email || !password) {
     return {
-      error:
-        "Admin is not configured. Set ADMIN_PASSWORD and AUTH_SECRET in your environment, then restart.",
+      error: "Please enter your email address and password.",
+      values: { email },
     };
   }
 
-  const result = await login(password);
+  const result = await login(email, password);
 
   if (!result.ok) {
-    // Deliberately vague — do not reveal whether configuration or the password
-    // was at fault beyond the not-configured case handled above.
-    return { error: "Incorrect password." };
+    if (result.reason === "not-configured") {
+      // Redirect so the error survives the page load (avoids storing sensitive
+      // state in action return values that can be cached).
+      redirect("/admin?error=auth-secret");
+    }
+
+    // Deliberately vague — do not distinguish "no such email" from "wrong
+    // password" to prevent user enumeration.
+    return {
+      error: "Incorrect email or password.",
+      values: { email },
+    };
   }
 
   redirect("/admin/products");
@@ -116,6 +137,27 @@ export async function loginAction(
 export async function logoutAction(): Promise<void> {
   await logout();
   redirect("/admin");
+}
+
+export async function clearAdminPasswordAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super"]);
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  if (id === admin.id) {
+    redirect("/admin/users/access?error=self");
+  }
+
+  try {
+    await clearAdminPassword(id);
+  } catch (error) {
+    console.error("[admin] password clear failed:", error);
+    redirect("/admin/users/access?error=1");
+  }
+
+  redirect("/admin/users/access?cleared=1");
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +342,8 @@ export async function saveProductAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
 
   const id = String(formData.get("id") ?? "").trim() || null;
   const { input: draft, fieldErrors } = await buildInput(formData);
@@ -335,7 +378,8 @@ export async function saveProductAction(
 }
 
 export async function deleteProductAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
 
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
@@ -364,7 +408,8 @@ export async function deleteProductAction(formData: FormData): Promise<void> {
  * order that was just written rather than a stale one.
  */
 export async function reorderProductsAction(ids: string[]): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
   if (ids.length === 0) return;
   await reorderProducts(ids);
   revalidatePath("/admin/products");
@@ -386,7 +431,8 @@ export async function savePageSeoAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super"]);
 
   const paths = formData.getAll("path").map(String);
   const titles = formData.getAll("title").map(String);
@@ -424,7 +470,8 @@ export async function uploadImageAction(
   _prev: UploadState,
   formData: FormData,
 ): Promise<UploadState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
 
   const file = formData.get("file");
   if (!(file instanceof File)) return { error: "No file received." };
@@ -450,7 +497,8 @@ export async function uploadImageAction(
 // ---------------------------------------------------------------------------
 
 export async function deleteSubscriberAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
 
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
@@ -473,7 +521,8 @@ export async function deleteSubscriberAction(formData: FormData): Promise<void> 
 // ---------------------------------------------------------------------------
 
 export async function setEnquiryHandledAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
 
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
@@ -489,7 +538,8 @@ export async function setEnquiryHandledAction(formData: FormData): Promise<void>
 }
 
 export async function deleteEnquiryAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
 
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
@@ -533,7 +583,8 @@ const ORDER_STATUSES = [
 ] as const;
 
 export async function setOrderStatusAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin", "support"]);
 
   const id = String(formData.get("id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
@@ -608,7 +659,8 @@ export async function setOrderStatusAction(formData: FormData): Promise<void> {
  * nothing. Whichever of the two gets there first does the recording.
  */
 export async function refundOrderAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
 
   const id = String(formData.get("id") ?? "").trim();
   const back = (query: string) => backTo("/admin/orders", formData, query, `order-${id}`);
@@ -695,7 +747,8 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
  * so it cannot move a refund backwards or record it twice.
  */
 export async function checkRefundsAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
   const id = String(formData.get("id") ?? "").trim();
   const back = (query: string) => backTo("/admin/orders", formData, query, `order-${id}`);
   if (!id) redirect(back("error=1"));
@@ -726,7 +779,8 @@ export async function checkRefundsAction(formData: FormData): Promise<void> {
  * emailed: Shiprocket tells the customer (client, 2026-09-19).
  */
 export async function refreshTrackingAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin", "support"]);
 
   const id = String(formData.get("id") ?? "").trim();
   const back = (query: string) => backTo("/admin/orders", formData, query, `order-${id}`);
@@ -770,7 +824,8 @@ export async function refreshTrackingAction(formData: FormData): Promise<void> {
  * what is written on the parcel.
  */
 export async function bookShipmentAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
 
   const id = String(formData.get("id") ?? "").trim();
   const back = (query: string) => backTo("/admin/orders", formData, query);
@@ -849,7 +904,8 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
  * it should be turned back on when the review is finished.
  */
 export async function setSigninCodeExemptAction(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
 
   const id = String(formData.get("id") ?? "").trim();
   const exempt = formData.get("exempt") === "1";
@@ -866,4 +922,127 @@ export async function setSigninCodeExemptAction(formData: FormData): Promise<voi
 
   revalidatePath("/admin/users");
   redirect(`/admin/users?updated=${exempt ? "off" : "on"}${search}#user-${id}`);
+}
+
+// ---------------------------------------------------------------------------
+// Admin User Access Levels
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new admin user with no password set.
+ *
+ * Super users can create any role. Admins can create Admin, Support and Viewer
+ * — not Super. This is enforced here, not just in the UI.
+ */
+export async function createAdminUserAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
+
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const name = String(formData.get("name") ?? "").trim();
+  const roleRaw = String(formData.get("role") ?? "").trim();
+
+  const errors: Record<string, string> = {};
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = "A valid email address is required.";
+  }
+  if (!name) errors.name = "A name is required.";
+  if (!ADMIN_ROLES.includes(roleRaw as AdminRole)) {
+    errors.role = "Please choose a valid role.";
+  }
+  if (Object.keys(errors).length > 0) {
+    return { fieldErrors: errors, error: "Please fix the highlighted fields." };
+  }
+
+  const role = roleRaw as AdminRole;
+
+  // An Admin cannot create a Super user — enforced in the action, not just UI.
+  if (admin.role !== "super" && role === "super") {
+    return { error: "Only a Super User can create another Super User." };
+  }
+
+  const created = await createAdminUser({ email, name, role });
+  if (!created) {
+    return {
+      fieldErrors: { email: "That email address is already taken." },
+      error: "Please fix the highlighted fields.",
+    };
+  }
+
+  revalidatePath("/admin/users/access");
+  return { ok: true };
+}
+
+/**
+ * Changes an existing admin user's role.
+ *
+ * Same constraints: Admin cannot set someone to Super; nobody can change their
+ * own role (that would let someone self-escalate).
+ */
+export async function updateAdminRoleAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
+
+  const id = String(formData.get("id") ?? "").trim();
+  const roleRaw = String(formData.get("role") ?? "").trim();
+
+  if (!id || !ADMIN_ROLES.includes(roleRaw as AdminRole)) {
+    redirect("/admin/users/access?error=invalid");
+  }
+
+  // Cannot change your own role.
+  if (id === admin.id) redirect("/admin/users/access?error=self");
+
+  // Admin cannot promote to Super.
+  if (admin.role !== "super" && roleRaw === "super") {
+    redirect("/admin/users/access?error=privilege");
+  }
+
+  try {
+    await updateAdminRole(id, roleRaw as AdminRole);
+  } catch (error) {
+    console.error("[admin] role update failed:", error);
+    redirect("/admin/users/access?error=1");
+  }
+
+  revalidatePath("/admin/users/access");
+  redirect("/admin/users/access?updated=1");
+}
+
+/**
+ * Deletes an admin user. Cannot delete yourself.
+ *
+ * Also cannot delete the last Super User — would lock everyone out.
+ */
+export async function deleteAdminUserAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect("/admin/users/access?error=invalid");
+
+  if (id === admin.id) redirect("/admin/users/access?error=self");
+
+  // Prevent deleting the last super user.
+  if (admin.role === "super") {
+    const all = await listAdminUsers();
+    const supers = all.filter((u) => u.role === "super");
+    const target = all.find((u) => u.id === id);
+    if (target?.role === "super" && supers.length <= 1) {
+      redirect("/admin/users/access?error=last-super");
+    }
+  }
+
+  try {
+    await deleteAdminUser(id);
+  } catch (error) {
+    console.error("[admin] admin user delete failed:", error);
+    redirect("/admin/users/access?error=1");
+  }
+
+  revalidatePath("/admin/users/access");
+  redirect("/admin/users/access?deleted=1");
 }
