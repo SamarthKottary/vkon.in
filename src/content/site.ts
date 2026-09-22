@@ -47,24 +47,24 @@ export const site = {
   ordersEmail: "orders@vkon.in",
 
   /**
-   * The business address as registered with Razorpay (client, 2026-09-17).
-   * Razorpay's website verification compares what the site shows against the
-   * KYC, so change the two together.
+   * The business address (client, 2026-09-22 — it was the plus code
+   * `VW8F+FVP, near Sahyadri College Mechanical and Civil Block` until then).
    *
-   * `VW8F+FVP` is a Google plus code, which is how the registered address
-   * gives the building. On its own it is ambiguous — Google resolves a short
-   * code near whoever is searching, which is why Razorpay's own preview put
-   * the pin in California — so it is always shown with the town. The contact
-   * page's map uses the decoded coordinates, `geo` below, instead.
+   * **Razorpay's website verification compares what the site shows against
+   * the KYC**, so this and the registered address have to be changed
+   * together; the same is true of anything printed on an invoice.
+   *
+   * `geo` is unchanged: the park is on the same campus the plus code pointed
+   * at, so the contact page's map is still within the grounds. It is the
+   * centre of the `7J4PVW8F+FVP` square rather than the building's door.
    */
   address: {
-    street: "VW8F+FVP, near Sahyadri College Mechanical and Civil Block",
+    street: "3rd Floor, Sahyadri Entrepreneurship Park, Adyar",
     locality: "Mangaluru",
     region: "Karnataka",
     postalCode: "575007",
     country: "IN",
     countryName: "India",
-    /** `7J4PVW8F+FVP` decoded: the centre of that plus-code square. */
     geo: { lat: 12.866212, lon: 74.924703 },
   },
 
