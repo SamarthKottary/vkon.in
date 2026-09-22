@@ -183,16 +183,23 @@ export function ItemReviewButton({ productId }: { productId: string }) {
   const flow = useContext(FlowContext);
   const item = flow?.items.find((entry) => entry.productId === productId);
   if (!flow || !item) return null;
-  /* Smaller than `Button size="sm"` (client, 2026-09-22): this sits under a
-     price on a line of an order, where it is a quiet secondary action, not
-     the thing the row is for. */
+  /* Small (client, 2026-09-22): it sits under a price on a line of an order.
+     **Green when there is a review to write**, plain when there is only one
+     to read back — the ask is the thing worth noticing, the way Add to cart
+     is elsewhere; `bg-accent text-surface` is the pairing `ui/Button`'s
+     accent variant already uses. */
+  const written = Boolean(item.review);
   return (
     <button
       type="button"
       onClick={() => flow.open(productId)}
-      className="inline-flex h-7 items-center whitespace-nowrap border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+      className={`inline-flex h-7 items-center whitespace-nowrap border px-2.5 text-xs font-medium transition-colors ${
+        written
+          ? "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
+          : "border-accent bg-accent text-surface hover:border-accent-strong hover:bg-accent-strong"
+      }`}
     >
-      {item.review ? "Show review" : "Write a review"}
+      {written ? "Show my review" : "Write a review"}
     </button>
   );
 }
