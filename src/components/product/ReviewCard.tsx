@@ -123,12 +123,18 @@ function ReviewLightbox({
   return (
     <Modal title={`${mine ? "Your" : `${review.customerName || "Customer"}’s`} review`} onClose={onClose} size="xl">
       <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
-        <div className="relative flex min-h-[40vh] items-center justify-center bg-surface-subtle">
+        {/* **A fixed box, whatever is in it** (client, 2026-09-22): the
+            pop-up used to grow and shrink as you stepped from a portrait
+            photo to a landscape one, which moved the arrows under the
+            pointer. The frame is the constant now and the media is
+            `object-contain` inside it, so a tall photo letterboxes rather
+            than stretching the panel. */}
+        <div className="relative flex h-[44vh] items-center justify-center bg-surface-subtle sm:h-[70vh]">
           {item.kind === "video" ? (
-            <video src={item.url} controls autoPlay className="max-h-[72vh] w-full object-contain" />
+            <video src={item.url} controls autoPlay className="max-h-full max-w-full object-contain" />
           ) : (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={item.url} alt="" className="max-h-[72vh] w-full object-contain" />
+            <img src={item.url} alt="" className="max-h-full max-w-full object-contain" />
           )}
 
           {media.length > 1 && (
