@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PlusIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
-import { isAuthenticated } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listProducts } from "@/lib/db/products";
 import { ProductReorder } from "./ProductReorder";
@@ -17,7 +17,7 @@ export default async function AdminProductsPage({
 }: {
   searchParams: Promise<{ saved?: string; deleted?: string; q?: string }>;
 }) {
-  if (!(await isAuthenticated())) redirect("/admin");
+  const admin = await requireAdmin();
 
   const params = await searchParams;
   const { saved, deleted } = params;
@@ -98,14 +98,12 @@ export default async function AdminProductsPage({
           </div>
         ) : (
           <>
-            <p className="border-b border-line px-4 py-2 text-sm text-muted">
-              {q
-                ? "Search results. Clear the search to drag products into a new order."
-                : "Drag a row (or use its up/down arrows) to set the order the catalogue lists these in."}
-            </p>
+            <div className="border-b border-line px-4 py-2 text-xs font-medium text-muted">
+              {q ? "Search results" : "Drag to reorder on the site"}
+            </div>
             {/* Keyed on the search, so the list's own order state starts
                 again from the rows shown. */}
-            <ProductReorder key={q} products={shown} reorderable={!q} />
+            <ProductReorder key={q} products={shown} reorderable={!q} role={admin.role} />
           </>
         )}
       </div>

@@ -36,11 +36,13 @@ import { DeleteProductButton } from "./DeleteProductButton";
 export function ProductReorder({
   products,
   reorderable = true,
+  role,
 }: {
   products: Product[];
   /** False for search results (2026-09-19): reordering a filtered subset
    *  would send only those ids, scrambling the rest of the catalogue order. */
   reorderable?: boolean;
+  role: string;
 }) {
   const [items, setItems] = useState(products);
   const [isPending, startTransition] = useTransition();
@@ -176,7 +178,11 @@ export function ProductReorder({
               <PencilIcon className="h-3.5 w-3.5" />
               Edit
             </Link>
-            <DeleteProductButton id={product.id} name={product.name} />
+            <DeleteProductButton
+              id={product.id}
+              name={product.name}
+              disabled={role !== "super" && role !== "admin"}
+            />
           </div>
         </li>
       ))}

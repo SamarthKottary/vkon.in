@@ -12,7 +12,7 @@ import { deleteProductAction } from "../actions";
  * explicitly-labelled click on a destructive-coloured control makes the
  * intent deliberate without being tedious.
  */
-export function DeleteProductButton({ id, name }: { id: string; name: string }) {
+export function DeleteProductButton({ id, name, disabled }: { id: string; name: string; disabled?: boolean }) {
   const [confirming, setConfirming] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -28,8 +28,10 @@ export function DeleteProductButton({ id, name }: { id: string; name: string }) 
       <button
         type="button"
         onClick={arm}
+        disabled={disabled}
+        title={disabled ? "You don't have permission to do this" : ""}
         aria-label={`Delete ${name}`}
-        className="inline-flex items-center border border-line-strong px-3 py-2 text-sm text-muted hover:border-red-400 hover:text-red-700"
+        className="inline-flex items-center border border-line-strong px-3 py-2 text-sm text-muted hover:border-red-400 hover:text-red-700 disabled:opacity-50"
       >
         <TrashIcon className="h-3.5 w-3.5" />
       </button>
@@ -39,7 +41,7 @@ export function DeleteProductButton({ id, name }: { id: string; name: string }) 
   return (
     <form action={deleteProductAction} className="flex items-center gap-1">
       <input type="hidden" name="id" value={id} />
-      <ConfirmButton name={name} />
+      <ConfirmButton name={name} disabled={disabled} />
       <button
         type="button"
         onClick={() => setConfirming(false)}
@@ -51,13 +53,14 @@ export function DeleteProductButton({ id, name }: { id: string; name: string }) 
   );
 }
 
-function ConfirmButton({ name }: { name: string }) {
+function ConfirmButton({ name, disabled }: { name: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
+      title={disabled ? "You don't have permission to do this" : ""}
       className="inline-flex items-center gap-1.5 border border-red-600 bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
     >
       {pending ? <SpinnerIcon className="h-3.5 w-3.5" /> : <TrashIcon className="h-3.5 w-3.5" />}

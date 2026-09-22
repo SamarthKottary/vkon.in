@@ -28,7 +28,8 @@ import { saveProductAction, uploadImageAction, type ActionState } from "../actio
  * than repeater widgets. For a handful of products a textarea is faster to fill
  * in and impossible to get into a broken state.
  */
-export function ProductForm({ product }: { product?: Product }) {
+export function ProductForm({ product, role }: { product?: Product; role: string }) {
+  const disabled = role !== "super" && role !== "admin";
   const uid = useId();
   const [state, formAction] = useActionState<ActionState, FormData>(
     saveProductAction,
@@ -482,7 +483,7 @@ export function ProductForm({ product }: { product?: Product }) {
       </Panel>
 
       <div className="flex items-center gap-3 border-t border-line pt-6">
-        <SaveButton isEdit={Boolean(product)} />
+        <SaveButton isEdit={Boolean(product)} disabled={disabled} />
         <Link
           href="/admin/products"
           className="px-4 py-2 text-sm text-muted hover:text-ink"
@@ -627,13 +628,14 @@ function ImageManager({
   );
 }
 
-function SaveButton({ isEdit }: { isEdit: boolean }) {
+function SaveButton({ isEdit, disabled }: { isEdit: boolean; disabled?: boolean }) {
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
+      title={disabled ? "You don't have permission to do this" : ""}
       className="inline-flex h-11 items-center gap-2 rounded-sm bg-action px-6 text-sm font-medium text-action-ink hover:bg-action-hover disabled:opacity-50"
     >
       {pending && <SpinnerIcon className="h-4 w-4" />}

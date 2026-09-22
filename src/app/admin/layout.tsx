@@ -31,122 +31,123 @@ export default async function AdminLayout({
   const showAccess = admin?.role === "super" || admin?.role === "admin";
 
   return (
-    <div className="flex min-h-full flex-col bg-surface-subtle">
-      <header className="border-b border-line bg-surface">
-        <Container size="wide">
-          {/* `flex-wrap` and `min-h-14` rather than `h-14`: this row has never
-              fitted a phone — it overflowed at 390px with four nav links long
-              before Orders was a fifth — and a fixed height turns wrapping
-              into overlapping. Nothing changes above `sm`. */}
-          <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2 sm:py-0">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <Link href="/admin/products" className="flex items-baseline gap-2.5">
-                <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
-                  Vkon
-                </span>
-                <span className="label-tech text-muted">Automation · Admin</span>
+    <div className="flex min-h-screen flex-col sm:flex-row bg-surface-subtle">
+      <header className="sm:w-60 sm:shrink-0 border-b sm:border-b-0 sm:border-r border-line bg-surface flex flex-col">
+        <div className="flex h-14 sm:h-16 items-center justify-between px-4 sm:px-6 border-b border-line">
+          <Link href="/admin/products" className="flex items-baseline gap-2.5">
+            <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
+              Vkon
+            </span>
+            <span className="label-tech text-muted">Admin</span>
+          </Link>
+          <div className="flex sm:hidden items-center gap-3">
+            <ThemeToggle />
+          </div>
+        </div>
+
+        {authed && (
+          <div className="flex-1 overflow-y-auto">
+            <nav
+              aria-label="Admin"
+              className="flex flex-row sm:flex-col overflow-x-auto sm:overflow-visible gap-1 p-2 sm:p-4"
+            >
+              <Link
+                href="/admin/products"
+                className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
+              >
+                Products
               </Link>
-
-              {authed && (
-                <nav aria-label="Admin" className="flex flex-wrap items-center gap-x-5 gap-y-1">
-                  <Link
-                    href="/admin/products"
-                    className="text-sm text-muted hover:text-ink"
-                  >
-                    Products
-                  </Link>
-                  {/* Orders before Enquiries: an order is a commitment
-                      somebody is waiting on, an enquiry is a question. */}
-                  <Link
-                    href="/admin/orders"
-                    className="text-sm text-muted hover:text-ink"
-                  >
-                    Orders
-                  </Link>
-                  <Link
-                    href="/admin/users"
-                    className="text-sm text-muted hover:text-ink"
-                  >
-                    Users
-                  </Link>
-                  {showReviews && (
-                    <Link
-                      href="/admin/reviews"
-                      className="text-sm text-muted hover:text-ink"
-                    >
-                      Reviews
-                    </Link>
-                  )}
-                  <Link
-                    href="/admin/enquiries"
-                    className="text-sm text-muted hover:text-ink"
-                  >
-                    Enquiries
-                  </Link>
-                  <Link
-                    href="/admin/subscribers"
-                    className="text-sm text-muted hover:text-ink"
-                  >
-                    Subscribers
-                  </Link>
-                  {showSeo && (
-                    <Link
-                      href="/admin/seo"
-                      className="text-sm text-muted hover:text-ink"
-                    >
-                      SEO
-                    </Link>
-                  )}
-                  {showAccess && (
-                    <Link
-                      href="/admin/users/access"
-                      className="text-sm text-muted hover:text-ink"
-                    >
-                      Access
-                    </Link>
-                  )}
-                </nav>
+              <Link
+                href="/admin/orders"
+                className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
+              >
+                Orders
+              </Link>
+              <Link
+                href="/admin/users"
+                className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
+              >
+                Users
+              </Link>
+              {showReviews && (
+                <Link
+                  href="/admin/reviews"
+                  className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
+                >
+                  Reviews
+                </Link>
               )}
-            </div>
+              <Link
+                href="/admin/enquiries"
+                className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
+              >
+                Enquiries
+              </Link>
+              <Link
+                href="/admin/subscribers"
+                className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
+              >
+                Subscribers
+              </Link>
+              {showSeo && (
+                <Link
+                  href="/admin/seo"
+                  className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
+                >
+                  SEO
+                </Link>
+              )}
+              {showAccess && (
+                <Link
+                  href="/admin/users/access"
+                  className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
+                >
+                  Access
+                </Link>
+              )}
+            </nav>
+          </div>
+        )}
 
-            <div className="flex items-center gap-4">
+        {authed && admin && (
+          <div className="hidden sm:flex flex-col gap-3 p-4 border-t border-line mt-auto">
+            <div className="flex items-center justify-between">
               <ThemeToggle />
               <Link
                 href="/"
                 className="text-sm text-muted hover:text-ink"
                 target="_blank"
               >
-                View site
+                View site ↗
               </Link>
-              {authed && admin && (
-                <>
-                  {/* Profile avatar / link */}
-                  <Link
-                    href="/admin/profile"
-                    className="flex items-center gap-2 text-sm text-muted hover:text-ink"
-                    title="My profile"
-                  >
-                    <Avatar name={admin.name} email={admin.email} url={admin.avatarUrl} size={28} />
-                    <span className="hidden sm:inline">{admin.name || "Profile"}</span>
-                  </Link>
-
-                  <form action={logoutAction}>
-                    <button
-                      type="submit"
-                      className="flex items-center gap-1.5 text-sm text-muted hover:text-ink"
-                    >
-                      <LogoutIcon className="h-4 w-4" />
-                      Sign out
-                    </button>
-                  </form>
-                </>
-              )}
             </div>
+            <Link
+              href="/admin/profile"
+              className="flex items-center gap-2 text-sm text-muted hover:text-ink mt-2"
+              title="My profile"
+            >
+              <Avatar
+                name={admin.name}
+                email={admin.email}
+                url={admin.avatarUrl}
+                size={28}
+              />
+              <span className="truncate">{admin.name || "Profile"}</span>
+            </Link>
+            <form action={logoutAction} className="mt-1">
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+              >
+                <LogoutIcon className="h-4 w-4" />
+                Sign out
+              </button>
+            </form>
           </div>
-        </Container>
+        )}
       </header>
 
-      <main className="flex-1 py-10">{children}</main>
+      <main className="flex-1 py-6 sm:py-10 min-w-0">{children}</main>
     </div>
   );
 }

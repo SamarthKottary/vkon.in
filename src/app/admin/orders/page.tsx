@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { sameOrderAddress } from "@/components/account/OrderAddress";
-import { isAuthenticated } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listCustomerEmails } from "@/lib/db/customers";
 import {
@@ -67,7 +67,7 @@ export default async function AdminOrdersPage({
     status?: string;
   }>;
 }) {
-  if (!(await isAuthenticated())) redirect("/admin");
+  const admin = await requireAdmin();
 
   const params = await searchParams;
   const {
@@ -336,6 +336,7 @@ export default async function AdminOrdersPage({
               canRefund={canRefund}
               customerEmail={emails.get(order.customerId) ?? null}
               view={view}
+              role={admin.role}
             />
           ))
         )}
@@ -437,6 +438,7 @@ function OrderCard({
   canRefund,
   customerEmail,
   view,
+  role,
 }: {
   order: Order;
   canShip: boolean;
@@ -444,6 +446,7 @@ function OrderCard({
   customerEmail: string | null;
   /** The list view the card is on, posted with each of its forms. */
   view: string;
+  role: string;
 }) {
   const settled = order.status === "delivered" || order.status === "cancelled";
   const bookable = shipmentBookable(order);
@@ -584,7 +587,7 @@ function OrderCard({
             {/* Starts on the bill's line: with the shipment moved over to the
                 addresses, the bill is all that shares this row. */}
             <div className="order-2 sm:order-1">
-              <PaymentBlock order={order} canRefund={canRefund} view={view} />
+              <PaymentBlock order={order} canRefund={canRefund} view={view} role={role} />
             </div>
 
             <div className="order-1 sm:order-2">
@@ -828,7 +831,7 @@ function ShipmentBlock({
  * cancelled order that is still owed a refund is called out in amber — the
  * cancellation email has already promised the customer one.
  */
-function PaymentBlock({ order, canRefund, view }: { order: Order; canRefund: boolean; view: string }) {
+function PaymentBlock({ order, canRefund, view, role }: { order: Order; canRefund: boolean; view: string; role: string }) {
   const online = order.paymentProvider === "razorpay" && Boolean(order.paymentId);
   const remaining = order.total - order.refundedAmount;
   const paidOnline = online && (order.paymentStatus === "paid" || order.refundedAmount > 0);
@@ -866,7 +869,9 @@ function PaymentBlock({ order, canRefund, view }: { order: Order; canRefund: boo
                 <input type="hidden" name="view" value={view} />
                 <button
                   type="submit"
-                  className="inline-flex h-8 items-center border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+                  disabled={role !== "super" && role !== "admin"}
+                  title={role !== "super" && role !== "admin" ? "You don't have permission to do this" : ""}
+                  className="inline-flex h-8 items-center border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle disabled:opacity-50"
                 >
                   Check with Razorpay
                 </button>
@@ -894,6 +899,7 @@ function PaymentBlock({ order, canRefund, view }: { order: Order; canRefund: boo
                 orderNumber={order.orderNumber}
                 remainingRupees={(remaining / 100).toFixed(2)}
                 view={view}
+                disabled={role !== "super" && role !== "admin"}
               />
             ) : (
               <p className="text-muted">Razorpay not configured — refunds are unavailable.</p>

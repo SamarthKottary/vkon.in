@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
-import { isAuthenticated } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { getProductById } from "@/lib/db/products";
 import { ProductForm } from "../ProductForm";
 
@@ -13,7 +13,7 @@ export default async function EditProductPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  if (!(await isAuthenticated())) redirect("/admin");
+  const admin = await requireAdmin();
 
   const { id } = await params;
   const product = await getProductById(id);
@@ -47,7 +47,7 @@ export default async function EditProductPage({
       </p>
 
       <div className="mt-8">
-        <ProductForm product={product} />
+        <ProductForm product={product} role={admin.role} />
       </div>
     </Container>
   );

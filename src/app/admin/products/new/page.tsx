@@ -2,13 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeftIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
-import { isAuthenticated } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { ProductForm } from "../ProductForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewProductPage() {
-  if (!(await isAuthenticated())) redirect("/admin");
+  const admin = await requireAdmin();
 
   return (
     <Container size="default">
@@ -26,7 +26,7 @@ export default async function NewProductPage() {
       </p>
 
       <div className="mt-8">
-        <ProductForm />
+        <ProductForm role={admin.role} />
       </div>
     </Container>
   );

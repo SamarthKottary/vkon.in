@@ -23,6 +23,7 @@ export function RefundForm({
   orderNumber,
   remainingRupees,
   view,
+  disabled,
 }: {
   id: string;
   orderNumber: string;
@@ -30,6 +31,8 @@ export function RefundForm({
   remainingRupees: string;
   /** The search, filter and page this card is on — see `returnView`. */
   view: string;
+  /** Disable the entire form (e.g. for unauthorized roles). */
+  disabled?: boolean;
 }) {
   const amountRef = useRef<HTMLInputElement>(null);
 
@@ -63,20 +66,23 @@ export function RefundForm({
           inputMode="decimal"
           defaultValue={remainingRupees}
           required
-          className="h-full w-28 bg-transparent px-1.5 tabular-nums text-ink focus:outline-none"
+          disabled={disabled}
+          className="h-full w-28 bg-transparent px-1.5 tabular-nums text-ink focus:outline-none disabled:opacity-50"
         />
       </span>
-      <SubmitButton />
+      <SubmitButton disabled={disabled} />
     </form>
   );
 }
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled?: boolean }) {
   const { pending } = useFormStatus();
+
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
+      title={disabled ? "You don't have permission to do this" : ""}
       className="inline-flex h-9 items-center gap-2 border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle disabled:opacity-60"
     >
       {pending && <SpinnerIcon className="h-4 w-4" />}
