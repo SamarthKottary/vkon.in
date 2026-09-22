@@ -39,7 +39,7 @@ export default async function AdminLayout({
             <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
               Vkon
             </span>
-            <span className="label-tech text-muted">Admin</span>
+            <span className="label-tech text-muted">ADMIN</span>
           </Link>
           <ThemeToggle />
         </header>
@@ -58,7 +58,7 @@ export default async function AdminLayout({
             <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
               Vkon
             </span>
-            <span className="label-tech text-muted">Admin</span>
+            <span className="label-tech text-muted">ADMIN</span>
           </Link>
         }
       >
