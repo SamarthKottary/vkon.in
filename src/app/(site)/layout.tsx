@@ -1,4 +1,5 @@
 import { Footer } from "@/components/layout/Footer";
+import { FooterSlot } from "@/components/layout/FooterSlot";
 import { FloatingContact } from "@/components/layout/FloatingContact";
 import { Header } from "@/components/layout/Header";
 import { IntroSplash } from "@/components/layout/IntroSplash";
@@ -191,9 +192,11 @@ export default async function SiteLayout({
           it above the footer (`z-0`) while scrolling so the curtain reveal
           effect is preserved, while allowing the footer links to receive
           mouse hover and pointer events properly when revealed. */}
-      <div className="sticky bottom-[min(0px,calc(100svh_-_86rem))] z-0 md:bottom-[min(0px,calc(100svh_-_51rem))] lg:bottom-[min(0px,calc(100svh_-_37rem))]">
-        <Footer />
-      </div>
+      <FooterSlot>
+        <div className="sticky bottom-[min(0px,calc(100svh_-_86rem))] z-0 md:bottom-[min(0px,calc(100svh_-_51rem))] lg:bottom-[min(0px,calc(100svh_-_37rem))]">
+          <Footer />
+        </div>
+      </FooterSlot>
       <CartDrawer products={products} />
       <CartSync customerId={customer?.id ?? null} />
 
