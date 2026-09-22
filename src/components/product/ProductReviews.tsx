@@ -1,4 +1,5 @@
-import { ReviewCard } from "@/components/product/ReviewCard";
+import { ReviewPhotoStrip } from "@/components/product/ReviewPhotoStrip";
+import { ReviewsPanel } from "@/components/product/ReviewsPanel";
 import { Stars, formatRating } from "@/components/product/Stars";
 import type { RatingSummary, Review } from "@/lib/db/reviews";
 
@@ -92,61 +93,19 @@ export function ProductReviews({
    *  shown to them and to nobody else (client, 2026-09-22). */
   ownReview?: Review | null;
 }) {
-  /* **Only reviews with something written in them are listed** (client,
-     2026-09-22: "don't show just ratings in review sections, only show review
-     if there is a review message"). A row of stars with no words says nothing
-     a reader can use — but it is still somebody's rating, so it stays in the
-     average and the count on the left. */
-  /* Words or pictures — a review with a photo and no comment still shows a
-     reader something (2026-09-22). Stars alone still does not. */
-  const written = reviews.filter(
-    (review) => review.comment.trim().length > 0 || review.media.length > 0,
-  );
-  /* Theirs first, and only once: an approved review is already in the list
-     above, where it is shown to everybody. */
-  const mine = ownReview && !written.some((review) => review.id === ownReview.id) ? ownReview : null;
-  const listed = mine ? [mine, ...written] : written;
+  /* Theirs first, and only once: an approved review is already in the list,
+     where it is shown to everybody. */
+  const mine = ownReview && !reviews.some((review) => review.id === ownReview.id) ? ownReview : null;
+  const all = mine ? [mine, ...reviews] : reviews;
 
   return (
     <section id="reviews" className="scroll-mt-24 border-t border-line py-14 sm:py-16">
       <div className="mx-auto w-full max-w-[75rem] px-5 sm:px-8">
-        {/* The summary and the reviews are ruled apart, and so is each review
-            from the next (client, 2026-09-22) — the two columns ran together
-            as one field of text without it. The rule is on the left edge of
-            the right-hand column, so it only exists where there are two
-            columns to separate. */}
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,16rem)_1fr] lg:gap-0">
-          <div className="lg:pr-12">
-            <h2 className="label-tech pt-1 text-muted">Reviews</h2>
-            {rating.count > 0 && (
-              <div className="mt-4">
-                <p className="text-3xl font-bold tabular-nums text-ink">
-                  {formatRating(rating.average)}
-                  <span className="ml-1 text-base font-normal text-muted">out of 5</span>
-                </p>
-                <Stars rating={rating.average} size={20} className="mt-2" />
-                <p className="mt-2 text-sm text-muted">
-                  {rating.count} {rating.count === 1 ? "review" : "reviews"}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-line pt-8 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
-            {listed.length === 0 ? (
-              <p className="text-body">
-                {rating.count === 0
-                  ? "No reviews yet. Reviews come from customers who have received this product — you can write one from your order once it arrives."
-                  : "Nobody has written about this one yet — the rating above is from customers who left stars without a comment."}
-              </p>
-            ) : (
-              <div className="divide-y divide-line">
-                {listed.map((review) => (
-                  <ReviewCard key={review.id} review={review} mine={review.id === mine?.id} />
-                ))}
-              </div>
-            )}
-          </div>
+        {/* The photo strip first — it is the part people look at (client,
+            2026-09-22) — then the ratings and the reviews themselves. */}
+        <ReviewPhotoStrip reviews={all} ownReviewId={mine?.id ?? null} />
+        <div className={all.some((review) => review.media.length > 0) ? "pt-10" : ""}>
+          <ReviewsPanel rating={rating} reviews={all} ownReviewId={mine?.id ?? null} />
         </div>
       </div>
     </section>

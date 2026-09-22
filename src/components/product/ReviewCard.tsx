@@ -84,9 +84,9 @@ export function ReviewCard({ review, mine = false }: { review: Review; mine?: bo
 
       {openAt !== null && (
         <ReviewLightbox
-          review={review}
-          mine={mine}
+          items={lightboxItems(review)}
           index={openAt}
+          ownReviewId={mine ? review.id : null}
           onIndex={setOpenAt}
           onClose={() => setOpenAt(null)}
         />
@@ -95,40 +95,55 @@ export function ReviewCard({ review, mine = false }: { review: Review; mine?: bo
   );
 }
 
+/** One picture in a lightbox, and the review it belongs to. */
+export type LightboxItem = { review: Review; url: string; kind: "image" | "video" };
+
+/** Every photo and clip on one review, in order. */
+export function lightboxItems(review: Review): LightboxItem[] {
+  return review.media.map((item) => ({ review, url: item.url, kind: item.kind }));
+}
+
 /**
- * The review, opened: its media large on the left with arrows, the review
- * itself on the right, thumbnails under it.
+ * Pictures from reviews, opened: the media large on the left with arrows, the
+ * review it came from on the right, thumbnails under it.
  *
- * Arrows only when there is more than one file, and they wrap — a two-photo
- * review is the common case and dead-ending on the second is worse than
- * cycling.
+ * **A flat list, not one review's media**, so the same component serves both
+ * ways in: a thumbnail on a review opens that review's own pictures, and "See
+ * all photos" opens every picture on the product with the review beside each
+ * one changing as you step. Arrows wrap — dead-ending on the last of two is
+ * worse than cycling.
  */
-function ReviewLightbox({
-  review,
-  mine,
+export function ReviewLightbox({
+  items,
   index,
+  ownReviewId,
   onIndex,
   onClose,
 }: {
-  review: Review;
-  mine: boolean;
+  items: LightboxItem[];
   index: number;
+  ownReviewId?: string | null;
   onIndex: (index: number) => void;
   onClose: () => void;
 }) {
-  const media = review.media;
-  const item = media[index];
-  const step = (by: number) => onIndex((index + by + media.length) % media.length);
+  const item = items[index];
+  if (!item) return null;
+  const { review } = item;
+  const mine = review.id === ownReviewId;
+  const step = (by: number) => onIndex((index + by + items.length) % items.length);
 
   return (
-    <Modal title={`${mine ? "Your" : `${review.customerName || "Customer"}’s`} review`} onClose={onClose} size="xl">
+    <Modal
+      title={`${mine ? "Your" : `${review.customerName || "Customer"}’s`} review`}
+      onClose={onClose}
+      size="xl"
+    >
       <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
         {/* **A fixed box, whatever is in it** (client, 2026-09-22): the
             pop-up used to grow and shrink as you stepped from a portrait
             photo to a landscape one, which moved the arrows under the
-            pointer. The frame is the constant now and the media is
-            `object-contain` inside it, so a tall photo letterboxes rather
-            than stretching the panel. */}
+            pointer. The frame is the constant and the media is
+            `object-contain` inside it. */}
         <div className="relative flex h-[44vh] items-center justify-center bg-surface-subtle sm:h-[70vh]">
           {item.kind === "video" ? (
             <video src={item.url} controls autoPlay className="max-h-full max-w-full object-contain" />
@@ -137,7 +152,7 @@ function ReviewLightbox({
             <img src={item.url} alt="" className="max-h-full max-w-full object-contain" />
           )}
 
-          {media.length > 1 && (
+          {items.length > 1 && (
             <>
               <button
                 type="button"
@@ -185,16 +200,18 @@ function ReviewLightbox({
             </p>
           )}
 
-          {media.length > 1 && (
+          {items.length > 1 && (
             <ul className="mt-4 flex flex-wrap gap-2">
-              {media.map((thumb, i) => (
-                <li key={thumb.url}>
+              {items.map((thumb, i) => (
+                <li key={`${thumb.review.id}-${thumb.url}`}>
                   <button
                     type="button"
                     onClick={() => onIndex(i)}
                     aria-current={i === index}
                     aria-label={`Show ${thumb.kind === "video" ? "clip" : "photo"} ${i + 1}`}
-                    className={`block border ${i === index ? "border-ink" : "border-line"} bg-surface-subtle`}
+                    className={`block overflow-hidden rounded border ${
+                      i === index ? "border-ink" : "border-line"
+                    } bg-surface-subtle`}
                   >
                     {thumb.kind === "video" ? (
                       <video src={thumb.url} preload="metadata" className="h-14 w-14 object-cover" />

@@ -94,7 +94,7 @@ export default async function ProductPage({
     (p) => p.id !== product.id && p.category === product.category,
   );
   /* The related cards carry their own star lines (2026-09-22). */
-  const relatedRated = await withRatings(related);
+  const relatedRated = await withRatings(related, customer?.id);
 
   // Blank lines separate paragraphs in the admin textarea.
   const paragraphs = product.description

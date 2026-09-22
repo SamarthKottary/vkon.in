@@ -1,9 +1,8 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
-import { StarGlyph, Stars, formatRating } from "@/components/product/Stars";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { StarGlyph, formatRating } from "@/components/product/Stars";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
 import {
   removeReviewMediaAction,
   saveReviewAction,
@@ -52,6 +51,7 @@ export function ReviewForm({
   slug,
   productName,
   review,
+  onDone,
 }: {
   orderId: string;
   productId: string;
@@ -64,64 +64,38 @@ export function ReviewForm({
     media: Media[];
     status: "pending" | "approved" | "rejected";
   } | null;
+  /** Called when the review is saved, and when Cancel is pressed. The pop-up
+   *  and what happens next belong to `ReviewFlow`, not here. */
+  onDone: () => void;
 }) {
   const [state, action, pending] = useActionState<ReviewState, FormData>(saveReviewAction, {
     status: "idle",
   });
-  const [rating, setRating] = useState(review?.rating ?? 0);
+  /* Five stars to begin with (client, 2026-09-22): most people who bother to
+     review are happy, and a form that opens at zero makes the common case an
+     extra decision. Anything else is one tap away, and the server still
+     refuses a rating outside half-star steps. */
+  const [rating, setRating] = useState(review?.rating ?? 5);
   const [hovered, setHovered] = useState(0);
   const [comment, setComment] = useState(review?.comment ?? "");
   const [media, setMedia] = useState<Media[]>(review?.media ?? []);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [uploading, startUpload] = useTransition();
   const fileInput = useRef<HTMLInputElement>(null);
-  /* The form lives in a pop-up (client, 2026-09-22): an order of five items
-     was five stacked forms down the page, and only one is ever being filled
-     in. Closed is the resting state, even before a first review. */
-  const [open, setOpen] = useState(false);
-  const [closing, setClosing] = useState(false);
-
-  /* Saved: close it. The order page revalidates behind the pop-up, so what
-     is underneath is already the new review by the time it goes. Written in a
-     render rather than an effect on purpose — §9 forbids a synchronous
-     setState in an effect body, and this is the same information. */
-  if (state.status === "ok" && open && !closing) {
-    setClosing(true);
-    setOpen(false);
-  }
-  if (state.status !== "ok" && closing) setClosing(false);
+  /* Saved: hand back to the flow, which closes this and moves on. In an
+     effect, not in render — telling a parent to change state while this one
+     is rendering is what React's "cannot update a component while rendering"
+     warning is about. */
+  const done = useRef(false);
+  useEffect(() => {
+    if (state.status === "ok" && !done.current) {
+      done.current = true;
+      onDone();
+    }
+  }, [state.status, onDone]);
 
   const shown = hovered || rating;
   const tooShort = comment.trim().length > 0 && comment.trim().length < COMMENT_MIN;
-
-  /* **Never "your review was not published"** (client, 2026-09-22). A
-     customer sees their own review whatever the admin has decided about
-     showing it to strangers; being told it was turned down invites a row over
-     a judgement they cannot see the reasons for. */
-  const summary = review ? (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Stars rating={review.rating} size={15} />
-        <span className="text-sm font-medium text-ink">{formatRating(review.rating)} out of 5</span>
-        <span className="text-sm text-muted">Your review</span>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="text-sm text-accent hover:underline"
-        >
-          Edit
-        </button>
-      </div>
-      {review.comment && (
-        <p className="whitespace-pre-line text-sm leading-relaxed text-body">{review.comment}</p>
-      )}
-      {review.media.length > 0 && <MediaStrip media={review.media} />}
-    </div>
-  ) : (
-    <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-      Write a review
-    </Button>
-  );
 
   /**
    * Sends the chosen files, one at a time, and keeps what came back.
@@ -170,15 +144,8 @@ export function ReviewForm({
     }
   }
 
-  if (!open) return summary;
-
   return (
-    <Modal
-      title={review ? "Edit your review" : "Write a review"}
-      onClose={() => setOpen(false)}
-      size="lg"
-    >
-      <form action={action} className="space-y-3">
+    <form action={action} className="space-y-3">
       <input type="hidden" name="orderId" value={orderId} />
       <input type="hidden" name="productId" value={productId} />
       <input type="hidden" name="slug" value={slug} />
@@ -326,17 +293,12 @@ export function ReviewForm({
         <Button type="submit" size="sm" disabled={pending || rating === 0 || tooShort}>
           {pending ? "Saving…" : review ? "Update review" : "Submit review"}
         </Button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="text-sm text-muted hover:text-ink"
-        >
+        <button type="button" onClick={onDone} className="text-sm text-muted hover:text-ink">
           Cancel
         </button>
       </div>
 
-      </form>
-    </Modal>
+    </form>
   );
 }
 

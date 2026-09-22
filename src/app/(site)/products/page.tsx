@@ -1,4 +1,5 @@
 import { withRatings } from "@/lib/db/reviews";
+import { getCurrentCustomer } from "@/lib/account";
 import { Suspense } from "react";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { PageHero, SECTION_BACKGROUND } from "@/components/layout/PageHero";
@@ -21,7 +22,7 @@ export async function generateMetadata() {
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
-  const products = await listProducts();
+  const [products, viewer] = await Promise.all([listProducts(), getCurrentCustomer()]);
 
   return (
     <>
@@ -64,7 +65,7 @@ export default async function ProductsPage() {
             ) : (
               /* useSearchParams needs a Suspense boundary to stay prerenderable. */
               <Suspense fallback={<CatalogueSkeleton />}>
-                <ProductCatalogue products={await withRatings(products)} />
+                <ProductCatalogue products={await withRatings(products, viewer?.id)} />
               </Suspense>
             )}
           </Container>

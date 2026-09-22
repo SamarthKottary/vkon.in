@@ -1,4 +1,5 @@
 import { withRatings } from "@/lib/db/reviews";
+import { getCurrentCustomer } from "@/lib/account";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { Hero } from "@/components/home/Hero";
@@ -34,9 +35,13 @@ export async function generateMetadata() {
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [all, featured] = await Promise.all([
+  const [all, featured, viewer] = await Promise.all([
     listProducts(),
     listFeaturedProducts(8),
+    /* Who is looking, so their own unapproved rating counts on their cards
+       the way it does on a product page (client, 2026-09-22). Fails soft to
+       null when nobody is signed in. */
+    getCurrentCustomer(),
   ]);
 
   /* Every sector gets a card, including ones with nothing under them yet —
@@ -178,13 +183,13 @@ export default async function HomePage() {
             same as `RecentlyViewed` below it, so the two are a matched pair. */}
         {featured.length > 0 && (
           <Section size="wide">
-            <FeaturedProducts products={await withRatings(featured)} />
+            <FeaturedProducts products={await withRatings(featured, viewer?.id)} />
           </Section>
         )}
 
         {/* Renders nothing until the visitor has actually opened a product — it
             reads their own browser, so the server has nothing to show. */}
-        <RecentlyViewed products={await withRatings(all)} />
+        <RecentlyViewed products={await withRatings(all, viewer?.id)} />
 
         {/* Placed per page rather than from inside `ContactStrip`, which used to
             put it on all five pages that close with one. Home, about and contact

@@ -216,6 +216,22 @@ export async function productRating(productId: string): Promise<RatingSummary> {
   }
 }
 
+/** Every product this customer has already reviewed — the order history uses
+ *  it to know which lines still need one (2026-09-22). */
+export async function reviewedProductIds(customerId: string): Promise<Set<string>> {
+  if (!isDatabaseConfigured()) return new Set();
+  try {
+    const rows = await query<{ product_id: string }>(
+      `SELECT product_id FROM product_reviews WHERE customer_id = $1`,
+      [customerId],
+    );
+    return new Set(rows.map((row) => row.product_id));
+  } catch (error) {
+    console.error("[db] reviewed products failed:", error);
+    return new Set();
+  }
+}
+
 /**
  * The rating a particular visitor should see: the approved average, plus
  * their own review when the admin has not approved it yet (client,
@@ -362,15 +378,51 @@ export async function setReviewStatus(
  * One query for the whole grid rather than one per card, and the products
  * themselves carry the answer — so a card deep inside a client component gets
  * it without every container between having to pass it down.
+ *
+ * **A signed-in customer's own unapproved ratings are counted in**, exactly
+ * as they are on the product page (client, 2026-09-22 — the two disagreeing
+ * was the bug). Their review is theirs to see wherever it appears; everybody
+ * else gets the approved average. Pass `customerId` on a page that knows who
+ * is looking, and nothing extra is queried when nobody is.
  */
 export async function withRatings<T extends { id: string }>(
   products: T[],
+  customerId?: string | null,
 ): Promise<(T & { rating: RatingSummary })[]> {
-  const ratings = await ratingsForProducts(products.map((product) => product.id));
-  return products.map((product) => ({
-    ...product,
-    rating: ratings.get(product.id) ?? { average: 0, count: 0 },
-  }));
+  const [ratings, own] = await Promise.all([
+    ratingsForProducts(products.map((product) => product.id)),
+    customerId ? ownUnapprovedRatings(customerId) : new Map<string, number>(),
+  ]);
+  return products.map((product) => {
+    const approved = ratings.get(product.id) ?? { average: 0, count: 0 };
+    const mine = own.get(product.id);
+    return {
+      ...product,
+      rating:
+        mine === undefined
+          ? approved
+          : {
+              count: approved.count + 1,
+              average: (approved.average * approved.count + mine) / (approved.count + 1),
+            },
+    };
+  });
+}
+
+/** This customer's ratings that the admin has not approved, by product. */
+async function ownUnapprovedRatings(customerId: string): Promise<Map<string, number>> {
+  if (!isDatabaseConfigured()) return new Map();
+  try {
+    const rows = await query<{ product_id: string; rating: string }>(
+      `SELECT product_id, rating FROM product_reviews
+        WHERE customer_id = $1 AND status <> 'approved'`,
+      [customerId],
+    );
+    return new Map(rows.map((row) => [row.product_id, Number(row.rating)]));
+  } catch (error) {
+    console.error("[db] own unapproved ratings failed:", error);
+    return new Map();
+  }
 }
 
 /** Ratings for many products at once — the catalogue grid's star lines. */

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ReviewFlowProvider, StartReviewsButton } from "@/components/account/ReviewFlow";
 import { ArrowRightIcon } from "@/components/icons/ui";
 import { formatPaise } from "@/lib/pricing";
 import { trackingLabel, trackingUrl } from "@/lib/tracking";
@@ -105,7 +106,34 @@ function canTrack(order: Order): boolean {
  * already opens the order, so a second button for that would be the row's
  * least useful control in its most prominent spot.
  */
-function OrderActions({ order }: { order: Order }) {
+function OrderActions({ order, reviewedIds }: { order: Order; reviewedIds: Set<string> }) {
+  /* A delivered order asks for the reviews it is still missing, in place of
+     "View details" (client, 2026-09-22) — the row itself still opens the
+     order, so nothing is lost by spending the button on this. */
+  if (order.status === "delivered") {
+    const items = order.items
+      .filter((item) => item.productId)
+      .map((item) => ({
+        productId: item.productId,
+        slug: item.slug,
+        name: item.name,
+        /* Only "has it been reviewed" matters here — the text and stars
+           live on the order page, and this row never shows them. */
+        review: reviewedIds.has(item.productId)
+          ? { rating: 0, comment: "", media: [], status: "pending" as const }
+          : null,
+      }));
+    if (items.some((item) => !item.review)) {
+      return (
+        <ReviewFlowProvider orderId={order.id} items={items}>
+          <StartReviewsButton
+            className={`inline-flex h-9 ${ACTION_WIDTH} items-center justify-center gap-1.5 whitespace-nowrap border border-accent bg-accent text-xs font-semibold text-surface transition-colors hover:bg-accent-strong`}
+          />
+        </ReviewFlowProvider>
+      );
+    }
+  }
+
   if (awaitingPayment(order)) {
     return (
       <div className="flex items-center justify-end gap-2">
@@ -194,7 +222,15 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   );
 }
 
-export function OrderHistoryTable({ orders }: { orders: Order[] }) {
+export function OrderHistoryTable({
+  orders,
+  reviewed = [],
+}: {
+  orders: Order[];
+  /** Product ids this customer has already reviewed (2026-09-22). */
+  reviewed?: string[];
+}) {
+  const reviewedIds = new Set(reviewed);
   const router = useRouter();
   /**
    * The whole row opens the order (client, 2026-09-17), not only its button.
@@ -489,7 +525,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                         {formatPaise(order.total)}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <OrderActions order={order} />
+                        <OrderActions order={order} reviewedIds={reviewedIds} />
                       </td>
                     </tr>
                   );
@@ -538,7 +574,7 @@ export function OrderHistoryTable({ orders }: { orders: Order[] }) {
                     <span className="text-base font-bold tabular-nums text-accent">
                       {formatPaise(order.total)}
                     </span>
-                    <OrderActions order={order} />
+                    <OrderActions order={order} reviewedIds={reviewedIds} />
                   </div>
                 </li>
               );

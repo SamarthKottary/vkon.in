@@ -4,6 +4,7 @@ import { OrderHistoryTable } from "@/components/account/OrderHistoryTable";
 import { AccountShell } from "@/components/account/AccountShell";
 import { requireSignIn } from "@/lib/account";
 import { listOrdersForCustomer } from "@/lib/db/orders";
+import { reviewedProductIds } from "@/lib/db/reviews";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
@@ -17,7 +18,12 @@ export const dynamic = "force-dynamic";
 
 export default async function OrdersPage() {
   const customer = await requireSignIn("/account/orders");
-  const orders = await listOrdersForCustomer(customer.id);
+  const [orders, reviewed] = await Promise.all([
+    listOrdersForCustomer(customer.id),
+    /* So a delivered order can offer "Write reviews" for what is left, and
+       skip what is already done (client, 2026-09-22). */
+    reviewedProductIds(customer.id),
+  ]);
 
   return (
     <AccountShell customer={customer}>
@@ -43,7 +49,7 @@ export default async function OrdersPage() {
             </Link>
           </div>
         ) : (
-          <OrderHistoryTable orders={orders} />
+          <OrderHistoryTable orders={orders} reviewed={[...reviewed]} />
         )}
       </div>
     </AccountShell>

@@ -67,13 +67,18 @@ export function ProductTags({
   );
 
   if (size === "compact") {
+    /* **One tag only** on a thumbnail (client, 2026-09-22): the card is
+       112px wide and two chips stacked on it cover the photograph. It is the
+       first of the ranked list — out of stock, then the deal, then best
+       seller — the same order the ribbon takes. The product page and the
+       quick view, where there is room, still show both. */
     return (
       <>
         {wash}
         <div
           className={`pointer-events-none absolute left-0 top-0 z-20 flex flex-col items-start gap-1 p-2 ${className}`}
         >
-          {tags.map(chip)}
+          {chip(tags[0])}
         </div>
       </>
     );

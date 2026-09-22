@@ -11,7 +11,7 @@ import { CancelOrderButton } from "@/components/account/CancelOrderButton";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { AccountShell } from "@/components/account/AccountShell";
 import { OrderAddress, sameOrderAddress } from "@/components/account/OrderAddress";
-import { ReviewForm } from "@/components/account/ReviewForm";
+import { ItemReviewButton, ReviewFlowProvider } from "@/components/account/ReviewFlow";
 import { OrderAddressEdit } from "@/components/account/OrderAddressEdit";
 import { requireSignIn } from "@/lib/account";
 import { listAddresses } from "@/lib/db/addresses";
@@ -83,6 +83,27 @@ export default async function OrderPage({
   /* What this customer has already written about these products — a review is
      one per product, and the form opens on it (client, 2026-09-22). */
   const reviews = order ? await reviewsForOrder(customer.id, order.id) : new Map();
+  /* A review belongs to a delivered order (client, 2026-09-22): it is of the
+     thing in your hands, not of the wait for it. */
+  const canReview = order?.status === "delivered";
+  const flowItems = (order?.items ?? [])
+    .filter((item) => item.productId)
+    .map((item) => {
+      const review = reviews.get(item.productId);
+      return {
+        productId: item.productId,
+        slug: item.slug,
+        name: item.name,
+        review: review
+          ? {
+              rating: review.rating,
+              comment: review.comment,
+              media: review.media,
+              status: review.status,
+            }
+          : null,
+      };
+    });
   if (!order) notFound();
 
   const { placed, unpaid } = await searchParams;
@@ -249,7 +270,8 @@ export default async function OrderPage({
         <div className="mt-6 grid gap-6 sm:mt-8 lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-8">
           <div>
             <div className="border border-line bg-surface-raised shadow-card">
-            <ul className="divide-y divide-line">
+            <ReviewFlowProvider orderId={order.id} items={flowItems}>
+          <ul className="divide-y divide-line">
               {order.items.map((item) => (
                 /* Same shape as the checkout line for the same reason: at
                    390px the thumbnail plus a wrapped product name leaves no
@@ -303,27 +325,29 @@ export default async function OrderPage({
                     </div>
                   </div>
 
-                  <p className="hidden shrink-0 font-bold tabular-nums text-ink sm:block">
-                    {formatPaise(item.lineTotal)}
-                  </p>
+                  {/* The total, and under it the review button — the line's
+                      right-hand corner (client, 2026-09-22). The review
+                      itself opens in a pop-up, one at a time. */}
+                  <div className="hidden shrink-0 flex-col items-end gap-2 sm:flex">
+                    <p className="font-bold tabular-nums text-ink">
+                      {formatPaise(item.lineTotal)}
+                    </p>
+                    {canReview && item.productId && <ItemReviewButton productId={item.productId} />}
+                  </div>
                 </div>
 
-                {/* Only once it has arrived (client, 2026-09-22): a review is
-                    of the thing in your hands, not of the wait for it. */}
-                {order.status === "delivered" && item.productId && (
-                  <div className="mt-4 border-t border-line pt-4">
-                    <ReviewForm
-                      orderId={order.id}
-                      productId={item.productId}
-                      slug={item.slug}
-                      productName={item.name}
-                      review={reviews.get(item.productId) ?? null}
-                    />
+                {/* Below `sm` the total sits under the name, so the button
+                    goes on its own line rather than squeezing beside it. */}
+                {canReview && item.productId && (
+                  <div className="mt-3 sm:hidden">
+                    <ItemReviewButton productId={item.productId} />
                   </div>
                 )}
                 </li>
               ))}
             </ul>
+
+            </ReviewFlowProvider>
 
             {order.notes && (
               <div className="border-t border-line px-5 py-4">
