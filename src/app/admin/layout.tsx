@@ -33,8 +33,19 @@ export default async function AdminLayout({
 
   if (!authed) {
     return (
-      <div className="flex min-h-screen flex-col bg-surface-subtle items-center justify-center">
-        <main className="w-full py-10">{children}</main>
+      <div className="flex min-h-screen flex-col bg-surface-subtle">
+        <header className="flex h-14 sm:h-16 items-center justify-between px-4 sm:px-6 border-b border-line bg-surface">
+          <Link href="/" className="flex items-baseline gap-2.5">
+            <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
+              Vkon
+            </span>
+            <span className="label-tech text-muted">Admin</span>
+          </Link>
+          <ThemeToggle />
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center w-full py-10">
+          {children}
+        </main>
       </div>
     );
   }
