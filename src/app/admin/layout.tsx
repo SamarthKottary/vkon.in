@@ -31,6 +31,14 @@ export default async function AdminLayout({
   // User Access Levels: only super and admin.
   const showAccess = admin?.role === "super" || admin?.role === "admin";
 
+  if (!authed) {
+    return (
+      <div className="flex min-h-screen flex-col bg-surface-subtle items-center justify-center">
+        <main className="w-full py-10">{children}</main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col sm:flex-row bg-surface-subtle">
       <AdminSidebar
@@ -43,12 +51,11 @@ export default async function AdminLayout({
           </Link>
         }
       >
-        {authed && (
-          <div className="flex-1 overflow-y-auto">
-            <nav
-              aria-label="Admin"
-              className="flex flex-col gap-1 p-4"
-            >
+        <div className="flex-1 overflow-y-auto">
+          <nav
+            aria-label="Admin"
+            className="flex flex-col gap-1 p-4"
+          >
               <Link
                 href="/admin/products"
                 className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
@@ -104,10 +111,9 @@ export default async function AdminLayout({
                 </Link>
               )}
             </nav>
-          </div>
-        )}
+        </div>
 
-        {authed && admin && (
+        {admin && (
           <div className="flex flex-col gap-3 p-4 border-t border-line mt-auto">
             <div className="flex items-center justify-between">
               <ThemeToggle />
