@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 export function AdminSidebar({
   logo,
@@ -10,6 +11,11 @@ export function AdminSidebar({
   children: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
 
   return (
     <header className="sm:w-60 sm:shrink-0 border-b sm:border-b-0 sm:border-r border-line bg-surface flex flex-col relative z-20">
