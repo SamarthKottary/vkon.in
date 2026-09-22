@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { LogoutIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { Logo } from "@/components/icons/Logo";
 import { getAdminSession } from "@/lib/auth";
 import { Avatar } from "@/components/account/Avatar";
 import { logoutAction } from "./actions";
@@ -36,9 +37,7 @@ export default async function AdminLayout({
       <div className="flex min-h-screen flex-col bg-surface-subtle">
         <header className="flex h-14 sm:h-16 items-center justify-between px-4 sm:px-6 border-b border-line bg-surface">
           <Link href="/" className="flex items-baseline gap-2.5">
-            <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
-              Vkon
-            </span>
+            <Logo className="h-6 w-auto" />
             <span className="label-tech text-muted">ADMIN</span>
           </Link>
           <ThemeToggle />
@@ -55,9 +54,7 @@ export default async function AdminLayout({
       <AdminSidebar
         logo={
           <Link href="/admin/products" className="flex items-baseline gap-2.5">
-            <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
-              Vkon
-            </span>
+            <Logo className="h-6 w-auto" />
             <span className="label-tech text-muted">ADMIN</span>
           </Link>
         }
