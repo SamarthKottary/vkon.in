@@ -4,6 +4,7 @@ import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { CheckIcon } from "@/components/icons/ui";
 import { ProductMedia } from "@/components/product/ProductMedia";
+import { ProductTags } from "@/components/product/ProductTags";
 import { ProductPrice } from "@/components/product/ProductPrice";
 import { RecordView } from "@/components/product/RecordView";
 import { RelatedProducts } from "@/components/product/RelatedProducts";
@@ -120,6 +121,8 @@ export default async function ProductPage({
                 {categoryLabel(product.category)}
               </p>
 
+              <ProductTags product={product} inline className="mt-3" />
+
               <h1 className="mt-3 text-[2.25rem] leading-[1.08] sm:text-5xl">
                 {product.name}
               </h1>
@@ -162,7 +165,11 @@ export default async function ProductPage({
                   )}
                 </div>
                 <div className="min-w-0">
-                  <AddToCartButton slug={product.slug} name={product.name} />
+                  <AddToCartButton
+                    slug={product.slug}
+                    name={product.name}
+                    outOfStock={product.outOfStock}
+                  />
                 </div>
               </div>
 

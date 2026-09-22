@@ -10,6 +10,7 @@ import { PanelPlaceholder } from "./PanelPlaceholder";
 import { categoryLabel } from "@/content/taxonomy";
 import { QuickViewModal } from "@/components/product/QuickViewModal";
 import { ProductPrice } from "@/components/product/ProductPrice";
+import { ProductTags } from "@/components/product/ProductTags";
 import type { Product } from "@/lib/types";
 
 /**
@@ -540,6 +541,10 @@ export function ProductCard({
           </button>
         </div>
 
+        <ProductTags product={product} />
+
+        {/* Back on the left: the tag is now a ribbon across the right
+            corner (client, 2026-09-22). */}
         {product.videoUrl && (
           <span
             className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center bg-action text-action-ink"
@@ -625,7 +630,12 @@ export function ProductCard({
             </span>
           )}
           <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
-            <AddToCartButton slug={product.slug} name={product.name} size="compact" />
+            <AddToCartButton
+              slug={product.slug}
+              name={product.name}
+              size="compact"
+              outOfStock={product.outOfStock}
+            />
           </div>
         </div>
       </div>
@@ -852,9 +862,11 @@ function HorizontalCard({
           </div>
         )}
 
+        <ProductTags product={product} size="compact" className="p-1" />
+
         {product.videoUrl && (
           <span
-            className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center bg-action text-action-ink"
+            className="absolute bottom-1.5 right-1.5 flex h-5 w-5 items-center justify-center bg-action text-action-ink"
             title="Includes a video"
           >
             <PlayIcon className="h-2.5 w-2.5" />
@@ -1027,7 +1039,12 @@ function HorizontalCard({
       )}
 
       <div className="absolute bottom-3 right-4 transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
-          <AddToCartButton slug={product.slug} name={product.name} size="compact" />
+          <AddToCartButton
+              slug={product.slug}
+              name={product.name}
+              size="compact"
+              outOfStock={product.outOfStock}
+            />
       </div>
     </article>
   );
@@ -1259,7 +1276,12 @@ function FeaturedCard({
             </Link>
           )}
           <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
-            <AddToCartButton slug={product.slug} name={product.name} size="compact" />
+            <AddToCartButton
+              slug={product.slug}
+              name={product.name}
+              size="compact"
+              outOfStock={product.outOfStock}
+            />
           </div>
         </div>
 
@@ -1504,9 +1526,11 @@ function FeaturedCard({
           </div>
         </div>
 
+        <ProductTags product={product} />
+
         {product.videoUrl && (
           <span
-            className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center bg-action text-action-ink"
+            className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center bg-action text-action-ink"
             title="Includes a video"
           >
             <PlayIcon className="h-3.5 w-3.5" />
@@ -1632,7 +1656,12 @@ function FeaturedCard({
           </Link>
         )}
         <div className="transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
-          <AddToCartButton slug={product.slug} name={product.name} size="compact" />
+          <AddToCartButton
+              slug={product.slug}
+              name={product.name}
+              size="compact"
+              outOfStock={product.outOfStock}
+            />
         </div>
       </div>
 

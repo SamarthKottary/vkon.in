@@ -679,6 +679,26 @@ export async function placeOrderAction(
       };
     }
 
+    /* **Out of stock is refused here, not only in the button** (client,
+       2026-09-22). `AddToCartButton` stops it being added and the cart page
+       says so, but a basket filled before the tag went on — or a page left
+       open — would otherwise take money for something that cannot be sent.
+       The products are named, because "something in your cart" sends the
+       customer hunting through it. */
+    const catalogue = new Map(products.map((product) => [product.slug, product]));
+    const unavailable = priced
+      .map((line) => catalogue.get(line.slug))
+      .filter((product) => product?.outOfStock)
+      .map((product) => product!.name);
+    if (unavailable.length > 0) {
+      return {
+        status: "error",
+        message: `${unavailable.join(" and ")} ${
+          unavailable.length === 1 ? "is" : "are"
+        } out of stock. Remove ${unavailable.length === 1 ? "it" : "them"} from your cart to place the rest of the order.`,
+      };
+    }
+
     /* A cart of unpriced products would otherwise become a ₹0 order. Prices
        are optional on a product (the column is nullable — some of the range is
        quote-only), so this is a real state and not a defensive check. */
@@ -705,7 +725,7 @@ export async function placeOrderAction(
       paymentMode === "cod"
     );
     const money = totals(priced, delivery?.ratePaise ?? 0);
-    const bySlug = new Map(products.map((p) => [p.slug, p]));
+    const bySlug = catalogue;
 
     const order = await createOrder({
       customerId: customer.id,

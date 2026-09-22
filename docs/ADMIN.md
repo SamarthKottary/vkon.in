@@ -429,6 +429,14 @@ Note also that a paid order arrives here already marked **Paid** and
 
 ## Change log
 
+**2026-09-22 (products)** — Three tags on the product form, shown as a ribbon across the
+top-right corner of the photo on every card: **Out of stock** (red), **Best seller** (green) and
+**Limited time deal** (orange). Out of stock is the only one that does
+anything: the photo dims, Add to cart becomes a disabled "Out of stock", the
+cart marks the line, and an order containing it is refused with the product
+named — checked again on the server, so a page left open cannot get through.
+Nothing expires the deal tag; turn it off when the offer ends.
+
 **2026-09-21 (users)** — The emailed sign-in code is now one switch at the top
 of `/admin/users` rather than a button on each account: off means no customer
 is asked for a code, and it is meant to go back on as soon as the review that

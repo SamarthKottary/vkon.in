@@ -426,6 +426,54 @@ export function ProductForm({ product }: { product?: Product }) {
               </span>
             </span>
           </label>
+
+          {/* The three tags shown over the product photo (client,
+              2026-09-22). Out of stock is the one that does something:
+              nothing can be added to a basket or ordered while it is on. */}
+          <label className="flex cursor-pointer items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="outOfStock"
+              defaultChecked={product?.outOfStock}
+              className="mt-0.5 h-4 w-4 accent-accent"
+            />
+            <span>
+              <span className="font-medium text-ink">Out of stock</span>
+              <span className="mt-0.5 block text-muted">
+                Red tag on the photo. Add to cart is turned off and an order
+                cannot be placed for it.
+              </span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="bestSeller"
+              defaultChecked={product?.bestSeller}
+              className="mt-0.5 h-4 w-4 accent-accent"
+            />
+            <span>
+              <span className="font-medium text-ink">Best seller</span>
+              <span className="mt-0.5 block text-muted">Green tag on the photo.</span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="limitedDeal"
+              defaultChecked={product?.limitedDeal}
+              className="mt-0.5 h-4 w-4 accent-accent"
+            />
+            <span>
+              <span className="font-medium text-ink">Limited time deal</span>
+              <span className="mt-0.5 block text-muted">
+                Orange tag on the photo. Nothing expires it — turn it off when
+                the offer ends.
+              </span>
+            </span>
+          </label>
         </div>
 
         {/* Catalogue order is set from the product list's drag handles, not

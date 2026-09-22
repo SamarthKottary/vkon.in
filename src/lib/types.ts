@@ -81,6 +81,16 @@ export type Product = {
   spec: SpecRow[];
   published: boolean;
   featured: boolean;
+  /**
+   * The three tags shown over the product photo (client, 2026-09-22).
+   *
+   * `outOfStock` is not decoration: it disables Add to cart and is refused
+   * again when an order is created, so a stale page cannot sell what is not
+   * there. The other two are labels and nothing else.
+   */
+  outOfStock: boolean;
+  bestSeller: boolean;
+  limitedDeal: boolean;
   sortOrder: number;
   /**
    * List price ("M.R.P.") in INR, whole rupees. Null if not set.

@@ -333,6 +333,11 @@ async function buildInput(formData: FormData): Promise<{
       discountPercent,
       published: formData.get("published") === "on",
       featured: formData.get("featured") === "on",
+      /* Tags (client, 2026-09-22). `outOfStock` is a control, not a label:
+         `createOrder` refuses a basket that contains one. */
+      outOfStock: formData.get("outOfStock") === "on",
+      bestSeller: formData.get("bestSeller") === "on",
+      limitedDeal: formData.get("limitedDeal") === "on",
       seoTitle: String(formData.get("seoTitle") ?? "").trim().slice(0, 70),
       seoDescription: String(formData.get("seoDescription") ?? "").trim().slice(0, 200),
     },

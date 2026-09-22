@@ -1620,6 +1620,43 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-22 (catalogue) — Product tags, and out of stock as a control
+
+Client: "I need tags for the product like 1. Out of stock - red, 2. Best
+seller - green, 3. Limited time deal - orange", placed over the card image,
+set by three switches in the admin, with out of stock blocking the sale.
+
+- **Schema:** `products.out_of_stock`, `best_seller`, `limited_deal`
+  (booleans, default false). Columns rather than a `tags` array because one of
+  them is a control and two are labels — the code treats them differently.
+- **New `components/product/ProductTags`**: a folded ribbon across the
+  photo's top-right corner (the client's reference), an `inline` row of chips
+  for the product page, flat chips on the small horizontal thumbnail where a
+  ribbon would be four unreadable letters, and the wash that dims an
+  out-of-stock photograph. The video mark stayed top-left; on the horizontal
+  card it moved to the bottom-right.
+- **One corner, one ribbon.** Two bands across the same corner is not a
+  layout, so the tags are ranked — out of stock, then the deal, then best
+  seller — and the first wins; a product with both marketing tags shows the
+  deal on its card and both on its own page. Out of stock is shown **alone**,
+  because a "Best seller" beside it would be promoting something nobody can
+  buy. The ribbon's own label is shorter than the chip's ("Limited deal"), as
+  the band is a fixed diagonal and clips anything longer.
+- **Colours that do not flip.** The chips use `red-600`, `brand-700` and
+  `signal-500`/`graphite-950`, not `price-off` and `accent`: dark mode
+  lightens those two (#ff8a7a, #4cae81) because there they are text on a dark
+  page, and as a fill under white text they measure about 2:1. §6's rule is
+  that colour comes from the palette — these are its fixed steps.
+- **Out of stock is enforced in three places**, in order of authority:
+  `placeOrderAction` refuses the basket and names the products (the control);
+  `CheckoutForm` disables the button and says the same thing; `AddToCartButton`
+  renders a disabled "Out of stock" and `CartList` marks the line. The first
+  one is what stops a stale page or a basket filled before the tag went on.
+- **Admin:** three tick boxes on the product form beside Published and
+  Featured; `buildInput` reads them. Nothing expires `limited_deal` — the
+  form says so.
+- **Schema change**, so a deploy runs `db-setup` before the app restarts.
+
 ### 2026-09-21 (admin) — One sign-in-code switch, and signing in as a customer
 
 Client: "instead of having button on each account to turn off and on code,

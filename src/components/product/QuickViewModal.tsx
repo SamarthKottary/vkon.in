@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ProductMedia } from "@/components/product/ProductMedia";
 import { physicalSpecRows, SpecTable } from "@/components/product/SpecTable";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
+import { ProductTags } from "@/components/product/ProductTags";
 import { ProductPrice } from "@/components/product/ProductPrice";
 import { CloseIcon } from "@/components/icons/ui";
 import { categoryLabel } from "@/content/taxonomy";
@@ -138,6 +139,10 @@ export function QuickViewModal({
               footer stays put in that case too. */}
           <div className="p-6 md:min-h-0 md:overflow-y-auto md:p-8 lg:p-10">
             <p className="label-tech text-muted mb-2">{categoryLabel(product.category)}</p>
+            {/* In the flow rather than over the photo (client, 2026-09-22):
+                the modal's image is `ProductMedia`, a shared component with
+                its own gallery furniture in the corners. */}
+            <ProductTags product={product} inline className="mb-2.5" />
             <h2 className="text-2xl leading-snug sm:text-3xl text-ink">
               <Link href={`/products/${product.slug}`} className="hover:text-accent transition-colors" onClick={onClose}>
                 {product.name}
@@ -237,7 +242,11 @@ export function QuickViewModal({
                 </div>
               )}
               <div className={product.price != null ? "min-w-0" : "col-span-2"}>
-                <AddToCartButton slug={product.slug} name={product.name} />
+                <AddToCartButton
+                  slug={product.slug}
+                  name={product.name}
+                  outOfStock={product.outOfStock}
+                />
               </div>
             </div>
           </div>

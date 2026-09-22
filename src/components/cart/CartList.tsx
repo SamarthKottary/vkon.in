@@ -127,6 +127,13 @@ export function CartList({ products }: { products: Product[] }) {
                     <p className="mt-1 text-xs text-muted font-mono uppercase tracking-wide">
                       SKU: {skuCode}
                     </p>
+                    {/* Out of stock while it sits in the basket (client,
+                        2026-09-22): said here, refused at checkout. */}
+                    {product.outOfStock && (
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-price-off">
+                        Out of stock — remove to order the rest
+                      </p>
+                    )}
                     <p className="mt-1 text-xs text-muted">
                       Unit: <span className="font-semibold text-ink">{formatRupees(sellingPrice)}</span>
                     </p>
@@ -204,6 +211,11 @@ export function CartList({ products }: { products: Product[] }) {
                           <p className="mt-1 text-xs text-muted font-mono uppercase tracking-wide">
                             SKU: {skuCode}
                           </p>
+                          {product.outOfStock && (
+                            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-price-off">
+                              Out of stock — remove to order the rest
+                            </p>
+                          )}
                         </div>
                       </div>
                     </td>

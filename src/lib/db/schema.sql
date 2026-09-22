@@ -650,6 +650,22 @@ CREATE INDEX IF NOT EXISTS admin_tokens_expiry_idx
   ON admin_tokens (expires_at);
 
 -- ---------------------------------------------------------------------------
+-- Product tags (2026-09-22)
+--
+-- Three flags the operator sets on the product form, shown as a coloured tag
+-- over the product photo. Columns rather than a `tags` array because each one
+-- means something different to the code: `out_of_stock` is a control (nothing
+-- can be bought), the other two are only labels.
+--
+-- `out_of_stock` is the one that matters. It is enforced where an order is
+-- created, not only where the button is drawn -- see `lib/db/orders.ts`.
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS out_of_stock  BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS best_seller   BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS limited_deal  BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- ---------------------------------------------------------------------------
 -- Site settings — one row per switch the operator can flip at runtime.
 --
 -- Added 2026-09-21 for the sign-in code toggle in /admin/users: the emailed

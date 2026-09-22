@@ -395,7 +395,16 @@ export function CheckoutForm({
   }
 
   const bySlug = new Map(products.map((p) => [p.slug, p]));
-  const ready = Boolean(billingId) && (sameAsBilling || Boolean(shippingId));
+  /* Out of stock since the basket was filled (client, 2026-09-22). The button
+     waits and the line is named; `placeOrderAction` refuses it again anyway,
+     which is the control — this is so nobody reaches that refusal by
+     surprise after filling in an address. */
+  const outOfStock = priced
+    .map((line) => bySlug.get(line.slug))
+    .filter((product) => product?.outOfStock)
+    .map((product) => product!.name);
+  const ready =
+    Boolean(billingId) && (sameAsBilling || Boolean(shippingId)) && outOfStock.length === 0;
 
   /* Editing leaves the selection alone. It used to select the card being
      edited, because the form opened inline under the grid and the highlighted
@@ -700,6 +709,17 @@ export function CheckoutForm({
           <p className="mt-5 text-xs leading-relaxed text-muted">
             Invoiced to{" "}
             <span className="font-mono font-medium text-ink">{billing.gstin}</span>
+          </p>
+        )}
+
+        {outOfStock.length > 0 && (
+          <p role="alert" className="mb-3 border-l-2 border-price-off bg-surface px-4 py-3 text-sm text-ink">
+            {outOfStock.join(" and ")} {outOfStock.length === 1 ? "is" : "are"} out of
+            stock. Remove {outOfStock.length === 1 ? "it" : "them"} from your{" "}
+            <Link href="/cart" className="text-accent hover:underline">
+              cart
+            </Link>{" "}
+            to order the rest.
           </p>
         )}
 

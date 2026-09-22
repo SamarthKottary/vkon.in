@@ -36,6 +36,7 @@ export function AddToCartButton({
   slug,
   name,
   size = "default",
+  outOfStock = false,
   className = "",
 }: {
   slug: string;
@@ -43,10 +44,31 @@ export function AddToCartButton({
   name: string;
   /** "compact" is the in-card form; "default" is the product page's. */
   size?: "default" | "compact";
+  /** The product's tag (client, 2026-09-22). The button is the courtesy; the
+   *  control is `placeOrderAction`, which refuses the basket. */
+  outOfStock?: boolean;
   className?: string;
 }) {
   const qty = useCartQty(slug);
   const compact = size === "compact";
+
+  /* Before the quantity check on purpose: a product that goes out of stock
+     while it sits in somebody's basket must stop offering "one more", and the
+     cart page is where they are told what to do about the one they have. */
+  if (outOfStock) {
+    return (
+      <button
+        type="button"
+        disabled
+        aria-label={`${name} is out of stock`}
+        className={`relative z-10 inline-flex shrink-0 cursor-not-allowed items-center justify-center whitespace-nowrap border border-line-strong bg-surface-subtle font-medium text-muted ${
+          compact ? "h-9 w-24 px-2 text-[0.8125rem]" : "h-12 w-40 px-4 text-[0.9375rem]"
+        } ${className}`}
+      >
+        Out of stock
+      </button>
+    );
+  }
 
   if (qty > 0) {
     return (
