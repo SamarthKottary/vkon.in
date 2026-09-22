@@ -18,7 +18,7 @@ export function AdminSidebar({
   }, [pathname]);
 
   return (
-    <header className="sm:w-60 sm:shrink-0 border-b sm:border-b-0 sm:border-r border-line bg-surface flex flex-col relative z-30">
+    <header className="sm:w-60 sm:shrink-0 sticky top-0 sm:h-screen border-b sm:border-b-0 sm:border-r border-line bg-surface flex flex-col z-30">
       <div className="flex h-14 sm:h-16 items-center justify-between px-4 sm:px-6 border-b border-line bg-surface relative z-40">
         <div className="flex items-center">
           <button
