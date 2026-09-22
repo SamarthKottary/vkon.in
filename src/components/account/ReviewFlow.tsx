@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Button } from "@/components/ui/Button";
 import { ReviewForm, MediaStrip } from "@/components/account/ReviewForm";
 import { Stars, formatRating } from "@/components/product/Stars";
 
@@ -184,10 +183,17 @@ export function ItemReviewButton({ productId }: { productId: string }) {
   const flow = useContext(FlowContext);
   const item = flow?.items.find((entry) => entry.productId === productId);
   if (!flow || !item) return null;
+  /* Smaller than `Button size="sm"` (client, 2026-09-22): this sits under a
+     price on a line of an order, where it is a quiet secondary action, not
+     the thing the row is for. */
   return (
-    <Button type="button" variant="outline" size="sm" onClick={() => flow.open(productId)}>
+    <button
+      type="button"
+      onClick={() => flow.open(productId)}
+      className="inline-flex h-7 items-center whitespace-nowrap border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+    >
       {item.review ? "Show review" : "Write a review"}
-    </Button>
+    </button>
   );
 }
 

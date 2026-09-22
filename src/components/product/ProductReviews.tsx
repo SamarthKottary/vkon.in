@@ -1,4 +1,3 @@
-import { ReviewPhotoStrip } from "@/components/product/ReviewPhotoStrip";
 import { ReviewsPanel } from "@/components/product/ReviewsPanel";
 import { Stars, formatRating } from "@/components/product/Stars";
 import type { RatingSummary, Review } from "@/lib/db/reviews";
@@ -101,12 +100,7 @@ export function ProductReviews({
   return (
     <section id="reviews" className="scroll-mt-24 border-t border-line py-14 sm:py-16">
       <div className="mx-auto w-full max-w-[75rem] px-5 sm:px-8">
-        {/* The photo strip first — it is the part people look at (client,
-            2026-09-22) — then the ratings and the reviews themselves. */}
-        <ReviewPhotoStrip reviews={all} ownReviewId={mine?.id ?? null} />
-        <div className={all.some((review) => review.media.length > 0) ? "pt-10" : ""}>
-          <ReviewsPanel rating={rating} reviews={all} ownReviewId={mine?.id ?? null} />
-        </div>
+        <ReviewsPanel rating={rating} reviews={all} ownReviewId={mine?.id ?? null} />
       </div>
     </section>
   );

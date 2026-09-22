@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ReviewCard } from "@/components/product/ReviewCard";
+import { ReviewPhotoStrip } from "@/components/product/ReviewPhotoStrip";
 import { Stars, formatRating } from "@/components/product/Stars";
 import type { RatingSummary, Review } from "@/lib/db/reviews";
 
@@ -111,6 +112,10 @@ export function ReviewsPanel({
       </div>
 
       <div className="border-t border-line pt-8 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
+        {/* The photographs sit at the top of this column, beside the ratings
+            rather than above them (client, 2026-09-22). */}
+        <ReviewPhotoStrip reviews={reviews} ownReviewId={ownReviewId} />
+
         {listed.length === 0 ? (
           <p className="text-body">
             {star !== null

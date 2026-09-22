@@ -39,7 +39,7 @@ export function ReviewPhotoStrip({
   };
 
   return (
-    <div className="border-b border-line pb-10">
+    <div className="mb-8 border-b border-line pb-8">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-xl font-semibold text-ink">Reviews with images</h2>
         {everything.length > 1 && (
