@@ -11,10 +11,12 @@ import { CancelOrderButton } from "@/components/account/CancelOrderButton";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { AccountShell } from "@/components/account/AccountShell";
 import { OrderAddress, sameOrderAddress } from "@/components/account/OrderAddress";
+import { ReviewForm } from "@/components/account/ReviewForm";
 import { OrderAddressEdit } from "@/components/account/OrderAddressEdit";
 import { requireSignIn } from "@/lib/account";
 import { listAddresses } from "@/lib/db/addresses";
 import { getOrderForCustomer } from "@/lib/db/orders";
+import { reviewsForOrder } from "@/lib/db/reviews";
 import { formatPaise } from "@/lib/pricing";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import { trackingUrl } from "@/lib/shiprocket";
@@ -78,6 +80,9 @@ export default async function OrderPage({
      which is also the right answer: "not found" and "not yours" should be
      indistinguishable, or the page becomes a way to test which ids exist. */
   const order = await getOrderForCustomer(customer.id, id);
+  /* What this customer has already written about these products — a review is
+     one per product, and the form opens on it (client, 2026-09-22). */
+  const reviews = order ? await reviewsForOrder(customer.id, order.id) : new Map();
   if (!order) notFound();
 
   const { placed, unpaid } = await searchParams;
@@ -250,7 +255,8 @@ export default async function OrderPage({
                    390px the thumbnail plus a wrapped product name leaves no
                    room for a third column, so the total moves under the unit
                    price rather than colliding with the name. */
-                <li key={item.id} className="flex items-start gap-3 p-4 sm:items-center sm:gap-4 sm:p-5">
+                <li key={item.id} className="p-4 sm:p-5">
+                <div className="flex items-start gap-3 sm:items-center sm:gap-4">
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden border border-line bg-surface-subtle">
                     {item.imageUrl ? (
                       <Image
@@ -300,6 +306,21 @@ export default async function OrderPage({
                   <p className="hidden shrink-0 font-bold tabular-nums text-ink sm:block">
                     {formatPaise(item.lineTotal)}
                   </p>
+                </div>
+
+                {/* Only once it has arrived (client, 2026-09-22): a review is
+                    of the thing in your hands, not of the wait for it. */}
+                {order.status === "delivered" && item.productId && (
+                  <div className="mt-4 border-t border-line pt-4">
+                    <ReviewForm
+                      orderId={order.id}
+                      productId={item.productId}
+                      slug={item.slug}
+                      productName={item.name}
+                      review={reviews.get(item.productId) ?? null}
+                    />
+                  </div>
+                )}
                 </li>
               ))}
             </ul>

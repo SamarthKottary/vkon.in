@@ -128,6 +128,13 @@ export type Product = {
   seoDescription: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * The star line's figures, when whoever read this product asked for them
+   * (2026-09-22). **Not a column** — `withRatings` in `lib/db/reviews.ts`
+   * attaches it from the approved reviews, and it is absent on a product read
+   * by anything that does not need it, which is why it is optional.
+   */
+  rating?: { average: number; count: number };
 };
 
 /** The shape the admin form submits. `id` absent means create. */

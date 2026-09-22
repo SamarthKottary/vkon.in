@@ -25,6 +25,7 @@ import {
 import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
 import { findCustomerById } from "@/lib/db/customers";
 import { setSigninCodeOn } from "@/lib/db/settings";
+import { REVIEW_STATUSES, setReviewStatus, type ReviewStatus } from "@/lib/db/reviews";
 import {
   applyTrackingUpdate,
   claimRefundRequest,
@@ -1055,4 +1056,43 @@ export async function deleteAdminUserAction(formData: FormData): Promise<void> {
 
   revalidatePath("/admin/users/access");
   redirect("/admin/users/access?deleted=1");
+}
+
+// ---------------------------------------------------------------------------
+// Product reviews (client, 2026-09-22)
+// ---------------------------------------------------------------------------
+
+/**
+ * Approves or rejects one review, or moves it back — any status can become any
+ * other ("in approved and rejected section we can at any time move the reviews
+ * to approved/rejected").
+ *
+ * Only an approved review is ever read by the site, so this is what decides
+ * what the public sees; the status is re-validated here against the fixed
+ * list, never trusted from the form. The product's own page is revalidated
+ * because its star line and review list have just changed.
+ */
+export async function setReviewStatusAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super", "admin"]);
+
+  const id = String(formData.get("id") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim();
+  const failed = backTo("/admin/reviews", formData, "error=1");
+  if (!id || !(REVIEW_STATUSES as readonly string[]).includes(status)) redirect(failed);
+
+  let changed: Awaited<ReturnType<typeof setReviewStatus>> = null;
+  try {
+    changed = await setReviewStatus(id, status as ReviewStatus, admin.email);
+  } catch (error) {
+    console.error("[admin] review moderation failed:", error);
+    redirect(failed);
+  }
+  if (!changed) redirect(failed);
+
+  revalidatePath("/admin/reviews");
+  revalidatePath(`/products/${changed.slug}`);
+  /* The customer's order page says whether their review was published. */
+  revalidatePath("/account/orders/[id]", "page");
+  redirect(backTo("/admin/reviews", formData, "", `review-${id}`));
 }

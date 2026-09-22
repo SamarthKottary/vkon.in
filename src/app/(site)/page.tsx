@@ -1,3 +1,4 @@
+import { withRatings } from "@/lib/db/reviews";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { Hero } from "@/components/home/Hero";
@@ -177,13 +178,13 @@ export default async function HomePage() {
             same as `RecentlyViewed` below it, so the two are a matched pair. */}
         {featured.length > 0 && (
           <Section size="wide">
-            <FeaturedProducts products={featured} />
+            <FeaturedProducts products={await withRatings(featured)} />
           </Section>
         )}
 
         {/* Renders nothing until the visitor has actually opened a product — it
             reads their own browser, so the server has nothing to show. */}
-        <RecentlyViewed products={all} />
+        <RecentlyViewed products={await withRatings(all)} />
 
         {/* Placed per page rather than from inside `ContactStrip`, which used to
             put it on all five pages that close with one. Home, about and contact

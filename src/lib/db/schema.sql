@@ -688,3 +688,69 @@ CREATE TABLE IF NOT EXISTS site_settings (
   value      TEXT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ---------------------------------------------------------------------------
+-- Product reviews (2026-09-22)
+--
+-- Written by a customer from an order they have actually received, moderated
+-- by the admin, and shown on the product page once approved.
+--
+-- **Only a delivered order earns a review.** That is checked in
+-- `lib/db/reviews.ts` against this customer's own delivered orders, not from
+-- anything the form sends -- `order_id` records which order earned it.
+--
+-- One review per customer per product (the unique index). A second one is an
+-- edit of the first, and an edit puts it back to `pending`: nothing reaches
+-- the public page without the admin seeing that version of it.
+--
+-- `status` is 'pending' | 'approved' | 'rejected', checked in application code
+-- like `orders.status` is. Only 'approved' is ever read by the site.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS product_reviews (
+  id           TEXT PRIMARY KEY,
+  product_id   TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  customer_id  TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+
+  -- The delivered order this review came from. Kept for the audit trail: it
+  -- is the evidence the reviewer bought the thing.
+  order_id     TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+
+  rating       SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+
+  -- Optional. When given, 20-2000 characters (client, 2026-09-22) -- the
+  -- length is enforced in the action, not here, so a too-short comment is a
+  -- message under the field rather than a database error.
+  comment      TEXT NOT NULL DEFAULT '',
+
+  status       TEXT NOT NULL DEFAULT 'pending',
+  -- Who approved or rejected it, and when. The admin's email, not an id, so
+  -- the trail survives an admin account being removed.
+  moderated_by TEXT,
+  moderated_at TIMESTAMPTZ,
+
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS product_reviews_one_per_customer
+  ON product_reviews (product_id, customer_id);
+
+-- The product page reads approved reviews for one product, newest first.
+CREATE INDEX IF NOT EXISTS product_reviews_product_idx
+  ON product_reviews (product_id, status, created_at DESC);
+
+-- The admin inbox reads by status, newest first.
+CREATE INDEX IF NOT EXISTS product_reviews_status_idx
+  ON product_reviews (status, created_at DESC);
+
+-- Half stars (2026-09-22): a rating is 0.5 to 5.0 in half-star steps, not a
+-- whole number, so "4.5" is something a customer can actually give. The step
+-- is enforced in `saveReviewAction`; the column only holds the range.
+ALTER TABLE product_reviews ALTER COLUMN rating TYPE NUMERIC(2,1) USING rating::numeric(2,1);
+
+-- Photos and clips on a review (2026-09-22). One entry per file:
+-- `{url, kind}` with kind 'image' | 'video'. The files live in the upload
+-- volume as `review-<random>.<ext>` and are served by `/media`, like product
+-- images; `lib/storage.ts` decides what may be stored and how big.
+ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS media JSONB NOT NULL DEFAULT '[]'::jsonb;

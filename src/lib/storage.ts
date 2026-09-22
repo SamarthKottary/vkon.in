@@ -145,3 +145,97 @@ export async function deleteAvatar(filename: string | null): Promise<void> {
     /* Already gone. */
   }
 }
+
+// ---------------------------------------------------------------------------
+// Review photos and clips (client, 2026-09-22)
+// ---------------------------------------------------------------------------
+
+/**
+ * What a customer may attach to a review, and how big.
+ *
+ * **The site is built for low-end Android phones on rural connections**
+ * (ARCHITECTURE §2), which cuts both ways here: an upload from one of those
+ * phones has to fit through the same thin pipe, and whatever is stored is
+ * later downloaded by the next visitor on a phone just like it. So the
+ * browser shrinks photos before they are sent (`ReviewForm`), and a clip is
+ * capped at a size that is a few seconds of phone video rather than a film.
+ */
+export const REVIEW_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+export const REVIEW_VIDEO_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+export const REVIEW_MEDIA_MAX = 4;
+
+export type ReviewMediaKind = "image" | "video";
+
+/**
+ * What a video really is, from its first bytes. Only the two containers every
+ * phone records and every browser plays: MP4 (`ftyp` at offset 4) and WebM
+ * (the Matroska magic). A `.mov` from an iPhone is an MP4 inside and passes
+ * this on its `ftyp`.
+ */
+export function videoKind(bytes: Buffer): "mp4" | "webm" | null {
+  if (bytes.length >= 12 && bytes.toString("ascii", 4, 8) === "ftyp") return "mp4";
+  if (
+    bytes.length >= 4 &&
+    bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+  ) {
+    return "webm";
+  }
+  return null;
+}
+
+/**
+ * Stores one photo or clip from a review as `review-<random>.<ext>`.
+ *
+ * The type is read from the bytes, never from the name or the declared MIME
+ * type — both of which the sender controls — so a renamed `.mp4` full of
+ * something else is refused rather than stored and served back.
+ */
+export async function saveReviewMedia(
+  bytes: Buffer,
+): Promise<
+  { ok: true; filename: string; kind: ReviewMediaKind } | { ok: false; error: string }
+> {
+  if (bytes.length === 0) return { ok: false, error: "That file is empty." };
+
+  const image = imageKind(bytes);
+  const video = image ? null : videoKind(bytes);
+  if (!image && !video) {
+    return { ok: false, error: "Please choose a JPEG, PNG or WebP photo, or an MP4 or WebM clip." };
+  }
+  const limit = image ? REVIEW_IMAGE_MAX_BYTES : REVIEW_VIDEO_MAX_BYTES;
+  if (bytes.length > limit) {
+    return {
+      ok: false,
+      error: image
+        ? "That photo is too large — 5 MB is the limit."
+        : "That clip is too large — 25 MB is the limit. Try a shorter one.",
+    };
+  }
+
+  const ext = image ?? video!;
+  const filename = `review-${randomBytes(12).toString("hex")}.${ext}`;
+  try {
+    const dir = uploadDir();
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, filename), bytes, { mode: 0o644 });
+    return { ok: true, filename, kind: image ? "image" : "video" };
+  } catch (error) {
+    console.error("[storage] review media save failed:", error);
+    return { ok: false, error: "Could not save that file just now. Please try again." };
+  }
+}
+
+/** Best effort, like `deleteAvatar`: only ever a `review-…` name here. */
+export async function deleteReviewMedia(filenames: string[]): Promise<void> {
+  await Promise.all(
+    filenames.map(async (name) => {
+      const base = path.basename(name);
+      if (base !== name || !base.startsWith("review-")) return;
+      try {
+        await unlink(path.join(uploadDir(), base));
+      } catch {
+        /* Already gone. */
+      }
+    }),
+  );
+}

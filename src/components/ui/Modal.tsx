@@ -32,13 +32,14 @@ export function Modal({
   title,
   onClose,
   children,
-  /** Wider than the default for a form; the default suits a short message. */
+  /** `lg` for a form, `xl` for a photograph at a size worth looking at; the
+   *  default suits a short message. */
   size = "md",
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
 }) {
   const uid = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -84,7 +85,7 @@ export function Modal({
         aria-labelledby={`${uid}-title`}
         tabIndex={-1}
         className={`relative max-h-[92svh] w-full overflow-y-auto border border-line-strong bg-surface-raised p-5 shadow-2xl outline-none sm:p-6 ${
-          size === "lg" ? "max-w-2xl" : "max-w-md"
+          size === "xl" ? "max-w-5xl" : size === "lg" ? "max-w-2xl" : "max-w-md"
         }`}
       >
         <div className="mb-4 flex items-start justify-between gap-4">

@@ -11,6 +11,7 @@ import { categoryLabel } from "@/content/taxonomy";
 import { QuickViewModal } from "@/components/product/QuickViewModal";
 import { ProductPrice } from "@/components/product/ProductPrice";
 import { ProductTags } from "@/components/product/ProductTags";
+import { CardRating } from "@/components/product/ProductReviews";
 import type { Product } from "@/lib/types";
 
 /**
@@ -614,9 +615,15 @@ export function ProductCard({
             exactly the card that was here before. The whole card is still one
             stretched link either way, so nothing is lost when the price wins:
             the destination did not live in that text. */}
-        <div className="mt-auto flex items-center justify-between gap-3 pt-6">
+        {/* The rating sits with the price, not on the photograph (client,
+            2026-09-22) — stacked above it in the same cell, so the row still
+            reads price-left, button-right at any card width. */}
+        <div className="mt-auto flex items-end justify-between gap-3 pt-6">
           {product.price != null ? (
-            <ProductPrice product={product} />
+            <div className="min-w-0">
+              <CardRating rating={product.rating} className="mb-1.5" />
+              <ProductPrice product={product} />
+            </div>
           ) : (
             <span className="relative flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-accent">
               <span className="relative">
@@ -831,7 +838,7 @@ function HorizontalCard({
 
 
   return (
-    <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-12 shadow-card transition-[box-shadow,border-color,transform,translate] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
+    <article className="group relative h-full overflow-hidden border border-line bg-surface-raised p-4 pb-16 shadow-card transition-[box-shadow,border-color,transform,translate] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card-hover">
       {/* Floated, not a flex column. The text runs alongside the image and
           then continues *underneath* it, wrapping round in an L — which is
           what keeps a long product name readable in a ~320px card on a
@@ -987,6 +994,8 @@ function HorizontalCard({
         </Link>
       </Heading>
 
+
+
       {product.tagline && (
         <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-muted">
           {product.tagline}
@@ -1002,7 +1011,10 @@ function HorizontalCard({
           padding reserves, and the card still navigates from anywhere the
           button is not.
           
-          `pb-12`, not `pb-9`: the button is 36px tall at `bottom-3`, so it
+          `pb-16` since 2026-09-22, when the rating line moved in above the
+          price: the strip is two lines now, and at `pb-12` the stars sat over
+          the tagline above them. It was `pb-12`, not `pb-9`, because the
+          button is 36px tall at `bottom-3`, so it
           occupies 12–48px from the card's foot. At `pb-9` the content box
           ended at 36px and the button's top 12px sat over it — invisible
           while the label was an icon and the description happened to stop
@@ -1031,11 +1043,10 @@ function HorizontalCard({
           `right-20` reserves the button's own width plus a gap, so a long
           price truncates rather than sliding under it. */}
       {product.price != null && (
-        <ProductPrice
-          product={product}
-          variant="inline-desktop"
-          className="absolute bottom-3 left-4 right-28"
-        />
+        <div className="absolute bottom-3 left-4 right-28">
+          <CardRating rating={product.rating} className="mb-0.5" />
+          <ProductPrice product={product} variant="inline-desktop" />
+        </div>
       )}
 
       <div className="absolute bottom-3 right-4 transition-transform duration-200 ease-out [transform:scale(1)] hover:[transform:scale(1.08)]">
@@ -1142,7 +1153,7 @@ function FeaturedCard({
             colours — ordinary tokens on a token background are already
             proven to pass contrast, being the same pairing the vertical/
             horizontal cards below use for text on their own plain surface. */}
-        <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden bg-surface-subtle">
+        <div className="relative isolate aspect-square w-full min-h-0 overflow-hidden bg-surface-subtle">
           <div className="absolute inset-0 flex items-center justify-center">
             <PanelPlaceholder className="h-20 w-20 text-muted" />
           </div>
@@ -1222,6 +1233,8 @@ function FeaturedCard({
                   {product.name}
                 </Link>
               </Heading>
+
+
             </div>
 
             <div>
@@ -1256,10 +1269,13 @@ function FeaturedCard({
             visitor's cursor happens to be over. */}
         <div
           data-featured-footer
-          className="mt-auto flex items-center justify-between gap-3 bg-surface-raised/90 p-3 backdrop-blur-sm"
+          className="mt-auto flex shrink-0 items-center justify-between gap-3 bg-surface-raised/90 p-3 backdrop-blur-sm"
         >
           {product.price != null ? (
-            <ProductPrice product={product} variant="inline-desktop" className="shrink-0" />
+            <div className="min-w-0">
+              <CardRating rating={product.rating} className="mb-0.5" />
+              <ProductPrice product={product} variant="inline-desktop" className="shrink-0" />
+            </div>
           ) : (
             <Link
               href={`/products/${product.slug}`}
@@ -1313,7 +1329,12 @@ function FeaturedCard({
   return (
     <div className="relative h-full w-full">
       <article data-popped={isPopped || undefined} className="group absolute inset-x-0 top-1/2 z-10 flex h-full min-h-full -translate-y-1/2 flex-col overflow-hidden border border-line bg-band shadow-card transition-all duration-300 ease-out will-change-transform hover:z-20 hover:-inset-x-1 hover:scale-[1.02] hover:-translate-y-[calc(50%+4px)] hover:border-accent hover:shadow-card-hover data-[popped=true]:z-20 data-[popped=true]:-inset-x-1 data-[popped=true]:scale-[1.02] data-[popped=true]:-translate-y-[calc(50%+4px)] data-[popped=true]:border-accent data-[popped=true]:shadow-card-hover">
-      <div className="relative isolate aspect-square w-full shrink-0 overflow-hidden">
+      {/* `min-h-0` and no `shrink-0` (2026-09-22): the card's height is fixed
+          by its track, so when the footer grew by a line — the rating above
+          the price — the square pushed the price past the bottom edge. The
+          photo is `object-cover`, so giving up a few pixels of height is
+          invisible; a clipped price is not. */}
+      <div className="relative isolate aspect-square w-full min-h-0 overflow-hidden">
         <Image
           src={image.url}
           alt={image.alt || product.name}
@@ -1499,6 +1520,8 @@ function FeaturedCard({
               </Link>
             </Heading>
 
+
+
             {/* The price moved down into the footer row, where "View details"
                 was — see the note there. It cannot stay here as well: this
                 block sits over the photograph and uses literal, theme-invariant
@@ -1623,11 +1646,10 @@ function FeaturedCard({
             `QuantityStepper` once the product is in the cart, and an
             unprotected flex sibling absorbs the whole squeeze. */}
         {product.price != null ? (
-          <ProductPrice
-            product={product}
-            variant="inline-desktop"
-            className="shrink-0"
-          />
+          <div className="min-w-0">
+            <CardRating rating={product.rating} className="mb-0.5" />
+            <ProductPrice product={product} variant="inline-desktop" className="shrink-0" />
+          </div>
         ) : (
           <Link
             href={`/products/${product.slug}`}

@@ -7,6 +7,7 @@ import { ProductMedia } from "@/components/product/ProductMedia";
 import { physicalSpecRows, SpecTable } from "@/components/product/SpecTable";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { ProductTags } from "@/components/product/ProductTags";
+import { CardRating } from "@/components/product/ProductReviews";
 import { ProductPrice } from "@/components/product/ProductPrice";
 import { CloseIcon } from "@/components/icons/ui";
 import { categoryLabel } from "@/content/taxonomy";
@@ -148,6 +149,8 @@ export function QuickViewModal({
                 {product.name}
               </Link>
             </h2>
+
+            <CardRating rating={product.rating} className="mt-2" />
 
             {/* The price moved to the pinned footer, beside Add to cart
                 (client, 2026-09-03: "In quick view panel price will be

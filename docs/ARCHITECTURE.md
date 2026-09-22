@@ -147,6 +147,7 @@ src/
       payment/verify/       browser callback; checkout-signature check
       payment/webhook/      Razorpay's servers; raw-body signature check, no session
     admin/
+      reviews/              review moderation: pending / approved / rejected
       layout.tsx            admin chrome, reads auth state
       page.tsx              login
       LoginForm.tsx
@@ -899,6 +900,8 @@ it can never become an open redirect or a forged outcome message.
 | `subscribers.ts` | `normaliseEmail`, `addSubscriber`, `listSubscribers` (the export), `listSubscribersPage`, `deleteSubscriber` |
 | `enquiries.ts` | `createEnquiry`, `listEnquiriesPage`, `enquiryCounts`, `setEnquiryHandled`, `deleteEnquiry` |
 | `pageSeo.ts` | `getPageSeo`, `listPageSeo`, `upsertPageSeo`, `resolvePageMetadata` |
+| `reviews.ts` | `saveReview`, `reviewsForOrder`, `productRating`, `ratingsForProducts`, `listApprovedReviews`, `listReviewsPage`, `countReviewsByStatus`, `setReviewStatus` |
+| `settings.ts` | `isSigninCodeOn`, `setSigninCodeOn` — the runtime switches |
 | `customers.ts` | `findCustomerByEmail/ById/ByGoogleSub`, `createCustomer`, `getPasswordHash`, `updateCustomerProfile`, `setCustomerPassword`, `markEmailVerified`, `linkGoogleAccount`, `createSession`, `customerForSession`, `deleteSession(sForCustomer)`, `sweepExpiredSessions`, `createToken`, `consumeToken`, `invalidateTokens` |
 | `addresses.ts` | `listAddresses`, `getAddress`, `createAddress`, `updateAddress`, `deleteAddress`, `setDefaultAddress` |
 | `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByFilter`, `orderSummary`, `setOrderStatus`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
@@ -1619,6 +1622,93 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-22 (reviews) — Customer reviews, moderated before they are public
+
+Client: "only customers who have ordered and received delivery of the product
+can write product reviews … after an order is delivered, customer can give
+review in order history … 1 to 5 stars, with an optional comment … all reviews
+come to pending where admin either rejects or approves … show rating like
+this", with an Amazon star line as the reference.
+
+- **Schema `product_reviews`**: product, customer, the delivered order that
+  earned it, rating 0.5–5 in half-star steps (`NUMERIC(2,1)`; the range is a
+  CHECK, the step is enforced in the action), comment, `status` (pending / approved /
+  rejected), and who moderated it and when. **Unique on (product, customer)** —
+  a second review is an edit of the first.
+- **Eligibility is the WHERE clause, not a check the caller can skip.**
+  `saveReview` writes only where the order is that customer's, its status is
+  `delivered`, and it contains the product; `saveReviewAction` validates the
+  stars and the 20–2,000-character comment and nothing else. A forged
+  `productId` or `orderId` buys nothing.
+- **An edit returns the review to `pending`** and clears the moderation trail,
+  so nothing reaches the public page in a version the admin has not seen
+  (client's choice). `setReviewStatus` can move a review between any two
+  states.
+- **Only `status = 'approved'` is ever read by the site** — `productRating`,
+  `ratingsForProducts` and `listApprovedReviews` all filter on it, so an
+  unapproved review cannot reach a page by another route.
+- **Cards carry their rating too** (client, 2026-09-22). `withRatings`
+  attaches it to the product objects a page already passes down, so a card
+  deep inside a client component gets it without every container between
+  having to forward a prop; `Product.rating` is optional and is **not a
+  column**. A product with no approved reviews shows nothing rather than five
+  grey stars.
+- **New components**: `product/ReviewCard` (client — one published review in
+  the client's chosen shape: picture and name, stars, "Reviewed on …",
+  "Verified purchase", the words, then thumbnails that open the review in a
+  lightbox with the media full size, arrows and a thumbnail rail),
+  `product/ReviewMediaStrip` (the plain strip the admin card uses),
+  `product/Stars` (a part-filled star line, no hooks, so server and client
+  share it), `product/ProductReviews` (`RatingLine` under
+  the name, `CardRating` for cards and quick view, an anchor to `#reviews`,
+  and the section itself — a summary panel with the average and the spread of
+  stars beside the reviews as cards),
+  `account/ReviewForm` (client — five radio buttons dressed as stars, so it
+  works before JavaScript and is reachable by keyboard).
+- **New route `/admin/reviews`** with the three lists, the shared search and
+  pager, and `setReviewStatusAction` behind `requireAdmin()` +
+  `requireAdminRole(["super", "admin"])`. Approving revalidates the product
+  page and the customer's order page.
+- The published name is the customer's full name from their account (the
+  client chose it over an initial), with "Verified purchase" beside it.
+- **The customer is never told their review was turned down** (client,
+  2026-09-22). Their own review always shows on their order — stars, words and
+  an Edit link — and on the product page itself, marked "Your review" and
+  labelled "You", at any status. `ownReviewForProduct` is the one read that
+  ignores `status`; it takes a customer id and returns a review only to its
+  writer, so a pending or rejected review reaches nobody else. The average
+  stays the approved one, so the figure at the top of the page is the same for
+  everybody. Only reviews with something written are listed; a rating with no
+  comment still counts towards the average.
+- **`saveReview` is two statements, not a `WITH … RETURNING` wrapped in a
+  SELECT.** Postgres does not show a statement its own inserts, so the outer
+  SELECT found nothing on a first review: the row was written and the customer
+  was told it had failed, and pressing again "worked" only because the row
+  existed by then. Fixed 2026-09-22; the shape is a trap worth remembering
+  anywhere an upsert wants its row back joined to other tables.
+- **Photos and clips** (client, 2026-09-22). `product_reviews.media` is a
+  JSONB array of `{url, kind}`; files are stored by `saveReviewMedia` as
+  `review-<random>.<ext>` in the upload volume and served by `/media`, which
+  gained `.mp4` and `.webm`. **What a file is comes from its bytes**
+  (`imageKind`, the new `videoKind`), never its name or declared type. Limits:
+  4 files, 5 MB a photo, 25 MB a clip; the browser redraws photos to 1600px
+  WebP first, the way the avatar form does, because the upload leaves the same
+  rural connection the site is built for. `uploadReviewMediaAction` stores one
+  file at a time while the customer is still typing; `parseReviewMedia`
+  accepts only `/media/review-…` URLs back from the form, so nothing else can
+  be written into a review. The admin sees the attachments on the card —
+  approving a review approves its pictures. A review with a photo and no words
+  is listed; stars alone still are not.
+- **The picker is ten half-star buttons**, each announcing what it sets ("3.5
+  stars — Good"), with the meaning shown beside the stars as the pointer
+  moves. A rating on its own, with no comment, is a complete review.
+- **The whole form is a `Modal`** behind a "Write a review" button (client,
+  2026-09-22): an order of five items was five stacked forms, only one of
+  which is ever being filled in. It closes itself on a successful save —
+  decided in render rather than an effect, since §9 forbids a synchronous
+  `setState` in an effect body — and the order then shows the review instead.
+- **Schema change**, so a deploy runs `db-setup` before the app restarts.
 
 ### 2026-09-22 (catalogue) — Product tags, and out of stock as a control
 

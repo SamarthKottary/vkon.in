@@ -37,6 +37,12 @@ import {
 import { isCod } from "@/lib/order-payment";
 import { priceChangeBody, priceOrderNow, type PriceChangeBody } from "@/lib/order-reprice";
 import { listProducts } from "@/lib/db/products";
+import { COMMENT_MAX, COMMENT_MIN, saveReview, type ReviewMedia } from "@/lib/db/reviews";
+import {
+  REVIEW_MEDIA_MAX,
+  deleteReviewMedia,
+  saveReviewMedia,
+} from "@/lib/storage";
 import {
   isShiprocketConfigured,
   quoteDelivery,
@@ -1284,4 +1290,155 @@ export async function updateOrderPricesAction(input: {
       message: "Could not update the prices just now. Please try again.",
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Product reviews (client, 2026-09-22)
+// ---------------------------------------------------------------------------
+
+export type ReviewState = {
+  status: "idle" | "ok" | "error";
+  message?: string;
+};
+
+/**
+ * Writes the customer's review of one product they have received.
+ *
+ * **Nothing here decides who may review.** `saveReview` checks the order is
+ * this customer's, delivered, and contains the product, in the query that
+ * writes the row — so a `productId` typed into the request buys nothing. All
+ * this does is read the stars and the comment, and say what is wrong with
+ * them.
+ *
+ * The comment is optional; a comment that *is* written has to be a sentence
+ * rather than "ok" — 20 to 2,000 characters (client's choice). The order page
+ * and the product page are both revalidated: the review appears on one as
+ * "waiting to be approved" and, once it is, on the other.
+ */
+export async function saveReviewAction(
+  _prev: ReviewState,
+  formData: FormData,
+): Promise<ReviewState> {
+  const customer = await requireCustomer();
+
+  const orderId = String(formData.get("orderId") ?? "").trim();
+  const productId = String(formData.get("productId") ?? "").trim();
+  const slug = String(formData.get("slug") ?? "").trim();
+  /* Half stars (client, 2026-09-22): 0.5 to 5, in halves and nothing
+     between — 3.7 is not something the picker can produce, so it is a forged
+     request rather than a customer's opinion. */
+  const rating = Number.parseFloat(String(formData.get("rating") ?? ""));
+  const comment = String(formData.get("comment") ?? "").trim();
+  const media = parseReviewMedia(formData.get("media"));
+
+  if (!Number.isFinite(rating) || rating < 0.5 || rating > 5 || (rating * 2) % 1 !== 0) {
+    return { status: "error", message: "Please choose a rating — whole or half stars, up to five." };
+  }
+  if (comment && comment.length < COMMENT_MIN) {
+    return {
+      status: "error",
+      message: `A comment needs at least ${COMMENT_MIN} characters, or leave it empty.`,
+    };
+  }
+  if (comment.length > COMMENT_MAX) {
+    return {
+      status: "error",
+      message: `A comment can be at most ${COMMENT_MAX} characters. Yours is ${comment.length}.`,
+    };
+  }
+
+  let result: Awaited<ReturnType<typeof saveReview>>;
+  try {
+    result = await saveReview({ customerId: customer.id, orderId, productId, rating, comment, media });
+  } catch (error) {
+    console.error("[account] review save failed:", error);
+    return { status: "error", message: "Could not save that review. Please try again." };
+  }
+
+  if (result.status === "not_allowed") {
+    return {
+      status: "error",
+      message: "Reviews can only be written for a product from an order that has been delivered.",
+    };
+  }
+
+  revalidatePath("/account/orders/[id]", "page");
+  if (slug) revalidatePath(`/products/${slug}`);
+  /* No message about checking or approval (client, 2026-09-22). The pop-up
+     closes on a save and the review is there underneath it; what the admin
+     does with it afterwards is not the customer's to worry about. */
+  return { status: "ok" };
+}
+
+/**
+ * The photos and clips a review form posts back, as URLs this site stored
+ * itself (client, 2026-09-22).
+ *
+ * **Only `/media/review-….<ext>` survives.** The browser sends back what
+ * `uploadReviewMediaAction` gave it, and this is what stops anything else
+ * being written into a review — an off-site URL to be served from our page, a
+ * path climbing out of the upload directory, or a hundred entries. Nothing is
+ * read from disk here; a URL that passes has, by construction, the shape of a
+ * file `saveReviewMedia` wrote.
+ */
+function parseReviewMedia(raw: FormDataEntryValue | null): ReviewMedia[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(String(raw ?? "[]"));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  const seen = new Set<string>();
+  const media: ReviewMedia[] = [];
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== "object") continue;
+    const url = String((entry as { url?: unknown }).url ?? "");
+    const kind = String((entry as { kind?: unknown }).kind ?? "");
+    if (!/^\/media\/review-[a-f0-9]{24}\.(jpg|png|webp|mp4|webm)$/.test(url)) continue;
+    if (kind !== "image" && kind !== "video") continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    media.push({ url, kind });
+    if (media.length === REVIEW_MEDIA_MAX) break;
+  }
+  return media;
+}
+
+/**
+ * Stores one photo or clip for a review and hands back its URL.
+ *
+ * Separate from saving the review so a slow upload on a rural connection
+ * happens while the customer is still writing, rather than all at once when
+ * they press the button. Nothing is attached to anything yet: an upload
+ * nobody submits is an orphaned file of a few hundred KB, which is the
+ * cheaper of the two failures.
+ *
+ * `requireCustomer()` first — this writes a file to our disk.
+ */
+export async function uploadReviewMediaAction(
+  formData: FormData,
+): Promise<{ status: "ok"; url: string; kind: "image" | "video" } | { status: "error"; message: string }> {
+  await requireCustomer();
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { status: "error", message: "No file received." };
+  }
+  /* A cheap refusal before the bytes are read into memory at all. */
+  if (file.size > 25 * 1024 * 1024) {
+    return { status: "error", message: "That file is too large — 25 MB is the limit." };
+  }
+
+  const saved = await saveReviewMedia(Buffer.from(await file.arrayBuffer()));
+  if (!saved.ok) return { status: "error", message: saved.error };
+  return { status: "ok", url: `/media/${saved.filename}`, kind: saved.kind };
+}
+
+/** Removes a file the customer took off their review before saving it. */
+export async function removeReviewMediaAction(url: string): Promise<void> {
+  await requireCustomer();
+  const match = /^\/media\/(review-[a-f0-9]{24}\.(?:jpg|png|webp|mp4|webm))$/.exec(url);
+  if (match) await deleteReviewMedia([match[1]]);
 }

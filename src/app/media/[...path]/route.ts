@@ -23,6 +23,11 @@ const TYPES: Record<string, string> = {
   ".png": "image/png",
   ".webp": "image/webp",
   ".avif": "image/avif",
+  /* Review clips (2026-09-22). Whole-file responses, no `Range` handling:
+     these are capped at 25 MB and are watched once, so seeking inside one is
+     not worth the streaming code. */
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
 };
 
 export async function GET(

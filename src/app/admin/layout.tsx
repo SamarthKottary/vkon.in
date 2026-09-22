@@ -68,6 +68,12 @@ export default async function AdminLayout({
                     Users
                   </Link>
                   <Link
+                    href="/admin/reviews"
+                    className="text-sm text-muted hover:text-ink"
+                  >
+                    Reviews
+                  </Link>
+                  <Link
                     href="/admin/enquiries"
                     className="text-sm text-muted hover:text-ink"
                   >

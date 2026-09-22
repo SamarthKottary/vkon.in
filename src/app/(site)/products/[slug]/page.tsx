@@ -5,6 +5,15 @@ import { ContactStrip } from "@/components/home/ContactStrip";
 import { CheckIcon } from "@/components/icons/ui";
 import { ProductMedia } from "@/components/product/ProductMedia";
 import { ProductTags } from "@/components/product/ProductTags";
+import { ProductReviews, RatingLine } from "@/components/product/ProductReviews";
+import {
+  listApprovedReviews,
+  ownReviewForProduct,
+  productRating,
+  ratingWithOwn,
+  withRatings,
+} from "@/lib/db/reviews";
+import { getCurrentCustomer } from "@/lib/account";
 import { ProductPrice } from "@/components/product/ProductPrice";
 import { RecordView } from "@/components/product/RecordView";
 import { RelatedProducts } from "@/components/product/RelatedProducts";
@@ -60,7 +69,20 @@ export default async function ProductPage({
 
   if (!product) notFound();
 
-  const all = await listProducts();
+  const [all, rating, reviews, customer] = await Promise.all([
+    listProducts(),
+    productRating(product.id),
+    listApprovedReviews(product.id),
+    /* Fails soft to null when nobody is signed in — see `getCurrentCustomer`. */
+    getCurrentCustomer(),
+  ]);
+  /* Their own review, whatever the admin has decided about it, shown to them
+     alone (client, 2026-09-22). The average stays the approved one, so the
+     figure at the top of the page is the same for everybody. */
+  const ownReview = customer ? await ownReviewForProduct(customer.id, product.id) : null;
+  /* What this visitor's star line reads: theirs counted in until it is
+     approved, so their rating is as visible to them as their words are. */
+  const shownRating = ratingWithOwn(rating, ownReview);
 
   /* Related products: same sub-category only, never widened.
 
@@ -71,6 +93,8 @@ export default async function ProductPage({
   const related = all.filter(
     (p) => p.id !== product.id && p.category === product.category,
   );
+  /* The related cards carry their own star lines (2026-09-22). */
+  const relatedRated = await withRatings(related);
 
   // Blank lines separate paragraphs in the admin textarea.
   const paragraphs = product.description
@@ -126,6 +150,10 @@ export default async function ProductPage({
               <h1 className="mt-3 text-[2.25rem] leading-[1.08] sm:text-5xl">
                 {product.name}
               </h1>
+
+              {/* The star line, which jumps to the reviews at the foot of the
+                  page (client, 2026-09-22). */}
+              <RatingLine rating={shownRating} className="mt-4" />
 
               {product.tagline && (
                 <p className="mt-5 text-lg leading-relaxed text-body">
@@ -236,10 +264,12 @@ export default async function ProductPage({
       {related.length > 0 && (
         <section className="border-t border-line py-14 sm:py-16">
           <Container size="wide">
-            <RelatedProducts heading="Similar products" products={related} />
+            <RelatedProducts heading="Similar products" products={relatedRated} />
           </Container>
         </section>
       )}
+
+      <ProductReviews rating={shownRating} reviews={reviews} ownReview={ownReview} />
 
       <ContactStrip
         heading={`Want a price on the ${product.name}?`}

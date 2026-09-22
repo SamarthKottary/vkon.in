@@ -1,3 +1,4 @@
+import { withRatings } from "@/lib/db/reviews";
 import { Suspense } from "react";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { PageHero, SECTION_BACKGROUND } from "@/components/layout/PageHero";
@@ -63,7 +64,7 @@ export default async function ProductsPage() {
             ) : (
               /* useSearchParams needs a Suspense boundary to stay prerenderable. */
               <Suspense fallback={<CatalogueSkeleton />}>
-                <ProductCatalogue products={products} />
+                <ProductCatalogue products={await withRatings(products)} />
               </Suspense>
             )}
           </Container>

@@ -19,6 +19,7 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products/[id]` | Edit. |
 | `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by status, by **Pending-not quoted** (waiting orders with no delivery price), or by **Refund-cancelled** — cancelled, paid online, money not back yet. A refund completing moves that order to **Cancelled**; ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
 | `/admin/users` | Customer accounts. Read and search. Super users and admins also get the **sign-in code switch** (on or off for every customer) and **Sign in as**, which opens a customer's account in a new tab. |
+| `/admin/reviews` | Product reviews from customers whose orders were delivered. Three lists — **Pending**, **Approved**, **Rejected** — searchable, ten a page. Only approved reviews appear on the site; a review can be moved between the three at any time. Super users and admins moderate. |
 | `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Search by email, ten a page. Read, export (always the whole list), remove. |
 | `/admin/seo` | Static page SEO overrides. |
@@ -428,6 +429,21 @@ Note also that a paid order arrives here already marked **Paid** and
 ---
 
 ## Change log
+
+**2026-09-22 (reviews)** — Product reviews. A customer whose order is marked
+**delivered** gets a rating form under each product on that order: half a star
+to five stars, an optional comment of 20–2,000 characters, and up to four
+photos or clips (stars alone is a complete review). Attachments are shown on
+the review card in `/admin/reviews` — approving a review approves its pictures
+too. Photos are shrunk in the customer's browser; a clip may be up to 25 MB. They are never told a review was rejected — they always
+see their own, and moderation decides only whether strangers do. Everything lands in
+`/admin/reviews` as **Pending** and is invisible to the public until approved;
+approving puts the review and its stars on the product page, rejecting keeps
+it off, and either can be undone later. A customer may rewrite their review at
+any time, which sends it back to Pending. The star figure on a product page and on every product card
+is the average of its approved reviews only; clicking the one on a product
+page jumps to the reviews at the foot of it. One review per customer per product; eligibility is
+checked in the query that writes the row, so a forged form gets nothing.
 
 **2026-09-22 (products)** — Three tags on the product form, shown as a ribbon across the
 top-right corner of the photo on every card: **Out of stock** (red), **Best seller** (green) and
