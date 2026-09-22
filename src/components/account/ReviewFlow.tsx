@@ -193,7 +193,9 @@ export function ItemReviewButton({ productId }: { productId: string }) {
     <button
       type="button"
       onClick={() => flow.open(productId)}
-      className={`inline-flex h-7 items-center whitespace-nowrap border px-2.5 text-xs font-medium transition-colors ${
+      /* One width for both, so the column of buttons down an order lines up
+         however each line is labelled (client, 2026-09-22). */
+      className={`inline-flex h-7 w-32 items-center justify-center whitespace-nowrap border text-xs font-medium transition-colors ${
         written
           ? "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
           : "border-accent bg-accent text-surface hover:border-accent-strong hover:bg-accent-strong"
