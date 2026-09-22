@@ -23,7 +23,7 @@ import {
   updateProduct,
 } from "@/lib/db/products";
 import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
-import { findCustomerById } from "@/lib/db/customers";
+import { findCustomerById, setCustomerBlocked } from "@/lib/db/customers";
 import { setSigninCodeOn } from "@/lib/db/settings";
 import { REVIEW_STATUSES, setReviewStatus, type ReviewStatus } from "@/lib/db/reviews";
 import {
@@ -505,7 +505,10 @@ export async function uploadImageAction(
 
 export async function deleteSubscriberAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
+
+  if (admin.role !== "super" && admin.role !== "admin") {
+    redirect(backTo("/admin/subscribers", formData, "error=access"));
+  }
 
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
@@ -529,7 +532,10 @@ export async function deleteSubscriberAction(formData: FormData): Promise<void> 
 
 export async function setEnquiryHandledAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
+
+  if (admin.role !== "super" && admin.role !== "admin" && admin.role !== "support") {
+    redirect(backTo("/admin/enquiries", formData, "error=access"));
+  }
 
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
@@ -546,7 +552,10 @@ export async function setEnquiryHandledAction(formData: FormData): Promise<void>
 
 export async function deleteEnquiryAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
+
+  if (admin.role !== "super" && admin.role !== "admin") {
+    redirect(backTo("/admin/enquiries", formData, "error=access"));
+  }
 
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return;
@@ -591,7 +600,10 @@ const ORDER_STATUSES = [
 
 export async function setOrderStatusAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin", "support"]);
+
+  if (admin.role !== "super" && admin.role !== "admin" && admin.role !== "support") {
+    redirect(backTo("/admin/orders", formData, "error=access"));
+  }
 
   const id = String(formData.get("id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
@@ -755,9 +767,12 @@ export async function refundOrderAction(formData: FormData): Promise<void> {
  */
 export async function checkRefundsAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
   const id = String(formData.get("id") ?? "").trim();
   const back = (query: string) => backTo("/admin/orders", formData, query, `order-${id}`);
+
+  if (admin.role !== "super" && admin.role !== "admin") {
+    redirect(back("error=access"));
+  }
   if (!id) redirect(back("error=1"));
   const order = await getOrderForAdmin(id);
   if (!order?.paymentId) redirect(back("error=1"));
@@ -787,10 +802,12 @@ export async function checkRefundsAction(formData: FormData): Promise<void> {
  */
 export async function refreshTrackingAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin", "support"]);
-
   const id = String(formData.get("id") ?? "").trim();
   const back = (query: string) => backTo("/admin/orders", formData, query, `order-${id}`);
+
+  if (admin.role !== "super" && admin.role !== "admin" && admin.role !== "support") {
+    redirect(back("error=access"));
+  }
   if (!id) redirect(back("error=1"));
   if (!isShiprocketConfigured()) redirect(back("shipError=unconfigured"));
 
@@ -832,10 +849,12 @@ export async function refreshTrackingAction(formData: FormData): Promise<void> {
  */
 export async function bookShipmentAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
-
   const id = String(formData.get("id") ?? "").trim();
   const back = (query: string) => backTo("/admin/orders", formData, query);
+
+  if (admin.role !== "super" && admin.role !== "admin") {
+    redirect(back("error=access"));
+  }
   if (!id) redirect(back("error=1"));
 
   if (!isShiprocketConfigured()) redirect(back("shipError=unconfigured"));
@@ -915,11 +934,14 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
  */
 export async function setSigninCodeAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
-
-  const on = formData.get("on") === "1";
   const back = String(formData.get("q") ?? "").trim();
   const search = back ? `&q=${encodeURIComponent(back)}` : "";
+
+  if (admin.role !== "super" && admin.role !== "admin") {
+    redirect(`/admin/users?error=access${search}`);
+  }
+
+  const on = formData.get("on") === "1";
 
   try {
     await setSigninCodeOn(on);
@@ -936,6 +958,53 @@ export async function setSigninCodeAction(formData: FormData): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Customer blocking
+// ---------------------------------------------------------------------------
+
+/**
+ * Blocks or unblocks a customer account.
+ *
+ * Super users and admins only — enforced here, not just in the UI. Blocking
+ * deletes all the customer's active sessions immediately, signing them out of
+ * every device. The session lookup query also checks `blocked_at IS NULL`, so
+ * a stale cookie cannot resurrect the session.
+ *
+ * The button is visible to support and viewer but disabled on the server for
+ * them — a direct POST returns an error so the UI cannot be bypassed.
+ */
+export async function blockCustomerAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+
+  const back = String(formData.get("q") ?? "").trim();
+  const filter = String(formData.get("filter") ?? "").trim();
+  const qs = [back ? `q=${encodeURIComponent(back)}` : "", filter ? `filter=${encodeURIComponent(filter)}` : ""]
+    .filter(Boolean).join("&");
+
+  // Enforce role — but redirect gracefully rather than throwing so the
+  // user sees the inline error banner, not a 500 page.
+  if (admin.role !== "super" && admin.role !== "admin") {
+    redirect(`/admin/users?error=access${qs ? `&${qs}` : ""}`);
+  }
+
+  const id = String(formData.get("id") ?? "").trim();
+  const block = formData.get("block") === "1";
+
+  if (!id) redirect(`/admin/users${qs ? `?${qs}` : ""}`);
+
+  try {
+    await setCustomerBlocked(id, block);
+    console.info(`[admin] ${admin.email} ${block ? "blocked" : "unblocked"} customer ${id}`);
+  } catch (error) {
+    console.error("[admin] block customer failed:", error);
+    redirect(`/admin/users?error=block${qs ? `&${qs}` : ""}`);
+  }
+
+  revalidatePath("/admin/users");
+  redirect(`/admin/users${qs ? `?${qs}` : ""}`);
+}
+
+
+// ---------------------------------------------------------------------------
 // Admin User Access Levels
 // ---------------------------------------------------------------------------
 
@@ -950,7 +1019,10 @@ export async function createAdminUserAction(
   formData: FormData,
 ): Promise<ActionState> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
+
+  if (admin.role !== "super" && admin.role !== "admin") {
+    return { error: "You don't have permission to create users. Only Super Users and Admins can." };
+  }
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
@@ -970,9 +1042,9 @@ export async function createAdminUserAction(
 
   const role = roleRaw as AdminRole;
 
-  // An Admin cannot create a Super user — enforced in the action, not just UI.
-  if (admin.role !== "super" && role === "super") {
-    return { error: "Only a Super User can create another Super User." };
+  // An Admin can only create Support or Viewer users.
+  if (admin.role !== "super" && (role === "super" || role === "admin")) {
+    return { error: "Only a Super User can create an Admin or Super User." };
   }
 
   const created = await createAdminUser({ email, name, role });
@@ -995,7 +1067,10 @@ export async function createAdminUserAction(
  */
 export async function updateAdminRoleAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
+
+  if (admin.role !== "super" && admin.role !== "admin") {
+    redirect("/admin/users/access?error=access");
+  }
 
   const id = String(formData.get("id") ?? "").trim();
   const roleRaw = String(formData.get("role") ?? "").trim();
@@ -1007,8 +1082,8 @@ export async function updateAdminRoleAction(formData: FormData): Promise<void> {
   // Cannot change your own role.
   if (id === admin.id) redirect("/admin/users/access?error=self");
 
-  // Admin cannot promote to Super.
-  if (admin.role !== "super" && roleRaw === "super") {
+  // Admin cannot promote to Super or Admin.
+  if (admin.role !== "super" && (roleRaw === "super" || roleRaw === "admin")) {
     redirect("/admin/users/access?error=privilege");
   }
 
@@ -1030,7 +1105,10 @@ export async function updateAdminRoleAction(formData: FormData): Promise<void> {
  */
 export async function deleteAdminUserAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
+
+  if (admin.role !== "super" && admin.role !== "admin") {
+    redirect("/admin/users/access?error=access");
+  }
 
   const id = String(formData.get("id") ?? "").trim();
   if (!id) redirect("/admin/users/access?error=invalid");
@@ -1074,11 +1152,14 @@ export async function deleteAdminUserAction(formData: FormData): Promise<void> {
  */
 export async function setReviewStatusAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
-  requireAdminRole(admin, ["super", "admin"]);
+  const failed = backTo("/admin/reviews", formData, "error=1");
+
+  if (admin.role !== "super" && admin.role !== "admin") {
+    redirect(backTo("/admin/reviews", formData, "error=access"));
+  }
 
   const id = String(formData.get("id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
-  const failed = backTo("/admin/reviews", formData, "error=1");
   if (!id || !(REVIEW_STATUSES as readonly string[]).includes(status)) redirect(failed);
 
   let changed: Awaited<ReturnType<typeof setReviewStatus>> = null;

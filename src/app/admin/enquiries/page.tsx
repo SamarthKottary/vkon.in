@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
-import { isAuthenticated } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { enquiryCounts, listEnquiriesPage } from "@/lib/db/enquiries";
 import { InfoNote } from "@/components/admin/InfoNote";
@@ -25,7 +25,7 @@ export default async function AdminEnquiriesPage({
 }: {
   searchParams: Promise<{ removed?: string; error?: string; q?: string; page?: string }>;
 }) {
-  if (!(await isAuthenticated())) redirect("/admin");
+  const admin = await requireAdmin();
 
   const params = await searchParams;
   const { removed, error } = params;
@@ -140,6 +140,7 @@ export default async function AdminEnquiriesPage({
                   name={enquiry.name}
                   handled={enquiry.handled}
                   view={view}
+                  role={admin.role}
                 />
               </div>
 

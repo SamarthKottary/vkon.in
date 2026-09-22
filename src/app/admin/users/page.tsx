@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
@@ -7,7 +8,7 @@ import { isDatabaseConfigured } from "@/lib/db/client";
 import { listCustomersForAdmin, type AdminCustomer } from "@/lib/db/customers";
 import { isSigninCodeOn } from "@/lib/db/settings";
 import { formatPaise } from "@/lib/pricing";
-import { setSigninCodeAction } from "@/app/admin/actions";
+import { setSigninCodeAction, blockCustomerAction } from "@/app/admin/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +16,13 @@ export const dynamic = "force-dynamic";
  * Every customer account (client, 2026-09-17: "add user section to the admin
  * to know all users").
  *
- * Read-only apart from two things, both of them super-user and admin only
- * (client, 2026-09-21):
+ * Read-only apart from three things for super and admin only:
  *
- *  - **the sign-in code switch** at the top, which is on or off for every
- *    customer at once — it replaced a button per account;
- *  - **Sign in as**, which opens that customer's account in a new tab.
+ *  - **the sign-in code switch** at the top;
+ *  - **Sign in as**, which opens that customer's account in a new tab
+ *    (also available to support);
+ *  - **Block / Unblock**, which prevents a customer from signing in.
+ *    The button is visible to all roles but only executes for super and admin.
  *
  * No delete. An account owns orders, which are the business's records as much
  * as the customer's, and removing one is a decision with consequences this
@@ -29,17 +31,27 @@ export const dynamic = "force-dynamic";
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; error?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string; error?: string }>;
 }) {
   const admin = await getAdminSession();
   if (!admin) redirect("/admin");
-  /* Both controls on this page change how customers sign in, or act as one.
-     Support and viewer accounts read the list; they do not get either. */
-  const canManage = admin.role === "super" || admin.role === "admin";
+  /* The sign-in code switch is a global security control — super and admin only.
+     "Sign in as" is also available to support for customer-service purposes.
+     Block/unblock is super and admin only — enforced in the action too.
+     Viewer gets read-only access: no controls at all. */
+  const canManageCode = admin.role === "super" || admin.role === "admin";
+  const canSignInAs = admin.role === "super" || admin.role === "admin" || admin.role === "support";
+  const canBlock = admin.role === "super" || admin.role === "admin";
 
-  const { q = "", error } = await searchParams;
-  const [users, codeOn] = await Promise.all([listCustomersForAdmin(q), isSigninCodeOn()]);
+  const { q = "", filter = "", error } = await searchParams;
+  const safeFilter = (filter === "active" || filter === "blocked") ? filter : "";
+
+  const [users, codeOn] = await Promise.all([
+    listCustomersForAdmin(q, safeFilter),
+    canManageCode ? isSigninCodeOn() : Promise.resolve(true),
+  ]);
   const withOrders = users.filter((u) => u.orderCount > 0).length;
+  const blockedCount = users.filter((u) => u.blockedAt).length;
 
   return (
     <Container size="wide">
@@ -47,13 +59,15 @@ export default async function AdminUsersPage({
         <div>
           <h1 className="text-2xl">Users</h1>
           <p className="mt-1 text-sm text-muted">
-            {users.length} {q ? "matching" : "total"} · {withOrders} with orders
+            {users.length} {q ? "matching" : safeFilter ? safeFilter : "total"} · {withOrders} with orders
+            {!safeFilter && blockedCount > 0 && ` · ${blockedCount} blocked`}
           </p>
         </div>
 
         {/* A plain GET form: the search lives in the URL, so a filtered list
             can be reloaded or bookmarked, and no client code is needed. */}
         <form action="/admin/users" className="flex w-full gap-2 sm:w-auto">
+          {safeFilter && <input type="hidden" name="filter" value={safeFilter} />}
           <label htmlFor="user-search" className="sr-only">
             Search users
           </label>
@@ -79,12 +93,29 @@ export default async function AdminUsersPage({
         </div>
       )}
 
-      {/* Only failures are announced (client, 2026-09-21). A successful flip
-          needs no sentence: the switch beside it has already moved, which is
-          the same news said twice. A failure does, because the switch will
-          have stayed where it was and silence would read as "nothing
-          happened" either way. */}
-      {error && (
+      {error === "access" && (
+        <p
+          role="alert"
+          className="mt-6 flex items-center gap-3 border border-signal-500 bg-surface px-4 py-3 text-sm text-ink"
+        >
+          <svg aria-hidden className="h-4 w-4 shrink-0 text-signal-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+          </svg>
+          <span>
+            <span className="font-medium">You don&apos;t have permission to do that.</span>
+            {" "}Only Super Users and Admins can block or unblock accounts.
+          </span>
+        </p>
+      )}
+      {error === "block" && (
+        <p
+          role="status"
+          className="mt-6 border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-ink"
+        >
+          Could not block / unblock that account. Try again.
+        </p>
+      )}
+      {error && error !== "block" && error !== "access" && (
         <p
           role="status"
           className="mt-6 border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-ink"
@@ -94,47 +125,93 @@ export default async function AdminUsersPage({
       )}
 
       <InfoNote title="How this page works">
+        {canSignInAs && (
+          <p>
+            <span className="font-medium text-ink">Sign in as</span> opens that
+            customer&rsquo;s account in a new tab, exactly as they see it. They are
+            not told, and it looks like their own sign-in, so treat it as
+            borrowing their account: it is recorded against the session and in
+            the server log. It also signs you out of any customer account you
+            were using in this browser — your admin login is unaffected.
+          </p>
+        )}
+        {canManageCode && (
+          <p>
+            <span className="font-medium text-ink">The emailed sign-in code</span>{" "}
+            is the second factor on a customer account: signing in from a browser
+            they have not used before, they are emailed a six-digit code. The
+            switch below turns it off for{" "}
+            <span className="font-medium text-ink">every customer at once</span>,
+            not one account — while it is off, everybody signs in with their
+            password alone. Turn it off only for a review that needs it —
+            <span className="font-medium text-ink"> and turn it back on the moment
+            that is finished.</span>
+          </p>
+        )}
+        {canBlock && (
+          <p>
+            <span className="font-medium text-ink">Block</span> prevents a customer
+            from signing in immediately — all their active sessions are ended at
+            once. Unblocking restores access. Neither deletes the account or its orders.
+          </p>
+        )}
         <p>
-          <span className="font-medium text-ink">The emailed sign-in code</span>{" "}
-          is the second factor on a customer account: signing in from a browser
-          they have not used before, they are emailed a six-digit code. The
-          switch below turns it off for{" "}
-          <span className="font-medium text-ink">every customer at once</span>,
-          not one account — while it is off, everybody signs in with their
-          password alone.
-        </p>
-        <p>
-          Turn it off only for a review that needs it — the test login
-          Razorpay&rsquo;s website verification asks for, whose reviewers cannot
-          read the account&rsquo;s inbox —{" "}
-          <span className="font-medium text-ink">and turn it back on the moment
-          that is finished.</span>
-        </p>
-        <p>
-          <span className="font-medium text-ink">Sign in as</span> opens that
-          customer&rsquo;s account in a new tab, exactly as they see it. They are
-          not told, and it looks like their own sign-in, so treat it as
-          borrowing their account: it is recorded against the session and in
-          the server log. It also signs you out of any customer account you
-          were using in this browser — your admin login is unaffected.
-        </p>
-        <p>
-          Both are for super users and admins. Accounts cannot be deleted here:
-          an account owns orders, which are the business&rsquo;s records as much
-          as the customer&rsquo;s.
+          Accounts cannot be deleted here: an account owns orders, which are
+          the business&rsquo;s records as much as the customer&rsquo;s.
         </p>
       </InfoNote>
 
-      <SigninCodeSwitch on={codeOn} q={q} canManage={canManage} />
+      {canManageCode && <SigninCodeSwitch on={codeOn} q={q} filter={safeFilter} />}
 
-      <div className="mt-8 space-y-3">
+      {/* Filter tabs — All / Active / Blocked */}
+      <nav aria-label="Filter users" className="mt-6 flex flex-wrap gap-2">
+        {(
+          [
+            { value: "", label: "All" },
+            { value: "active", label: "Active" },
+            { value: "blocked", label: "Blocked" },
+          ] as const
+        ).map(({ value, label }) => {
+          const current = safeFilter === value;
+          const href = `/admin/users${value || q ? `?${[value ? `filter=${value}` : "", q ? `q=${encodeURIComponent(q)}` : ""].filter(Boolean).join("&")}` : ""}`;
+          return (
+            <Link
+              key={value}
+              href={href}
+              aria-current={current ? "page" : undefined}
+              className={`inline-flex h-9 items-center border px-3 text-sm font-medium transition-colors ${
+                current
+                  ? "border-ink bg-ink text-surface"
+                  : "border-line-strong text-ink hover:border-ink hover:bg-surface-subtle"
+              }`}
+            >
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="mt-4 space-y-3">
         {users.length === 0 ? (
           <div className="border border-line bg-surface px-6 py-16 text-center">
-            <p className="text-ink">{q ? `No users match “${q}”.` : "No users yet."}</p>
+            <p className="text-ink">
+              {q
+                ? `No ${safeFilter || "users"} match "${q}".`
+                : safeFilter === "blocked"
+                  ? "No blocked accounts."
+                  : "No users yet."}
+            </p>
           </div>
         ) : (
           users.map((user) => (
-            <UserCard key={user.id} user={user} canManage={canManage} />
+            <UserCard
+              key={user.id}
+              user={user}
+              canSignInAs={canSignInAs}
+              canBlock={canBlock}
+              q={q}
+              filter={safeFilter}
+            />
           ))
         )}
       </div>
@@ -142,29 +219,8 @@ export default async function AdminUsersPage({
   );
 }
 
-/**
- * The one switch for the emailed sign-in code (client, 2026-09-21: "a toggle
- * switch to turn code ON/OFF at the top", then "let there just be a switch
- * with a short description, all info should be inside" the info note).
- *
- * A form and a button, not a checkbox with JavaScript behind it: the switch
- * has to work before any script arrives, and a security control that quietly
- * fails to submit is worse than a plain button. `role="switch"` with
- * `aria-checked` is what makes it a switch to a screen reader; the track and
- * knob are the visual half of the same thing.
- *
- * One line, and amber while it is off — the reasoning is in the info note
- * above it, but *that it is off* has to be visible without opening anything.
- */
-function SigninCodeSwitch({
-  on,
-  q,
-  canManage,
-}: {
-  on: boolean;
-  q: string;
-  canManage: boolean;
-}) {
+/** Only rendered when the current admin is super or admin. */
+function SigninCodeSwitch({ on, q, filter }: { on: boolean; q: string; filter: string }) {
   return (
     <section
       className={`mt-6 border-l-2 bg-surface px-4 py-3 ${on ? "border-line-strong" : "border-signal-500"}`}
@@ -177,40 +233,55 @@ function SigninCodeSwitch({
           </span>
         </p>
 
-        {canManage ? (
-          <form action={setSigninCodeAction} className="shrink-0">
-            <input type="hidden" name="q" value={q} />
-            <input type="hidden" name="on" value={on ? "0" : "1"} />
-            <button
-              type="submit"
-              role="switch"
-              aria-checked={on}
-              aria-label="Emailed sign-in code"
-              className={`inline-flex h-7 w-12 items-center border p-0.5 transition-colors ${
-                on ? "justify-end border-accent bg-accent" : "justify-start border-line-strong bg-surface-subtle"
-              }`}
-            >
-              <span
-                aria-hidden
-                className={`block h-5 w-5 transition-colors ${on ? "bg-surface" : "bg-line-strong"}`}
-              />
-            </button>
-          </form>
-        ) : (
-          <p className="shrink-0 text-sm text-muted">Super users and admins can change this.</p>
-        )}
+        <form action={setSigninCodeAction} className="shrink-0">
+          <input type="hidden" name="q" value={q} />
+          <input type="hidden" name="filter" value={filter} />
+          <input type="hidden" name="on" value={on ? "0" : "1"} />
+          <button
+            type="submit"
+            role="switch"
+            aria-checked={on}
+            aria-label="Emailed sign-in code"
+            className={`inline-flex h-7 w-12 items-center border p-0.5 transition-colors ${
+              on ? "justify-end border-accent bg-accent" : "justify-start border-line-strong bg-surface-subtle"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`block h-5 w-5 transition-colors ${on ? "bg-surface" : "bg-line-strong"}`}
+            />
+          </button>
+        </form>
       </div>
     </section>
   );
 }
 
-function UserCard({ user, canManage }: { user: AdminCustomer; canManage: boolean }) {
+function UserCard({
+  user,
+  canSignInAs,
+  canBlock,
+  q,
+  filter,
+}: {
+  user: AdminCustomer;
+  canSignInAs: boolean;
+  canBlock: boolean;
+  q: string;
+  filter: string;
+}) {
+  const isBlocked = Boolean(user.blockedAt);
+
   return (
-    <article id={`user-${user.id}`} className="scroll-mt-24 border border-line bg-surface p-5">
+    <article
+      id={`user-${user.id}`}
+      className={`scroll-mt-24 border bg-surface p-5 ${isBlocked ? "border-signal-500 bg-signal-50" : "border-line"}`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-semibold text-ink">{user.name || "No name"}</h2>
+            {isBlocked && <Badge tone="warn">Blocked</Badge>}
             {user.hasPassword && <Badge>Password</Badge>}
             {user.hasGoogle && <Badge>Google</Badge>}
             {user.emailVerified ? <Badge tone="brand">Email confirmed</Badge> : <Badge>Unconfirmed</Badge>}
@@ -231,6 +302,11 @@ function UserCard({ user, canManage }: { user: AdminCustomer; canManage: boolean
               </>
             )}
           </p>
+          {isBlocked && user.blockedAt && (
+            <p className="mt-1 text-xs text-signal-700">
+              Blocked {formatDate(user.blockedAt)}
+            </p>
+          )}
         </div>
 
         <dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-4">
@@ -248,18 +324,40 @@ function UserCard({ user, canManage }: { user: AdminCustomer; canManage: boolean
             : `${user.addressCount} saved address${user.addressCount === 1 ? "" : "es"}`}
         </p>
 
-        {/* Opens the customer's own account in a new tab. A POST, because it
-            starts a session — see the route. */}
-        {canManage && (
-          <form action={`/admin/users/${user.id}/signin`} method="post" target="_blank">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Block / Unblock — visible to all, executes only for super/admin. */}
+          <form action={blockCustomerAction}>
+            <input type="hidden" name="id" value={user.id} />
+            <input type="hidden" name="block" value={isBlocked ? "0" : "1"} />
+            <input type="hidden" name="q" value={q} />
+            <input type="hidden" name="filter" value={filter} />
             <button
               type="submit"
-              className="h-9 whitespace-nowrap border border-line-strong px-3 font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+              disabled={!canBlock}
+              title={canBlock ? undefined : "Only super users and admins can block accounts"}
+              className={`h-9 whitespace-nowrap border px-3 font-medium transition-colors ${
+                isBlocked
+                  ? "border-accent text-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40"
+                  : "border-signal-500 text-signal-700 hover:bg-signal-100 disabled:cursor-not-allowed disabled:opacity-40"
+              }`}
             >
-              Sign in as {user.name?.split(" ")[0] || "this customer"}
+              {isBlocked ? "Unblock" : "Block"}
             </button>
           </form>
-        )}
+
+          {/* Opens the customer's own account in a new tab. A POST, because it
+              starts a session — see the route. */}
+          {canSignInAs && !isBlocked && (
+            <form action={`/admin/users/${user.id}/signin`} method="post" target="_blank">
+              <button
+                type="submit"
+                className="h-9 whitespace-nowrap border border-line-strong px-3 font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+              >
+                Sign in as {user.name?.split(" ")[0] || "this customer"}
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </article>
   );

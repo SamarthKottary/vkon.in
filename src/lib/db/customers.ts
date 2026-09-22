@@ -30,10 +30,11 @@ type CustomerRow = {
   avatar_source: string | null;
   google_picture: string | null;
   created_at: Date;
+  blocked_at: Date | null;
 };
 
 const SELECT = `id, email, name, phone, password_hash, google_sub, email_verified,
-  avatar, avatar_source, google_picture, created_at`;
+  avatar, avatar_source, google_picture, created_at, blocked_at`;
 
 function mapRow(row: CustomerRow): Customer {
   return {
@@ -48,6 +49,7 @@ function mapRow(row: CustomerRow): Customer {
     avatarSource: row.avatar_source ?? null,
     googlePicture: row.google_picture ?? null,
     createdAt: row.created_at.toISOString(),
+    blockedAt: row.blocked_at ? row.blocked_at.toISOString() : null,
   };
 }
 
@@ -251,10 +253,12 @@ export async function customerForSession(
        hand, so a new customer column has to be added here as well as to
        SELECT (the profile picture was missing from it at first). */
     `SELECT c.id, c.email, c.name, c.phone, c.password_hash, c.google_sub,
-            c.email_verified, c.avatar, c.avatar_source, c.google_picture, c.created_at
+            c.email_verified, c.avatar, c.avatar_source, c.google_picture, c.created_at,
+            c.blocked_at
        FROM customer_sessions s
        JOIN customers c ON c.id = s.customer_id
-      WHERE s.id = $1 AND s.expires_at > now()`,
+      WHERE s.id = $1 AND s.expires_at > now()
+        AND c.blocked_at IS NULL`,
     [sessionId],
   );
   return rows[0] ? mapRow(rows[0]) : null;
@@ -541,6 +545,8 @@ export type AdminCustomer = Customer & {
   /** Paise: confirmed, not cancelled, net of refunds. */
   orderTotal: number;
   addressCount: number;
+  /** ISO timestamp when the account was blocked, or null if active. */
+  blockedAt: string | null;
 };
 
 /**
@@ -554,8 +560,14 @@ export type AdminCustomer = Customer & {
  * `search` matches name, email or phone, case-insensitively. Capped at 500 —
  * past that this page wants paging, and "the newest 500" is still the useful
  * end of the list.
+ *
+ * `filter`: 'blocked' shows only blocked accounts; 'active' shows only
+ * unblocked; '' or omitted shows all.
  */
-export async function listCustomersForAdmin(search = ""): Promise<AdminCustomer[]> {
+export async function listCustomersForAdmin(
+  search = "",
+  filter: "" | "active" | "blocked" = "",
+): Promise<AdminCustomer[]> {
   const term = search.trim().slice(0, 100);
   const rows = await query<
     CustomerRow & {
@@ -574,13 +586,14 @@ export async function listCustomersForAdmin(search = ""): Promise<AdminCustomer[
                 AND ${CONFIRMED_ORDER_SQL})::bigint AS order_total,
             (SELECT count(*) FROM addresses a WHERE a.customer_id = c.id)::int AS address_count
        FROM customers c
-      WHERE $1::text = ''
+      WHERE ($1::text = ''
          OR c.email ILIKE '%' || $1::text || '%'
          OR c.name ILIKE '%' || $1::text || '%'
-         OR c.phone ILIKE '%' || $1::text || '%'
+         OR c.phone ILIKE '%' || $1::text || '%')
+        AND ($2::text = '' OR ($2 = 'blocked' AND c.blocked_at IS NOT NULL) OR ($2 = 'active' AND c.blocked_at IS NULL))
       ORDER BY c.created_at DESC
       LIMIT 500`,
-    [term],
+    [term, filter],
   );
   return rows.map((row) => ({
     ...mapRow(row),
@@ -589,5 +602,35 @@ export async function listCustomersForAdmin(search = ""): Promise<AdminCustomer[
     orderCount: Number(row.order_count),
     orderTotal: Number(row.order_total),
     addressCount: Number(row.address_count),
+    blockedAt: row.blocked_at ? row.blocked_at.toISOString() : null,
   }));
 }
+
+/**
+ * Sets or clears the blocked_at timestamp on a customer account.
+ *
+ * `block = true` sets blocked_at to now() and deletes all active sessions,
+ * signing the customer out immediately. `block = false` clears the column.
+ *
+ * Returns false when no such customer exists.
+ */
+export async function setCustomerBlocked(
+  customerId: string,
+  block: boolean,
+): Promise<boolean> {
+  const rows = await query<{ id: string }>(
+    `UPDATE customers
+        SET blocked_at = $2, updated_at = now()
+      WHERE id = $1
+      RETURNING id`,
+    [customerId, block ? new Date() : null],
+  );
+  if (rows.length === 0) return false;
+
+  if (block) {
+    // Sign the customer out everywhere immediately.
+    await query(`DELETE FROM customer_sessions WHERE customer_id = $1`, [customerId]);
+  }
+  return true;
+}
+

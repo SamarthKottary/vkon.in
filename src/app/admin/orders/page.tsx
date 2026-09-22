@@ -140,7 +140,22 @@ export default async function AdminOrdersPage({
         </div>
       )}
 
-      {(updated || error) && (
+      {error === "access" && (
+        <p
+          role="alert"
+          className="mt-6 flex items-center gap-3 border border-signal-500 bg-surface px-4 py-3 text-sm text-ink"
+        >
+          <svg aria-hidden className="h-4 w-4 shrink-0 text-signal-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+          </svg>
+          <span>
+            <span className="font-medium">You don&apos;t have permission to do that.</span>
+            {" "}Your role does not allow this action.
+          </span>
+        </p>
+      )}
+
+      {(updated || (error && error !== "access")) && (
         <p
           role="status"
           className={`mt-6 border-l-2 bg-surface px-4 py-3 text-sm text-ink ${

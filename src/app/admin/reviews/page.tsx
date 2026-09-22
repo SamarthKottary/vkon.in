@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
 import { InfoNote } from "@/components/admin/InfoNote";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 import { ListPager, ListSearch } from "@/components/admin/ListControls";
 import { ReviewMediaStrip } from "@/components/product/ReviewMediaStrip";
 import { Stars } from "@/components/product/Stars";
@@ -41,7 +42,14 @@ export default async function AdminReviewsPage({
 }) {
   const admin = await getAdminSession();
   if (!admin) redirect("/admin");
-  const canModerate = admin.role === "super" || admin.role === "admin";
+  // Support and viewer cannot access reviews — show a denial panel instead of redirecting.
+  if (admin.role === "support" || admin.role === "viewer") {
+    return (
+      <Container size="wide">
+        <AccessDenied page="Reviews" role={admin.role} requiredRoles={["super", "admin"]} />
+      </Container>
+    );
+  }
 
   const params = await searchParams;
   const { error } = params;
@@ -90,10 +98,25 @@ export default async function AdminReviewsPage({
         </div>
       )}
 
+      {error === "access" && (
+        <p
+          role="alert"
+          className="mt-6 flex items-center gap-3 border border-signal-500 bg-surface px-4 py-3 text-sm text-ink"
+        >
+          <svg aria-hidden className="h-4 w-4 shrink-0 text-signal-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+          </svg>
+          <span>
+            <span className="font-medium">You don&apos;t have permission to do that.</span>
+            {" "}Only Super Users and Admins can change review status.
+          </span>
+        </p>
+      )}
+
       {/* Only failures are announced (client, 2026-09-22). A review that has
           just moved says so itself — its badge and its buttons have both
           changed — and a banner for it was one more thing to read past. */}
-      {error && (
+      {error && error !== "access" && (
         <p
           role="status"
           className="mt-6 border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-ink"
@@ -168,7 +191,6 @@ export default async function AdminReviewsPage({
             <ReviewCard
               key={review.id}
               review={review}
-              canModerate={canModerate}
               view={view}
             />
           ))
@@ -185,11 +207,9 @@ export default async function AdminReviewsPage({
 
 function ReviewCard({
   review,
-  canModerate,
   view,
 }: {
   review: Review;
-  canModerate: boolean;
   view: string;
 }) {
   return (
@@ -245,8 +265,7 @@ function ReviewCard({
           {review.updatedAt !== review.createdAt && ` · edited ${formatDate(review.updatedAt)}`}
         </p>
 
-        {canModerate ? (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
             {/* Two ways out of every state and no way back to pending
                 (client, 2026-09-22): pending is where a review arrives and
                 where an edit returns it, not somewhere to put one. */}
@@ -257,9 +276,6 @@ function ReviewCard({
               <ModerateButton id={review.id} status="rejected" label="Reject" view={view} />
             )}
           </div>
-        ) : (
-          <p className="text-xs text-muted">Super users and admins can approve or reject.</p>
-        )}
       </div>
     </article>
   );

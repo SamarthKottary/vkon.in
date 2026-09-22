@@ -17,33 +17,46 @@ export function EnquiryActions({
   name,
   handled,
   view,
+  role,
 }: {
   id: string;
   name: string;
   handled: boolean;
   /** The search and page this card is on, to come back to — see `returnView`. */
   view: string;
+  role: "super" | "admin" | "support" | "viewer";
 }) {
+  const canMark = role !== "viewer";
+  const canDelete = role === "super" || role === "admin";
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <form action={setEnquiryHandledAction}>
+      <form action={canMark ? setEnquiryHandledAction : undefined}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="handled" value={handled ? "0" : "1"} />
         <input type="hidden" name="view" value={view} />
-        <HandledButton handled={handled} name={name} />
+        <HandledButton handled={handled} name={name} disabled={!canMark} />
       </form>
-      <DeleteButton id={id} name={name} view={view} />
+      {canDelete && <DeleteButton id={id} name={name} view={view} />}
     </div>
   );
 }
 
-function HandledButton({ handled, name }: { handled: boolean; name: string }) {
+function HandledButton({
+  handled,
+  name,
+  disabled,
+}: {
+  handled: boolean;
+  name: string;
+  disabled: boolean;
+}) {
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
+      title={disabled ? "You don't have permission to do this" : ""}
       className={`inline-flex items-center gap-1.5 border px-3 py-2 text-sm disabled:opacity-50 ${
         handled
           ? "border-line-strong text-muted hover:border-ink hover:text-ink"

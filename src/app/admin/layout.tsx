@@ -25,6 +25,8 @@ export default async function AdminLayout({
 
   // SEO link: hidden for everyone except super users (role rule 2026-09-21).
   const showSeo = admin?.role === "super";
+  // Reviews: super and admin only.
+  const showReviews = admin?.role === "super" || admin?.role === "admin";
   // User Access Levels: only super and admin.
   const showAccess = admin?.role === "super" || admin?.role === "admin";
 
@@ -67,12 +69,14 @@ export default async function AdminLayout({
                   >
                     Users
                   </Link>
-                  <Link
-                    href="/admin/reviews"
-                    className="text-sm text-muted hover:text-ink"
-                  >
-                    Reviews
-                  </Link>
+                  {showReviews && (
+                    <Link
+                      href="/admin/reviews"
+                      className="text-sm text-muted hover:text-ink"
+                    >
+                      Reviews
+                    </Link>
+                  )}
                   <Link
                     href="/admin/enquiries"
                     className="text-sm text-muted hover:text-ink"

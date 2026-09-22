@@ -754,3 +754,18 @@ ALTER TABLE product_reviews ALTER COLUMN rating TYPE NUMERIC(2,1) USING rating::
 -- volume as `review-<random>.<ext>` and are served by `/media`, like product
 -- images; `lib/storage.ts` decides what may be stored and how big.
 ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS media JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- Added 2026-09-22: customer blocking.
+--
+-- NULL = active account. Non-NULL = the moment an admin blocked this account.
+-- Using a timestamp rather than a boolean so we record *when* the block
+-- happened without a second column, and so blocking twice is idempotent (the
+-- second write just keeps the earlier value via LEAST in application code, or
+-- simply overwrites — both are fine).
+--
+-- A blocked customer's sessions are deleted by the action that sets this, so
+-- they are signed out immediately. The session query in `lib/db/customers.ts`
+-- also checks this column, so a session that was in flight at the moment of
+-- the block is invalidated on the very next request.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
+

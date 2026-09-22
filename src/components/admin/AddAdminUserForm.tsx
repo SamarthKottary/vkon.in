@@ -25,7 +25,7 @@ export function AddAdminUserForm({ currentRole }: { currentRole: string }) {
   const availableRoles =
     currentRole === "super"
       ? ROLE_OPTIONS
-      : ROLE_OPTIONS.filter((r) => r.value !== "super");
+      : ROLE_OPTIONS.filter((r) => r.value === "support" || r.value === "viewer");
 
   if (state.ok) {
     return (

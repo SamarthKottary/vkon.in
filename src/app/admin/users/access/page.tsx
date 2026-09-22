@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { listAdminUsers } from "@/lib/db/adminUsers";
 import { AddAdminUserForm } from "@/components/admin/AddAdminUserForm";
+import { AccessDenied } from "@/components/admin/AccessDenied";
 import type { AdminUser } from "@/lib/types";
 import {
   updateAdminRoleAction,
@@ -9,6 +10,7 @@ import {
   clearAdminPasswordAction,
 } from "@/app/admin/actions";
 import { InfoIcon } from "@/components/icons/ui";
+import { DeleteUserButton } from "./DeleteUserButton";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid: "That request was invalid.",
   privilege: "Only a Super User can set the Super User role.",
   "last-super": "The last Super User account cannot be deleted.",
+  access: "You don't have permission to do that. Your role does not allow this action.",
 };
 
 export default async function AdminAccessPage({
@@ -34,9 +37,17 @@ export default async function AdminAccessPage({
 }) {
   const admin = await requireAdmin();
 
-  // Support and Viewer roles get a 403.
+  // Support and Viewer roles see a denial panel instead of being redirected.
   if (admin.role === "support" || admin.role === "viewer") {
-    redirect("/admin/products");
+    return (
+      <div className="px-6 sm:px-8 lg:px-10">
+        <AccessDenied
+          page="User Access Levels"
+          role={admin.role}
+          requiredRoles={["super", "admin"]}
+        />
+      </div>
+    );
   }
 
   const params = await searchParams;
@@ -207,7 +218,7 @@ function UserRow({
               className="border border-line bg-surface px-2 py-1 text-xs text-ink"
             >
               {currentAdminRole === "super" && <option value="super">Super User</option>}
-              <option value="admin">Admin</option>
+              {(currentAdminRole === "super" || user.role === "admin") && <option value="admin">Admin</option>}
               <option value="support">Support</option>
               <option value="viewer">Viewer</option>
             </select>
@@ -233,15 +244,7 @@ function UserRow({
           )}
 
           {/* Delete form */}
-          <form action={deleteAdminUserAction}>
-            <input type="hidden" name="id" value={user.id} />
-            <button
-              type="submit"
-              className="border border-red-200 bg-surface px-3 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
-            >
-              Remove
-            </button>
-          </form>
+          <DeleteUserButton id={user.id} name={user.name} roleName={ROLE_LABELS[user.role]} />
         </div>
       )}
     </li>
@@ -253,7 +256,8 @@ const PERMISSIONS = [
   { feature: "Orders (status change)", super: "✓", admin: "✓", support: "✓", viewer: "View" },
   { feature: "Orders (refund)", super: "✓", admin: "✓", support: "—", viewer: "—" },
   { feature: "Subscribers (delete)", super: "✓", admin: "✓", support: "View", viewer: "View" },
-  { feature: "Enquiries (mark/delete)", super: "✓", admin: "✓", support: "View", viewer: "View" },
+  { feature: "Enquiries (mark handled)", super: "✓", admin: "✓", support: "✓", viewer: "View" },
+  { feature: "Enquiries (delete)", super: "✓", admin: "✓", support: "—", viewer: "—" },
   { feature: "Users (customer accounts)", super: "✓", admin: "✓", support: "View", viewer: "View" },
   { feature: "SEO settings", super: "✓", admin: "—", support: "—", viewer: "—" },
   { feature: "Admin user management", super: "✓", admin: "✓", support: "—", viewer: "—" },

@@ -35,8 +35,8 @@ export async function POST(
 ) {
   const admin = await getAdminSession();
   if (!admin) return new NextResponse("Not signed in.", { status: 401 });
-  if (admin.role !== "super" && admin.role !== "admin") {
-    return new NextResponse("Only super users and admins can do this.", { status: 403 });
+  if (admin.role !== "super" && admin.role !== "admin" && admin.role !== "support") {
+    return new NextResponse("Only super users, admins and support can do this.", { status: 403 });
   }
 
   const { id } = await params;

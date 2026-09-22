@@ -240,6 +240,12 @@ export type Customer = {
   /** The Google picture URL last copied, so it is refetched only on change. */
   googlePicture: string | null;
   createdAt: string;
+  /**
+   * ISO timestamp when the account was blocked by an admin, or null if active.
+   * A blocked customer's sessions are deleted immediately on block; the session
+   * query also filters out blocked accounts so a stale cookie cannot get in.
+   */
+  blockedAt: string | null;
 };
 
 export type Address = {
