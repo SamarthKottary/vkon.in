@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { getAdminSession } from "@/lib/auth";
 import { Avatar } from "@/components/account/Avatar";
 import { logoutAction } from "./actions";
+import { AdminSidebar } from "./AdminSidebar";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -32,24 +33,21 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen flex-col sm:flex-row bg-surface-subtle">
-      <header className="sm:w-60 sm:shrink-0 border-b sm:border-b-0 sm:border-r border-line bg-surface flex flex-col">
-        <div className="flex h-14 sm:h-16 items-center justify-between px-4 sm:px-6 border-b border-line">
+      <AdminSidebar
+        logo={
           <Link href="/admin/products" className="flex items-baseline gap-2.5">
             <span className="text-lg font-semibold tracking-[-0.03em] text-ink">
               Vkon
             </span>
             <span className="label-tech text-muted">Admin</span>
           </Link>
-          <div className="flex sm:hidden items-center gap-3">
-            <ThemeToggle />
-          </div>
-        </div>
-
+        }
+      >
         {authed && (
           <div className="flex-1 overflow-y-auto">
             <nav
               aria-label="Admin"
-              className="flex flex-row sm:flex-col overflow-x-auto sm:overflow-visible gap-1 p-2 sm:p-4"
+              className="flex flex-col gap-1 p-4"
             >
               <Link
                 href="/admin/products"
@@ -110,7 +108,7 @@ export default async function AdminLayout({
         )}
 
         {authed && admin && (
-          <div className="hidden sm:flex flex-col gap-3 p-4 border-t border-line mt-auto">
+          <div className="flex flex-col gap-3 p-4 border-t border-line mt-auto">
             <div className="flex items-center justify-between">
               <ThemeToggle />
               <Link
@@ -145,7 +143,7 @@ export default async function AdminLayout({
             </form>
           </div>
         )}
-      </header>
+      </AdminSidebar>
 
       <main className="flex-1 py-6 sm:py-10 min-w-0">{children}</main>
     </div>
