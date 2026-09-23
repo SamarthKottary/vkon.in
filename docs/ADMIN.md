@@ -431,7 +431,7 @@ Note also that a paid order arrives here already marked **Paid** and
 ## Change log
 
 **2026-09-23 (orders)** — `/admin/orders` sorts **newest first** or **oldest
-first**, a dropdown under the filter chips (client: "filter in orders to set
+first**, a **Sort order** dropdown under the filter chips (client: "filter in orders to set
 newest to oldest or oldest to newest orders"). It stays on **Default order** unless an order is chosen, which leaves each
 tab as it was — the Pending, Confirmed and Refund-cancelled queues oldest
 first, Shipped and Delivered by their own dates. A choice is always by order

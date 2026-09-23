@@ -1641,8 +1641,9 @@ like the other two.
   (`lib/admin-list.ts`, now letting `sort` past), so searching, paging,
   changing the filter and every button on a card come back to the same order.
 - **The sentence that described the order was dropped** (client: "Do not show
-  this message"), and the dropdown sits flush with the filter chips' left edge
-  at their height — its label is `sr-only`, since the choices name themselves.
+  this message"). What is left is "Sort order" and the dropdown, on their own
+  line, the label flush with the filter chips' left edge and the dropdown at
+  their height.
 - **`admin/orders/SortSelect`** (client) is the dropdown itself: it sits on
   **Default order** until an order is chosen, and navigates with
   `router.push(listHref(…))` so choosing Default order leaves the URL clean

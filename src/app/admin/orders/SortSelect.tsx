@@ -40,11 +40,11 @@ export function SortSelect({
       {Object.entries(keep).map(([name, value]) =>
         value ? <input key={name} type="hidden" name={name} value={value} /> : null,
       )}
-      {/* The label is for screen readers only: a visible "Sort" pushed the
-          dropdown off the filter chips' left edge, and the choices name
-          themselves. */}
-      <label htmlFor="orders-sort" className="sr-only">
-        Sort orders
+      {/* Named in front of the dropdown (client, 2026-09-23: "say what it is
+          like sort order then the drop down"); the label is what lines up
+          with the filter chips' left edge. */}
+      <label htmlFor="orders-sort" className="text-sm text-muted">
+        Sort order
       </label>
       <select
         id="orders-sort"

@@ -446,10 +446,10 @@ function OrderFilters({
           );
         })}
       </nav>
-      {/* Flush with the chips above and the same height as them (client,
-          2026-09-23), and alone on its line: the sentence that described the
-          order was dropped, the choices say it. It sits on **Default order**
-          until one is chosen. */}
+      {/* "Sort order" and the dropdown, alone on their line and flush with
+          the chips above (client, 2026-09-23): the sentence that described
+          the order was dropped. It sits on **Default order** until one is
+          chosen. */}
       <SortSelect path="/admin/orders" sort={sort} keep={{ q, status: filter }} />
     </>
   );
