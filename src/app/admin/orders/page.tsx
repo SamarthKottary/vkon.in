@@ -802,6 +802,11 @@ function ShipmentBlock({
         </p>
       ) : order.status === "cancelled" ? (
         <p className="mt-2.5 text-sm text-muted">Order cancelled — not shipping.</p>
+      ) : order.status === "shipped" || order.status === "delivered" ? (
+        /* Status was advanced without a Shiprocket booking — no AWB to show
+           and no button to offer. The operator can assign an AWB manually in
+           Shiprocket's dashboard if needed. */
+        <p className="mt-2.5 text-sm text-muted">No Shiprocket booking on record.</p>
       ) : order.status === "pending" ? (
         /* Booking is only available after the order is confirmed — before then
            the Confirm button in the card header is the next step (2026-09-23). */
