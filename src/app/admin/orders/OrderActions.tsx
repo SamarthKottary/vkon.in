@@ -97,7 +97,7 @@ function CancelButton({
         onClick={() => {
           if (window.confirm(warning)) onConfirm();
         }}
-        className="inline-flex h-9 items-center gap-1.5 border border-ink bg-ink px-3 text-sm font-medium text-white transition-colors hover:bg-graphite-800 disabled:opacity-50"
+        className="inline-flex h-9 items-center gap-1.5 border border-ink bg-ink px-3 text-sm font-medium text-white transition-colors hover:bg-graphite-800 dark:text-graphite-950 disabled:opacity-50"
       >
         {pending && <SpinnerIcon className="h-3.5 w-3.5" />}
         Cancel
