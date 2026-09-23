@@ -277,6 +277,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `ui/Modal` | The shared dialog frame (portal, blurred backdrop, Escape, scroll lock, focus restore) — `AddressDialog`'s, lifted out |
 | `ui/PasswordField` | Live requirement checklist and strength meter as you type |
 | `admin/orders/OrderStatusSelect` | Submits the status `<select>` on change |
+| `admin/orders/SortSelect` | Newest/oldest-first `<select>`; navigates on change, GET form + `<noscript>` fallback |
 | `admin/orders/RefundForm` | Confirms the refund amount before submitting; pending state while Razorpay answers |
 
 Everything else is a server component.
@@ -1622,6 +1623,29 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-23 (admin) — Orders sort newest or oldest first
+
+Client: "filter in orders to set newest to oldest or oldest to newest orders".
+A third piece of list state beside the search and the status filter, in the URL
+like the other two.
+
+- **`listOrdersPage({ sort })`** (`lib/db/orders.ts`, `OrderSort =
+  "newest" | "oldest"`). An explicit choice is always `created_at`, so
+  "oldest first" means the same thing on every tab. Without one, the
+  per-filter defaults stay as they were — the queues oldest first, shipped and
+  delivered by their own dates — which the sentence under the chips describes.
+- **`?sort=` on `/admin/orders`**, validated to the two values and dropped
+  otherwise. It rides in `ListSearch`/`ListPager` `keep`, in the card forms'
+  hidden `view` field, and through `returnView` (`lib/admin-list.ts`, now
+  letting `sort` past), so searching, paging and every button on a card come
+  back to the same order.
+- **`admin/orders/SortSelect`** (client) is the dropdown itself: it sits on
+  **Default order** until an order is chosen, and navigates with
+  `router.push(listHref(…))` so choosing Default order leaves the URL clean
+  rather than `?sort=`. It is a GET `<form>` underneath, with a `<noscript>`
+  Go button, so the dropdown still works with no JavaScript. Keyed on the
+  chosen order so it holds the choice while the page loads.
 
 ### 2026-09-23 (shipping) — A COD courier was collecting the bill minus GST
 

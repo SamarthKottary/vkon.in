@@ -70,10 +70,10 @@ export function listHref(path: string, params: Record<string, string | number | 
  * `q=ravi&status=pending&page=2` — so the action can send the admin back to
  * the same search, filter and page instead of page 1.
  *
- * Read key by key and rebuilt, never used as a URL: only `q`, `page` and
- * `status` survive, so a forged field can neither redirect elsewhere nor
- * smuggle in an outcome message ("refunded=…"). The page re-validates all
- * three when it renders.
+ * Read key by key and rebuilt, never used as a URL: only `q`, `page`,
+ * `status` and `sort` survive, so a forged field can neither redirect
+ * elsewhere nor smuggle in an outcome message ("refunded=…"). The page
+ * re-validates all four when it renders.
  */
 export function returnView(value: FormDataEntryValue | null): string {
   const raw = new URLSearchParams(typeof value === "string" ? value : "");
@@ -82,5 +82,6 @@ export function returnView(value: FormDataEntryValue | null): string {
      `refund-cancelled` and the like. Anything else is dropped, so the field
      can neither redirect elsewhere nor smuggle in another parameter. */
   const status = (raw.get("status") ?? "").replace(/[^a-z-]/g, "").slice(0, 24);
-  return listSearch({ q, status, page });
+  const sort = (raw.get("sort") ?? "").replace(/[^a-z]/g, "").slice(0, 8);
+  return listSearch({ q, status, sort, page });
 }

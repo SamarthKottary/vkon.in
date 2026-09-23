@@ -444,10 +444,16 @@ function searchArgs(q: string): [string, string, string] {
  * order history. See `isConfirmedOrder`. Replaced the unpaged `listAllOrders`,
  * which stopped at the newest 200.
  */
+export type OrderSort = "newest" | "oldest";
+
 export async function listOrdersPage(input: {
   q: string;
   filter: AdminOrderFilter | "";
   page: number;
+  /** Chosen in the admin (client, 2026-09-23). Without one, each list keeps
+   *  the order that suits it — a queue oldest first, a finished list newest
+   *  first — which is what `orderSql` below works out. */
+  sort?: OrderSort | "";
 }): Promise<{ orders: Order[]; total: number; page: number }> {
   if (!isDatabaseConfigured()) return { orders: [], total: 0, page: 1 };
   try {
@@ -460,18 +466,23 @@ export async function listOrdersPage(input: {
     const args = searchArgs(input.q);
     const [{ n }] = await query<{ n: number }>(`SELECT count(*)::int AS n FROM orders WHERE ${where}`, args);
     const page = clampPage(input.page, n);
-    let orderSql = "ORDER BY created_at DESC";
-    if (
-      input.filter === "pending" ||
-      input.filter === "pending-unquoted" ||
-      input.filter === "confirmed" ||
-      input.filter === "refund-cancelled"
-    ) {
-      orderSql = "ORDER BY created_at ASC NULLS LAST";
-    } else if (input.filter === "shipped") {
-      orderSql = "ORDER BY COALESCE(shipped_at, created_at) DESC NULLS LAST";
-    } else if (input.filter === "delivered") {
-      orderSql = "ORDER BY COALESCE(delivered_at, shipped_at, created_at) DESC NULLS LAST";
+    /* An explicit choice wins, and it is always by order date: "oldest first"
+       has to mean the same thing on every list, or the control lies. Without
+       one, each list keeps the order that suits its job. */
+    let orderSql = input.sort === "oldest" ? "ORDER BY created_at ASC" : "ORDER BY created_at DESC";
+    if (!input.sort) {
+      if (
+        input.filter === "pending" ||
+        input.filter === "pending-unquoted" ||
+        input.filter === "confirmed" ||
+        input.filter === "refund-cancelled"
+      ) {
+        orderSql = "ORDER BY created_at ASC NULLS LAST";
+      } else if (input.filter === "shipped") {
+        orderSql = "ORDER BY COALESCE(shipped_at, created_at) DESC NULLS LAST";
+      } else if (input.filter === "delivered") {
+        orderSql = "ORDER BY COALESCE(delivered_at, shipped_at, created_at) DESC NULLS LAST";
+      }
     }
 
     const rows = await query<OrderRow>(

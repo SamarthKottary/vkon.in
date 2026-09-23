@@ -25,6 +25,7 @@ import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
 import { trackingLabel } from "@/lib/tracking";
 import { bookShipmentAction, checkRefundsAction, refreshTrackingAction } from "@/app/admin/actions";
 import { OrderStatusSelect } from "./OrderStatusSelect";
+import { SortSelect } from "./SortSelect";
 import { PendingOrderActions } from "./OrderActions";
 import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
@@ -57,6 +58,7 @@ export default async function AdminOrdersPage({
     shipped?: string;
     shipError?: string;
     reason?: string;
+    sort?: string;
     mailed?: string;
     shipment?: string;
     tracked?: string;
@@ -99,15 +101,18 @@ export default async function AdminOrdersPage({
   const filter = (ADMIN_ORDER_FILTERS as readonly string[]).includes(params.status ?? "")
     ? (params.status as AdminOrderFilter)
     : "";
+  /* Newest or oldest first, chosen below the filters (client, 2026-09-23).
+     Absent means each list keeps the order that suits it. */
+  const sort = params.sort === "newest" || params.sort === "oldest" ? params.sort : "";
   const [{ orders, total, page }, counts, summary] = await Promise.all([
-    listOrdersPage({ q: query.q, filter, page: query.page }),
+    listOrdersPage({ q: query.q, filter, page: query.page, sort }),
     countOrdersByFilter(query.q),
     orderSummary(),
   ]);
   const emails = await listCustomerEmails([...new Set(orders.map((o) => o.customerId))]);
   /* Posted with every form on a card, so each action comes back here — the
      same search, filter and page — rather than to page 1. */
-  const view = listSearch({ q: query.q, status: filter, page });
+  const view = listSearch({ q: query.q, status: filter, sort, page });
 
   /* "Needs action" is pending-or-confirmed, i.e. not yet out of the door and
      not cancelled — across every order, not just this page. */
@@ -130,7 +135,7 @@ export default async function AdminOrdersPage({
           q={query.q}
           placeholder="Order number, email or phone"
           label="Search orders"
-          keep={{ status: filter }}
+          keep={{ status: filter, sort }}
         />
       </div>
 
@@ -322,7 +327,7 @@ export default async function AdminOrdersPage({
         </p>
       </InfoNote>
 
-      <OrderFilters q={query.q} filter={filter} counts={counts} />
+      <OrderFilters q={query.q} filter={filter} counts={counts} sort={sort} />
 
       <div className="mt-4 space-y-4">
         {orders.length === 0 ? (
@@ -365,7 +370,12 @@ export default async function AdminOrdersPage({
         )}
         {total > 0 && (
           <div className="border border-line bg-surface">
-            <ListPager path="/admin/orders" page={page} total={total} keep={{ q: query.q, status: filter }} />
+            <ListPager
+              path="/admin/orders"
+              page={page}
+              total={total}
+              keep={{ q: query.q, status: filter, sort }}
+            />
           </div>
         )}
       </div>
@@ -403,17 +413,24 @@ function OrderFilters({
   q,
   filter,
   counts,
+  sort,
 }: {
   q: string;
   filter: AdminOrderFilter | "";
   counts: OrderFilterCounts;
+  sort: "newest" | "oldest" | "";
 }) {
   const options: { value: AdminOrderFilter | ""; label: string; n: number }[] = [
     { value: "", label: "All", n: counts.all },
     ...ADMIN_ORDER_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], n: counts[f] })),
   ];
   let sortExplanation = "Sorted from newest to oldest by order date.";
-  if (
+  if (sort) {
+    sortExplanation =
+      sort === "oldest"
+        ? "Sorted from oldest to newest by order date."
+        : "Sorted from newest to oldest by order date.";
+  } else if (
     filter === "pending" ||
     filter === "pending-unquoted" ||
     filter === "confirmed" ||
@@ -450,7 +467,12 @@ function OrderFilters({
           );
         })}
       </nav>
-      <p className="mt-3 text-sm text-muted">{sortExplanation}</p>
+      {/* The dropdown sits on **Default order** until an order is chosen, and
+          the sentence beside it says which order is on screen either way. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <SortSelect path="/admin/orders" sort={sort} keep={{ q, status: filter }} />
+        <p className="text-sm text-muted">{sortExplanation}</p>
+      </div>
     </>
   );
 }

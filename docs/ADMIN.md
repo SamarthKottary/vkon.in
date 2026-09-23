@@ -17,7 +17,7 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. Search by name, URL, tagline or category; drag to reorder is off while a search is showing. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
-| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by status, by **Pending-not quoted** (waiting orders with no delivery price), or by **Refund-cancelled** — cancelled, paid online, money not back yet. A refund completing moves that order to **Cancelled**; ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
+| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by status, by **Pending-not quoted** (waiting orders with no delivery price), or by **Refund-cancelled** — cancelled, paid online, money not back yet. A refund completing moves that order to **Cancelled**; sort newest or oldest first (without a choice each tab keeps the order that suits it); ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. |
 | `/admin/users` | Customer accounts. Read and search. Super users and admins also get the **sign-in code switch** (on or off for every customer) and **Sign in as**, which opens a customer's account in a new tab. |
 | `/admin/reviews` | Product reviews from customers whose orders were delivered. Three lists — **Pending**, **Approved**, **Rejected** — searchable, ten a page. Only approved reviews appear on the site; a review can be moved between the three at any time. Super users and admins moderate. |
 | `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
@@ -429,6 +429,16 @@ Note also that a paid order arrives here already marked **Paid** and
 ---
 
 ## Change log
+
+**2026-09-23 (orders)** — `/admin/orders` sorts **newest first** or **oldest
+first**, a dropdown under the filter chips (client: "filter in orders to set
+newest to oldest or oldest to newest orders"). It stays on **Default order** unless an order is chosen, which leaves each
+tab as it was — the Pending, Confirmed and Refund-cancelled queues oldest
+first, Shipped and Delivered by their own dates — and the sentence beside the
+dropdown always says which order is on screen. A choice is always by order date,
+so "oldest first" means the same thing on every tab, and it rides in the URL
+beside the search and the filter: paging and every button on a card come back
+to the same view.
 
 **2026-09-22 (reviews)** — Product reviews. A customer whose order is marked
 **delivered** gets a rating form under each product on that order: half a star
