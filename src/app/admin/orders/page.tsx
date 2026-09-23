@@ -61,7 +61,7 @@ export default async function AdminOrdersPage({
     shipped?: string;
     shipError?: string;
     reason?: string;
-    left?: string;
+    shipOrder?: string;
     sort?: string;
     mailed?: string;
     shipment?: string;
@@ -86,7 +86,7 @@ export default async function AdminOrdersPage({
     shipped,
     shipError,
     reason,
-    left,
+    shipOrder,
     mailed,
     shipment,
     tracked,
@@ -98,11 +98,11 @@ export default async function AdminOrdersPage({
   } = params;
   const canRefund = isRazorpayConfigured();
   const canShip = isShiprocketConfigured();
-  /* Presses left after a failed booking — `null` when this was not one. */
-  const attemptsLeft =
-    left !== undefined && /^\d+$/.test(left)
-      ? Math.max(0, Math.min(SHIPMENT_ATTEMPT_LIMIT, Number(left)))
-      : null;
+  /* What the last Book shipment press did, and which order it was — shown on
+     that order's own row rather than in a banner above the list (client,
+     2026-09-23: "Only show message in order row, do not show on top"). */
+  const booking =
+    shipOrder && (shipped || shipError) ? { shipped, shipError, reason } : null;
 
   /* Search by order number, email or phone, filter by status or the refund
      queue, ten a page (client, 2026-09-19 and 2026-09-21). An unknown
@@ -242,61 +242,9 @@ export default async function AdminOrdersPage({
         </p>
       )}
 
-      {/* Booking talks to somebody else's API, so its outcomes are spelled out
-          rather than folded into the generic "could not update": each of these
-          needs a different thing done about it, and "it failed" would send the
-          operator to the logs to find out which. */}
-      {(shipped || shipError) && (
-        <p
-          role="status"
-          className={`mt-6 border-l-2 bg-surface px-4 py-3 text-sm text-ink ${
-            shipError ? "border-signal-500" : "border-accent"
-          }`}
-        >
-          {shipError === "unconfigured"
-            ? "Shiprocket is not configured — set the SHIPROCKET_* variables in .env and restart. See docs/SHIPPING.md."
-            : shipError === "already"
-              ? "That order already has a shipment. Manage it in the Shiprocket dashboard."
-              : shipError === "window"
-                ? "Not yet — the customer can still change that order's delivery address. Booking opens at 12 pm the day after the order was confirmed."
-                : shipError === "attempts"
-                  ? `Booking has already failed ${SHIPMENT_ATTEMPT_LIMIT} times on that order.`
-                  : shipError === "stray"
-                    ? "Created at Shiprocket, but no courier was assigned and their order would not cancel — cancel it in their dashboard so it is not left open."
-                    : shipError === "noawb"
-                      ? "No courier was assigned, so the order created at Shiprocket was cancelled — nothing is booked."
-                      : shipError
-                      ? "Shiprocket refused the booking — usually the pickup location nickname or a missing PIN code."
-                      : shipped === "nopickup"
-                        ? "Shipment booked with an AWB. Shiprocket did not take the pickup request, so schedule the pickup in their dashboard."
-                        : "Shipment booked and pickup requested — the courier will collect it."}
-          {/* What Shiprocket said, in its own words (client, 2026-09-23) —
-              "Insufficient balance", "Courier not serviceable" and the like.
-              Rendered as text, never as markup. */}
-          {reason && (
-            <span className="mt-1.5 block text-body">
-              Shiprocket said: <span className="text-ink">{reason}</span>
-            </span>
-          )}
-          {/* How many presses are left of the three, and where to go when
-              there are none (client, 2026-09-23). */}
-          {(attemptsLeft !== null || shipError === "attempts") && (
-            <span className="mt-1.5 block text-body">
-              {attemptsLeft && attemptsLeft > 0 ? (
-                `${attemptsLeft} of ${SHIPMENT_ATTEMPT_LIMIT} attempts left.`
-              ) : (
-                <>
-                  No attempts left — contact{" "}
-                  <a href={`mailto:${site.email}`} className="text-accent hover:underline">
-                    {site.email}
-                  </a>{" "}
-                  for further assistance.
-                </>
-              )}
-            </span>
-          )}
-        </p>
-      )}
+      {/* A booking's outcome is not a banner up here: it belongs on the order
+          it happened to, where the button is (client, 2026-09-23). See
+          `ShipmentBlock`. */}
 
       {/* Rewritten 2026-09-17 when Razorpay went live: it used to say payment
           was not taken online and had to be settled by phone. The refund line
@@ -396,6 +344,7 @@ export default async function AdminOrdersPage({
               customerEmail={emails.get(order.customerId) ?? null}
               view={view}
               role={admin.role}
+              booking={order.id === shipOrder ? booking : null}
             />
           ))
         )}
@@ -493,6 +442,7 @@ function OrderCard({
   customerEmail,
   view,
   role,
+  booking,
 }: {
   order: Order;
   canShip: boolean;
@@ -501,6 +451,8 @@ function OrderCard({
   /** The list view the card is on, posted with each of its forms. */
   view: string;
   role: string;
+  /** Set on the one order Book shipment was just pressed on. */
+  booking: BookingOutcome | null;
 }) {
   const settled = order.status === "delivered" || order.status === "cancelled";
   const bookable = shipmentBookable(order);
@@ -720,7 +672,13 @@ function OrderCard({
 
           {/* Under the account email (client, 2026-09-21): the parcel belongs
               with where it is going and who to tell about it. */}
-          <ShipmentBlock order={order} canShip={canShip} bookable={bookable} view={view} />
+          <ShipmentBlock
+            order={order}
+            canShip={canShip}
+            bookable={bookable}
+            view={view}
+            booking={booking}
+          />
         </div>
       </div>
     </article>
@@ -731,17 +689,58 @@ function OrderCard({
  * The parcel, or the button that creates one (moved out of the card's markup
  * 2026-09-21, when the bill and the shipment became the card's own column).
  */
+/** What the last Book shipment press did, for the card it was pressed on. */
+type BookingOutcome = { shipped?: string; shipError?: string; reason?: string };
+
+/**
+ * That outcome as a line for the order's own row (client, 2026-09-23: "Only
+ * show message in order row, do not show on top").
+ *
+ * Nothing here mentions the order being cancelled at Shiprocket: an attempt
+ * that got no courier is tidied up there and simply did not book, which is
+ * what the operator needs to know ("Dont say that order is cancelled. Just
+ * cancel and show attempt"). The reason and the attempt count come off the
+ * order itself, below.
+ */
+function bookingNote({ shipped, shipError }: BookingOutcome): { text: string; bad: boolean } | null {
+  if (shipError === "unconfigured")
+    return { text: "Shiprocket is not configured — see docs/SHIPPING.md.", bad: true };
+  if (shipError === "already")
+    return { text: "That order already has a shipment.", bad: true };
+  if (shipError === "window")
+    return { text: "Not yet — the customer can still change the delivery address.", bad: true };
+  if (shipError === "attempts")
+    return { text: `All ${SHIPMENT_ATTEMPT_LIMIT} attempts have already failed.`, bad: true };
+  if (shipError === "noawb") return { text: "No courier was assigned.", bad: true };
+  if (shipError === "stray")
+    return {
+      text: "Created at Shiprocket, but no courier was assigned — assign or cancel it in their dashboard.",
+      bad: true,
+    };
+  if (shipError) return { text: "Shiprocket refused the booking.", bad: true };
+  if (shipped === "nopickup")
+    return {
+      text: "Booked with an AWB. Shiprocket did not take the pickup request — schedule it in their dashboard.",
+      bad: true,
+    };
+  if (shipped) return { text: "Shipment booked and pickup requested.", bad: false };
+  return null;
+}
+
 function ShipmentBlock({
   order,
   canShip,
   bookable,
   view,
+  booking,
 }: {
   order: Order;
   canShip: boolean;
   bookable: ReturnType<typeof shipmentBookable>;
   view: string;
+  booking: BookingOutcome | null;
 }) {
+  const note = booking ? bookingNote(booking) : null;
   /* The shipment, once there is one — and the button to make one when there
      is not. Cancelled orders get neither: booking a parcel for an order that
      is not happening is the one mistake this button can make that costs real
@@ -749,6 +748,21 @@ function ShipmentBlock({
   return (
     <div className="mt-5">
       <p className="label-tech text-muted">Shipment</p>
+
+      {/* What the press just did, on the order it was pressed on. */}
+      {note && (
+        <p
+          role="status"
+          className={`mt-2 text-sm ${note.bad ? "font-medium text-signal-700" : "text-accent"}`}
+        >
+          {note.text}
+        </p>
+      )}
+      {note && booking?.reason && (
+        <p className="mt-1 text-sm text-body">
+          Shiprocket said: <span className="text-ink">{booking.reason}</span>
+        </p>
+      )}
 
       {order.awb ? (
         <div className="mt-2.5 space-y-1.5 text-sm">
@@ -874,7 +888,7 @@ function ShipmentBlock({
            pressing again fixes. */
         <div className="mt-2.5 space-y-1.5 text-sm">
           <p className="font-medium text-signal-700">
-            Booking failed {SHIPMENT_ATTEMPT_LIMIT} times — no attempts left.
+            All {SHIPMENT_ATTEMPT_LIMIT} attempts failed.
           </p>
           {order.shipmentError && (
             <p className="text-body">
@@ -894,18 +908,23 @@ function ShipmentBlock({
           <input type="hidden" name="id" value={order.id} />
           <input type="hidden" name="view" value={view} />
           <BookShipmentButton />
-          {/* What the last press did, for as long as the button is still
-              offered — the banner it arrived in is gone after a refresh. */}
+          {/* Read off the order, not the redirect, so a refresh still shows
+              which attempt failed and why. */}
           {order.shipmentAttempts > 0 && (
             <div className="mt-2 space-y-1 text-sm">
-              {order.shipmentError && (
-                <p className="text-body">
-                  Last attempt: <span className="text-ink">{order.shipmentError}</span>
-                </p>
-              )}
               <p className="text-body">
-                {SHIPMENT_ATTEMPT_LIMIT - order.shipmentAttempts} of {SHIPMENT_ATTEMPT_LIMIT}{" "}
-                attempts left.
+                Attempt {order.shipmentAttempts} of {SHIPMENT_ATTEMPT_LIMIT} failed
+                {order.shipmentError ? (
+                  <>
+                    : <span className="text-ink">{order.shipmentError}</span>
+                  </>
+                ) : (
+                  "."
+                )}
+              </p>
+              <p className="text-body">
+                {SHIPMENT_ATTEMPT_LIMIT - order.shipmentAttempts} attempt
+                {SHIPMENT_ATTEMPT_LIMIT - order.shipmentAttempts === 1 ? "" : "s"} left.
               </p>
             </div>
           )}

@@ -343,30 +343,49 @@ Client, 2026-09-23: "cancel the order in shiprocket if it dosent book … After
 **A booking that gets no AWB is not a booking.** Their `/orders/create/adhoc`
 succeeded, so an order sits in their dashboard that no courier will collect;
 `bookShipmentAction` now calls `/orders/cancel` on it and writes **nothing** to
-the order's shipment fields. The next press therefore starts clean instead of
-creating a second order for the same parcel. Only if that cancel is itself
-refused is the shipment recorded — that is the one case where an order is left
-open at Shiprocket, and the card says to deal with it in their dashboard.
+the order's shipment fields. The admin is not told about that cancel (client:
+"Dont say that order is cancelled. Just cancel and show attempt") — the card
+says no courier was assigned, why, and how many attempts are left. Only if the
+cancel is itself refused is the shipment recorded — that is the one case where
+an order is left open at Shiprocket, and the card says to deal with it in
+their dashboard.
+
+**A retry sends a new `order_id`** — `VK-0918-PACK-R2`, `-R3`
+(`BookingInput.attempt`). Shiprocket does **not** create a second order for an
+`order_id` it already holds: it hands the existing one back. After the first
+attempt was cancelled, the retry was therefore assigning a courier to a
+cancelled order and every attempt from the second on came back "order is in
+cancelled state", hiding the real reason (found on the live site the day this
+shipped). Their dashboard sorts the retries beside the original.
 
 **Three failed presses per order** (`SHIPMENT_ATTEMPT_LIMIT`, `lib/db/orders.ts`).
 Each failure — a refused create or a cancelled no-AWB booking — is counted by
 `recordShipmentFailure`, in SQL (`shipment_attempts = shipment_attempts + 1`)
 so two admins pressing at once cannot both write 2. Shiprocket's words for it
-go into `shipment_error`, which is what the card shows after the redirect
-banner has gone. The count is reset to 0 by `setOrderShipment`, so an order
-that books on the third press is not left one press from the limit.
+go into `shipment_error`. The count is reset to 0 by `setOrderShipment`, so an
+order that books on the third press is not left one press from the limit.
 
 At three, the card stops offering the button and says to contact
 support@vkon.in; `bookShipmentAction` refuses a stale posted form with
-`?shipError=attempts`, before Shiprocket is called. Raising the limit for an
-order means clearing `shipment_attempts` on its row — there is no button for
-it, deliberately: the point is to stop a bad order being hammered at
-Shiprocket.
+`?shipError=attempts`, before Shiprocket is called. Giving an order its
+attempts back means clearing `shipment_attempts` on its row —
+`UPDATE orders SET shipment_attempts = 0, shipment_error = NULL WHERE
+order_number = '…'` — there is no button for it, deliberately: the point is to
+stop a bad order being hammered at Shiprocket.
+
+**Everything is said on the order's own row**, never in a banner above the
+list (client: "Only show message in order row, do not show on top"), and the
+redirect carries `#order-<id>` so the press comes back to the order instead of
+the top of a long list. What the press did is one line under **Shipment**
+("No courier was assigned.", "Shiprocket refused the booking.", "Shipment
+booked and pickup requested."); under the button, read off the order itself so
+a refresh keeps it: "Attempt 2 of 3 failed: Insufficient balance …" and
+"1 attempt left."
 
 **The button narrates the wait** (`BookShipmentButton`): *Initializing…* on
-press, *Processing…* from 1.5s in, then the outcome as the banner at the top
-of the page. Three API calls on a rural connection is a long time to look at a
-button that has not changed.
+press, *Processing…* from 1.5s in, then the outcome on the row. Three API
+calls on a rural connection is a long time to look at a button that has not
+changed.
 
 **The label is still printed in Shiprocket** (Orders → Ready to Ship →
 Print), and the manifest is what the courier signs on handover.

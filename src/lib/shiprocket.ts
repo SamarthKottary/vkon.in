@@ -383,6 +383,17 @@ export type BookingInput = {
   /** The service the customer chose and paid for, if any. */
   courierId?: number | null;
   isCOD?: boolean;
+  /**
+   * How many attempts have already failed on this order, so the retry sends a
+   * fresh `order_id` (client, 2026-09-23).
+   *
+   * **Shiprocket does not create a second order for an `order_id` it already
+   * holds** — it hands the existing one back, cancelled or not. A retry after
+   * a cancelled attempt therefore tried to assign a courier to a cancelled
+   * order and came back "order is in cancelled state", masking the real
+   * reason for the first failure. Attempt two is sent as `VK-0918-PACK-R2`.
+   */
+  attempt?: number;
 };
 
 export type Booking = {
@@ -496,8 +507,11 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
   const [shipFirst, shipLast] = splitName(input.shipTo.name);
   const [billFirst, billLast] = splitName(input.billTo.name);
 
+  const attempt = Math.max(0, Math.floor(input.attempt ?? 0));
   const payload = {
-    order_id: input.orderNumber,
+    /* `-R2`, `-R3` on a retry: see `attempt` on `BookingInput`. The order
+       number is still the start of it, so their dashboard sorts beside ours. */
+    order_id: attempt > 0 ? `${input.orderNumber}-R${attempt + 1}` : input.orderNumber,
     order_date: input.createdAt.slice(0, 10),
     pickup_location: pickupLocation(),
 
@@ -573,7 +587,10 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
 
   if (!created) throw new Error("Could not reach Shiprocket.");
   if (!created.ok) {
-    throw new Error(`Shiprocket refused the order (${created.status}): ${await safeText(created)}`);
+    /* Their words, not the raw body: this is shown on the order card. */
+    const body = await safeText(created);
+    console.error("[shiprocket] create failed:", created.status, body);
+    throw new Error(readReason(body) ?? `Shiprocket refused the order (${created.status}).`);
   }
 
   const body = (await created.json()) as { order_id?: unknown; shipment_id?: unknown };

@@ -941,7 +941,17 @@ const NO_COURIER = "No courier was assigned.";
 export async function bookShipmentAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
-  const back = (query: string) => backTo("/admin/orders", formData, query);
+  /* Back to the order itself, not the top of the list (client, 2026-09-23:
+     "the page moves to the top and i need to scroll down and find the order
+     again"). `shipOrder` is which card says what happened — the outcome is
+     shown on the order, not in a banner above the page. */
+  const back = (query: string) =>
+    backTo(
+      "/admin/orders",
+      formData,
+      id ? `${query}&shipOrder=${encodeURIComponent(id)}` : query,
+      id ? `order-${id}` : "",
+    );
 
   if (admin.role !== "super" && admin.role !== "admin") {
     redirect(back("error=access"));
@@ -965,11 +975,10 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
   if (!shipmentBookable(order).bookable) redirect(back("shipError=window"));
 
   let outcome = "1";
-  /* Shiprocket's own words, carried to the page so the operator reads them
-     there rather than in the server log (client, 2026-09-23). */
+  /* Shiprocket's own words. A failure keeps them on the order row itself
+     (`shipment_error`), so they survive a refresh; this carries the one case
+     that is not a failure — booked, but no pickup taken. */
   let reason = "";
-  /* Presses left of the three, once one has been spent on a failure. */
-  let left = 0;
   try {
     const products = await listProducts();
     const booking = await bookShipment({
@@ -1004,6 +1013,10 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
       ),
       courierId: order.courierId,
       isCOD: order.paymentProvider === "cod",
+      /* A retry sends a fresh order id: Shiprocket hands back the order it
+         already has for one it has seen, and assigning a courier to the
+         cancelled one fails with "order is in cancelled state". */
+      attempt: order.shipmentAttempts,
     });
 
     reason = booking.reason ?? "";
@@ -1023,16 +1036,17 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
       /* **No courier, so nothing is booked** (client, 2026-09-23: "cancel the
          order in shiprocket if it dosent book"). Their create succeeded and
          the AWB did not, which leaves an order in their dashboard that no
-         courier will ever collect; cancelling it means the next press starts
-         clean instead of creating a second one. Nothing is written to the
-         order's shipment fields — there is no shipment — only the failure. */
+         courier will ever collect; cancelling it is tidying up, and the card
+         says nothing about it — only that no courier was assigned, why, and
+         how many attempts are left. Nothing is written to the order's
+         shipment fields, because there is no shipment. */
       console.info(
         "[admin] no AWB for",
         order.orderNumber,
         "— cancelled Shiprocket order",
         booking.shipmentOrderId,
       );
-      left = SHIPMENT_ATTEMPT_LIMIT - (await recordShipmentFailure(order.id, reason || NO_COURIER));
+      await recordShipmentFailure(order.id, reason || NO_COURIER);
       outcome = "noawb";
     } else {
       /* Their order is live and would not cancel. Recording it is the only
@@ -1054,23 +1068,18 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
        Nothing was created, so there is nothing to cancel — only the press to
        count. */
     const said = error instanceof Error ? error.message : "";
-    const failures = await recordShipmentFailure(order.id, said || "Shiprocket refused the booking.");
-    redirect(
-      back(
-        `shipError=failed&left=${SHIPMENT_ATTEMPT_LIMIT - failures}` +
-          (said ? `&reason=${encodeURIComponent(said.slice(0, 200))}` : ""),
-      ),
-    );
+    await recordShipmentFailure(order.id, said || "Shiprocket refused the booking.");
+    redirect(back("shipError=failed"));
   }
 
   revalidatePath("/admin/orders");
   revalidatePath("/account/orders");
-  const said = reason ? `&reason=${encodeURIComponent(reason)}` : "";
   /* A booking that did not happen is an error, not a shipment: the card puts
-     the button back, with what is left of the three presses. */
-  if (outcome === "noawb") redirect(back(`shipError=noawb&left=${left}${said}`));
-  if (outcome === "stray") redirect(back(`shipError=stray${said}`));
-  redirect(back(`shipped=${outcome}${said}`));
+     the button back, with Shiprocket's reason and what is left of the three
+     presses — both read off the order, so a refresh still shows them. */
+  if (outcome === "noawb") redirect(back("shipError=noawb"));
+  if (outcome === "stray") redirect(back("shipError=stray"));
+  redirect(back(`shipped=${outcome}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`));
 }
 
 // ---------------------------------------------------------------------------
