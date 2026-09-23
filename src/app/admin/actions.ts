@@ -978,6 +978,7 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
         unitPrice: item.unitPrice,
       })),
       subtotal: order.subtotal,
+      shipping: order.shipping,
       parcel: packParcel(
         order.items.map((item) => ({ slug: item.slug, qty: item.qty })),
         products,

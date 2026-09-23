@@ -375,6 +375,7 @@ export type BookingInput = {
   items: { name: string; slug: string; qty: number; unitPrice: number }[];
   /** Paise. */
   subtotal: number;
+  shipping: number;
   parcel: { weightGrams: number; lengthCm: number; breadthCm: number; heightCm: number };
   /** The service the customer chose and paid for, if any. */
   courierId?: number | null;
@@ -463,10 +464,12 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
          paise would declare a hundredfold value and price the insurance on
          it. The one place in this file that leaves the paise unit. */
       selling_price: Math.round(item.unitPrice / 100),
+      tax: 18,
     })),
 
     payment_method: input.isCOD ? "COD" : "Prepaid",
     sub_total: Math.round(input.subtotal / 100),
+    shipping_charges: Math.round(input.shipping / 100),
 
     /* The same box the rate was quoted on — `lib/parcel.ts` computes it once
        and both calls use it. Declaring a different size here than at quoting
