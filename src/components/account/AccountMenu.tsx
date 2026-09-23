@@ -6,8 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   LogoutIcon,
   PackageIcon,
+  PinIcon,
   UserIcon,
 } from "@/components/icons/ui";
+import { accountNav } from "@/content/nav";
 import { logoutAction } from "@/app/(site)/account/actions";
 import { handleUserLogout } from "@/lib/cart";
 import { Avatar } from "@/components/account/Avatar";
@@ -27,6 +29,12 @@ import { Avatar } from "@/components/account/Avatar";
  */
 
 export type HeaderCustomer = { name: string; email: string; avatarUrl: string | null };
+
+const MENU_ICONS: Record<string, ((props: { className?: string }) => React.ReactElement) | undefined> = {
+  "/account": UserIcon,
+  "/account/addresses": PinIcon,
+  "/account/orders": PackageIcon,
+};
 
 export function AccountMenu({ customer }: { customer: HeaderCustomer | null }) {
   const [open, setOpen] = useState(false);
@@ -112,15 +120,21 @@ export function AccountMenu({ customer }: { customer: HeaderCustomer | null }) {
             <p className="mt-0.5 truncate text-xs text-muted">{customer.email}</p>
           </div>
 
+          {/* Built from `accountNav`, the same list the account pages' own
+              sidebar uses (2026-09-23). It used to be two links written out
+              here, so adding Addresses to the sidebar left this menu a page
+              behind — the two cannot drift now. An unknown href gets no icon
+              rather than the wrong one. */}
           <nav className="py-1">
-            <MenuLink href="/account" onNavigate={() => setOpen(false)}>
-              <UserIcon className="h-4 w-4" />
-              My account
-            </MenuLink>
-            <MenuLink href="/account/orders" onNavigate={() => setOpen(false)}>
-              <PackageIcon className="h-4 w-4" />
-              Order history
-            </MenuLink>
+            {accountNav.map((link) => {
+              const Icon = MENU_ICONS[link.href];
+              return (
+                <MenuLink key={link.href} href={link.href} onNavigate={() => setOpen(false)}>
+                  {Icon ? <Icon className="h-4 w-4" /> : <span className="h-4 w-4" />}
+                  {link.label}
+                </MenuLink>
+              );
+            })}
           </nav>
 
           {/* A form, not a link. Signing out is a state change, and a GET that

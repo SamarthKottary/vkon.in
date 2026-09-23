@@ -3,7 +3,6 @@ import { CheckIcon, PackageIcon, PinIcon } from "@/components/icons/ui";
 import { PasswordCard } from "@/components/account/PasswordCard";
 import { AvatarForm } from "@/components/account/AvatarForm";
 import { ProfileForm } from "@/components/account/ProfileForm";
-import { AddressBook } from "@/components/account/AddressBook";
 import { AccountShell } from "@/components/account/AccountShell";
 import { requireSignIn } from "@/lib/account";
 import { listAddresses } from "@/lib/db/addresses";
@@ -67,7 +66,7 @@ export default async function AccountPage({
             }
           />
           <SummaryCard
-            href="#addresses"
+            href="/account/addresses"
             icon={<PinIcon className="h-5 w-5" />}
             label="Addresses"
             value={addresses.length === 0 ? "None saved" : `${addresses.length}`}
@@ -115,16 +114,6 @@ export default async function AccountPage({
           </div>
         </section>
 
-        <section id="addresses" className="border border-line bg-surface-raised p-5 shadow-card sm:p-8">
-          <h2 className="text-lg font-semibold text-ink sm:text-xl">Delivery addresses</h2>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
-            Save the places you take delivery. The one chosen here is your
-            default, and checkout starts with it.
-          </p>
-          <div className="mt-6">
-            <AddressBook addresses={addresses} />
-          </div>
-        </section>
       </div>
     </AccountShell>
   );

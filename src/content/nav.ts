@@ -18,6 +18,10 @@ export const primaryNav: NavLink[] = [
  */
 export const accountNav: NavLink[] = [
   { href: "/account", label: "My account" },
+  /* Addresses sits between the two (client, 2026-09-23): it is a list a
+     customer maintains, like their orders, not a detail of their profile —
+     it used to be a panel at the foot of My account. */
+  { href: "/account/addresses", label: "Addresses" },
   { href: "/account/orders", label: "Order history" },
 ];
 
