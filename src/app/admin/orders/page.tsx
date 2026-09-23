@@ -534,17 +534,13 @@ function OrderCard({
         </div>
       </div>
 
-      {/* Two columns (client, 2026-09-21): everything about the order on the
-          left, the people and places on the right. The left column is a flex
-          column so its bottom row — payment, the bill, the shipment — sits on
-          the card's floor when the addresses are the taller side, and is
-          pushed down by a long list of items rather than the items scrolling
-          past it. */}
+      {/* Two rows (client, modified for alignment): top row has items and addresses, 
+          bottom row has payment, bill, and shipment. The grid aligns them perfectly at the top. */}
       <div className="mt-5 grid gap-6 border-t border-line pt-5 lg:grid-cols-[1fr_18rem]">
         {/* `min-w-0`: a grid column will not shrink below its content without
             it, and a six-figure line total then pushes the card sideways on a
             phone. */}
-        <div className="flex min-w-0 flex-col">
+        <div className="min-w-0">
           <p className="label-tech text-muted">Items</p>
           <ul className="mt-3 space-y-3">
             {order.items.map((item) => (
@@ -590,20 +586,9 @@ function OrderCard({
               </p>
             </div>
           )}
+        </div>
 
-          {/* `mt-auto` is what puts this on the floor of the card. Payment
-              takes the rest of the width, so its rule runs from the card's
-              left edge to the bill's — the client's sketch. */}
-          <div className="mt-auto grid gap-6 pt-5 sm:grid-cols-[1fr_20rem]">
-            {/* Starts on the bill's line: with the shipment moved over to the
-                addresses, the bill is all that shares this row. */}
-            <div className="order-2 sm:order-1">
-              <PaymentBlock order={order} canRefund={canRefund} view={view} role={role} />
-            </div>
-
-            <div className="order-1 sm:order-2">
-              <dl className="space-y-1.5 border-t border-line pt-4 text-sm">
-                <Row label="Subtotal" value={formatPaise(order.subtotal)} />
+        <div>
                 <Row label="CGST 9%" value={formatPaise(order.cgst)} />
                 <Row label="SGST 9%" value={formatPaise(order.sgst)} />
                 <Row
@@ -648,7 +633,7 @@ function OrderCard({
           </div>
         </div>
 
-        <div className="flex flex-col">
+        <div>
           {/* Both addresses in full when they differ, each with its own phone
               (client, 2026-09-18): the courier rings the delivery number, the
               invoice carries the billing one, and they are often different
@@ -664,25 +649,78 @@ function OrderCard({
               </div>
             </>
           )}
+        </div>
+      </div>
 
-          {/* mt-auto pushes this group to the card floor, aligning it with the
-              PAYMENT / pricing row on the left column (2026-09-23). */}
-          <div className="mt-auto border-t border-line pt-5">
-            {/* The account's email — the addresses carry none. Order mail goes
-                here, so it is the one to write to. */}
-            {customerEmail && (
-              <p className="text-sm">
-                <span className="label-tech block text-muted">Account email</span>
-                <a href={`mailto:${customerEmail}`} className="mt-1 inline-block break-all text-accent hover:underline">
-                  {customerEmail}
-                </a>
-              </p>
-            )}
-
-            {/* Under the account email (client, 2026-09-21): the parcel belongs
-                with where it is going and who to tell about it. */}
-            <ShipmentBlock order={order} canShip={canShip} bookable={bookable} view={view} />
+      {/* Bottom row: payment, the bill, the shipment. Placed in a separate grid 
+          so their tops align perfectly and stretch down together. */}
+      <div className="mt-5 grid gap-6 border-t border-line pt-5 lg:grid-cols-[1fr_18rem] items-start">
+        <div className="grid gap-6 sm:grid-cols-[1fr_20rem] items-start">
+          <div className="order-2 sm:order-1">
+            <PaymentBlock order={order} canRefund={canRefund} view={view} role={role} />
           </div>
+
+          <div className="order-1 sm:order-2">
+            <dl className="space-y-1.5 text-sm">
+              <Row label="Subtotal" value={formatPaise(order.subtotal)} />
+              <Row label="CGST 9%" value={formatPaise(order.cgst)} />
+              <Row label="SGST 9%" value={formatPaise(order.sgst)} />
+              <Row
+                label={
+                  [
+                    "Delivery",
+                    order.deliveryService,
+                    /* The courier the customer chose, before there is an AWB
+                       to name one — booking assigns this service. */
+                    order.awb ? null : order.courierName,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                }
+                value={order.shipping > 0 ? formatPaise(order.shipping) : "Not quoted"}
+              />
+              {/* What the bill adds up to (client, 2026-09-21). Same shape
+                  as the customer's own copy: bold label, the figure in the
+                  accent, ruled off from the parts above it. The figure by
+                  the order number is the same number — this is the one at
+                  the end of the arithmetic. */}
+              <div className="flex items-center justify-between gap-4 border-t border-line pt-2.5">
+                <dt className="font-bold text-ink">Total</dt>
+                <dd className="text-base font-bold tabular-nums text-accent">
+                  {formatPaise(order.total)}
+                </dd>
+              </div>
+              {/* Only once there is one: what has gone back, and whether
+                  Razorpay has finished sending it. */}
+              {order.refundedAmount > 0 && (
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">
+                    {order.refundPending ? "Refund processing" : "Refunded"}
+                  </dt>
+                  <dd className="font-semibold tabular-nums text-ink">
+                    &minus;{formatPaise(order.refundedAmount)}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        </div>
+
+        <div>
+          {/* The account's email — the addresses carry none. Order mail goes
+              here, so it is the one to write to. */}
+          {customerEmail && (
+            <p className="text-sm">
+              <span className="label-tech block text-muted">Account email</span>
+              <a href={`mailto:${customerEmail}`} className="mt-1 inline-block break-all text-accent hover:underline">
+                {customerEmail}
+              </a>
+            </p>
+          )}
+
+          {/* Under the account email (client, 2026-09-21): the parcel belongs
+              with where it is going and who to tell about it. */}
+          <ShipmentBlock order={order} canShip={canShip} bookable={bookable} view={view} />
         </div>
       </div>
     </article>
@@ -709,7 +747,7 @@ function ShipmentBlock({
      is not happening is the one mistake this button can make that costs real
      money. */
   return (
-    <div className="mt-5 pt-4">
+    <div className="mt-5">
       <p className="label-tech text-muted">Shipment</p>
 
       {order.awb ? (
@@ -875,7 +913,7 @@ function PaymentBlock({ order, canRefund, view, role }: { order: Order; canRefun
   return (
     /* No top margin: this is a cell of the card's bottom row, and its rule
        has to line up with the bill's beside it. */
-    <div className="border-t border-line pt-4">
+    <div>
       <p className="label-tech text-muted">Payment</p>
 
       {paidOnline ? (
