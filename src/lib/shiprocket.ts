@@ -373,8 +373,11 @@ export type BookingInput = {
   billTo: BookingInput["shipTo"];
   email: string;
   items: { name: string; slug: string; qty: number; unitPrice: number }[];
-  /** Paise. */
+  /** Paise, before GST — what the items cost. */
   subtotal: number;
+  /** Paise. CGST + SGST on those items. */
+  tax: number;
+  /** Paise. */
   shipping: number;
   parcel: { weightGrams: number; lengthCm: number; breadthCm: number; heightCm: number };
   /** The service the customer chose and paid for, if any. */
@@ -387,6 +390,9 @@ export type Booking = {
   shipmentId: string;
   awb: string | null;
   courierName: string | null;
+  /** Whether the courier was asked to collect, so the admin can say when it
+   *  still needs doing by hand in Shiprocket. */
+  pickupScheduled: boolean;
 };
 
 /** `Ravi Kumar` → `["Ravi", "Kumar"]`; Shiprocket wants the two separately and
@@ -413,11 +419,47 @@ function splitName(full: string): [string, string] {
  * Throws on a failure to create, because a person is waiting on the button and
  * the message is the useful part.
  */
+/** Paise to rupees, to the paisa — Shiprocket's money fields are rupees. */
+function rupees(paise: number): number {
+  return Number((paise / 100).toFixed(2));
+}
+
+/**
+ * The money on a booking, in the rupees Shiprocket wants.
+ *
+ * **Their total is `sub_total + shipping_charges`, and that is what a COD
+ * agent collects.** Read back from their API on a real booking (2026-09-23):
+ * an order sent as items 37,545 and shipping 1,961 came back with a total of
+ * 39,506 — the GST nowhere in it, though `tax: 18` was recorded on every
+ * line. So their price fields mean the customer-facing, tax-inclusive amount,
+ * and `tax` is only the rate their invoice prints. Sending our tax-exclusive
+ * prices had the courier collecting the bill minus the GST.
+ *
+ * Exported so the sums can be checked without booking anything.
+ */
+export function bookingMoney(input: {
+  /** Paise, before GST. */ subtotal: number;
+  /** Paise. */ tax: number;
+  /** Paise. */ shipping: number;
+  items: { unitPrice: number; qty: number }[];
+}): { subTotal: number; shippingCharges: number; unitPrices: number[] } {
+  /* Each unit carries its share of the order's GST, scaled by the order's own
+     tax-to-items ratio rather than a hardcoded 18% — so the lines still add
+     up to `sub_total` if the rate ever changes. */
+  const factor = input.subtotal > 0 ? 1 + input.tax / input.subtotal : 1;
+  return {
+    subTotal: rupees(input.subtotal + input.tax),
+    shippingCharges: rupees(input.shipping),
+    unitPrices: input.items.map((item) => rupees(item.unitPrice * factor)),
+  };
+}
+
 export async function bookShipment(input: BookingInput): Promise<Booking> {
   if (!isShiprocketConfigured()) {
     throw new Error("Shiprocket is not configured.");
   }
 
+  const money = bookingMoney(input);
   const [shipFirst, shipLast] = splitName(input.shipTo.name);
   const [billFirst, billLast] = splitName(input.billTo.name);
 
@@ -456,20 +498,30 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
     shipping_email: input.email,
     shipping_phone: input.shipTo.phone.replace(/\D/g, "").slice(-10),
 
-    order_items: input.items.map((item) => ({
+    order_items: input.items.map((item, index) => ({
       name: item.name,
       sku: item.slug,
       units: item.qty,
       /* Rupees, not paise: Shiprocket's field is a rupee amount and sending
          paise would declare a hundredfold value and price the insurance on
          it. The one place in this file that leaves the paise unit. */
-      selling_price: Math.round(item.unitPrice / 100),
+      /* **GST-inclusive**, because that is what Shiprocket treats a price as
+         (2026-09-23). Read back from their API on a real booking: the order's
+         `total` came to `sub_total + shipping_charges` exactly, with `tax: 18`
+         recorded against each line and adding nothing — so their price fields
+         are the customer-facing, tax-inclusive amount and `tax` is only the
+         rate printed on the invoice. Sending our tax-exclusive price made the
+         COD agent collect the bill minus the GST. */
+      selling_price: money.unitPrices[index],
       tax: 18,
     })),
 
     payment_method: input.isCOD ? "COD" : "Prepaid",
-    sub_total: Math.round(input.subtotal / 100),
-    shipping_charges: Math.round(input.shipping / 100),
+    /* Items **with** GST: Shiprocket adds `shipping_charges` to this and
+       collects the result, so this plus delivery has to be the order total
+       the customer was shown. */
+    sub_total: money.subTotal,
+    shipping_charges: money.shippingCharges,
 
     /* The same box the rate was quoted on — `lib/parcel.ts` computes it once
        and both calls use it. Declaring a different size here than at quoting
@@ -530,7 +582,36 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
     console.error("[shiprocket] AWB assign error:", error);
   }
 
-  return { shipmentOrderId, shipmentId, awb, courierName };
+  /**
+   * **Asks for the pickup too, so nobody has to press Ship Now** (client,
+   * 2026-09-23: "is it possible to directly ship order, without needing to
+   * click ship now in shiprocket website").
+   *
+   * Only once there is an AWB — a pickup for a shipment no courier has been
+   * assigned to is refused — and best effort like the AWB above: the parcel
+   * exists either way, and a pickup can always be scheduled from their
+   * dashboard. A failure is logged with their words, not raised, because
+   * raising it would invite pressing Book shipment again and that would try
+   * to create a second order.
+   */
+  let pickupScheduled = false;
+  if (awb) {
+    try {
+      const pickup = await api("/courier/generate/pickup", {
+        method: "POST",
+        body: JSON.stringify({ shipment_id: [Number(shipmentId)] }),
+      });
+      if (pickup?.ok) {
+        pickupScheduled = true;
+      } else if (pickup) {
+        console.error("[shiprocket] pickup request failed:", pickup.status, await safeText(pickup));
+      }
+    } catch (error) {
+      console.error("[shiprocket] pickup request error:", error);
+    }
+  }
+
+  return { shipmentOrderId, shipmentId, awb, courierName, pickupScheduled };
 }
 
 /* `trackingUrl` lives in `lib/tracking.ts` since 2026-09-17, so the client-side

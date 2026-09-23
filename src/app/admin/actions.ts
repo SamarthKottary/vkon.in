@@ -954,6 +954,7 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
      stale or the form is posted by hand. */
   if (!shipmentBookable(order).bookable) redirect(back("shipError=window"));
 
+  let outcome = "1";
   try {
     const products = await listProducts();
     const booking = await bookShipment({
@@ -978,6 +979,9 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
         unitPrice: item.unitPrice,
       })),
       subtotal: order.subtotal,
+      /* Both halves: Shiprocket is told one tax-inclusive figure, and what
+         the courier collects on a COD order depends on it. */
+      tax: order.cgst + order.sgst,
       shipping: order.shipping,
       parcel: packParcel(
         order.items.map((item) => ({ slug: item.slug, qty: item.qty })),
@@ -994,6 +998,10 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
       awb: booking.awb,
       courierName: booking.courierName,
     });
+    /* What the operator still has to do by hand, if anything (2026-09-23):
+       no AWB means the courier was never assigned, and no pickup means the
+       parcel is booked but nobody has been asked to collect it. */
+    outcome = booking.awb ? (booking.pickupScheduled ? "1" : "nopickup") : "noawb";
   } catch (error) {
     console.error("[admin] shipment booking failed:", error);
     redirect(back("shipError=failed"));
@@ -1001,7 +1009,7 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
 
   revalidatePath("/admin/orders");
   revalidatePath("/account/orders");
-  redirect(back("shipped=1"));
+  redirect(back(`shipped=${outcome}`));
 }
 
 // ---------------------------------------------------------------------------

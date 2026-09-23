@@ -244,7 +244,11 @@ export default async function AdminOrdersPage({
                 ? "Not yet — the customer can still change that order's delivery address. Booking opens at 12 pm the day after the order was confirmed."
                 : shipError
                 ? "Shiprocket refused the booking. The reason is in the server log — usually the pickup location nickname or a missing PIN code."
-                : "Shipment booked."}
+                : shipped === "noawb"
+                  ? "Created at Shiprocket, but no courier was assigned — assign an AWB in their dashboard."
+                  : shipped === "nopickup"
+                    ? "Shipment booked with an AWB. Shiprocket did not take the pickup request, so schedule the pickup in their dashboard."
+                    : "Shipment booked and pickup requested — the courier will collect it."}
         </p>
       )}
 

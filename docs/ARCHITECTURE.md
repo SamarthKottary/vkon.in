@@ -1623,6 +1623,25 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-23 (shipping) — A COD courier was collecting the bill minus GST
+
+Client: the Shiprocket invoice showed the sub-total as the total. Checked
+against their API for a real booking: their order total is `sub_total +
+shipping_charges`, and `tax: 18` on a line adds nothing — their price fields
+are tax-**inclusive**, and ours were not.
+
+- **`bookingMoney`** (`lib/shiprocket.ts`, exported for checking without
+  booking) now sends GST-inclusive `selling_price` per unit and `sub_total` =
+  items + CGST + SGST, beside `shipping_charges`. Their total then equals the
+  order total to the paisa — which is what a COD agent collects. Verified
+  against the figures of three real orders.
+- **The pickup is requested** in the same press: `/courier/generate/pickup`
+  after the AWB, best effort and only when there is one, so nobody has to
+  press Ship Now in Shiprocket. `Booking.pickupScheduled` says whether it
+  took, and the admin's message after booking names what is left to do by
+  hand.
+- SHIPPING.md §4.3b and §4.3c.
+
 ### 2026-09-22 (reviews) — Customer reviews, moderated before they are public
 
 Client: "only customers who have ordered and received delivery of the product

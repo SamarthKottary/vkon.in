@@ -287,6 +287,57 @@ ordering, where the likeliest correction is exactly one of those. The courier
 would have rung the old number. Sending both in full costs nothing when they
 are the same.
 
+### 4.3b The money on a booking — and what a COD agent collects
+
+**Shiprocket's order total is `sub_total + shipping_charges`, and on a COD
+order that is what the courier collects.** Read back from their own API on
+2026-09-23 for a real booking: items totalling 37,545 and `shipping_charges`
+1,961 came back as a total of 39,506 — the GST nowhere in it, though `tax: 18`
+was recorded against every line. So their price fields mean the
+**customer-facing, tax-inclusive** amount, and `tax` is only the rate their
+invoice prints.
+
+| Shiprocket field | What we send |
+|---|---|
+| `order_items[].selling_price` | the unit price **including** its share of the order's GST |
+| `order_items[].tax` | `18`, the rate — for their invoice; it adds nothing to the total |
+| `sub_total` | items **plus** CGST and SGST |
+| `shipping_charges` | the delivery charge |
+
+So `sub_total + shipping_charges` equals the total the customer was shown, to
+the paisa. `bookingMoney` in `lib/shiprocket.ts` is that arithmetic, exported
+so it can be checked without booking anything.
+
+**What went wrong before (fixed 2026-09-23).** `sub_total` was the
+tax-exclusive item total and nothing else was sent, so their invoice showed
+that figure as the whole bill and **a COD courier collected the order minus
+GST and delivery** — on a ₹1,401.32 order, ₹1,124. An interim fix added
+`shipping_charges` and `tax: 18`, which recovered the delivery but not the
+GST, because their total ignores `tax`. Any COD order booked before this is
+short: check it in their panel against the order total in `/admin/orders`
+before it goes out.
+
+### 4.3c The pickup is requested too
+
+After the AWB is assigned, `bookShipment` calls `/courier/generate/pickup`, so
+**Book shipment finishes the job** and nobody has to press Ship Now in
+Shiprocket (client, 2026-09-23). Both calls are best effort, in this order:
+
+1. `/orders/create/adhoc` — if this fails, nothing exists and the button
+   reports it. Pressing again is safe.
+2. `/courier/assign/awb` — a failure leaves an order with no courier, which
+   the admin card says ("Created at Shiprocket … but no AWB was assigned").
+3. `/courier/generate/pickup` — only attempted when there is an AWB, since a
+   pickup for an unassigned shipment is refused.
+
+The admin message after booking says which of the three got done, so a
+half-finished booking is visible rather than assumed: "booked and pickup
+requested", "no courier was assigned", or "schedule the pickup in their
+dashboard".
+
+**The label is still printed in Shiprocket** (Orders → Ready to Ship →
+Print), and the manifest is what the courier signs on handover.
+
 ### 4.4 The customer's view
 
 `/account/orders/[id]` shows an "On its way" (or "Delivered") panel once a
