@@ -91,10 +91,16 @@ export function ProductReorder({
                 },
               }
             : {})}
-          className={`flex flex-wrap items-center gap-4 border-b border-line bg-surface p-4 last:border-b-0 sm:flex-nowrap ${
+          /* **Two lines on a phone, one from `sm` up** (client, 2026-09-23).
+             Everything used to sit on a single flex line at every width, so
+             on a 390px screen the name shrank to "D…" and View sat on top of
+             the Featured badge. The handle, thumbnail and text now share the
+             first line and the buttons take their own. */
+          className={`flex flex-wrap items-center gap-3 border-b border-line bg-surface p-4 last:border-b-0 sm:flex-nowrap sm:gap-4 ${
             overIndex === index ? "bg-surface-subtle" : ""
           }`}
         >
+          <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
           {reorderable && (
           <div className="flex shrink-0 flex-col items-center gap-1 self-stretch justify-center text-muted">
             <button
@@ -152,8 +158,13 @@ export function ProductReorder({
               {!product.published && <Badge tone="warn">Draft</Badge>}
               {product.featured && <Badge tone="brand">Featured</Badge>}
             </div>
+            {/* One line, with the URL only from `sm` up (client, 2026-09-23).
+                A phone has no room for it beside the category, and it was the
+                part that got cut off; the desktop list keeps it, which is
+                where anybody checking a slug is working anyway. */}
             <p className="label-tech mt-1.5 truncate text-muted">
-              {categoryLabel(product.category)} · /{product.slug}
+              {categoryLabel(product.category)}
+              <span className="hidden sm:inline"> · /{product.slug}</span>
               {product.videoUrl ? " · video" : ""}
               {product.images.length
                 ? ` · ${product.images.length} image${product.images.length === 1 ? "" : "s"}`
@@ -161,7 +172,11 @@ export function ProductReorder({
             </p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
+          </div>
+
+          {/* Full width below `sm`, so the buttons drop under the product
+              rather than squeezing its name. */}
+          <div className="flex w-full shrink-0 items-center justify-end gap-1 sm:w-auto">
             {product.published && (
               <Link
                 href={`/products/${product.slug}`}

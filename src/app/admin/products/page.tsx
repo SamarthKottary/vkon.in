@@ -55,9 +55,12 @@ export default async function AdminProductsPage({
           label="Search products"
         />
 
+        {/* Centred below `sm` (client, 2026-09-23), where it is the only
+            thing on its line and sat oddly against the left gutter; from
+            `sm` up the header is a row and it keeps its place in it. */}
         <Link
           href="/admin/products/new"
-          className="inline-flex h-10 items-center gap-2 rounded-sm bg-action px-4 text-sm font-medium text-action-ink hover:bg-action-hover"
+          className="mx-auto inline-flex h-10 items-center gap-2 rounded-sm bg-action px-4 text-sm font-medium text-action-ink hover:bg-action-hover sm:mx-0"
         >
           <PlusIcon className="h-4 w-4" />
           New product
