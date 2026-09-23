@@ -37,14 +37,7 @@ export function PendingOrderActions({
 
   return (
     <div className="flex items-center gap-2">
-      {/* Confirm */}
-      <form action={confirmOrderAction}>
-        <input type="hidden" name="id" value={id} />
-        <input type="hidden" name="view" value={view} />
-        <ConfirmButton orderNumber={orderNumber} />
-      </form>
-
-      {/* Cancel */}
+      {/* Cancel — shown first */}
       <form ref={cancelFormRef} action={cancelOrderAction}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="view" value={view} />
@@ -53,6 +46,13 @@ export function PendingOrderActions({
           isCod={isCod}
           onConfirm={() => cancelFormRef.current?.requestSubmit()}
         />
+      </form>
+
+      {/* Confirm — shown second */}
+      <form action={confirmOrderAction}>
+        <input type="hidden" name="id" value={id} />
+        <input type="hidden" name="view" value={view} />
+        <ConfirmButton orderNumber={orderNumber} />
       </form>
     </div>
   );
@@ -97,7 +97,7 @@ function CancelButton({
         onClick={() => {
           if (window.confirm(warning)) onConfirm();
         }}
-        className="inline-flex h-9 items-center gap-1.5 border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-signal-500 hover:text-signal-700 disabled:opacity-50"
+        className="inline-flex h-9 items-center gap-1.5 border border-ink bg-ink px-3 text-sm font-medium text-white transition-colors hover:bg-graphite-800 disabled:opacity-50"
       >
         {pending && <SpinnerIcon className="h-3.5 w-3.5" />}
         Cancel

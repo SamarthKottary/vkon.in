@@ -523,18 +523,7 @@ function OrderCard({
           <p className="text-xl font-bold tabular-nums text-accent">
             {formatPaise(order.total)}
           </p>
-          {order.status === "pending" ? (
-            /* Pending orders get explicit Confirm / Cancel buttons instead of
-               the select — the two actions available here are deliberate
-               decisions, not a dropdown slip (2026-09-23). The select returns
-               for every subsequent status so the operator can make corrections. */
-            <PendingOrderActions
-              id={order.id}
-              orderNumber={order.orderNumber}
-              view={view}
-              isCod={isCod(order)}
-            />
-          ) : (
+          {order.status !== "pending" && (
             <OrderStatusSelect
               id={order.id}
               status={order.status}
@@ -808,9 +797,16 @@ function ShipmentBlock({
            Shiprocket's dashboard if needed. */
         <p className="mt-2.5 text-sm text-muted">No Shiprocket booking on record.</p>
       ) : order.status === "pending" ? (
-        /* Booking is only available after the order is confirmed — before then
-           the Confirm button in the card header is the next step (2026-09-23). */
-        <p className="mt-2.5 text-sm text-muted">Confirm this order to unlock shipment booking.</p>
+        /* Pending: show the Confirm / Cancel buttons here, at the bottom of
+           the card, in place of the shipment section (2026-09-23). */
+        <div className="mt-2.5">
+          <PendingOrderActions
+            id={order.id}
+            orderNumber={order.orderNumber}
+            view={view}
+            isCod={isCod(order)}
+          />
+        </div>
       ) : canShip && !bookable.bookable ? (
         /* The customer may still move the parcel until 12 pm the day
            after the order was confirmed (client, 2026-09-18). A label
