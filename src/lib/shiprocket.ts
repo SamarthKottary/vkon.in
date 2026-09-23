@@ -384,16 +384,21 @@ export type BookingInput = {
   courierId?: number | null;
   isCOD?: boolean;
   /**
-   * How many attempts have already failed on this order, so the retry sends a
-   * fresh `order_id` (client, 2026-09-23).
+   * Which try this is, counting from 1 and **never reset** — it is what makes
+   * the `order_id` sent to Shiprocket unique (client, 2026-09-23).
    *
    * **Shiprocket does not create a second order for an `order_id` it already
-   * holds** — it hands the existing one back, cancelled or not. A retry after
-   * a cancelled attempt therefore tried to assign a courier to a cancelled
-   * order and came back "order is in cancelled state", masking the real
-   * reason for the first failure. Attempt two is sent as `VK-0918-PACK-R2`.
+   * holds** — it hands the existing one back, cancelled or not. A retry on an
+   * id already used therefore tries to assign a courier to a cancelled order
+   * and comes back "order is in cancelled state", masking the real reason.
+   *
+   * It is a lifetime count of ids consumed (`orders.shipment_tries`), not the
+   * failure count shown in the admin: that one is cleared by Not ready and by
+   * moving an order back to New, and reusing an id after it was cleared meant
+   * three dead presses before a new order appeared at Shiprocket — which is
+   * exactly what happened on the live site.
    */
-  attempt?: number;
+  attemptNumber?: number;
 };
 
 export type Booking = {
@@ -463,6 +468,16 @@ function readReason(body: string): string | null {
   return text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200) || null;
 }
 
+/**
+ * The `order_id` for one try: the order number, then `-R2`, `-R3`, …
+ *
+ * Exported so the numbering can be checked without booking anything.
+ */
+export function bookingOrderId(orderNumber: string, attemptNumber?: number): string {
+  const n = Math.floor(attemptNumber ?? 1);
+  return n > 1 ? `${orderNumber}-R${n}` : orderNumber;
+}
+
 /** Paise to rupees, to the paisa — Shiprocket's money fields are rupees. */
 function rupees(paise: number): number {
   return Number((paise / 100).toFixed(2));
@@ -507,11 +522,11 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
   const [shipFirst, shipLast] = splitName(input.shipTo.name);
   const [billFirst, billLast] = splitName(input.billTo.name);
 
-  const attempt = Math.max(0, Math.floor(input.attempt ?? 0));
   const payload = {
-    /* `-R2`, `-R3` on a retry: see `attempt` on `BookingInput`. The order
-       number is still the start of it, so their dashboard sorts beside ours. */
-    order_id: attempt > 0 ? `${input.orderNumber}-R${attempt + 1}` : input.orderNumber,
+    /* The first try is the order number itself; every one after it carries
+       `-R2`, `-R3`, … so their dashboard still sorts beside ours. See
+       `attemptNumber` on `BookingInput`. */
+    order_id: bookingOrderId(input.orderNumber, input.attemptNumber),
     order_date: input.createdAt.slice(0, 10),
     pickup_location: pickupLocation(),
 
@@ -580,6 +595,9 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
     weight: Math.max(0.05, input.parcel.weightGrams / 1000),
   };
 
+  /* Logged because this is the id in their dashboard, and matching it to an
+     order of ours is the first thing anybody does when a booking goes wrong. */
+  console.info("[shiprocket] creating order", payload.order_id);
   const created = await api("/orders/create/adhoc", {
     method: "POST",
     body: JSON.stringify(payload),

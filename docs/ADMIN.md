@@ -430,6 +430,14 @@ Note also that a paid order arrives here already marked **Paid** and
 
 ## Change log
 
+**2026-09-23 (shipment, fix)** — Every Book shipment press now goes up under
+a reference Shiprocket has never seen (`VK-…`, then `-R2`, `-R3`, …), counted
+on the order and never reset. It used to be derived from the failed-attempt
+count, which Not ready and moving an order back to New both clear — so a
+restarted order sent references Shiprocket already had, and it quietly handed
+back the old cancelled order instead of creating one: three presses that did
+nothing before the fourth worked. Needs the schema change (`shipment_tries`).
+
 **2026-09-23 (shipment, later)** — **Ready to ship**, a section between
 Confirmed and Shipped: an order moves there the moment a parcel is booked, and
 on to Shipped by itself when the courier first scans it. **Not ready** on one

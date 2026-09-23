@@ -31,6 +31,7 @@ import {
   claimRefundRequest,
   clearOrderShipment,
   getOrderForAdmin,
+  nextShipmentTry,
   orderProgress,
   listPendingRefunds,
   recordRefund,
@@ -1019,6 +1020,9 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
   let reason = "";
   try {
     const products = await listProducts();
+    /* Taken before the call, and never reset, so this press cannot send an id
+       Shiprocket already holds — see `nextShipmentTry`. */
+    const attemptNumber = await nextShipmentTry(order.id);
     const booking = await bookShipment({
       orderNumber: order.orderNumber,
       createdAt: order.createdAt,
@@ -1054,7 +1058,7 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
       /* A retry sends a fresh order id: Shiprocket hands back the order it
          already has for one it has seen, and assigning a courier to the
          cancelled one fails with "order is in cancelled state". */
-      attempt: order.shipmentAttempts,
+      attemptNumber,
     });
 
     reason = booking.reason ?? "";

@@ -1626,6 +1626,28 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-23 (shipping) — The Shiprocket order id never repeats
+
+Client, from the live site: "if i move the order from confirmed to pending, i
+need to press book shipment 3 times it dosent create order in shiprocket, then
+on the 4th try it creates order. Same case for not ready button."
+
+The `-R2`/`-R3` suffix was derived from `shipment_attempts`, which Not ready
+and back-to-New both clear — so a restarted order began again at ids
+Shiprocket already held, and their create hands the existing (cancelled) order
+back instead of making a new one.
+
+- **`orders.shipment_tries`** (new column): a lifetime count of ids consumed,
+  taken in SQL right before the create (`nextShipmentTry`) and never reset by
+  anything. `bookingOrderId(orderNumber, n)` builds the id from it, exported so
+  the numbering can be checked without booking.
+- **Backfill floor of 5** for orders that had already reached Shiprocket before
+  the column existed: their consumed ids cannot be known, and skipping numbers
+  is free while reusing one is not.
+- The id is logged on every create — it is what their dashboard shows.
+- SHIPPING.md §4.3d. **Needs the migration** (one `ALTER TABLE` + one
+  `UPDATE`, both at the end of schema.sql).
+
 ### 2026-09-23 (admin, orders) — Ready to ship, Not ready, and no gate on booking
 
 Client, after a day on the live site: "Even after 3 attempts show the book

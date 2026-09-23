@@ -638,6 +638,28 @@ export async function setOrderShipment(
 export const SHIPMENT_ATTEMPT_LIMIT = 3;
 
 /**
+ * The next `order_id` number for this order — a lifetime count of the ids
+ * sent to Shiprocket, incremented before the create call and **never reset**.
+ *
+ * Separate from `shipment_attempts` on purpose (client, 2026-09-23): that one
+ * is the failure count the admin reads, and Not ready and moving an order back
+ * to New both clear it. Deriving the id suffix from it meant a cleared order
+ * started again at an id Shiprocket already held, and their create hands back
+ * the existing cancelled order — three presses that did nothing before a new
+ * one appeared. Counted in SQL so two presses cannot take the same number.
+ */
+export async function nextShipmentTry(orderId: string): Promise<number> {
+  if (!isDatabaseConfigured()) return 1;
+  const rows = await query<{ shipment_tries: number }>(
+    `UPDATE orders SET shipment_tries = shipment_tries + 1, updated_at = now()
+      WHERE id = $1
+      RETURNING shipment_tries`,
+    [orderId],
+  );
+  return Number(rows[0]?.shipment_tries ?? 1);
+}
+
+/**
  * One failed booking, with Shiprocket's words for it — returns how many have
  * failed now, so the action can say how many presses are left.
  *

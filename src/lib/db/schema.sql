@@ -787,3 +787,23 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
 -- then.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_attempts INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_error    TEXT;
+
+-- Added 2026-09-23: how many order ids this order has consumed at Shiprocket.
+--
+-- Their `/orders/create/adhoc` does not create a second order for an
+-- `order_id` it already holds -- it hands the existing one back, cancelled or
+-- not -- so every booking attempt has to send an id never used before:
+-- `VK-2609-4F7A`, then `VK-2609-4F7A-R2`, `-R3`. This counts them, and unlike
+-- `shipment_attempts` it is **never reset**: Not ready and moving an order
+-- back to New clear the failure count, and reusing an id after that meant
+-- three dead presses before a new order appeared in their dashboard.
+--
+-- The backfill floor of 5 is for orders that already went to Shiprocket
+-- before this column existed and whose consumed ids cannot be known. Skipping
+-- a few numbers costs nothing; reusing one costs a booking.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_tries INTEGER NOT NULL DEFAULT 0;
+UPDATE orders
+   SET shipment_tries = GREATEST(shipment_tries, shipment_attempts, 5)
+ WHERE shipment_tries = 0
+   AND (shipment_id IS NOT NULL OR awb IS NOT NULL
+        OR shipment_error IS NOT NULL OR shipment_attempts > 0);

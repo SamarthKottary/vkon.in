@@ -350,13 +350,23 @@ cancel is itself refused is the shipment recorded — that is the one case where
 an order is left open at Shiprocket, and the card says to deal with it in
 their dashboard.
 
-**A retry sends a new `order_id`** — `VK-0918-PACK-R2`, `-R3`
-(`BookingInput.attempt`). Shiprocket does **not** create a second order for an
-`order_id` it already holds: it hands the existing one back. After the first
-attempt was cancelled, the retry was therefore assigning a courier to a
-cancelled order and every attempt from the second on came back "order is in
-cancelled state", hiding the real reason (found on the live site the day this
-shipped). Their dashboard sorts the retries beside the original.
+**Every press sends an `order_id` Shiprocket has never seen** — the order
+number, then `VK-0918-PACK-R2`, `-R3`, … Their `/orders/create/adhoc` does
+**not** create a second order for an id it already holds: it hands the
+existing one back, cancelled or not, so the AWB call then fails with "order is
+in cancelled state" and hides the real reason (found on the live site the day
+this shipped).
+
+The number comes from **`orders.shipment_tries`**, taken in SQL immediately
+before the create (`nextShipmentTry`) and **never reset**. It is deliberately
+not the failure count the admin reads: that one is cleared by Not ready and by
+moving an order back to New, and deriving the id from it meant a restarted
+order began again at ids Shiprocket already held — three presses that created
+nothing before a fourth finally did (client, 2026-09-23). A press that fails
+still consumes its number; skipping a few costs nothing, reusing one costs a
+booking. `bookingOrderId` is exported so the numbering can be checked without
+booking anything, and the id is logged (`[shiprocket] creating order …`)
+because it is what their dashboard shows.
 
 **Failed presses are counted, not limited.** Each failure — a refused create
 or a cancelled no-AWB booking — goes through `recordShipmentFailure`, in SQL
