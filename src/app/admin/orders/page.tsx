@@ -648,7 +648,7 @@ function OrderCard({
           </div>
         </div>
 
-        <div>
+        <div className="flex flex-col">
           {/* Both addresses in full when they differ, each with its own phone
               (client, 2026-09-18): the courier rings the delivery number, the
               invoice carries the billing one, and they are often different
@@ -665,20 +665,24 @@ function OrderCard({
             </>
           )}
 
-          {/* The account's email — the addresses carry none. Order mail goes
-              here, so it is the one to write to. */}
-          {customerEmail && (
-            <p className="mt-4 border-t border-line pt-3 text-sm">
-              <span className="label-tech block text-muted">Account email</span>
-              <a href={`mailto:${customerEmail}`} className="mt-1 inline-block break-all text-accent hover:underline">
-                {customerEmail}
-              </a>
-            </p>
-          )}
+          {/* mt-auto pushes this group to the card floor, aligning it with the
+              PAYMENT / pricing row on the left column (2026-09-23). */}
+          <div className="mt-auto border-t border-line pt-5">
+            {/* The account's email — the addresses carry none. Order mail goes
+                here, so it is the one to write to. */}
+            {customerEmail && (
+              <p className="text-sm">
+                <span className="label-tech block text-muted">Account email</span>
+                <a href={`mailto:${customerEmail}`} className="mt-1 inline-block break-all text-accent hover:underline">
+                  {customerEmail}
+                </a>
+              </p>
+            )}
 
-          {/* Under the account email (client, 2026-09-21): the parcel belongs
-              with where it is going and who to tell about it. */}
-          <ShipmentBlock order={order} canShip={canShip} bookable={bookable} view={view} />
+            {/* Under the account email (client, 2026-09-21): the parcel belongs
+                with where it is going and who to tell about it. */}
+            <ShipmentBlock order={order} canShip={canShip} bookable={bookable} view={view} />
+          </div>
         </div>
       </div>
     </article>
@@ -705,7 +709,7 @@ function ShipmentBlock({
      is not happening is the one mistake this button can make that costs real
      money. */
   return (
-    <div className="mt-5 border-t border-line pt-4">
+    <div className="mt-5 pt-4">
       <p className="label-tech text-muted">Shipment</p>
 
       {order.awb ? (
