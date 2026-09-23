@@ -829,7 +829,7 @@ function ShipmentBlock({
           <input type="hidden" name="view" value={view} />
           <button
             type="submit"
-            className="inline-flex h-9 items-center border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+            className="inline-flex h-9 items-center border border-accent bg-accent px-3 text-sm font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50"
           >
             Book shipment
           </button>
