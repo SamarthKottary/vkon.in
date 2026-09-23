@@ -7264,6 +7264,29 @@ admin UI, and the visual design was rebuilt.
   - Positioned the "Cancel" button directly alongside the "Save changes" / "Save address" button inside `<AddressForm />` across both Checkout and My Account, removing stray exterior cancel links.
   - Removed separate "Sign-in" password section from `/account`; displayed email and Google-linked status directly in "Your details", removing standalone password setup for Google-authenticated accounts.
 
+### 2026-09-23 — Order workflow: Confirm/Cancel buttons for pending orders
+
+Replaced the free-form status `<select>` on pending order cards with explicit
+**Confirm** and **Cancel** action buttons. The select is still shown for all
+other statuses (confirmed / shipped / delivered / cancelled) so manual
+corrections remain possible.
+
+- **New server actions** (`src/app/admin/actions.ts`):
+  - `confirmOrderAction` — pending → confirmed; no email (customer already has
+    their order-placed mail; shipping updates come from Shiprocket).
+  - `cancelOrderAction` — pending → cancelled; cancels any Shiprocket shipment
+    already booked, emails the customer. Online-payment orders land in the
+    Refund-cancelled tab; the Refund button enables after this.
+- **New client component** `src/app/admin/orders/OrderActions.tsx`
+  (`PendingOrderActions`) — two `<form>` buttons with `useFormStatus` spinners;
+  Cancel guarded by `window.confirm()`; `<noscript>` submit fallback.
+- **`src/app/admin/orders/page.tsx`**:
+  - `OrderCard` renders `<PendingOrderActions>` for pending orders and
+    `<OrderStatusSelect>` for all others.
+  - `ShipmentBlock` shows "Confirm this order to unlock shipment booking" for
+    pending orders instead of the Book shipment button.
+  - Added `?confirmed=1` banner ("Order confirmed.").
+
 ### 2026-08-04 — Architecture doc added
 Created this file. No code change.
 

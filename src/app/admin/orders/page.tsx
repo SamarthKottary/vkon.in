@@ -25,6 +25,7 @@ import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
 import { trackingLabel } from "@/lib/tracking";
 import { bookShipmentAction, checkRefundsAction, refreshTrackingAction } from "@/app/admin/actions";
 import { OrderStatusSelect } from "./OrderStatusSelect";
+import { PendingOrderActions } from "./OrderActions";
 import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import { refundBlock, refundBlockMessage } from "@/lib/refunds";
@@ -51,6 +52,7 @@ export default async function AdminOrdersPage({
 }: {
   searchParams: Promise<{
     updated?: string;
+    confirmed?: string;
     error?: string;
     shipped?: string;
     shipError?: string;
@@ -72,6 +74,7 @@ export default async function AdminOrdersPage({
   const params = await searchParams;
   const {
     updated,
+    confirmed,
     error,
     shipped,
     shipError,
@@ -152,6 +155,12 @@ export default async function AdminOrdersPage({
             <span className="font-medium">You don&apos;t have permission to do that.</span>
             {" "}Your role does not allow this action.
           </span>
+        </p>
+      )}
+
+      {confirmed && (
+        <p role="status" className="mt-6 border-l-2 border-accent bg-surface px-4 py-3 text-sm text-ink">
+          Order confirmed.
         </p>
       )}
 
@@ -514,12 +523,25 @@ function OrderCard({
           <p className="text-xl font-bold tabular-nums text-accent">
             {formatPaise(order.total)}
           </p>
-          <OrderStatusSelect
-            id={order.id}
-            status={order.status}
-            orderNumber={order.orderNumber}
-            view={view}
-          />
+          {order.status === "pending" ? (
+            /* Pending orders get explicit Confirm / Cancel buttons instead of
+               the select — the two actions available here are deliberate
+               decisions, not a dropdown slip (2026-09-23). The select returns
+               for every subsequent status so the operator can make corrections. */
+            <PendingOrderActions
+              id={order.id}
+              orderNumber={order.orderNumber}
+              view={view}
+              isCod={isCod(order)}
+            />
+          ) : (
+            <OrderStatusSelect
+              id={order.id}
+              status={order.status}
+              orderNumber={order.orderNumber}
+              view={view}
+            />
+          )}
         </div>
       </div>
 
@@ -780,6 +802,10 @@ function ShipmentBlock({
         </p>
       ) : order.status === "cancelled" ? (
         <p className="mt-2.5 text-sm text-muted">Order cancelled — not shipping.</p>
+      ) : order.status === "pending" ? (
+        /* Booking is only available after the order is confirmed — before then
+           the Confirm button in the card header is the next step (2026-09-23). */
+        <p className="mt-2.5 text-sm text-muted">Confirm this order to unlock shipment booking.</p>
       ) : canShip && !bookable.bookable ? (
         /* The customer may still move the parcel until 12 pm the day
            after the order was confirmed (client, 2026-09-18). A label

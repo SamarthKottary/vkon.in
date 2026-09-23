@@ -661,6 +661,92 @@ export async function setOrderStatusAction(formData: FormData): Promise<void> {
 }
 
 /**
+ * Confirms a pending order (pending → confirmed).
+ *
+ * Dedicated action for the "Confirm" button that replaces the status select on
+ * pending cards (2026-09-23). Confirmation is a deliberate operator decision,
+ * so it gets its own button rather than being reachable via the select — the
+ * select is hidden while the order is pending.
+ *
+ * No customer email: the customer already received their order-placed mail.
+ * Shipped and delivered come from Shiprocket.
+ */
+export async function confirmOrderAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+
+  if (admin.role !== "super" && admin.role !== "admin" && admin.role !== "support") {
+    redirect(backTo("/admin/orders", formData, "error=access"));
+  }
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect(backTo("/admin/orders", formData, "error=1"));
+
+  try {
+    const change = await setOrderStatus(id, "confirmed");
+    if (!change) redirect(backTo("/admin/orders", formData, "error=1"));
+  } catch (error) {
+    console.error("[admin] confirm order failed:", error);
+    redirect(backTo("/admin/orders", formData, "error=1"));
+  }
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/account/orders");
+  redirect(backTo("/admin/orders", formData, "confirmed=1"));
+}
+
+/**
+ * Cancels a pending order (pending → cancelled).
+ *
+ * Dedicated action for the "Cancel" button on pending cards (2026-09-23).
+ * Shares the same post-cancel side-effects as `setOrderStatusAction`:
+ *  - Cancels a Shiprocket shipment when one is already booked (rare for a
+ *    pending order but handled for safety)
+ *  - Emails the customer their cancellation notice
+ *
+ * An online-payment order lands in the Refund-cancelled tab and the Refund
+ * button becomes available — the action itself does not initiate the refund.
+ */
+export async function cancelOrderAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+
+  if (admin.role !== "super" && admin.role !== "admin" && admin.role !== "support") {
+    redirect(backTo("/admin/orders", formData, "error=access"));
+  }
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) redirect(backTo("/admin/orders", formData, "error=1"));
+
+  let change: Awaited<ReturnType<typeof setOrderStatus>> = null;
+  try {
+    change = await setOrderStatus(id, "cancelled");
+  } catch (error) {
+    console.error("[admin] cancel order failed:", error);
+    redirect(backTo("/admin/orders", formData, "error=1"));
+  }
+  if (!change) redirect(backTo("/admin/orders", formData, "error=1"));
+
+  let outcome = "";
+  if (change.previousStatus !== "cancelled") {
+    const order = await getOrderForAdmin(id);
+    if (order?.shipmentOrderId && isShiprocketConfigured()) {
+      if (orderProgress(change.previousStatus) >= orderProgress("shipped")) {
+        outcome = "&shipment=picked";
+      } else {
+        outcome = (await cancelShipment(order.shipmentOrderId))
+          ? "&shipment=cancelled"
+          : "&shipment=failed";
+      }
+    }
+    await notifyOrderCancelled(id);
+    outcome += "&mailed=1";
+  }
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/account/orders");
+  redirect(backTo("/admin/orders", formData, `updated=1${outcome}`));
+}
+
+/**
  * Refunds an online payment from `/admin/orders` (client, 2026-09-17: "I want
  * to initiate refund from admin itself, no need to go to razorpay").
  *
