@@ -390,6 +390,10 @@ export type Booking = {
   shipmentId: string;
   awb: string | null;
   courierName: string | null;
+  /** Shiprocket's own words when a step did not happen — "Insufficient
+   *  balance", "Courier not serviceable" and the like (client, 2026-09-23:
+   *  show it in the admin rather than only in the server log). */
+  reason: string | null;
   /** Whether the courier was asked to collect, so the admin can say when it
    *  still needs doing by hand in Shiprocket. */
   pickupScheduled: boolean;
@@ -419,6 +423,35 @@ function splitName(full: string): [string, string] {
  * Throws on a failure to create, because a person is waiting on the button and
  * the message is the useful part.
  */
+/**
+ * Shiprocket's refusal, in a line the operator can act on.
+ *
+ * Their errors come back in more than one shape: `{message}`, `{errors: {…}}`,
+ * or occasionally an HTML page from a proxy. This digs out the sentence and
+ * leaves the rest, and falls back to the raw text trimmed — an odd-looking
+ * line on the screen still beats "the reason is in the server log", which is
+ * what this replaced (client, 2026-09-23).
+ */
+function readReason(body: string): string | null {
+  const text = body.trim();
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    const message = typeof parsed.message === "string" ? parsed.message : "";
+    const errors =
+      parsed.errors && typeof parsed.errors === "object"
+        ? Object.values(parsed.errors as Record<string, unknown>)
+            .flatMap((value) => (Array.isArray(value) ? value : [value]))
+            .filter((value): value is string => typeof value === "string")
+        : [];
+    const joined = [message, ...errors].filter(Boolean).join(" · ");
+    if (joined) return joined.slice(0, 200);
+  } catch {
+    /* Not JSON — fall through to the raw text. */
+  }
+  return text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200) || null;
+}
+
 /** Paise to rupees, to the paisa — Shiprocket's money fields are rupees. */
 function rupees(paise: number): number {
   return Number((paise / 100).toFixed(2));
@@ -553,6 +586,7 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
      as an error that invites pressing the button again. */
   let awb: string | null = null;
   let courierName: string | null = null;
+  let reason: string | null = null;
   try {
     /* Pinned to the courier the customer chose, where there is one. Letting
        Shiprocket pick would quietly ship a slower service against an Express
@@ -576,10 +610,13 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
       if (code) awb = String(code);
       if (typeof courier === "string") courierName = courier;
     } else if (assigned) {
-      console.error("[shiprocket] AWB assign failed:", assigned.status, await safeText(assigned));
+      const body = await safeText(assigned);
+      reason = readReason(body);
+      console.error("[shiprocket] AWB assign failed:", assigned.status, body);
     }
   } catch (error) {
     console.error("[shiprocket] AWB assign error:", error);
+    reason = "Shiprocket could not be reached while assigning the courier.";
   }
 
   /**
@@ -604,14 +641,17 @@ export async function bookShipment(input: BookingInput): Promise<Booking> {
       if (pickup?.ok) {
         pickupScheduled = true;
       } else if (pickup) {
-        console.error("[shiprocket] pickup request failed:", pickup.status, await safeText(pickup));
+        const body = await safeText(pickup);
+        reason = readReason(body);
+        console.error("[shiprocket] pickup request failed:", pickup.status, body);
       }
     } catch (error) {
       console.error("[shiprocket] pickup request error:", error);
+      reason = "Shiprocket could not be reached while requesting the pickup.";
     }
   }
 
-  return { shipmentOrderId, shipmentId, awb, courierName, pickupScheduled };
+  return { shipmentOrderId, shipmentId, awb, courierName, pickupScheduled, reason };
 }
 
 /* `trackingUrl` lives in `lib/tracking.ts` since 2026-09-17, so the client-side

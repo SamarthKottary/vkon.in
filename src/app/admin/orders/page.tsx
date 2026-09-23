@@ -56,6 +56,7 @@ export default async function AdminOrdersPage({
     error?: string;
     shipped?: string;
     shipError?: string;
+    reason?: string;
     mailed?: string;
     shipment?: string;
     tracked?: string;
@@ -78,6 +79,7 @@ export default async function AdminOrdersPage({
     error,
     shipped,
     shipError,
+    reason,
     mailed,
     shipment,
     tracked,
@@ -243,12 +245,20 @@ export default async function AdminOrdersPage({
               : shipError === "window"
                 ? "Not yet — the customer can still change that order's delivery address. Booking opens at 12 pm the day after the order was confirmed."
                 : shipError
-                ? "Shiprocket refused the booking. The reason is in the server log — usually the pickup location nickname or a missing PIN code."
+                ? "Shiprocket refused the booking — usually the pickup location nickname or a missing PIN code."
                 : shipped === "noawb"
-                  ? "Created at Shiprocket, but no courier was assigned — assign an AWB in their dashboard."
+                  ? "Created at Shiprocket, but no courier was assigned — recharge or assign an AWB in their dashboard."
                   : shipped === "nopickup"
                     ? "Shipment booked with an AWB. Shiprocket did not take the pickup request, so schedule the pickup in their dashboard."
                     : "Shipment booked and pickup requested — the courier will collect it."}
+          {/* What Shiprocket said, in its own words (client, 2026-09-23) —
+              "Insufficient balance", "Courier not serviceable" and the like.
+              Rendered as text, never as markup. */}
+          {reason && (
+            <span className="mt-1.5 block text-body">
+              Shiprocket said: <span className="text-ink">{reason}</span>
+            </span>
+          )}
         </p>
       )}
 

@@ -955,6 +955,9 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
   if (!shipmentBookable(order).bookable) redirect(back("shipError=window"));
 
   let outcome = "1";
+  /* Shiprocket's own words, carried to the page so the operator reads them
+     there rather than in the server log (client, 2026-09-23). */
+  let reason = "";
   try {
     const products = await listProducts();
     const booking = await bookShipment({
@@ -1002,14 +1005,19 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
        no AWB means the courier was never assigned, and no pickup means the
        parcel is booked but nobody has been asked to collect it. */
     outcome = booking.awb ? (booking.pickupScheduled ? "1" : "nopickup") : "noawb";
+    reason = booking.reason ?? "";
   } catch (error) {
     console.error("[admin] shipment booking failed:", error);
-    redirect(back("shipError=failed"));
+    /* The create call throws with Shiprocket's response in the message. */
+    const said = error instanceof Error ? error.message : "";
+    redirect(back(`shipError=failed${said ? `&reason=${encodeURIComponent(said.slice(0, 200))}` : ""}`));
   }
 
   revalidatePath("/admin/orders");
   revalidatePath("/account/orders");
-  redirect(back(`shipped=${outcome}`));
+  redirect(
+    back(`shipped=${outcome}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`),
+  );
 }
 
 // ---------------------------------------------------------------------------
