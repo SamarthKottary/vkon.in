@@ -424,27 +424,6 @@ function OrderFilters({
     { value: "", label: "All", n: counts.all },
     ...ADMIN_ORDER_FILTERS.map((f) => ({ value: f, label: FILTER_LABELS[f], n: counts[f] })),
   ];
-  let sortExplanation = "Sorted from newest to oldest by order date.";
-  if (sort) {
-    sortExplanation =
-      sort === "oldest"
-        ? "Sorted from oldest to newest by order date."
-        : "Sorted from newest to oldest by order date.";
-  } else if (
-    filter === "pending" ||
-    filter === "pending-unquoted" ||
-    filter === "confirmed" ||
-    filter === "refund-cancelled"
-  ) {
-    sortExplanation = "Sorted from oldest to newest by order date.";
-  } else if (filter === "shipped") {
-    sortExplanation = "Sorted from newest to oldest by shipped date.";
-  } else if (filter === "delivered") {
-    sortExplanation = "Sorted from newest to oldest by delivered date.";
-  } else if (filter === "") {
-    sortExplanation = "Showing all orders sorted from newest to oldest by order date.";
-  }
-
   return (
     <>
       <nav aria-label="Filter orders" className="mt-8 flex flex-wrap gap-2">
@@ -453,7 +432,7 @@ function OrderFilters({
           return (
             <Link
               key={option.label}
-              href={listHref("/admin/orders", { q, status: option.value })}
+              href={listHref("/admin/orders", { q, status: option.value, sort })}
               aria-current={current ? "page" : undefined}
               className={`inline-flex h-9 items-center gap-2 border px-3 text-sm font-medium transition-colors ${
                 current
@@ -467,12 +446,11 @@ function OrderFilters({
           );
         })}
       </nav>
-      {/* The dropdown sits on **Default order** until an order is chosen, and
-          the sentence beside it says which order is on screen either way. */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <SortSelect path="/admin/orders" sort={sort} keep={{ q, status: filter }} />
-        <p className="text-sm text-muted">{sortExplanation}</p>
-      </div>
+      {/* Flush with the chips above and the same height as them (client,
+          2026-09-23), and alone on its line: the sentence that described the
+          order was dropped, the choices say it. It sits on **Default order**
+          until one is chosen. */}
+      <SortSelect path="/admin/orders" sort={sort} keep={{ q, status: filter }} />
     </>
   );
 }

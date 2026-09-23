@@ -434,11 +434,10 @@ Note also that a paid order arrives here already marked **Paid** and
 first**, a dropdown under the filter chips (client: "filter in orders to set
 newest to oldest or oldest to newest orders"). It stays on **Default order** unless an order is chosen, which leaves each
 tab as it was — the Pending, Confirmed and Refund-cancelled queues oldest
-first, Shipped and Delivered by their own dates — and the sentence beside the
-dropdown always says which order is on screen. A choice is always by order date,
-so "oldest first" means the same thing on every tab, and it rides in the URL
-beside the search and the filter: paging and every button on a card come back
-to the same view.
+first, Shipped and Delivered by their own dates. A choice is always by order
+date, so "oldest first" means the same thing on every tab, and it rides in the
+URL beside the search and the filter: changing the filter, paging and every
+button on a card come back to the same view.
 
 **2026-09-22 (reviews)** — Product reviews. A customer whose order is marked
 **delivered** gets a rating form under each product on that order: half a star

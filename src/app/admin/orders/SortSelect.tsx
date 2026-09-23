@@ -36,12 +36,15 @@ export function SortSelect({
   const router = useRouter();
 
   return (
-    <form action={path} className="flex items-center gap-2">
+    <form action={path} className="mt-3 flex items-center gap-2">
       {Object.entries(keep).map(([name, value]) =>
         value ? <input key={name} type="hidden" name={name} value={value} /> : null,
       )}
-      <label htmlFor="orders-sort" className="text-sm text-muted">
-        Sort
+      {/* The label is for screen readers only: a visible "Sort" pushed the
+          dropdown off the filter chips' left edge, and the choices name
+          themselves. */}
+      <label htmlFor="orders-sort" className="sr-only">
+        Sort orders
       </label>
       <select
         id="orders-sort"

@@ -1634,12 +1634,15 @@ like the other two.
   "newest" | "oldest"`). An explicit choice is always `created_at`, so
   "oldest first" means the same thing on every tab. Without one, the
   per-filter defaults stay as they were — the queues oldest first, shipped and
-  delivered by their own dates — which the sentence under the chips describes.
+  delivered by their own dates.
 - **`?sort=` on `/admin/orders`**, validated to the two values and dropped
-  otherwise. It rides in `ListSearch`/`ListPager` `keep`, in the card forms'
-  hidden `view` field, and through `returnView` (`lib/admin-list.ts`, now
-  letting `sort` past), so searching, paging and every button on a card come
-  back to the same order.
+  otherwise. It rides in `ListSearch`/`ListPager` `keep`, in the filter chips'
+  own links, in the card forms' hidden `view` field, and through `returnView`
+  (`lib/admin-list.ts`, now letting `sort` past), so searching, paging,
+  changing the filter and every button on a card come back to the same order.
+- **The sentence that described the order was dropped** (client: "Do not show
+  this message"), and the dropdown sits flush with the filter chips' left edge
+  at their height — its label is `sr-only`, since the choices name themselves.
 - **`admin/orders/SortSelect`** (client) is the dropdown itself: it sits on
   **Default order** until an order is chosen, and navigates with
   `router.push(listHref(…))` so choosing Default order leaves the URL clean
