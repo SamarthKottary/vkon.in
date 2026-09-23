@@ -13,12 +13,14 @@ import {
   countOrdersByFilter,
   listOrdersPage,
   orderSummary,
+  SHIPMENT_ATTEMPT_LIMIT,
   type AdminOrderFilter,
   type OrderFilterCounts,
 } from "@/lib/db/orders";
 import { InfoNote } from "@/components/admin/InfoNote";
 import { ListPager, ListSearch } from "@/components/admin/ListControls";
 import { listHref, listSearch, readListQuery } from "@/lib/admin-list";
+import { site } from "@/content/site";
 import { formatPaise } from "@/lib/pricing";
 import type { Order } from "@/lib/types";
 import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
@@ -26,6 +28,7 @@ import { trackingLabel } from "@/lib/tracking";
 import { bookShipmentAction, checkRefundsAction, refreshTrackingAction } from "@/app/admin/actions";
 import { OrderStatusSelect } from "./OrderStatusSelect";
 import { SortSelect } from "./SortSelect";
+import { BookShipmentButton } from "./BookShipmentButton";
 import { PendingOrderActions } from "./OrderActions";
 import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
@@ -58,6 +61,7 @@ export default async function AdminOrdersPage({
     shipped?: string;
     shipError?: string;
     reason?: string;
+    left?: string;
     sort?: string;
     mailed?: string;
     shipment?: string;
@@ -82,6 +86,7 @@ export default async function AdminOrdersPage({
     shipped,
     shipError,
     reason,
+    left,
     mailed,
     shipment,
     tracked,
@@ -93,6 +98,11 @@ export default async function AdminOrdersPage({
   } = params;
   const canRefund = isRazorpayConfigured();
   const canShip = isShiprocketConfigured();
+  /* Presses left after a failed booking — `null` when this was not one. */
+  const attemptsLeft =
+    left !== undefined && /^\d+$/.test(left)
+      ? Math.max(0, Math.min(SHIPMENT_ATTEMPT_LIMIT, Number(left)))
+      : null;
 
   /* Search by order number, email or phone, filter by status or the refund
      queue, ten a page (client, 2026-09-19 and 2026-09-21). An unknown
@@ -249,19 +259,40 @@ export default async function AdminOrdersPage({
               ? "That order already has a shipment. Manage it in the Shiprocket dashboard."
               : shipError === "window"
                 ? "Not yet — the customer can still change that order's delivery address. Booking opens at 12 pm the day after the order was confirmed."
-                : shipError
-                ? "Shiprocket refused the booking — usually the pickup location nickname or a missing PIN code."
-                : shipped === "noawb"
-                  ? "Created at Shiprocket, but no courier was assigned — recharge or assign an AWB in their dashboard."
-                  : shipped === "nopickup"
-                    ? "Shipment booked with an AWB. Shiprocket did not take the pickup request, so schedule the pickup in their dashboard."
-                    : "Shipment booked and pickup requested — the courier will collect it."}
+                : shipError === "attempts"
+                  ? `Booking has already failed ${SHIPMENT_ATTEMPT_LIMIT} times on that order.`
+                  : shipError === "stray"
+                    ? "Created at Shiprocket, but no courier was assigned and their order would not cancel — cancel it in their dashboard so it is not left open."
+                    : shipError === "noawb"
+                      ? "No courier was assigned, so the order created at Shiprocket was cancelled — nothing is booked."
+                      : shipError
+                      ? "Shiprocket refused the booking — usually the pickup location nickname or a missing PIN code."
+                      : shipped === "nopickup"
+                        ? "Shipment booked with an AWB. Shiprocket did not take the pickup request, so schedule the pickup in their dashboard."
+                        : "Shipment booked and pickup requested — the courier will collect it."}
           {/* What Shiprocket said, in its own words (client, 2026-09-23) —
               "Insufficient balance", "Courier not serviceable" and the like.
               Rendered as text, never as markup. */}
           {reason && (
             <span className="mt-1.5 block text-body">
               Shiprocket said: <span className="text-ink">{reason}</span>
+            </span>
+          )}
+          {/* How many presses are left of the three, and where to go when
+              there are none (client, 2026-09-23). */}
+          {(attemptsLeft !== null || shipError === "attempts") && (
+            <span className="mt-1.5 block text-body">
+              {attemptsLeft && attemptsLeft > 0 ? (
+                `${attemptsLeft} of ${SHIPMENT_ATTEMPT_LIMIT} attempts left.`
+              ) : (
+                <>
+                  No attempts left — contact{" "}
+                  <a href={`mailto:${site.email}`} className="text-accent hover:underline">
+                    {site.email}
+                  </a>{" "}
+                  for further assistance.
+                </>
+              )}
             </span>
           )}
         </p>
@@ -837,16 +868,47 @@ function ShipmentBlock({
             change the delivery address.
           </p>
         </div>
+      ) : canShip && order.shipmentAttempts >= SHIPMENT_ATTEMPT_LIMIT ? (
+        /* Three failed presses, each one already undone at Shiprocket
+           (client, 2026-09-23). No button: what is left is not something
+           pressing again fixes. */
+        <div className="mt-2.5 space-y-1.5 text-sm">
+          <p className="font-medium text-signal-700">
+            Booking failed {SHIPMENT_ATTEMPT_LIMIT} times — no attempts left.
+          </p>
+          {order.shipmentError && (
+            <p className="text-body">
+              Shiprocket said: <span className="text-ink">{order.shipmentError}</span>
+            </p>
+          )}
+          <p className="text-body">
+            Contact{" "}
+            <a href={`mailto:${site.email}`} className="text-accent hover:underline">
+              {site.email}
+            </a>{" "}
+            for further assistance.
+          </p>
+        </div>
       ) : canShip ? (
         <form action={bookShipmentAction} className="mt-2.5">
           <input type="hidden" name="id" value={order.id} />
           <input type="hidden" name="view" value={view} />
-          <button
-            type="submit"
-            className="inline-flex h-9 items-center border border-accent bg-accent px-3 text-sm font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50"
-          >
-            Book shipment
-          </button>
+          <BookShipmentButton />
+          {/* What the last press did, for as long as the button is still
+              offered — the banner it arrived in is gone after a refresh. */}
+          {order.shipmentAttempts > 0 && (
+            <div className="mt-2 space-y-1 text-sm">
+              {order.shipmentError && (
+                <p className="text-body">
+                  Last attempt: <span className="text-ink">{order.shipmentError}</span>
+                </p>
+              )}
+              <p className="text-body">
+                {SHIPMENT_ATTEMPT_LIMIT - order.shipmentAttempts} of {SHIPMENT_ATTEMPT_LIMIT}{" "}
+                attempts left.
+              </p>
+            </div>
+          )}
         </form>
       ) : (
         <p className="mt-2.5 text-sm text-muted">

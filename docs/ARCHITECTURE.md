@@ -278,6 +278,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `ui/PasswordField` | Live requirement checklist and strength meter as you type |
 | `admin/orders/OrderStatusSelect` | Submits the status `<select>` on change |
 | `admin/orders/SortSelect` | Newest/oldest-first `<select>`; navigates on change, GET form + `<noscript>` fallback |
+| `admin/orders/BookShipmentButton` | Book shipment, reading Initializing… then Processing… while Shiprocket answers |
 | `admin/orders/RefundForm` | Confirms the refund amount before submitting; pending state while Razorpay answers |
 
 Everything else is a server component.
@@ -1623,6 +1624,34 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-23 (shipping, admin) — Book shipment: three attempts, and a failure undone
+
+Client: "cancel the order in shiprocket if it dosent book … After 3 attempts
+say to contact support@vkon.in … show initializing then processing (Like
+loading) then we show message (reason, attempts left)."
+
+- **A booking with no AWB is cancelled at Shiprocket** and nothing is written
+  to the order's shipment fields, so the next press creates a fresh order
+  rather than a second one beside a dead one. If that cancel is itself refused
+  the shipment *is* recorded — otherwise the stray order at Shiprocket would
+  be unfindable — and the card says to deal with it in their dashboard
+  (`?shipError=stray`).
+- **Three failed presses per order.** `orders.shipment_attempts` and
+  `shipment_error` (new columns), counted by `recordShipmentFailure` in SQL so
+  two admins pressing at once cannot both write 2, and reset to 0 by
+  `setOrderShipment` when a booking takes. `SHIPMENT_ATTEMPT_LIMIT` in
+  `lib/db/orders.ts` is the one place the 3 lives.
+- **The card carries the state**: Shiprocket's words for the last attempt and
+  "2 of 3 attempts left" under the button; at three, no button at all — what is
+  left is not something pressing again fixes — and a mailto for support@vkon.in.
+  `bookShipmentAction` refuses a stale form with `?shipError=attempts` before
+  calling Shiprocket.
+- **`admin/orders/BookShipmentButton`** (client) narrates the wait:
+  *Initializing…*, *Processing…* from 1.5s, then the banner. The one piece of
+  state is set from a timer, never synchronously in an effect body (§9).
+- SHIPPING.md §4.3d. **Needs the migration** — two `ALTER TABLE orders` at the
+  end of schema.sql.
 
 ### 2026-09-23 (admin) — Orders sort newest or oldest first
 

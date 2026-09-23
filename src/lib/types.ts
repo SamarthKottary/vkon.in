@@ -320,6 +320,12 @@ export type Order = {
   shipmentId: string | null;
   /** The tracking number the customer actually quotes to anybody. */
   awb: string | null;
+  /** Failed Book shipment presses on this order, 0 after a booking that took.
+   *  Three is the limit — see `SHIPMENT_ATTEMPT_LIMIT`. */
+  shipmentAttempts: number;
+  /** Shiprocket's words for the last failure, kept for the card to show after
+   *  the redirect banner has gone. */
+  shipmentError: string | null;
   courierName: string | null;
   /** Shiprocket's id for the service the customer chose and paid for. */
   courierId: number | null;

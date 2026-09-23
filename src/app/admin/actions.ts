@@ -33,9 +33,11 @@ import {
   orderProgress,
   listPendingRefunds,
   recordRefund,
+  recordShipmentFailure,
   releaseRefundRequest,
   setOrderShipment,
   setOrderStatus,
+  SHIPMENT_ATTEMPT_LIMIT,
 } from "@/lib/db/orders";
 import {
   notifyOrderCancelled,
@@ -933,6 +935,9 @@ export async function refreshTrackingAction(formData: FormData): Promise<void> {
  * because an order is a snapshot and a product renamed since must not change
  * what is written on the parcel.
  */
+/** What is recorded when Shiprocket assigned no courier and said nothing. */
+const NO_COURIER = "No courier was assigned.";
+
 export async function bookShipmentAction(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   const id = String(formData.get("id") ?? "").trim();
@@ -948,6 +953,11 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
   const order = await getOrderForAdmin(id);
   if (!order) redirect(back("error=1"));
   if (order.shipmentId) redirect(back("shipError=already"));
+  /* Three failed presses and this button is done with (client, 2026-09-23).
+     Each failure has already been undone at Shiprocket, so what is left is a
+     problem pressing again will not solve — and every create that half
+     succeeds leaves an order in their dashboard. */
+  if (order.shipmentAttempts >= SHIPMENT_ATTEMPT_LIMIT) redirect(back("shipError=attempts"));
   /* The customer may still change the delivery address until 12 pm the day
      after the order was confirmed (client, 2026-09-18). The page greys the
      button out until then; this is the check that holds when the page is
@@ -958,6 +968,8 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
   /* Shiprocket's own words, carried to the page so the operator reads them
      there rather than in the server log (client, 2026-09-23). */
   let reason = "";
+  /* Presses left of the three, once one has been spent on a failure. */
+  let left = 0;
   try {
     const products = await listProducts();
     const booking = await bookShipment({
@@ -994,30 +1006,71 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
       isCOD: order.paymentProvider === "cod",
     });
 
-    await setOrderShipment(order.id, {
-      provider: "shiprocket",
-      shipmentOrderId: booking.shipmentOrderId,
-      shipmentId: booking.shipmentId,
-      awb: booking.awb,
-      courierName: booking.courierName,
-    });
-    /* What the operator still has to do by hand, if anything (2026-09-23):
-       no AWB means the courier was never assigned, and no pickup means the
-       parcel is booked but nobody has been asked to collect it. */
-    outcome = booking.awb ? (booking.pickupScheduled ? "1" : "nopickup") : "noawb";
     reason = booking.reason ?? "";
+
+    if (booking.awb) {
+      await setOrderShipment(order.id, {
+        provider: "shiprocket",
+        shipmentOrderId: booking.shipmentOrderId,
+        shipmentId: booking.shipmentId,
+        awb: booking.awb,
+        courierName: booking.courierName,
+      });
+      /* The one thing that may still need doing by hand: no pickup means the
+         parcel is booked but nobody has been asked to collect it. */
+      outcome = booking.pickupScheduled ? "1" : "nopickup";
+    } else if (await cancelShipment(booking.shipmentOrderId)) {
+      /* **No courier, so nothing is booked** (client, 2026-09-23: "cancel the
+         order in shiprocket if it dosent book"). Their create succeeded and
+         the AWB did not, which leaves an order in their dashboard that no
+         courier will ever collect; cancelling it means the next press starts
+         clean instead of creating a second one. Nothing is written to the
+         order's shipment fields — there is no shipment — only the failure. */
+      console.info(
+        "[admin] no AWB for",
+        order.orderNumber,
+        "— cancelled Shiprocket order",
+        booking.shipmentOrderId,
+      );
+      left = SHIPMENT_ATTEMPT_LIMIT - (await recordShipmentFailure(order.id, reason || NO_COURIER));
+      outcome = "noawb";
+    } else {
+      /* Their order is live and would not cancel. Recording it is the only
+         way the operator can find it again, and it also stops this button
+         creating a duplicate — the card says to deal with it in their
+         dashboard, as it did before any of this. */
+      await setOrderShipment(order.id, {
+        provider: "shiprocket",
+        shipmentOrderId: booking.shipmentOrderId,
+        shipmentId: booking.shipmentId,
+        awb: null,
+        courierName: booking.courierName,
+      });
+      outcome = "stray";
+    }
   } catch (error) {
     console.error("[admin] shipment booking failed:", error);
-    /* The create call throws with Shiprocket's response in the message. */
+    /* The create call throws with Shiprocket's response in the message.
+       Nothing was created, so there is nothing to cancel — only the press to
+       count. */
     const said = error instanceof Error ? error.message : "";
-    redirect(back(`shipError=failed${said ? `&reason=${encodeURIComponent(said.slice(0, 200))}` : ""}`));
+    const failures = await recordShipmentFailure(order.id, said || "Shiprocket refused the booking.");
+    redirect(
+      back(
+        `shipError=failed&left=${SHIPMENT_ATTEMPT_LIMIT - failures}` +
+          (said ? `&reason=${encodeURIComponent(said.slice(0, 200))}` : ""),
+      ),
+    );
   }
 
   revalidatePath("/admin/orders");
   revalidatePath("/account/orders");
-  redirect(
-    back(`shipped=${outcome}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`),
-  );
+  const said = reason ? `&reason=${encodeURIComponent(reason)}` : "";
+  /* A booking that did not happen is an error, not a shipment: the card puts
+     the button back, with what is left of the three presses. */
+  if (outcome === "noawb") redirect(back(`shipError=noawb&left=${left}${said}`));
+  if (outcome === "stray") redirect(back(`shipError=stray${said}`));
+  redirect(back(`shipped=${outcome}${said}`));
 }
 
 // ---------------------------------------------------------------------------

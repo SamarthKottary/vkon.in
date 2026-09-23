@@ -50,6 +50,8 @@ type OrderRow = {
   awb: string | null;
   courier_name: string | null;
   courier_id: number | null;
+  shipment_attempts: number | null;
+  shipment_error: string | null;
   shipped_at: Date | null;
   delivered_at: Date | null;
   cancelled_at: Date | null;
@@ -82,6 +84,7 @@ const ORDER_SELECT = `id, order_number, customer_id, status, payment_status,
   subtotal, cgst, sgst, shipping, total, currency, ship_to, bill_to, notes,
   payment_provider, payment_order_id, payment_id, paid_at,
   shipment_provider, shipment_order_id, shipment_id, awb, courier_name, courier_id,
+  shipment_attempts, shipment_error,
   shipped_at, delivered_at, cancelled_at, refunded_amount, refunded_at, refunds, repriced_at,
   delivery_service, address_changed_at,
   tracking_status, tracking_updated_at, tracking_eta::text AS tracking_eta, tracking_events,
@@ -135,6 +138,8 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
     shipmentId: row.shipment_id,
     awb: row.awb,
     courierName: row.courier_name,
+    shipmentAttempts: Number(row.shipment_attempts ?? 0),
+    shipmentError: row.shipment_error ?? null,
     courierId: row.courier_id === null ? null : Number(row.courier_id),
     shippedAt: row.shipped_at ? row.shipped_at.toISOString() : null,
     deliveredAt: row.delivered_at ? row.delivered_at.toISOString() : null,
@@ -600,9 +605,12 @@ export async function setOrderShipment(
   },
 ): Promise<void> {
   await query(
+    /* The attempt counter and the last failure go with it: this order has its
+       parcel, and a later one must not start a press from the limit. */
     `UPDATE orders
         SET shipment_provider = $2, shipment_order_id = $3, shipment_id = $4,
-            awb = $5, courier_name = $6, updated_at = now()
+            awb = $5, courier_name = $6,
+            shipment_attempts = 0, shipment_error = NULL, updated_at = now()
       WHERE id = $1`,
     [
       orderId,
@@ -613,6 +621,32 @@ export async function setOrderShipment(
       input.courierName,
     ],
   );
+}
+
+/**
+ * Failed Book shipment presses before the card stops offering the button
+ * (client, 2026-09-23: "After 3 attempts say to contact support@vkon.in").
+ */
+export const SHIPMENT_ATTEMPT_LIMIT = 3;
+
+/**
+ * One failed booking, with Shiprocket's words for it — returns how many have
+ * failed now, so the action can say how many presses are left.
+ *
+ * Counted in SQL rather than read-then-written: two admins pressing at once
+ * must not both read 1 and both write 2.
+ */
+export async function recordShipmentFailure(orderId: string, reason: string): Promise<number> {
+  if (!isDatabaseConfigured()) return 0;
+  const rows = await query<{ shipment_attempts: number }>(
+    `UPDATE orders
+        SET shipment_attempts = shipment_attempts + 1,
+            shipment_error = $2, updated_at = now()
+      WHERE id = $1
+      RETURNING shipment_attempts`,
+    [orderId, reason.slice(0, 500) || null],
+  );
+  return Number(rows[0]?.shipment_attempts ?? 0);
 }
 
 /** What a status change changed, so a caller can tell a real transition from

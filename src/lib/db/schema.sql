@@ -769,3 +769,21 @@ ALTER TABLE product_reviews ADD COLUMN IF NOT EXISTS media JSONB NOT NULL DEFAUL
 -- the block is invalidated on the very next request.
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
 
+
+-- Added 2026-09-23: failed booking attempts on an order.
+--
+-- Pressing Book shipment talks to somebody else's API, and a failure is
+-- usually something the operator can fix (wallet balance, a courier that will
+-- not take the PIN code). Three tries, then the card stops offering the button
+-- and sends them to support instead of letting a bad order be hammered at
+-- Shiprocket -- every create that half-succeeds leaves an order in their
+-- dashboard.
+--
+-- `shipment_attempts` counts only *failed* attempts. It is reset to 0 by the
+-- same statement that records a successful booking, so an order that books on
+-- the third press is not left one press from the limit for its next parcel.
+-- `shipment_error` is Shiprocket's own words for the last failure, kept so the
+-- card can still show them after a refresh -- the redirect banner is gone by
+-- then.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_error    TEXT;

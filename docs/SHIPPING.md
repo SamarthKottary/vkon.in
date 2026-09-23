@@ -325,8 +325,8 @@ Shiprocket (client, 2026-09-23). Both calls are best effort, in this order:
 
 1. `/orders/create/adhoc` — if this fails, nothing exists and the button
    reports it. Pressing again is safe.
-2. `/courier/assign/awb` — a failure leaves an order with no courier, which
-   the admin card says ("Created at Shiprocket … but no AWB was assigned").
+2. `/courier/assign/awb` — a failure means no courier, and since 2026-09-23
+   **that order is cancelled again at Shiprocket** (4.3d).
 3. `/courier/generate/pickup` — only attempted when there is an AWB, since a
    pickup for an unassigned shipment is refused.
 
@@ -334,6 +334,39 @@ The admin message after booking says which of the three got done, so a
 half-finished booking is visible rather than assumed: "booked and pickup
 requested", "no courier was assigned", or "schedule the pickup in their
 dashboard".
+
+### 4.3d Three attempts, and the failure is undone first
+
+Client, 2026-09-23: "cancel the order in shiprocket if it dosent book … After
+3 attempts say to contact support@vkon.in for further assistance."
+
+**A booking that gets no AWB is not a booking.** Their `/orders/create/adhoc`
+succeeded, so an order sits in their dashboard that no courier will collect;
+`bookShipmentAction` now calls `/orders/cancel` on it and writes **nothing** to
+the order's shipment fields. The next press therefore starts clean instead of
+creating a second order for the same parcel. Only if that cancel is itself
+refused is the shipment recorded — that is the one case where an order is left
+open at Shiprocket, and the card says to deal with it in their dashboard.
+
+**Three failed presses per order** (`SHIPMENT_ATTEMPT_LIMIT`, `lib/db/orders.ts`).
+Each failure — a refused create or a cancelled no-AWB booking — is counted by
+`recordShipmentFailure`, in SQL (`shipment_attempts = shipment_attempts + 1`)
+so two admins pressing at once cannot both write 2. Shiprocket's words for it
+go into `shipment_error`, which is what the card shows after the redirect
+banner has gone. The count is reset to 0 by `setOrderShipment`, so an order
+that books on the third press is not left one press from the limit.
+
+At three, the card stops offering the button and says to contact
+support@vkon.in; `bookShipmentAction` refuses a stale posted form with
+`?shipError=attempts`, before Shiprocket is called. Raising the limit for an
+order means clearing `shipment_attempts` on its row — there is no button for
+it, deliberately: the point is to stop a bad order being hammered at
+Shiprocket.
+
+**The button narrates the wait** (`BookShipmentButton`): *Initializing…* on
+press, *Processing…* from 1.5s in, then the outcome as the banner at the top
+of the page. Three API calls on a rural connection is a long time to look at a
+button that has not changed.
 
 **The label is still printed in Shiprocket** (Orders → Ready to Ship →
 Print), and the manifest is what the courier signs on handover.
