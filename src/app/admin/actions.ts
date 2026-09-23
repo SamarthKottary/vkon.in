@@ -29,6 +29,7 @@ import { REVIEW_STATUSES, setReviewStatus, type ReviewStatus } from "@/lib/db/re
 import {
   applyTrackingUpdate,
   claimRefundRequest,
+  clearOrderShipment,
   getOrderForAdmin,
   orderProgress,
   listPendingRefunds,
@@ -37,7 +38,6 @@ import {
   releaseRefundRequest,
   setOrderShipment,
   setOrderStatus,
-  SHIPMENT_ATTEMPT_LIMIT,
 } from "@/lib/db/orders";
 import {
   notifyOrderCancelled,
@@ -935,6 +935,43 @@ export async function refreshTrackingAction(formData: FormData): Promise<void> {
  * because an order is a snapshot and a product renamed since must not change
  * what is written on the parcel.
  */
+/**
+ * **Not ready** — undoes a booking and puts the order back in Confirmed
+ * (client, 2026-09-23).
+ *
+ * The parcel is cancelled at Shiprocket first; only if that works are our own
+ * shipment fields cleared, because an order that still exists at their end
+ * must stay findable from the card. After pickup nothing can be undone — the
+ * courier has the box — and the card says to arrange a return instead.
+ */
+export async function unbookShipmentAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const id = String(formData.get("id") ?? "").trim();
+  const back = (query: string) =>
+    backTo(
+      "/admin/orders",
+      formData,
+      id ? `${query}&shipOrder=${encodeURIComponent(id)}` : query,
+      id ? `order-${id}` : "",
+    );
+
+  if (admin.role !== "super" && admin.role !== "admin") redirect(back("error=access"));
+  if (!id) redirect(back("error=1"));
+
+  const order = await getOrderForAdmin(id);
+  if (!order) redirect(back("error=1"));
+  if (orderProgress(order.status) >= orderProgress("shipped")) redirect(back("unbooked=picked"));
+  if (!order.shipmentOrderId) redirect(back("error=1"));
+
+  const cancelled = await cancelShipment(order.shipmentOrderId);
+  if (!cancelled) redirect(back("unbooked=failed"));
+
+  await clearOrderShipment(order.id);
+  revalidatePath("/admin/orders");
+  revalidatePath("/account/orders");
+  redirect(back("unbooked=1"));
+}
+
 /** What is recorded when Shiprocket assigned no courier and said nothing. */
 const NO_COURIER = "No courier was assigned.";
 
@@ -963,11 +1000,12 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
   const order = await getOrderForAdmin(id);
   if (!order) redirect(back("error=1"));
   if (order.shipmentId) redirect(back("shipError=already"));
-  /* Three failed presses and this button is done with (client, 2026-09-23).
-     Each failure has already been undone at Shiprocket, so what is left is a
-     problem pressing again will not solve — and every create that half
-     succeeds leaves an order in their dashboard. */
-  if (order.shipmentAttempts >= SHIPMENT_ATTEMPT_LIMIT) redirect(back("shipError=attempts"));
+  /* No limit on how many times this may be pressed (client, 2026-09-23:
+     "Even after 3 attempts show the book shipment button, it should work,
+     just display contact support message"). `shipment_attempts` is counted
+     and shown, and past `SHIPMENT_ATTEMPT_LIMIT` the card says to write to
+     support — but it never refuses the press. Each failure is undone at
+     Shiprocket, so trying again costs nothing but their patience. */
   /* The customer may still change the delivery address until 12 pm the day
      after the order was confirmed (client, 2026-09-18). The page greys the
      button out until then; this is the check that holds when the page is

@@ -17,7 +17,7 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/products` | Every product, published or not, with edit and delete. Search by name, URL, tagline or category; drag to reorder is off while a search is showing. |
 | `/admin/products/new` | Create. |
 | `/admin/products/[id]` | Edit. |
-| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by status, by **Pending-not quoted** (waiting orders with no delivery price), or by **Refund-cancelled** — cancelled, paid online, money not back yet. A refund completing moves that order to **Cancelled**; sort newest or oldest first (without a choice each tab keeps the order that suits it); ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. **Book shipment** gets three attempts, with the reason and what is left shown on the order's own row; after three it sends you to support@vkon.in. |
+| `/admin/orders` | Order inbox — **confirmed orders only**: cash on delivery (badge **COD**) and paid online (**Paid online**); unpaid or failed online orders are left out, and **every order arrives as New** — paying online does not confirm one. Search by order number, email or phone; filter by status, by **Pending-not quoted** (waiting orders with no delivery price), or by **Refund-cancelled** — cancelled, paid online, money not back yet. A refund completing moves that order to **Cancelled**; sort newest or oldest first (without a choice each tab keeps the order that suits it); ten a page. Read, move an order along its status, courier tracking, cancel (emails the customer), and refund a cancelled online payment in full or in part. **Book shipment** shows its attempts and Shiprocket's reason on the order's own row, and sends you to support@vkon.in after three without ever blocking the button. A booked order waits in **Ready to ship** until the courier collects it; **Not ready** there cancels the parcel and returns it to Confirmed. |
 | `/admin/users` | Customer accounts. Read and search. Super users and admins also get the **sign-in code switch** (on or off for every customer) and **Sign in as**, which opens a customer's account in a new tab. |
 | `/admin/reviews` | Product reviews from customers whose orders were delivered. Three lists — **Pending**, **Approved**, **Rejected** — searchable, ten a page. Only approved reviews appear on the site; a review can be moved between the three at any time. Super users and admins moderate. |
 | `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
@@ -430,7 +430,20 @@ Note also that a paid order arrives here already marked **Paid** and
 
 ## Change log
 
-**2026-09-23 (shipment)** — **Book shipment gets three attempts per order.**
+**2026-09-23 (shipment, later)** — **Ready to ship**, a section between
+Confirmed and Shipped: an order moves there the moment a parcel is booked, and
+on to Shipped by itself when the courier first scans it. **Not ready** on one
+of those orders cancels the parcel at Shiprocket and puts the order back in
+Confirmed with its Book shipment button (it asks first, and says where the
+order lands); if Shiprocket will not cancel, nothing here changes and the row
+says to cancel it in their dashboard. Confirmed now means "confirmed and not
+booked", so the two sections never hold the same order. Book shipment also
+stopped being limited to three presses — past the third the row says to
+contact support@vkon.in but the button still works — and moving an order back
+to New from the status box clears its failed attempts, so the whole process
+can be started again.
+
+**2026-09-23 (shipment)** — **Book shipment counts its attempts.**
 A press that does not end in a courier is quietly undone at Shiprocket, and
 the retry is sent under a new reference (`VK-…-R2`) because they hand back the
 order they already hold for one they have seen. Everything is said **on the
@@ -438,9 +451,9 @@ order's row**, not in a banner above the list, and the page comes back to that
 order instead of the top: one line for what happened ("No courier was
 assigned."), then "Attempt 2 of 3 failed: Insufficient balance …" and "1
 attempt left" under the button, both read off the order so a refresh keeps
-them. After the third the button is gone and the row says to contact
-support@vkon.in — the count is only cleared by a booking that works, or by
-hand in the database. The button reads **Initializing…** and then
+them. After the third the row says to contact
+support@vkon.in — the count is cleared by a booking that works, by Not ready,
+or by moving the order back to New. The button reads **Initializing…** and then
 **Processing…** while Shiprocket answers. Needs the schema change
 (`shipment_attempts`, `shipment_error`).
 

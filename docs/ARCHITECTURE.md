@@ -279,6 +279,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `admin/orders/OrderStatusSelect` | Submits the status `<select>` on change |
 | `admin/orders/SortSelect` | Newest/oldest-first `<select>`; navigates on change, GET form + `<noscript>` fallback |
 | `admin/orders/BookShipmentButton` | Book shipment, reading Initializing… then Processing… while Shiprocket answers |
+| `admin/orders/NotReadyButton` | Not ready on a booked order: confirms, then un-books it back to Confirmed |
 | `admin/orders/RefundForm` | Confirms the refund amount before submitting; pending state while Razorpay answers |
 
 Everything else is a server component.
@@ -1625,6 +1626,32 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-23 (admin, orders) — Ready to ship, Not ready, and no gate on booking
+
+Client, after a day on the live site: "Even after 3 attempts show the book
+shipment button, it should work, just display contact support message. Lets
+have another section after confirmed called ready to ship … keep a not ready
+button … when i use the drop down to manually move the order from confirmed to
+pending the order should refresh and i should be able to restart the process."
+
+- **The attempt limit is advice, not a gate.** `bookShipmentAction` no longer
+  refuses past `SHIPMENT_ATTEMPT_LIMIT`; the row stops counting down and says
+  to write to support, and the button still works. The operator knows whether
+  the wallet has just been topped up; the number does not.
+- **Ready to ship** is a new filter between Confirmed and Shipped, cut from
+  the data rather than a new status: `confirmed` became `status = 'confirmed'
+  AND awb IS NULL`, `ready` is the same with `awb IS NOT NULL`. An order
+  leaves it when the courier's first scan moves it to shipped — the existing
+  tracking path — so nothing new watches it.
+- **Not ready** (`unbookShipmentAction` + `admin/orders/NotReadyButton`)
+  cancels the parcel at Shiprocket and, only if that works, clears the
+  shipment and tracking columns (`clearOrderShipment`), putting the order back
+  in Confirmed with its button. Refused there, ours are left alone and the row
+  says to cancel it in their dashboard; after pickup it refuses outright.
+- **Back to New restarts the process**: `setOrderStatus` clears
+  `shipment_attempts`/`shipment_error` when the status becomes `pending`.
+- SHIPPING.md §4.3e. No schema change.
+
 ### 2026-09-23 (shipping, admin) — Book shipment: three attempts, and a failure undone
 
 Client: "cancel the order in shiprocket if it dosent book … After 3 attempts
@@ -1637,11 +1664,12 @@ loading) then we show message (reason, attempts left)."
   the shipment *is* recorded — otherwise the stray order at Shiprocket would
   be unfindable — and the card says to deal with it in their dashboard
   (`?shipError=stray`).
-- **Three failed presses per order.** `orders.shipment_attempts` and
+- **Failed presses are counted.** `orders.shipment_attempts` and
   `shipment_error` (new columns), counted by `recordShipmentFailure` in SQL so
   two admins pressing at once cannot both write 2, and reset to 0 by
   `setOrderShipment` when a booking takes. `SHIPMENT_ATTEMPT_LIMIT` in
-  `lib/db/orders.ts` is the one place the 3 lives.
+  `lib/db/orders.ts` is the one place the 3 lives. It was a gate for a few
+  hours; the same day it became advice — see the entry above.
 - **A retry sends a new Shiprocket `order_id`** (`VK-…-R2`, `-R3`). They hand
   back the order they already hold for an id they have seen, so after the first
   attempt was cancelled every retry was assigning a courier to a cancelled
@@ -1652,11 +1680,11 @@ loading) then we show message (reason, attempts left)."
   carries `#order-<id>` so the press comes back to the order rather than the
   top of a long list. One line for what the press did, then, read off the order
   so a refresh keeps it: "Attempt 2 of 3 failed: …" and "1 attempt left". At
-  three, no button at all — what is left is not something pressing again fixes
-  — and a mailto for support@vkon.in. `bookShipmentAction` refuses a stale form
-  with `?shipError=attempts` before calling Shiprocket. Nothing says the order
-  was cancelled at Shiprocket: that is tidying up, not news ("Dont say that
-  order is cancelled. Just cancel and show attempt").
+  three, the count stops and a mailto for support@vkon.in takes its place.
+  `bookShipmentAction` does not refuse a press
+  before calling Shiprocket. Nothing says the order was cancelled at
+  Shiprocket: that is tidying up, not news ("Dont say that order is cancelled.
+  Just cancel and show attempt").
 - **`admin/orders/BookShipmentButton`** (client) narrates the wait:
   *Initializing…*, *Processing…* from 1.5s, then the banner. The one piece of
   state is set from a timer, never synchronously in an effect body (§9).

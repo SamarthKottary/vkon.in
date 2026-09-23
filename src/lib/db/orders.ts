@@ -411,7 +411,14 @@ export const ADMIN_ORDER_FILTER_SQL = {
   /* `shipping = 0` is "Not quoted" on the card: checkout could not get a
      delivery price, so somebody has to agree one before dispatch. */
   "pending-unquoted": `(status = 'pending' AND shipping <= 0)`,
-  confirmed: `status = 'confirmed'`,
+  /* Confirmed is now "confirmed and not yet booked": once a parcel has an AWB
+     the order moves to its own queue below (client, 2026-09-23). */
+  confirmed: `(status = 'confirmed' AND awb IS NULL)`,
+  /* **Ready to ship**: booked with a courier, waiting for the pickup. It
+     leaves this queue when the courier's first scan moves the order to
+     shipped — or when Not ready cancels the parcel and sends it back to
+     Confirmed. */
+  ready: `(status = 'confirmed' AND awb IS NOT NULL)`,
   shipped: `status = 'shipped'`,
   delivered: `status = 'delivered'`,
   cancelled: `(status = 'cancelled' AND NOT ${REFUND_CANCELLED_SQL})`,
@@ -480,6 +487,7 @@ export async function listOrdersPage(input: {
         input.filter === "pending" ||
         input.filter === "pending-unquoted" ||
         input.filter === "confirmed" ||
+        input.filter === "ready" ||
         input.filter === "refund-cancelled"
       ) {
         orderSql = "ORDER BY created_at ASC NULLS LAST";
@@ -647,6 +655,28 @@ export async function recordShipmentFailure(orderId: string, reason: string): Pr
     [orderId, reason.slice(0, 500) || null],
   );
   return Number(rows[0]?.shipment_attempts ?? 0);
+}
+
+/**
+ * Undoes a booking: the order keeps its status and loses its parcel.
+ *
+ * For **Not ready** on a booked order (client, 2026-09-23) — the shipment has
+ * already been cancelled at Shiprocket by the caller, so the fields that made
+ * this order "Ready to ship" are cleared and it is back in Confirmed with the
+ * Book shipment button. The attempt counter goes too: this is a fresh start,
+ * not a failure.
+ */
+export async function clearOrderShipment(orderId: string): Promise<void> {
+  await query(
+    `UPDATE orders
+        SET shipment_provider = NULL, shipment_order_id = NULL, shipment_id = NULL,
+            awb = NULL, courier_name = NULL, shipped_at = NULL,
+            tracking_status = NULL, tracking_status_at = NULL, tracking_updated_at = NULL,
+            tracking_eta = NULL, tracking_events = '[]'::jsonb,
+            shipment_attempts = 0, shipment_error = NULL, updated_at = now()
+      WHERE id = $1`,
+    [orderId],
+  );
 }
 
 /** What a status change changed, so a caller can tell a real transition from
@@ -832,8 +862,16 @@ export async function setOrderStatus(
     }
 
     await client.query(
+      /* Back to pending is a restart (client, 2026-09-23: "when i use the
+         drop down to manually move the order from confirmed to pending …
+         i should be able to restart the process"), so the failed booking
+         attempts go with it. */
       `UPDATE orders
           SET status = $2::text,
+              shipment_attempts = CASE
+                WHEN $2::text = 'pending' THEN 0 ELSE shipment_attempts END,
+              shipment_error = CASE
+                WHEN $2::text = 'pending' THEN NULL ELSE shipment_error END,
               cancelled_at = CASE
                 WHEN $2::text = 'cancelled' THEN COALESCE(cancelled_at, now())
                 ELSE NULL END,

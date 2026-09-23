@@ -335,7 +335,7 @@ half-finished booking is visible rather than assumed: "booked and pickup
 requested", "no courier was assigned", or "schedule the pickup in their
 dashboard".
 
-### 4.3d Three attempts, and the failure is undone first
+### 4.3d Attempts, and the failure is undone first
 
 Client, 2026-09-23: "cancel the order in shiprocket if it dosent book … After
 3 attempts say to contact support@vkon.in for further assistance."
@@ -358,20 +358,21 @@ cancelled order and every attempt from the second on came back "order is in
 cancelled state", hiding the real reason (found on the live site the day this
 shipped). Their dashboard sorts the retries beside the original.
 
-**Three failed presses per order** (`SHIPMENT_ATTEMPT_LIMIT`, `lib/db/orders.ts`).
-Each failure — a refused create or a cancelled no-AWB booking — is counted by
-`recordShipmentFailure`, in SQL (`shipment_attempts = shipment_attempts + 1`)
-so two admins pressing at once cannot both write 2. Shiprocket's words for it
-go into `shipment_error`. The count is reset to 0 by `setOrderShipment`, so an
-order that books on the third press is not left one press from the limit.
+**Failed presses are counted, not limited.** Each failure — a refused create
+or a cancelled no-AWB booking — goes through `recordShipmentFailure`, in SQL
+(`shipment_attempts = shipment_attempts + 1`) so two admins pressing at once
+cannot both write 2. Shiprocket's words for it go into `shipment_error`. The
+count is reset to 0 by `setOrderShipment` when a booking takes, by
+`clearOrderShipment` (Not ready, 4.3e), and by moving the order back to
+pending.
 
-At three, the card stops offering the button and says to contact
-support@vkon.in; `bookShipmentAction` refuses a stale posted form with
-`?shipError=attempts`, before Shiprocket is called. Giving an order its
-attempts back means clearing `shipment_attempts` on its row —
-`UPDATE orders SET shipment_attempts = 0, shipment_error = NULL WHERE
-order_number = '…'` — there is no button for it, deliberately: the point is to
-stop a bad order being hammered at Shiprocket.
+Past `SHIPMENT_ATTEMPT_LIMIT` (3, `lib/db/orders.ts`) the row stops counting
+down and says "You can keep trying, but contact support@vkon.in for further
+assistance" — **the button stays and still works** (client, 2026-09-23: "Even
+after 3 attempts show the book shipment button, it should work, just display
+contact support message"). Nothing in `bookShipmentAction` refuses a press;
+the number is advice, because the operator on the spot knows whether the
+wallet has just been topped up.
 
 **Everything is said on the order's own row**, never in a banner above the
 list (client: "Only show message in order row, do not show on top"), and the
@@ -386,6 +387,34 @@ a refresh keeps it: "Attempt 2 of 3 failed: Insufficient balance …" and
 press, *Processing…* from 1.5s in, then the outcome on the row. Three API
 calls on a rural connection is a long time to look at a button that has not
 changed.
+
+### 4.3e Ready to ship, and Not ready
+
+Client, 2026-09-23: "another section after confirmed called ready to ship,
+where booked orders stay before delivery agents come to collect".
+
+**A booked order leaves Confirmed.** `/admin/orders` filters on the data
+rather than a new status: `confirmed` is `status = 'confirmed' AND awb IS
+NULL`, `ready` is `status = 'confirmed' AND awb IS NOT NULL`. The two cannot
+hold the same order, and nothing about the customer's own status wording
+changes — they see "Confirmed" until the courier's first scan moves the order
+to shipped, which is what takes it out of this queue (webhook, or Refresh
+tracking).
+
+**Not ready** (`unbookShipmentAction`, `NotReadyButton`) is the way back:
+cancel the parcel at Shiprocket, then `clearOrderShipment` empties the
+shipment and tracking columns, and the order is in Confirmed again with its
+Book shipment button. In that order — if their cancel is refused, ours are
+left alone and the row says to cancel it in their dashboard, because an order
+that still exists there must stay findable. After pickup it refuses outright
+(`unbooked=picked`): the courier has the box, so that is a return, not an
+un-booking. The confirmation names where the order lands, since "Not ready"
+alone does not.
+
+**Back to New restarts everything**: `setOrderStatus` clears
+`shipment_attempts` and `shipment_error` when the status becomes `pending`
+(client: "when i use the drop down to manually move the order from confirmed
+to pending … i should be able to restart the process").
 
 **The label is still printed in Shiprocket** (Orders → Ready to Ship →
 Print), and the manifest is what the courier signs on handover.

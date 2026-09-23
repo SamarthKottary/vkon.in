@@ -29,6 +29,7 @@ import { bookShipmentAction, checkRefundsAction, refreshTrackingAction } from "@
 import { OrderStatusSelect } from "./OrderStatusSelect";
 import { SortSelect } from "./SortSelect";
 import { BookShipmentButton } from "./BookShipmentButton";
+import { NotReadyButton } from "./NotReadyButton";
 import { PendingOrderActions } from "./OrderActions";
 import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
@@ -61,6 +62,7 @@ export default async function AdminOrdersPage({
     shipped?: string;
     shipError?: string;
     reason?: string;
+    unbooked?: string;
     shipOrder?: string;
     sort?: string;
     mailed?: string;
@@ -86,6 +88,7 @@ export default async function AdminOrdersPage({
     shipped,
     shipError,
     reason,
+    unbooked,
     shipOrder,
     mailed,
     shipment,
@@ -102,7 +105,9 @@ export default async function AdminOrdersPage({
      that order's own row rather than in a banner above the list (client,
      2026-09-23: "Only show message in order row, do not show on top"). */
   const booking =
-    shipOrder && (shipped || shipError) ? { shipped, shipError, reason } : null;
+    shipOrder && (shipped || shipError || unbooked)
+      ? { shipped, shipError, reason, unbooked }
+      : null;
 
   /* Search by order number, email or phone, filter by status or the refund
      queue, ten a page (client, 2026-09-19 and 2026-09-21). An unknown
@@ -264,6 +269,15 @@ export default async function AdminOrdersPage({
           longer confirms an order by itself, so every order waits for you.
         </p>
         <p>
+          <span className="font-medium text-ink">Book shipment moves it to Ready to ship</span>{" "}
+          — booked with a courier, waiting for the pickup. It moves on to
+          Shipped by itself when the courier first scans the parcel. If it is
+          not actually ready, <span className="font-medium text-ink">Not ready</span>{" "}
+          on the order cancels that parcel at Shiprocket and puts the order back
+          in Confirmed. Setting an order back to New from the status box clears
+          its failed booking attempts, so the whole thing can be started again.
+        </p>
+        <p>
           <span className="font-medium text-ink">Only paid orders are listed:</span>{" "}
           cash on delivery (<span className="font-medium text-ink">COD</span>) and
           orders paid online (<span className="font-medium text-ink">Paid online</span>).
@@ -367,6 +381,7 @@ const FILTER_LABELS: Record<AdminOrderFilter, string> = {
   pending: "Pending",
   "pending-unquoted": "Pending-not quoted",
   confirmed: "Confirmed",
+  ready: "Ready to ship",
   shipped: "Shipped",
   delivered: "Delivered",
   cancelled: "Cancelled",
@@ -379,10 +394,15 @@ const FILTER_LABELS: Record<AdminOrderFilter, string> = {
  * no JavaScript, and the choice stays in the URL. Choosing one keeps the
  * search and goes back to page 1.
  *
- * Two of them are not statuses:
+ * Three of them are not statuses:
  *
  *  - **Pending-not quoted** is a slice of Pending, not a stage beside it:
  *    the waiting orders with no delivery price on them;
+ *  - **Ready to ship** is the second half of Confirmed (client, 2026-09-23):
+ *    a parcel is booked and the courier has not collected it yet. An order
+ *    leaves it when the first scan moves it to Shipped, or when **Not ready**
+ *    cancels the parcel and sends it back to Confirmed. Confirmed therefore
+ *    means "confirmed and not booked" — the two never hold the same order;
  *  - **Refund-cancelled** is the money side of a cancellation: cancelled,
  *    paid online, not refunded yet. It empties as refunds land, and those
  *    orders then read as plain Cancelled.
@@ -690,7 +710,7 @@ function OrderCard({
  * 2026-09-21, when the bill and the shipment became the card's own column).
  */
 /** What the last Book shipment press did, for the card it was pressed on. */
-type BookingOutcome = { shipped?: string; shipError?: string; reason?: string };
+type BookingOutcome = { shipped?: string; shipError?: string; reason?: string; unbooked?: string };
 
 /**
  * That outcome as a line for the order's own row (client, 2026-09-23: "Only
@@ -702,15 +722,25 @@ type BookingOutcome = { shipped?: string; shipError?: string; reason?: string };
  * cancel and show attempt"). The reason and the attempt count come off the
  * order itself, below.
  */
-function bookingNote({ shipped, shipError }: BookingOutcome): { text: string; bad: boolean } | null {
+function bookingNote({ shipped, shipError, unbooked }: BookingOutcome): { text: string; bad: boolean } | null {
+  if (unbooked === "1")
+    return { text: "Back in Confirmed — the parcel was cancelled at Shiprocket.", bad: false };
+  if (unbooked === "failed")
+    return {
+      text: "Shiprocket would not cancel that parcel — cancel it in their dashboard, then try again.",
+      bad: true,
+    };
+  if (unbooked === "picked")
+    return {
+      text: "The courier already has this parcel, so it cannot be un-booked — arrange a return in their dashboard.",
+      bad: true,
+    };
   if (shipError === "unconfigured")
     return { text: "Shiprocket is not configured — see docs/SHIPPING.md.", bad: true };
   if (shipError === "already")
     return { text: "That order already has a shipment.", bad: true };
   if (shipError === "window")
     return { text: "Not yet — the customer can still change the delivery address.", bad: true };
-  if (shipError === "attempts")
-    return { text: `All ${SHIPMENT_ATTEMPT_LIMIT} attempts have already failed.`, bad: true };
   if (shipError === "noawb") return { text: "No courier was assigned.", bad: true };
   if (shipError === "stray")
     return {
@@ -833,6 +863,12 @@ function ShipmentBlock({
                 </button>
               </form>
             )}
+            {/* Only while it is still Ready to ship: once the courier has
+                scanned it the order is shipped, and there is nothing to
+                un-book (client, 2026-09-23). */}
+            {canShip && order.status === "confirmed" && (
+              <NotReadyButton id={order.id} orderNumber={order.orderNumber} view={view} />
+            )}
           </div>
         </div>
       ) : order.shipmentId ? (
@@ -882,38 +918,24 @@ function ShipmentBlock({
             change the delivery address.
           </p>
         </div>
-      ) : canShip && order.shipmentAttempts >= SHIPMENT_ATTEMPT_LIMIT ? (
-        /* Three failed presses, each one already undone at Shiprocket
-           (client, 2026-09-23). No button: what is left is not something
-           pressing again fixes. */
-        <div className="mt-2.5 space-y-1.5 text-sm">
-          <p className="font-medium text-signal-700">
-            All {SHIPMENT_ATTEMPT_LIMIT} attempts failed.
-          </p>
-          {order.shipmentError && (
-            <p className="text-body">
-              Shiprocket said: <span className="text-ink">{order.shipmentError}</span>
-            </p>
-          )}
-          <p className="text-body">
-            Contact{" "}
-            <a href={`mailto:${site.email}`} className="text-accent hover:underline">
-              {site.email}
-            </a>{" "}
-            for further assistance.
-          </p>
-        </div>
       ) : canShip ? (
         <form action={bookShipmentAction} className="mt-2.5">
           <input type="hidden" name="id" value={order.id} />
           <input type="hidden" name="view" value={view} />
           <BookShipmentButton />
           {/* Read off the order, not the redirect, so a refresh still shows
-              which attempt failed and why. */}
+              which attempt failed and why. Past three the button stays and
+              still works (client, 2026-09-23: "Even after 3 attempts show the
+              book shipment button, it should work, just display contact
+              support message") — the count becomes advice, not a gate. */}
           {order.shipmentAttempts > 0 && (
             <div className="mt-2 space-y-1 text-sm">
               <p className="text-body">
-                Attempt {order.shipmentAttempts} of {SHIPMENT_ATTEMPT_LIMIT} failed
+                Attempt {order.shipmentAttempts}
+                {order.shipmentAttempts < SHIPMENT_ATTEMPT_LIMIT
+                  ? ` of ${SHIPMENT_ATTEMPT_LIMIT}`
+                  : ""}{" "}
+                failed
                 {order.shipmentError ? (
                   <>
                     : <span className="text-ink">{order.shipmentError}</span>
@@ -922,10 +944,20 @@ function ShipmentBlock({
                   "."
                 )}
               </p>
-              <p className="text-body">
-                {SHIPMENT_ATTEMPT_LIMIT - order.shipmentAttempts} attempt
-                {SHIPMENT_ATTEMPT_LIMIT - order.shipmentAttempts === 1 ? "" : "s"} left.
-              </p>
+              {order.shipmentAttempts < SHIPMENT_ATTEMPT_LIMIT ? (
+                <p className="text-body">
+                  {SHIPMENT_ATTEMPT_LIMIT - order.shipmentAttempts} attempt
+                  {SHIPMENT_ATTEMPT_LIMIT - order.shipmentAttempts === 1 ? "" : "s"} left.
+                </p>
+              ) : (
+                <p className="text-body">
+                  You can keep trying, but contact{" "}
+                  <a href={`mailto:${site.email}`} className="text-accent hover:underline">
+                    {site.email}
+                  </a>{" "}
+                  for further assistance.
+                </p>
+              )}
             </div>
           )}
         </form>
