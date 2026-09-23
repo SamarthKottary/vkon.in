@@ -589,51 +589,6 @@ function OrderCard({
         </div>
 
         <div>
-                <Row label="CGST 9%" value={formatPaise(order.cgst)} />
-                <Row label="SGST 9%" value={formatPaise(order.sgst)} />
-                <Row
-                  label={
-                    [
-                      "Delivery",
-                      order.deliveryService,
-                      /* The courier the customer chose, before there is an AWB
-                         to name one — booking assigns this service. */
-                      order.awb ? null : order.courierName,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")
-                  }
-                  value={order.shipping > 0 ? formatPaise(order.shipping) : "Not quoted"}
-                />
-                {/* What the bill adds up to (client, 2026-09-21). Same shape
-                    as the customer's own copy: bold label, the figure in the
-                    accent, ruled off from the parts above it. The figure by
-                    the order number is the same number — this is the one at
-                    the end of the arithmetic. */}
-                <div className="flex items-center justify-between gap-4 border-t border-line pt-2.5">
-                  <dt className="font-bold text-ink">Total</dt>
-                  <dd className="text-base font-bold tabular-nums text-accent">
-                    {formatPaise(order.total)}
-                  </dd>
-                </div>
-                {/* Only once there is one: what has gone back, and whether
-                    Razorpay has finished sending it. */}
-                {order.refundedAmount > 0 && (
-                  <div className="flex items-center justify-between gap-4">
-                    <dt className="text-muted">
-                      {order.refundPending ? "Refund processing" : "Refunded"}
-                    </dt>
-                    <dd className="font-semibold tabular-nums text-ink">
-                      &minus;{formatPaise(order.refundedAmount)}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </div>
-          </div>
-        </div>
-
-        <div>
           {/* Both addresses in full when they differ, each with its own phone
               (client, 2026-09-18): the courier rings the delivery number, the
               invoice carries the billing one, and they are often different
