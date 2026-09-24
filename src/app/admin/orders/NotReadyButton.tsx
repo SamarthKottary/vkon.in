@@ -63,7 +63,10 @@ function Button({
             onConfirm();
           }
         }}
-        className="inline-flex h-8 items-center gap-1.5 border border-line-strong px-2.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle disabled:opacity-50"
+        /* Red like Cancel (client, 2026-09-24): both throw work away — this
+           one a booked parcel — and neither should look like Refresh
+           tracking beside it. */
+        className="inline-flex h-8 items-center gap-1.5 border border-red-600 bg-red-600 px-2.5 text-xs font-medium text-white transition-colors hover:border-red-700 hover:bg-red-700 disabled:opacity-50"
       >
         {pending && <SpinnerIcon className="h-3.5 w-3.5" />}
         Not ready

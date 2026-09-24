@@ -430,6 +430,12 @@ Note also that a paid order arrives here already marked **Paid** and
 
 ## Change log
 
+**2026-09-24 (orders)** — **Ready to ship** is what the customer sees too: an
+order with a parcel booked reads that in their order history and on the order
+page, instead of Confirmed, and their status filter gained the same choice.
+**Not ready** is now red, like Cancel. **Cancelled** moved to the end of the
+filter row, after Refund-cancelled.
+
 **2026-09-23 (shipment, fix)** — Every Book shipment press now goes up under
 a reference Shiprocket has never seen (`VK-…`, then `-R2`, `-R3`, …), counted
 on the order and never reset. It used to be derived from the failed-attempt

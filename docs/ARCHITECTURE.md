@@ -1626,6 +1626,20 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-24 (orders) — Ready to ship reaches the customer; two small ones
+
+- **The customer sees the same step.** A confirmed order with an AWB on it now
+  reads **Ready to ship** in the account's order history and on the order page
+  (`displayStatus` in `account/OrderHistoryTable`, `OrderStatusBadge`) — it is
+  not an `OrderStatus`, the row really is `confirmed` until the courier's first
+  scan, but "Confirmed" while a parcel is booked and waiting for collection
+  undersells where the order is (client, 2026-09-24). The history's status
+  filter matches on that same key, so **Ready to ship** is one of its choices
+  now; without it a booked order would answer to neither Confirmed nor Shipped.
+- **Not ready** is red, the same fill as Cancel: both throw work away.
+- **Cancelled is the last filter chip**, after Refund-cancelled, so the two
+  cancelled queues sit together at the end of the row.
+
 ### 2026-09-23 (shipping) — The Shiprocket order id never repeats
 
 Client, from the live site: "if i move the order from confirmed to pending, i

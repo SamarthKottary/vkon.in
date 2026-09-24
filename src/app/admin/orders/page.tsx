@@ -384,8 +384,8 @@ const FILTER_LABELS: Record<AdminOrderFilter, string> = {
   ready: "Ready to ship",
   shipped: "Shipped",
   delivered: "Delivered",
-  cancelled: "Cancelled",
   "refund-cancelled": "Refund-cancelled",
+  cancelled: "Cancelled",
 };
 
 /**

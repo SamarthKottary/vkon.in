@@ -55,19 +55,27 @@ const PAYMENT_TONE: Record<PaymentTone, string> = {
 export function OrderStatusBadge({
   order,
 }: {
-  order: Pick<Order, "status" | "paymentStatus" | "paymentProvider" | "refundedAmount">;
+  order: Pick<Order, "status" | "paymentStatus" | "paymentProvider" | "refundedAmount" | "awb">;
 }) {
   const { status } = order;
   const payment = paymentStateLabel(order);
   const failedOnly = isPaymentFailed(order) && status === "pending";
+  /* **Ready to ship** (client, 2026-09-24): a confirmed order with a courier
+     on it is past confirmed — the same step the admin's queue of that name
+     holds. Not an `OrderStatus`: the order really is `confirmed` until the
+     courier's first scan, and this is what that state looks like to the
+     person waiting for the parcel. */
+  const ready = status === "confirmed" && Boolean(order.awb);
 
   return (
     <span className="flex flex-wrap items-center gap-2">
       {!failedOnly && (
         <span
-          className={`inline-flex items-center border px-2.5 py-1 text-xs font-semibold uppercase tracking-wider ${ORDER_TONE[status] ?? ORDER_TONE.pending}`}
+          className={`inline-flex items-center border px-2.5 py-1 text-xs font-semibold uppercase tracking-wider ${
+            ready ? ORDER_TONE.shipped : (ORDER_TONE[status] ?? ORDER_TONE.pending)
+          }`}
         >
-          {ORDER_LABEL[status] ?? status}
+          {ready ? "Ready to ship" : (ORDER_LABEL[status] ?? status)}
         </span>
       )}
       <span

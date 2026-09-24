@@ -431,6 +431,11 @@ Print), and the manifest is what the courier signs on handover.
 
 ### 4.4 The customer's view
 
+**Booking is visible to the customer**: from the moment a parcel has an AWB
+their order reads **Ready to ship** rather than Confirmed — the same step as
+the admin queue of that name — and it becomes Shipped on the courier's first
+scan (2026-09-24). Their order-history filter has the same choice.
+
 `/account/orders/[id]` shows an "On its way" (or "Delivered") panel once a
 shipment exists: the courier's status in plain words, the expected or actual
 delivery day, courier and AWB, a tracking link, and the scan history — latest

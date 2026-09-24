@@ -421,8 +421,11 @@ export const ADMIN_ORDER_FILTER_SQL = {
   ready: `(status = 'confirmed' AND awb IS NOT NULL)`,
   shipped: `status = 'shipped'`,
   delivered: `status = 'delivered'`,
-  cancelled: `(status = 'cancelled' AND NOT ${REFUND_CANCELLED_SQL})`,
+  /* Last of the chips, after the refund queue (client, 2026-09-24): it is
+     where an order ends, and the two cancelled sections read better together
+     at the end of the row than split across it. */
   "refund-cancelled": REFUND_CANCELLED_SQL,
+  cancelled: `(status = 'cancelled' AND NOT ${REFUND_CANCELLED_SQL})`,
 } as const;
 
 export const ADMIN_ORDER_FILTERS = Object.keys(ADMIN_ORDER_FILTER_SQL) as AdminOrderFilter[];

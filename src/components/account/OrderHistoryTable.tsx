@@ -64,6 +64,12 @@ const ACTION_WIDTH = "w-36 justify-center";
  */
 const PAYMENT_FAILED_STYLE = { label: "Payment failed", className: "border-red-300 text-red-700" };
 const PAYMENT_DUE_STYLE = { label: "Payment due", className: "border-signal-500 text-ink" };
+/* **Ready to ship** (client, 2026-09-24): the admin's own queue of that name
+   is confirmed-with-a-courier, and the customer should see the same step —
+   "Confirmed" while a parcel is already booked and waiting for collection
+   undersells where the order is. It becomes Shipped on the courier's first
+   scan, as before. */
+const READY_STYLE = { label: "Ready to ship", className: "border-accent text-accent" };
 
 function awaitingPayment(order: Order): boolean {
   return (
@@ -79,6 +85,7 @@ function displayStatus(order: Order): { key: string; label: string; className: s
       ? { key: "payment_failed", ...PAYMENT_FAILED_STYLE }
       : { key: "payment_due", ...PAYMENT_DUE_STYLE };
   }
+  if (order.status === "confirmed" && order.awb) return { key: "ready", ...READY_STYLE };
   const s = STATUS_STYLE[order.status] ?? STATUS_STYLE.pending;
   return { key: order.status, ...s };
 }
@@ -175,6 +182,9 @@ const STATUS_FILTERS: { label: string; value: string }[] = [
   { label: "Payment due", value: "payment_due" },
   { label: "Payment failed", value: "payment_failed" },
   { label: "Confirmed", value: "confirmed" },
+  /* Its own choice, because the filter matches `displayStatus().key` — without
+     it a booked order would answer to neither Confirmed nor Shipped. */
+  { label: "Ready to ship", value: "ready" },
   { label: "Shipped",   value: "shipped" },
   { label: "Delivered", value: "delivered" },
   { label: "Cancelled", value: "cancelled" },
