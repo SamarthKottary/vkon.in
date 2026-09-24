@@ -249,11 +249,12 @@ so instead of re-booking. Cancelled orders get no button at all: booking a
 parcel for an order that is not happening is the one mistake here that costs
 real money.
 
-**Booking waits until 12 pm the day after the order was confirmed** (client,
-2026-09-18) — from payment for an online order, from placing it for COD. Until
-then the customer can still change the delivery address (4.4b), and a label
-printed before they stop could carry an address that is no longer the order's.
-The button shows greyed out with "Opens at 12 pm on Sat, 19 Sep", and
+**Booking waits until 11 am the day after the order was confirmed** (client,
+2026-09-18, moved from 12 pm on 2026-09-24) — from payment for an online
+order, from placing it for COD. Until then the customer can still change the
+delivery address (4.4b), and a label printed before they stop could carry an
+address that is no longer the order's. The hour is `CUTOFF_HOUR_IST`, written
+once. The button shows greyed out with "Opens at 11 am on Sat, 19 Sep", and
 `bookShipmentAction` refuses with `?shipError=window` if posted anyway. Both
 read `shipmentBookable` in `lib/order-delivery.ts`, the same module the
 customer's window comes from, so the two cannot drift apart. The card also
@@ -398,6 +399,24 @@ press, *Processing…* from 1.5s in, then the outcome on the row. Three API
 calls on a rural connection is a long time to look at a button that has not
 changed.
 
+### 4.3f Scanning a label
+
+**Scan**, left of the search on `/admin/orders`, reads either barcode a
+Shiprocket label carries — the AWB and the order number are both printed as
+Code 128 — and shows that order in a dialog, with a link to its card in the
+list (client, 2026-09-24).
+
+No scanning library: the browser's own `BarcodeDetector` reads the frame, so
+the runtime dependencies stay at next/react/react-dom. It exists in Chrome on
+Android, which is what will be held over a parcel; where it does not (Firefox,
+desktop Linux) the dialog says so and takes the number typed or pasted, which
+is also what to do with a scuffed label. `findOrderByCode` matches `awb` or
+`order_number` and strips a `-R2` retry suffix first (4.3d).
+
+The camera is open only while the dialog is, every track is stopped when it
+closes, and only the decoded string is sent to the server — frames never leave
+the browser.
+
 ### 4.3e Ready to ship, and Not ready
 
 Client, 2026-09-23: "another section after confirmed called ready to ship,
@@ -465,7 +484,7 @@ option (delivery mode and price)".
 
 - **The window** (`addressEditWindow`, `lib/order-delivery.ts`): open while an
   online order waits for payment; after payment — or after placing, for COD —
-  until 12:00 IST the next calendar day. Closed on a cancelled, shipped,
+  until `CUTOFF_HOUR_IST` (11:00 IST since 2026-09-24) the next calendar day. Closed on a cancelled, shipped,
   delivered or fully refunded order, and as soon as a shipment is booked. The
   order page says until when, beside the address.
 - **Edit opens a pop-up of the address book** (client, same day; briefly a

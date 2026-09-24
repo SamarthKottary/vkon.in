@@ -447,6 +447,16 @@ export function PackageIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+/** A barcode inside viewfinder corners — the Scan button on /admin/orders. */
+export function ScanIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3.5 8V5.5A2 2 0 0 1 5.5 3.5H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16" />
+      <path d="M7.5 8.5v7M10.5 8.5v7M13.5 8.5v7M16.5 8.5v7" />
+    </svg>
+  );
+}
+
 export function PinIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg {...base} className={className}>

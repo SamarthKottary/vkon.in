@@ -30,6 +30,7 @@ import {
   applyTrackingUpdate,
   claimRefundRequest,
   clearOrderShipment,
+  findOrderByCode,
   getOrderForAdmin,
   nextShipmentTry,
   orderProgress,
@@ -61,6 +62,7 @@ import { CATEGORY_KEYS, PROTECTION_KEYS } from "@/content/taxonomy";
 import { SEO_PAGES } from "@/lib/seo";
 import { site } from "@/content/site";
 import { parseVideoUrl } from "@/lib/video";
+import { isCod, paymentStateLabel } from "@/lib/order-payment";
 import type {
   AdminRole,
   OrderStatus,
@@ -937,6 +939,62 @@ export async function refreshTrackingAction(formData: FormData): Promise<void> {
  * what is written on the parcel.
  */
 /**
+ * One order, looked up from a barcode scanned off a parcel label (client,
+ * 2026-09-24: "a scan button … which only scans bar code for order id and awb
+ * number … show pop up of that order upon scanning").
+ *
+ * Not a form action: the Scan dialog calls it with whatever the camera read
+ * and draws the answer itself. It returns only what that dialog shows — no
+ * addresses, no payment ids — because the whole order would otherwise cross
+ * to the browser for a summary card.
+ *
+ * `support` may use it: reading an order is what the role is for.
+ */
+export type ScannedOrder = {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  paymentLabel: string;
+  total: number;
+  itemCount: number;
+  items: { name: string; qty: number }[];
+  customerName: string;
+  customerPhone: string;
+  awb: string | null;
+  courierName: string | null;
+  createdAt: string;
+};
+
+export async function lookupScannedOrderAction(
+  code: string,
+): Promise<{ order: ScannedOrder | null; error?: "access" }> {
+  const admin = await requireAdmin();
+  if (admin.role !== "super" && admin.role !== "admin" && admin.role !== "support") {
+    return { order: null, error: "access" };
+  }
+
+  const order = await findOrderByCode(String(code ?? ""));
+  if (!order) return { order: null };
+
+  return {
+    order: {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentLabel: isCod(order) ? "COD" : `Online · ${paymentStateLabel(order).label}`,
+      total: order.total,
+      itemCount: order.items.reduce((n, item) => n + item.qty, 0),
+      items: order.items.map((item) => ({ name: item.name, qty: item.qty })),
+      customerName: order.shipTo.name ?? "",
+      customerPhone: order.shipTo.phone ?? "",
+      awb: order.awb,
+      courierName: order.courierName,
+      createdAt: order.createdAt,
+    },
+  };
+}
+
+/**
  * **Not ready** — undoes a booking and puts the order back in Confirmed
  * (client, 2026-09-23).
  *
@@ -1007,7 +1065,7 @@ export async function bookShipmentAction(formData: FormData): Promise<void> {
      and shown, and past `SHIPMENT_ATTEMPT_LIMIT` the card says to write to
      support — but it never refuses the press. Each failure is undone at
      Shiprocket, so trying again costs nothing but their patience. */
-  /* The customer may still change the delivery address until 12 pm the day
+  /* The customer may still change the delivery address until 11 am the day
      after the order was confirmed (client, 2026-09-18). The page greys the
      button out until then; this is the check that holds when the page is
      stale or the form is posted by hand. */

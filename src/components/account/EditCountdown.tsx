@@ -28,7 +28,7 @@ export function useTimeLeft(until: string | null): number | null {
 
 /**
  * "Time left to edit — 17h 42m 05s", in the address pop-up (client,
- * 2026-09-18). The window closes at 12 pm the day after the order was
+ * 2026-09-18). The window closes at 11 am the day after the order was
  * confirmed (`addressEditWindow`), so it is at most about a day and a half:
  * hours, minutes and seconds are enough. At zero it says the window has
  * closed; the server refuses a change after that regardless.
@@ -39,7 +39,7 @@ export function EditCountdown({ until, msLeft }: { until: string | null; msLeft:
       <p className="text-right text-xs leading-snug text-muted">
         No time limit until you pay,
         <br />
-        then until 12 pm the next day
+        then until 11 am the next day
       </p>
     );
   }

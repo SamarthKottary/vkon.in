@@ -598,6 +598,41 @@ export async function getOrderForAdmin(orderId: string): Promise<Order | null> {
 }
 
 /**
+ * One order by something scanned off a label — its AWB, or its order number
+ * (client, 2026-09-24: a Scan button on `/admin/orders`).
+ *
+ * Both barcodes on a Shiprocket label come through here, so the operator
+ * points the camera at whichever is closest. What arrives is normalised
+ * first: barcodes carry no case or spacing of their own, and a **retry
+ * suffix** (`VK-0923-98FT-R2`, from `nextShipmentTry`) is Shiprocket's
+ * reference for the parcel, not ours — the order behind it is the same one.
+ */
+export async function findOrderByCode(code: string): Promise<Order | null> {
+  const scanned = code.trim().toUpperCase().replace(/\s+/g, "");
+  if (!scanned || scanned.length > 64) return null;
+  /* `VK-0923-98FT-R2` -> `VK-0923-98FT`; an AWB is digits and keeps its own. */
+  const orderNumber = scanned.replace(/-R\d+$/, "");
+  try {
+    const rows = await query<OrderRow>(
+      `SELECT ${ORDER_SELECT} FROM orders
+        WHERE awb = $1 OR upper(order_number) = $2
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [scanned, orderNumber],
+    );
+    if (!rows[0]) return null;
+    const items = await query<ItemRow>(
+      `SELECT ${ITEM_SELECT} FROM order_items WHERE order_id = $1`,
+      [rows[0].id],
+    );
+    return mapOrder(rows[0], items.map(mapItem));
+  } catch (error) {
+    console.error("[db] order lookup by code failed:", error);
+    return null;
+  }
+}
+
+/**
  * Records a booked shipment against an order.
  *
  * Called only from the admin action, so it does not swallow — a booking that
@@ -1102,7 +1137,7 @@ export async function repriceOrder(input: {
  *
  * **The window is re-checked here, under the row lock**, with the row as it is
  * now — not as the page that offered the button saw it. The admin may have
- * booked the courier since, the clock may have passed noon, or the payment may
+ * booked the courier since, the clock may have passed the cutoff, or the payment may
  * have landed; each of those changes the answer, and a check made before the
  * lock would race all three.
  *
@@ -1226,7 +1261,7 @@ export async function cancelOrder(orderId: string, customerId: string): Promise<
  *
  * **Within the same window as the delivery address** (client, 2026-09-18 —
  * it was "always" earlier the same day): while the order is unpaid, then
- * until 12 pm the day after it was confirmed, and never once it has shipped,
+ * until 11 am the day after it was confirmed, and never once it has shipped,
  * been booked, cancelled or refunded. Checked here under the row lock, with the
  * row as it is now, for the reason `changeOrderAddress` gives. No money moves:
  * the amount does not depend on who is billed.

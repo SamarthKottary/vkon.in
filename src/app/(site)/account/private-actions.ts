@@ -1002,7 +1002,7 @@ export async function quoteOrderAddressAction(input: {
 /**
  * Moves an order to a new delivery address.
  *
- * Allowed while the order waits to be paid, and after that until 12 pm the
+ * Allowed while the order waits to be paid, and after that until 11 am the
  * next day (`addressEditWindow`) — re-checked under the row lock by
  * `changeOrderAddress`, because this read and that write are not the same
  * moment.
@@ -1119,7 +1119,8 @@ export async function changeOrderAddressAction(
 /**
  * Replaces an order's billing address — within the same window as the
  * delivery address (client, 2026-09-18: first "always", then "in same way the
- * billing address edit button should go away at 12pm"). `changeOrderBilling`
+ * billing address edit button should go away at 12pm", since moved to 11 am).
+ * `changeOrderBilling`
  * checks the window under the row lock.
  *
  * The same fields and validation as the address book (`readAddress`), GSTIN

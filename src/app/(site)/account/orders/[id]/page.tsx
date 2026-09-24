@@ -22,7 +22,7 @@ import { isRazorpayConfigured } from "@/lib/razorpay";
 import { trackingUrl } from "@/lib/shiprocket";
 import { trackingLabel } from "@/lib/tracking";
 import { isCod } from "@/lib/order-payment";
-import { addressEditWindow, formatNoonDeadline } from "@/lib/order-delivery";
+import { addressEditWindow, formatCutoff } from "@/lib/order-delivery";
 import { site } from "@/content/site";
 import type { Order } from "@/lib/types";
 import { pageMetadata } from "@/lib/seo";
@@ -124,14 +124,15 @@ export default async function OrderPage({
     (order.paymentStatus === "unpaid" || order.paymentStatus === "failed");
 
   /* The delivery address can be changed while the order waits to be paid,
-     and then until 12 pm the next day — after which the admin books the
+     and then until 11 am the next day — after which the admin books the
      courier (client, 2026-09-18). The save re-checks all of this. */
   const addressEdit = addressEditWindow(order);
   /* The address book, for the Edit pop-ups — the same list checkout chooses
      from (client, 2026-09-18). */
   const addresses = await listAddresses(customer.id);
   /* Billing now shares the delivery address's window (client, 2026-09-18:
-     "in same way the billing address edit button should go away at 12pm"). */
+     "in same way the billing address edit button should go away at 12pm";
+     the hour moved to 11 am on 2026-09-24). */
   const until = addressEdit.editable ? addressEdit.until : null;
   const editBilling = (label?: string) =>
     addressEdit.editable ? (
@@ -180,10 +181,10 @@ export default async function OrderPage({
           {addressEdit.until ? (
             <>
               You can change the billing and delivery addresses until{" "}
-              <span className="font-semibold text-ink">{formatNoonDeadline(addressEdit.until)}</span>.
+              <span className="font-semibold text-ink">{formatCutoff(addressEdit.until)}</span>.
             </>
           ) : (
-            "You can change the billing and delivery addresses until you pay, and after that until 12 pm the next day."
+            "You can change the billing and delivery addresses until you pay, and after that until 11 am the next day."
           )}
         </p>
       )}

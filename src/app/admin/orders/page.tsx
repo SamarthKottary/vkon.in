@@ -30,12 +30,13 @@ import { OrderStatusSelect } from "./OrderStatusSelect";
 import { SortSelect } from "./SortSelect";
 import { BookShipmentButton } from "./BookShipmentButton";
 import { NotReadyButton } from "./NotReadyButton";
+import { ScanButton } from "./ScanButton";
 import { PendingOrderActions } from "./OrderActions";
 import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import { refundBlock, refundBlockMessage } from "@/lib/refunds";
 import { isCod } from "@/lib/order-payment";
-import { formatNoonDeadline, shipmentBookable } from "@/lib/order-delivery";
+import { formatCutoff, shipmentBookable } from "@/lib/order-delivery";
 
 export const dynamic = "force-dynamic";
 
@@ -145,13 +146,18 @@ export default async function AdminOrdersPage({
           </p>
         </div>
 
-        <ListSearch
-          path="/admin/orders"
-          q={query.q}
-          placeholder="Order number, email or phone"
-          label="Search orders"
-          keep={{ status: filter, sort }}
-        />
+        {/* Scan sits to the left of the search, and does the same job from a
+            parcel in your hand (client, 2026-09-24). */}
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <ScanButton />
+          <ListSearch
+            path="/admin/orders"
+            q={query.q}
+            placeholder="Order number, email or phone"
+            label="Search orders"
+            keep={{ status: filter, sort }}
+          />
+        </div>
       </div>
 
       {!isDatabaseConfigured() && (
@@ -900,7 +906,7 @@ function ShipmentBlock({
           />
         </div>
       ) : canShip && !bookable.bookable ? (
-        /* The customer may still move the parcel until 12 pm the day
+        /* The customer may still move the parcel until 11 am the day
            after the order was confirmed (client, 2026-09-18). A label
            printed before then can carry an address that is no longer
            the order's — so the button waits, and says until when. The
@@ -914,7 +920,7 @@ function ShipmentBlock({
             Book shipment
           </button>
           <p className="mt-2 text-sm text-body">
-            Opens at {formatNoonDeadline(bookable.from)} — until then the customer can
+            Opens at {formatCutoff(bookable.from)} — until then the customer can
             change the delivery address.
           </p>
         </div>

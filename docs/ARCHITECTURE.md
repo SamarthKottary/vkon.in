@@ -280,6 +280,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `admin/orders/SortSelect` | Newest/oldest-first `<select>`; navigates on change, GET form + `<noscript>` fallback |
 | `admin/orders/BookShipmentButton` | Book shipment, reading Initializing… then Processing… while Shiprocket answers |
 | `admin/orders/NotReadyButton` | Not ready on a booked order: confirms, then un-books it back to Confirmed |
+| `admin/orders/ScanButton` | Scan: the camera, the browser's own `BarcodeDetector`, and the order it read |
 | `admin/orders/RefundForm` | Confirms the refund amount before submitting; pending state while Razorpay answers |
 
 Everything else is a server component.
@@ -883,6 +884,7 @@ action) read an optional `view` field — the page's `q`/`page`/`status` — and
 redirect back to it through `backTo`. `returnView` rebuilds it key by key, so
 it can never become an open redirect or a forged outcome message.
 | `setOrderStatusAction` | `(formData) → void` — status re-validated against a fixed list, never trusted from the `<select>`; cannot set `payment_status` |
+| `lookupScannedOrderAction` | `(code: string) → {order: ScannedOrder \| null, error?: "access"}` — **the one admin action that returns data instead of redirecting**, for the Scan dialog. Reads `order_number` or `awb` (`findOrderByCode`), and returns only the summary that dialog draws, never the whole order |
 
 `ActionState = { error?, fieldErrors?: Record<string,string>, ok? }`, consumed by
 `useActionState` in the forms.
@@ -907,7 +909,7 @@ it can never become an open redirect or a forged outcome message.
 | `settings.ts` | `isSigninCodeOn`, `setSigninCodeOn` — the runtime switches |
 | `customers.ts` | `findCustomerByEmail/ById/ByGoogleSub`, `createCustomer`, `getPasswordHash`, `updateCustomerProfile`, `setCustomerPassword`, `markEmailVerified`, `linkGoogleAccount`, `createSession`, `customerForSession`, `deleteSession(sForCustomer)`, `sweepExpiredSessions`, `createToken`, `consumeToken`, `invalidateTokens` |
 | `addresses.ts` | `listAddresses`, `getAddress`, `createAddress`, `updateAddress`, `deleteAddress`, `setDefaultAddress` |
-| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByFilter`, `orderSummary`, `setOrderStatus`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
+| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByFilter`, `orderSummary`, `setOrderStatus`, `findOrderByCode`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
 
 **`customers.ts` is the exception to "reads fail soft."** Everywhere else an
 empty list beats a 500 for a visitor; during a sign-in it would mean a database
@@ -1625,6 +1627,27 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-24 (admin, orders) — Scan a parcel label; the cutoff moves to 11 am
+
+- **Scan**, left of the search on `/admin/orders` (`admin/orders/ScanButton`):
+  the camera reads either barcode on a Shiprocket label — the AWB or the order
+  number — and the order comes up in a dialog with a link to its card.
+- **No scanning library** (AGENTS.md's dependency rule). The browser's own
+  `BarcodeDetector` does the reading: present in Chrome on Android, which is
+  the phone that will be held over a parcel, and missing in Firefox and on
+  desktop Linux — so the dialog says so and takes the number typed or pasted
+  instead, which is also the answer for a scuffed label. The lookup behind both
+  is `lookupScannedOrderAction`.
+- **`findOrderByCode`** matches `awb` or `order_number`, and strips a `-R2`
+  retry suffix first: that is Shiprocket's reference for the parcel, not ours.
+- The camera runs only while the dialog is open, every track is stopped on
+  close, and only the decoded string leaves the browser — never a frame.
+- **The address/booking cutoff is 11 am** the next day, not 12 pm (client,
+  2026-09-24). `CUTOFF_HOUR_IST` in `lib/order-delivery.ts` is the only place
+  the hour is written; `nextDayNoonIST`/`formatNoonDeadline` were renamed
+  `nextDayCutoffIST`/`formatCutoff`, since a function called "noon" returning
+  11 am is a trap. Copy updated in the admin, the order page and the countdown.
 
 ### 2026-09-24 (orders) — Ready to ship reaches the customer; two small ones
 

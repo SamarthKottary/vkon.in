@@ -55,7 +55,7 @@ type View =
  *  - **Add an address** saves a new one to the book and uses it.
  *
  * **Both addresses share one window** (client, 2026-09-18): open while the
- * order is unpaid, then until 12 pm the day after it was confirmed — the page
+ * order is unpaid, then until 11 am the day after it was confirmed — the page
  * hides the button after that, and the pop-up counts down to it
  * (`EditCountdown`).
  *
