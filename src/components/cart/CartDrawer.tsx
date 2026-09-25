@@ -1,5 +1,6 @@
 "use client";
 
+import { productSku } from "@/lib/sku";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -132,7 +133,7 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
             <ul className="divide-y divide-line">
               {resolved.map(({ line, product, sellingPrice }) => {
                 const image = product.images[0];
-                const skuCode = `ST${product.slug.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 10)}`;
+                const skuCode = productSku(product);
 
                 return (
                   <li key={product.slug} className="flex gap-4 py-4 first:pt-0 last:pb-0">

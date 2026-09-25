@@ -1,5 +1,8 @@
 "use client";
 
+import { ShareProduct } from "@/components/product/ShareProduct";
+import { productSku } from "@/lib/sku";
+import { site } from "@/content/site";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -169,6 +172,26 @@ export function QuickViewModal({
               </p>
             )}
 
+            {/* Under the description, not in the pinned footer (client,
+                2026-09-25). They are things to read while deciding; the
+                footer is for the one control that acts. */}
+            <p className="mt-5 text-sm text-body">
+              For bulk enquiries, e-mail us at{" "}
+              <a
+                href={`mailto:${site.email}?subject=${encodeURIComponent(`Bulk enquiry - ${product.name}`)}`}
+                className="font-medium text-accent hover:underline"
+              >
+                {site.email}
+              </a>
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+              <ShareProduct name={product.name} path={`/products/${product.slug}`} />
+              <p className="text-sm text-muted">
+                SKU: <span className="font-mono text-ink">{productSku(product)}</span>
+              </p>
+            </div>
+
             {product.hpRanges.length > 0 && (
               <div className="mt-6 border-t border-line pt-4">
                 <p className="label-tech text-muted">Range</p>
@@ -238,10 +261,13 @@ export function QuickViewModal({
                 Without a price the button keeps the full width it had before
                 this row gained a second child, so an unpriced product's
                 footer is unchanged. */}
-            <div className="grid grid-cols-2 gap-3 items-center sm:flex sm:items-center sm:justify-between sm:gap-4">
+            {/* The gap is deliberately wide (client, 2026-09-25, twice): a
+                3xl figure and a filled button sitting 32px apart still read as
+                touching in a panel this narrow. */}
+            <div className="grid grid-cols-2 items-center gap-5 sm:flex sm:items-center sm:justify-between sm:gap-12">
               {product.price != null && (
                 <div className="min-w-0">
-                  <ProductPrice product={product} size="regular" />
+                  <ProductPrice product={product} size="medium" />
                 </div>
               )}
               <div className={product.price != null ? "min-w-0" : "col-span-2"}>

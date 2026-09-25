@@ -1,5 +1,6 @@
 "use client";
 
+import { productSku } from "@/lib/sku";
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -85,7 +86,7 @@ export function CartList({ products }: { products: Product[] }) {
         <div className="space-y-4 sm:hidden">
           {resolved.map(({ line, product, sellingPrice, totalPrice }) => {
             const image = product.images[0];
-            const skuCode = `ST${product.slug.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 10)}`;
+            const skuCode = productSku(product);
 
             return (
               <div
@@ -181,7 +182,7 @@ export function CartList({ products }: { products: Product[] }) {
             <tbody className="divide-y divide-line">
               {resolved.map(({ line, product, sellingPrice, totalPrice }) => {
                 const image = product.images[0];
-                const skuCode = `ST${product.slug.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 10)}`;
+                const skuCode = productSku(product);
 
                 return (
                   <tr key={product.slug} className="hover:bg-surface-subtle/50 transition-colors">

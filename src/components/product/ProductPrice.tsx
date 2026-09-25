@@ -52,7 +52,7 @@ export function ProductPrice({
   className = "",
 }: {
   product: Pick<Product, "price" | "discountPercent">;
-  size?: "compact" | "regular";
+  size?: "compact" | "medium" | "regular";
   variant?: "stacked" | "inline-desktop";
   className?: string;
 }) {
@@ -64,16 +64,25 @@ export function ProductPrice({
   const selling = rupees(displayPricePaise({ price, discountPercent } as Product, rates));
   const list = rupees(listPricePaise({ price } as Product, rates));
 
-  if (size === "regular") {
+  if (size === "regular" || size === "medium") {
+    /* **`medium` is the quick view's** (client, 2026-09-25: "the price is too
+       big"): the panel is half a page wide, and the figure that carries a
+       product page there crowded the button beside it. Same block, one step
+       down. */
+    const step = size === "medium";
     return (
       <div className={`min-w-0 ${className}`}>
         <p className="flex items-baseline gap-1 sm:gap-1.5 tabular-nums">
           {hasDiscount && (
-            <span className="font-medium text-price-off text-lg sm:text-2xl">
+            <span
+              className={`font-medium text-price-off ${step ? "text-base sm:text-lg" : "text-lg sm:text-2xl"}`}
+            >
               -{discountPercent}%
             </span>
           )}
-          <span className="font-semibold leading-tight text-ink text-xl sm:text-3xl">
+          <span
+            className={`font-semibold leading-tight text-ink ${step ? "text-lg sm:text-2xl" : "text-xl sm:text-3xl"}`}
+          >
             <span aria-hidden className="text-[0.6em] align-super">
               ₹
             </span>
@@ -83,7 +92,7 @@ export function ProductPrice({
         </p>
 
         {hasDiscount && (
-          <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-muted">
+          <p className={`mt-0.5 text-muted ${step ? "text-xs" : "sm:mt-1 text-xs sm:text-sm"}`}>
             M.R.P.:{" "}
             <span className="line-through">
               <span aria-hidden>₹</span>
@@ -94,7 +103,9 @@ export function ProductPrice({
         )}
         {/* Said once, where there is room for it: the figure above is what the
             customer pays, and the checkout shows the tax inside it. */}
-        <p className="mt-0.5 text-xs text-muted">Inclusive of all taxes</p>
+        <p className={`mt-0.5 text-muted ${step ? "text-[0.6875rem]" : "text-xs"}`}>
+          Inclusive of all taxes
+        </p>
       </div>
     );
   }
@@ -129,6 +140,7 @@ export function ProductPrice({
               </span>
             </p>
           )}
+          <p className="text-[0.625rem] leading-tight text-muted">Incl. of all taxes</p>
         </div>
 
         {/* Desktop view (>= sm): ₹15,999 M.R.P.: ₹27,999 (43% off) */}
@@ -157,6 +169,7 @@ export function ProductPrice({
               </span>
             </>
           )}
+          <span className="text-[0.6875rem] leading-tight text-muted">incl. taxes</span>
         </div>
       </div>
     );
@@ -189,6 +202,9 @@ export function ProductPrice({
           </span>
         </p>
       )}
+      {/* Said on the cards too (client, 2026-09-25), in the smallest type
+          that still reads: the figure above is what is paid. */}
+      <p className="text-[0.625rem] leading-tight text-muted">Incl. of all taxes</p>
     </div>
   );
 }

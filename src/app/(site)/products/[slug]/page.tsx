@@ -1,3 +1,5 @@
+import { ShareProduct } from "@/components/product/ShareProduct";
+import { productSku } from "@/lib/sku";
 import { getGstRates } from "@/lib/db/settings";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -23,6 +25,7 @@ import { physicalSpecRows, SpecTable } from "@/components/product/SpecTable";
 import { Container } from "@/components/ui/Container";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { categoryLabel } from "@/content/taxonomy";
+import { site } from "@/content/site";
 import { getProductBySlug, listProducts } from "@/lib/db/products";
 import { breadcrumbJsonLd, pageMetadata, productJsonLd } from "@/lib/seo";
 
@@ -125,6 +128,15 @@ export default async function ProductPage({
                 </Link>
               </li>
               <li aria-hidden>/</li>
+              {/* The category, between the catalogue and the product (client,
+                  2026-09-25) — and a way back into the filtered list, which is
+                  where somebody who wants "another one of these" is headed. */}
+              <li>
+                <Link href={`/products?category=${product.category}`} className="hover:text-ink">
+                  {categoryLabel(product.category)}
+                </Link>
+              </li>
+              <li aria-hidden>/</li>
               <li className="text-ink" aria-current="page">
                 {product.name}
               </li>
@@ -189,7 +201,10 @@ export default async function ProductPage({
                   `justify-between` with the price first reads correctly at
                   every width: below `sm` the two stack in that order anyway,
                   which is the order the client named. */}
-              <div className="mt-8 grid grid-cols-2 gap-4 items-center sm:grid-cols-[2fr_3fr]">
+              {/* `gap-8` from `sm` up (client, 2026-09-25: the price sat
+                  against the button on a desktop). Below `sm` the two are
+                  narrower and `gap-5` is enough. */}
+              <div className="mt-8 grid grid-cols-2 items-center gap-5 sm:grid-cols-[2fr_3fr] sm:gap-10">
                 <div className="min-w-0 pr-2 sm:pr-4">
                   {product.price != null && (
                     <ProductPrice product={product} size="regular" />
@@ -202,6 +217,29 @@ export default async function ProductPage({
                     outOfStock={product.outOfStock}
                   />
                 </div>
+              </div>
+
+              {/* Under the buy block, in the order of the reference the client
+                  sent (2026-09-25): who to write to for a quantity, then the
+                  share control, then the code they would quote. */}
+              <p className="mt-6 text-sm text-body">
+                For bulk enquiries, e-mail us at{" "}
+                <a
+                  href={`mailto:${site.email}?subject=${encodeURIComponent(`Bulk enquiry - ${product.name}`)}`}
+                  className="font-medium text-accent hover:underline"
+                >
+                  {site.email}
+                </a>
+              </p>
+
+              <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-4">
+                <ShareProduct name={product.name} path={`/products/${product.slug}`} />
+                {/* No category here: it is already the label above the
+                    product's name, and twice on one screen reads as a
+                    mistake. */}
+                <p className="text-sm text-muted">
+                  SKU: <span className="font-mono text-ink">{productSku(product)}</span>
+                </p>
               </div>
 
               {(() => {
@@ -284,6 +322,7 @@ export default async function ProductPage({
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },
           { name: "Products", path: "/products" },
+          { name: categoryLabel(product.category), path: `/products?category=${product.category}` },
           { name: product.name, path: `/products/${product.slug}` },
         ])}
       />

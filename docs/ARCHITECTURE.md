@@ -210,6 +210,7 @@ src/
     tracking.ts  courier status words → order status, customer labels, dates;
                  no `node:` imports, so the order list (client) shares it
     razorpay.ts  order creation + the two signature verifiers; no SDK
+    sku.ts       a product's stock code, `VK` + its slug
     barcode.ts   a Code 128 reader for the admin's Scan button; no library,
                  no DOM types — takes pixels, returns the string
     pdf.ts       a small PDF writer (text, rules, boxes, images); no library
@@ -269,6 +270,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `admin/GstRatesForm` | The CGST and SGST percentages, super user only |
 | `pricing/GstProvider` | Carries the tax rates from the layout to every price on screen |
 | `product/ProductPrice` | The price block; reads the rates to show it tax-inclusive |
+| `product/ShareProduct` | Share: the system sheet on a phone, a copied link elsewhere |
 | `cart/CartDrawer` | Slide-over state, Escape, body scroll lock |
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
 | `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection |
@@ -1653,6 +1655,47 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-25 (product page) — Share, the SKU, the category, and bulk enquiries
+
+From the client's reference page, under the buy block: a **bulk enquiries**
+line to support@vkon.in with the product in the mail's subject, a **Share**
+control, and the **SKU**.
+
+- **`product/ShareProduct`** (client) is a small menu (client, the same day:
+  "also include whatsapp, where it opens in another new tab", then Facebook,
+  Instagram, X, LinkedIn and Telegram): each is that service's own share
+  endpoint as a `target="_blank"` link — `wa.me`, `facebook.com/sharer`,
+  `x.com/intent/post`, `linkedin.com/sharing/share-offsite`, `t.me/share` —
+  plus **Email**, **Copy link**, and **More…**, the system sheet, only where
+  the device has one. **Instagram is the exception**: nothing on the web can
+  compose an Instagram post for somebody, so it copies the link and says to
+  paste it there rather than pretending to do more. The absolute URL and the
+  sheet's availability are read in the click that opens the menu, never in an
+  effect (§9), and the menu **opens upwards when the thing clipping it** — the
+  quick view's panel, not the viewport — has no room below. Each row lifts 2px,
+  tints to the accent and grows its icon on hover, the movement under
+  `motion-safe` so the highlight survives without it (§6).
+- **The quick view carries the same block** as the product page: bulk
+  enquiries, Share and the SKU — **under the description**, not in the pinned
+  footer (client, 2026-09-25): they are read while deciding, and the footer is
+  for the one control that acts. Both surfaces gained real air between the
+  price and Add to cart, which were touching on a desktop — 48px in the panel,
+  56px on the page; 32px still read as touching against a 3xl figure. The
+  panel's figure is a step smaller than the page's besides
+  (`ProductPrice size="medium"`, 24px against 30px).
+- **The category is in the breadcrumb** and in its structured data: Home /
+  Products / Cables / the product, the third step linking into the filtered
+  catalogue.
+- **The cards say "Incl. of all taxes"** under the price, in the smallest type
+  that reads; the product page says "Inclusive of all taxes" in full.
+- **`lib/sku.ts`** is the one place a stock code is derived: `VK` plus the
+  slug's letters and digits, upper case. The cart had been building `ST…`
+  inline in three places — the prefix of the site this layout was copied from,
+  which is how a placeholder ships. The invoice already prints the slug as its
+  SKU column.
+- The category is deliberately *not* repeated in that row: it is already the
+  label above the product's name.
 
 ### 2026-09-25 (pricing) — Displayed prices include GST; the rates are a setting
 
