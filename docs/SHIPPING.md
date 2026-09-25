@@ -403,8 +403,11 @@ changed.
 
 **Scan**, left of the search on `/admin/orders`, reads either barcode a
 Shiprocket label carries — the AWB and the order number are both printed as
-Code 128 — and shows that order in a dialog, with a link to its card in the
-list (client, 2026-09-24).
+Code 128 — and shows that order in a dialog **over the list, which does not
+move** (client, 2026-09-24, and 2026-09-25 for the second half). The dialog
+says which section holds the order rather than taking the page to it, and
+shows the items, the money, both addresses and the parcel. The search box
+beside it does the same for a number, an email or a phone.
 
 **It works in every browser**, because the reading is done here: the native
 `BarcodeDetector` where it exists (hardware-accelerated), else `lib/barcode.ts`

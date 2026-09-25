@@ -282,7 +282,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `admin/orders/SortSelect` | Newest/oldest-first `<select>`; navigates on change, GET form + `<noscript>` fallback |
 | `admin/orders/BookShipmentButton` | Book shipment, reading Initializing… then Processing… while Shiprocket answers |
 | `admin/orders/NotReadyButton` | Not ready on a booked order: confirms, then un-books it back to Confirmed |
-| `admin/orders/ScanButton` | Scan: the camera, a barcode reader (native or `lib/barcode.ts`), a photo, and the order it read |
+| `admin/orders/OrderFinder` | Scan and Find: the camera, a barcode reader (native or `lib/barcode.ts`), a photo or a typed number, and the order as a pop-up over an unmoved list |
 | `admin/orders/RefundForm` | Confirms the refund amount before submitting; pending state while Razorpay answers |
 
 Everything else is a server component.
@@ -886,7 +886,7 @@ action) read an optional `view` field — the page's `q`/`page`/`status` — and
 redirect back to it through `backTo`. `returnView` rebuilds it key by key, so
 it can never become an open redirect or a forged outcome message.
 | `setOrderStatusAction` | `(formData) → void` — status re-validated against a fixed list, never trusted from the `<select>`; cannot set `payment_status` |
-| `lookupScannedOrderAction` | `(code: string) → {order: ScannedOrder \| null, error?: "access"}` — **the one admin action that returns data instead of redirecting**, for the Scan dialog. Reads `order_number` or `awb` (`findOrderByCode`), and returns only the summary that dialog draws, never the whole order |
+| `findOrdersAction` | `(query: string) → {orders: FoundOrder[], error?: "access"}` — **the one admin action that returns data instead of redirecting**, for the Scan/Find dialog. Matches order number, AWB, email or phone (`findOrdersForLookup`), and returns only what that dialog draws, never the whole order |
 
 `ActionState = { error?, fieldErrors?: Record<string,string>, ok? }`, consumed by
 `useActionState` in the forms.
@@ -911,7 +911,7 @@ it can never become an open redirect or a forged outcome message.
 | `settings.ts` | `isSigninCodeOn`, `setSigninCodeOn` — the runtime switches |
 | `customers.ts` | `findCustomerByEmail/ById/ByGoogleSub`, `createCustomer`, `getPasswordHash`, `updateCustomerProfile`, `setCustomerPassword`, `markEmailVerified`, `linkGoogleAccount`, `createSession`, `customerForSession`, `deleteSession(sForCustomer)`, `sweepExpiredSessions`, `createToken`, `consumeToken`, `invalidateTokens` |
 | `addresses.ts` | `listAddresses`, `getAddress`, `createAddress`, `updateAddress`, `deleteAddress`, `setDefaultAddress` |
-| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByFilter`, `orderSummary`, `setOrderStatus`, `findOrderByCode`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
+| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByFilter`, `orderSummary`, `setOrderStatus`, `findOrdersForLookup`, `adminOrderSection`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
 
 **`customers.ts` is the exception to "reads fail soft."** Everywhere else an
 empty list beats a 500 for a visitor; during a sign-in it would mean a database
@@ -1629,6 +1629,33 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-25 (admin, orders) — Finding an order no longer moves the list
+
+Client: "When we scan the barcode and then the order pops up it should not
+effect the background … It should just pop show the details like item name,
+which category section it is in … billing and shipping details etc. Same for
+when we search using search bar."
+
+- **`admin/orders/OrderFinder`** (client) replaces `ScanButton` *and* the
+  orders page's `ListSearch`. Scan and Find both call `findOrdersAction` and
+  draw the answer in a dialog; neither navigates, so the chips, the page and
+  the scroll position behind are exactly as they were left.
+- **The pop-up is the order, read-only**: which section holds it ("Ready to
+  ship", "Refund-cancelled", …), the items with line totals, the money rows,
+  both addresses, the account email, and the courier and AWB. Nothing in it
+  links away — the card in the list is still where an order is worked on.
+- **Several matches** (an email, a phone) come back as a list to pick from,
+  newest first, with **Back to results** from a detail view.
+- **`adminOrderSection`** (`lib/db/orders.ts`) is the same rules as
+  `ADMIN_ORDER_FILTER_SQL` for one row in hand — the two must agree — plus the
+  answer the chips cannot give: an unpaid online order is in no section, and
+  says so rather than being unfindable.
+- `findOrdersForLookup` replaces `findOrderByCode`: order number (retry suffix
+  stripped), AWB, email or phone, up to 25.
+- **`?q=` still filters the list** from an old link or an action's return
+  view, and the box offers **Clear filter** when one is set — it just no
+  longer writes one.
 
 ### 2026-09-25 (admin) — Scan works on every browser: our own Code 128 reader
 

@@ -18,7 +18,7 @@ import {
   type OrderFilterCounts,
 } from "@/lib/db/orders";
 import { InfoNote } from "@/components/admin/InfoNote";
-import { ListPager, ListSearch } from "@/components/admin/ListControls";
+import { ListPager } from "@/components/admin/ListControls";
 import { listHref, listSearch, readListQuery } from "@/lib/admin-list";
 import { site } from "@/content/site";
 import { formatPaise } from "@/lib/pricing";
@@ -30,7 +30,7 @@ import { OrderStatusSelect } from "./OrderStatusSelect";
 import { SortSelect } from "./SortSelect";
 import { BookShipmentButton } from "./BookShipmentButton";
 import { NotReadyButton } from "./NotReadyButton";
-import { ScanButton } from "./ScanButton";
+import { OrderFinder } from "./OrderFinder";
 import { PendingOrderActions } from "./OrderActions";
 import { RefundForm } from "./RefundForm";
 import { isRazorpayConfigured } from "@/lib/razorpay";
@@ -146,18 +146,11 @@ export default async function AdminOrdersPage({
           </p>
         </div>
 
-        {/* Scan sits to the left of the search, and does the same job from a
-            parcel in your hand (client, 2026-09-24). */}
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <ScanButton />
-          <ListSearch
-            path="/admin/orders"
-            q={query.q}
-            placeholder="Order number, email or phone"
-            label="Search orders"
-            keep={{ status: filter, sort }}
-          />
-        </div>
+        {/* Scan and Find, which both open the order in a pop-up rather than
+            moving the list to it (client, 2026-09-24 and 2026-09-25). The
+            `?q=` filter still works from a link; `OrderFinder` offers the way
+            out of one. */}
+        <OrderFinder q={query.q} />
       </div>
 
       {!isDatabaseConfigured() && (

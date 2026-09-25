@@ -29,8 +29,9 @@ import { REVIEW_STATUSES, setReviewStatus, type ReviewStatus } from "@/lib/db/re
 import {
   applyTrackingUpdate,
   claimRefundRequest,
+  adminOrderSection,
   clearOrderShipment,
-  findOrderByCode,
+  findOrdersForLookup,
   getOrderForAdmin,
   nextShipmentTry,
   orderProgress,
@@ -63,9 +64,12 @@ import { SEO_PAGES } from "@/lib/seo";
 import { site } from "@/content/site";
 import { parseVideoUrl } from "@/lib/video";
 import { isCod, paymentStateLabel } from "@/lib/order-payment";
+import { listCustomerEmails } from "@/lib/db/customers";
+import { sameOrderAddress } from "@/components/account/OrderAddress";
 import type {
   AdminRole,
   OrderStatus,
+  ShipTo,
   ProductCategory,
   ProductImage,
   ProductInput,
@@ -950,47 +954,89 @@ export async function refreshTrackingAction(formData: FormData): Promise<void> {
  *
  * `support` may use it: reading an order is what the role is for.
  */
-export type ScannedOrder = {
+/**
+ * What the Find dialog shows about one order: enough to answer "what is this
+ * parcel and where is it up to" without leaving the list (client, 2026-09-25:
+ * "It should just pop show the details like item name, which category section
+ * it is in … billing and shipping details").
+ *
+ * Deliberately not the whole `Order`: no payment ids, no tracking history, no
+ * refund ledger. This crosses to the browser; the card in the list is where
+ * an order is worked on.
+ */
+export type FoundOrder = {
   id: string;
   orderNumber: string;
   status: OrderStatus;
+  /** Which chip on `/admin/orders` holds it — "Ready to ship" and the rest. */
+  section: string;
   paymentLabel: string;
+  deliveryService: string | null;
+  subtotal: number;
+  tax: number;
+  shipping: number;
   total: number;
-  itemCount: number;
-  items: { name: string; qty: number }[];
-  customerName: string;
-  customerPhone: string;
+  items: { name: string; qty: number; lineTotal: number }[];
+  shipTo: ShipTo;
+  billTo: ShipTo;
+  sameAddress: boolean;
+  email: string;
   awb: string | null;
   courierName: string | null;
+  trackingStatus: string | null;
   createdAt: string;
 };
 
-export async function lookupScannedOrderAction(
-  code: string,
-): Promise<{ order: ScannedOrder | null; error?: "access" }> {
+/**
+ * The orders matching a scan or a search — the one behind both the camera and
+ * the search box on `/admin/orders`.
+ *
+ * Not a form action: the dialog calls it with what was scanned or typed and
+ * draws the answer itself, over a list that does not move. Several matches
+ * come back for a phone number or an email, newest first, and the dialog asks
+ * which one.
+ *
+ * `support` may use it: reading an order is what the role is for.
+ */
+export async function findOrdersAction(
+  query: string,
+): Promise<{ orders: FoundOrder[]; error?: "access" }> {
   const admin = await requireAdmin();
   if (admin.role !== "super" && admin.role !== "admin" && admin.role !== "support") {
-    return { order: null, error: "access" };
+    return { orders: [], error: "access" };
   }
 
-  const order = await findOrderByCode(String(code ?? ""));
-  if (!order) return { order: null };
+  const orders = await findOrdersForLookup(String(query ?? ""));
+  if (orders.length === 0) return { orders: [] };
+
+  const emails = await listCustomerEmails([...new Set(orders.map((o) => o.customerId))]);
 
   return {
-    order: {
+    orders: orders.map((order) => ({
       id: order.id,
       orderNumber: order.orderNumber,
       status: order.status,
+      section: adminOrderSection(order).label,
       paymentLabel: isCod(order) ? "COD" : `Online · ${paymentStateLabel(order).label}`,
+      deliveryService: order.deliveryService,
+      subtotal: order.subtotal,
+      tax: order.cgst + order.sgst,
+      shipping: order.shipping,
       total: order.total,
-      itemCount: order.items.reduce((n, item) => n + item.qty, 0),
-      items: order.items.map((item) => ({ name: item.name, qty: item.qty })),
-      customerName: order.shipTo.name ?? "",
-      customerPhone: order.shipTo.phone ?? "",
+      items: order.items.map((item) => ({
+        name: item.name,
+        qty: item.qty,
+        lineTotal: item.lineTotal,
+      })),
+      shipTo: order.shipTo,
+      billTo: order.billTo,
+      sameAddress: sameOrderAddress(order.shipTo, order.billTo),
+      email: emails.get(order.customerId) ?? "",
       awb: order.awb,
       courierName: order.courierName,
+      trackingStatus: order.trackingStatus,
       createdAt: order.createdAt,
-    },
+    })),
   };
 }
 
