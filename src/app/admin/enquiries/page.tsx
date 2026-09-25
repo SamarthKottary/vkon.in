@@ -1,7 +1,6 @@
-import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { enquiryCounts, listEnquiriesPage } from "@/lib/db/enquiries";
 import { InfoNote } from "@/components/admin/InfoNote";
@@ -25,7 +24,7 @@ export default async function AdminEnquiriesPage({
 }: {
   searchParams: Promise<{ removed?: string; error?: string; q?: string; page?: string }>;
 }) {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPage();
 
   const params = await searchParams;
   const { removed, error } = params;

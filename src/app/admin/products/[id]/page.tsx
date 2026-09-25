@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ArrowLeftIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { getProductById } from "@/lib/db/products";
 import { ProductForm } from "../ProductForm";
 
@@ -13,7 +13,7 @@ export default async function EditProductPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPage();
 
   const { id } = await params;
   const product = await getProductById(id);

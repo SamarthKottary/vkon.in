@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { PlusIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listProducts } from "@/lib/db/products";
 import { ProductReorder } from "./ProductReorder";
@@ -17,7 +16,7 @@ export default async function AdminProductsPage({
 }: {
   searchParams: Promise<{ saved?: string; deleted?: string; q?: string }>;
 }) {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPage();
 
   const params = await searchParams;
   const { saved, deleted } = params;

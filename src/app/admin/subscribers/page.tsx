@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
-import { isAuthenticated } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listSubscribers, listSubscribersPage } from "@/lib/db/subscribers";
 import { InfoNote } from "@/components/admin/InfoNote";
@@ -26,7 +25,7 @@ export default async function AdminSubscribersPage({
 }: {
   searchParams: Promise<{ removed?: string; error?: string; q?: string; page?: string }>;
 }) {
-  if (!(await isAuthenticated())) redirect("/admin");
+  await requireAdminPage();
 
   const params = await searchParams;
   const { removed, error } = params;

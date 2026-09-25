@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
 import { InfoNote } from "@/components/admin/InfoNote";
-import { getAdminSession } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listCustomersForAdmin, type AdminCustomer } from "@/lib/db/customers";
 import { isSigninCodeOn } from "@/lib/db/settings";
@@ -33,8 +32,7 @@ export default async function AdminUsersPage({
 }: {
   searchParams: Promise<{ q?: string; filter?: string; error?: string }>;
 }) {
-  const admin = await getAdminSession();
-  if (!admin) redirect("/admin");
+  const admin = await requireAdminPage();
   /* The sign-in code switch is a global security control — super and admin only.
      "Sign in as" is also available to support for customer-service purposes.
      Block/unblock is super and admin only — enforced in the action too.

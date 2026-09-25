@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
-import { isAuthenticated } from "@/lib/auth";
+import { adminNext, isAuthenticated } from "@/lib/auth";
 import { isGoogleConfigured } from "@/lib/google";
 import { LoginForm } from "./LoginForm";
 
@@ -10,11 +10,16 @@ export const dynamic = "force-dynamic";
 export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  if (await isAuthenticated()) redirect("/admin/products");
-
   const params = await searchParams;
+  /* Where they were going before they were asked to sign in (client,
+     2026-09-25) — set by `middleware.ts` or `requireAdminPage()`, and checked
+     again here because it arrives in a URL anyone can type. */
+  const next = adminNext(params.next);
+
+  if (await isAuthenticated()) redirect(next || "/admin/products");
+
   const insecureOrigin = await isInsecureOrigin();
 
   const NOTICES: Record<string, string> = {
@@ -56,8 +61,14 @@ export default async function AdminLoginPage({
           </div>
         )}
 
+        {next && (
+          <p className="mt-6 border-l-2 border-accent bg-surface px-4 py-3 text-sm text-body">
+            Sign in to open <span className="font-mono text-ink">{next}</span>.
+          </p>
+        )}
+
         <div className="mt-6">
-          <LoginForm googleEnabled={isGoogleConfigured()} />
+          <LoginForm googleEnabled={isGoogleConfigured()} next={next} />
         </div>
       </div>
     </Container>

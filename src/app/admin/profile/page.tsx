@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { Avatar } from "@/components/account/Avatar";
 import { AdminProfileForm } from "@/components/admin/AdminProfileForm";
 import { AdminAvatarForm } from "@/components/admin/AdminAvatarForm";
@@ -15,7 +14,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default async function AdminProfilePage() {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPage();
 
   return (
     <div className="space-y-10 p-6 sm:p-8 lg:p-10">

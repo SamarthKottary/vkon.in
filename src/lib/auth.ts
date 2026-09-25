@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { findAdminByEmail, findAdminById, getAdminPasswordHash } from "@/lib/db/adminUsers";
 import { verifyPassword } from "@/lib/password";
@@ -216,6 +216,48 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function requireAdmin(): Promise<AdminUser> {
   const user = await getAdminSession();
   if (!user) throw new Error("Not authorised.");
+  return user;
+}
+
+/**
+ * A local admin path, or `/admin` — the `?next=` on the sign-in page.
+ *
+ * `//evil.example` is a protocol-relative URL that browsers follow off-site,
+ * so "starts with a slash" is not enough: this is what keeps the admin
+ * sign-in from being turned into an open redirect. Anything outside `/admin`
+ * is refused too — this parameter exists to return somebody to the page they
+ * asked for, and no admin page lives elsewhere.
+ */
+export function adminNext(next: string | undefined | null): string {
+  const value = String(next ?? "");
+  if (!value.startsWith("/admin") || value.startsWith("//")) return "";
+  /* A control character in a Location header is how a response gets split. */
+  return /[\s\\]/.test(value) ? "" : value.slice(0, 512);
+}
+
+/**
+ * Guard for admin **pages**, as opposed to actions.
+ *
+ * Sends somebody who is not signed in to the sign-in form with `?next=` set
+ * to the page they asked for, rather than throwing — a bookmark opened after
+ * signing out used to hit `requireAdmin()`'s error and render the framework's
+ * "something went wrong, reload" screen (client, 2026-09-25).
+ *
+ * The URL comes from `x-admin-url`, set by `middleware.ts`, so the query
+ * string survives: `/admin/orders?status=ready&sort=oldest` is a different
+ * page from `/admin/orders`, and it is the one they wanted.
+ *
+ * **`requireAdmin()` is still the boundary.** This is the page-level
+ * convenience, the same relationship `requireSignIn()` has with
+ * `requireCustomer()` on the customer side: a server action is an
+ * independently addressable POST, and being redirected is not being stopped.
+ */
+export async function requireAdminPage(): Promise<AdminUser> {
+  const user = await getAdminSession();
+  if (!user) {
+    const next = adminNext((await headers()).get("x-admin-url"));
+    redirect(next ? `/admin?next=${encodeURIComponent(next)}` : "/admin");
+  }
   return user;
 }
 

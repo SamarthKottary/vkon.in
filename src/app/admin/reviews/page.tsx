@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
 import { InfoNote } from "@/components/admin/InfoNote";
@@ -8,7 +7,7 @@ import { ListPager, ListSearch } from "@/components/admin/ListControls";
 import { ReviewMediaStrip } from "@/components/product/ReviewMediaStrip";
 import { Stars } from "@/components/product/Stars";
 import { listHref, listSearch, readListQuery } from "@/lib/admin-list";
-import { getAdminSession } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import {
   REVIEW_STATUSES,
@@ -40,8 +39,7 @@ export default async function AdminReviewsPage({
 }: {
   searchParams: Promise<{ q?: string; page?: string; status?: string; error?: string }>;
 }) {
-  const admin = await getAdminSession();
-  if (!admin) redirect("/admin");
+  const admin = await requireAdminPage();
   // Support and viewer cannot access reviews — show a denial panel instead of redirecting.
   if (admin.role === "support" || admin.role === "viewer") {
     return (

@@ -193,7 +193,7 @@ src/
   lib/
     db/          client.ts, products.ts, subscribers.ts, enquiries.ts,
                  customers.ts, addresses.ts, orders.ts, cart.ts, schema.sql
-    auth.ts      ADMIN session + requireAdmin — one operator, no user table
+    auth.ts      ADMIN session + requireAdmin/requireAdminPage, adminNext
     admin-list.ts  the admin lists' URL view (`?q=&page=&status=`): PER_PAGE,
                  page clamping, LIKE escaping, phone digits, `returnView`
     account.ts   CUSTOMER sessions + requireCustomer/requireSignIn (§7a)
@@ -1645,6 +1645,40 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-25 (admin) — A bookmarked admin page asks for a sign-in, then opens
+
+Client: signing out and opening an admin link from a previous session "shows
+reload page. Instead it should show the admin login page and then redirect to
+the page i was trying to open earlier." The pages called `requireAdmin()`,
+which **throws** — so a signed-out visitor got the framework's error screen
+rather than the form.
+
+- **`src/proxy.ts`** (new, and the project's first): for `/admin/:path*` it
+  puts the requested URL on the request as `x-admin-url` — a server component
+  cannot otherwise read the URL it is rendering, and `searchParams` is only
+  half of it — and, when there is no admin cookie at all, redirects to
+  `/admin?next=<that URL>`. **`proxy.ts`, not `middleware.ts`:** Next 16
+  deprecated that convention and renamed it (same request object and
+  `config.matcher`; the export is `proxy`; Node.js runtime by default), which
+  the build warns about — see the file convention's own doc under
+  `node_modules/next/dist/docs/`.
+- **It does not verify the cookie, deliberately.** A proxy is a boundary in
+  front of the app that may run outside its runtime, and Next's guidance is
+  not to lean on the app's modules from it — so verifying would mean pulling
+  the admin auth module and its database pool in there, or writing the
+  signature check a second time. It is a routing decision; the pages and
+  actions still call `getAdminSession()`/`requireAdmin()`, which verify — a
+  forged or expired cookie gets past the proxy and is stopped there.
+- **`requireAdminPage()`** (`lib/auth.ts`) is the page-level guard that
+  redirects with `?next=` instead of throwing, the same relationship
+  `requireSignIn()` has with `requireCustomer()`. Every admin page now uses
+  it, in place of three different guards (`requireAdmin()`, `getAdminSession()
+  + redirect`, `isAuthenticated() + redirect`).
+- **`adminNext()`** validates the parameter everywhere it is read — the page,
+  the hidden field, the action: local paths under `/admin` only, so the
+  sign-in cannot be turned into an open redirect. The sign-in page says which
+  page it is about to open, and Google sign-in carries the same destination.
 
 ### 2026-09-25 (cart) — "Not signed in." in the log for something nobody did
 

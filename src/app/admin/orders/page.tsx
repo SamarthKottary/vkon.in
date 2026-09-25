@@ -1,11 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { sameOrderAddress } from "@/components/account/OrderAddress";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listCustomerEmails } from "@/lib/db/customers";
 import {
@@ -79,7 +78,7 @@ export default async function AdminOrdersPage({
     status?: string;
   }>;
 }) {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPage();
 
   const params = await searchParams;
   const {

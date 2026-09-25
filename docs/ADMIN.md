@@ -430,6 +430,12 @@ Note also that a paid order arrives here already marked **Paid** and
 
 ## Change log
 
+**2026-09-25 (sign-in)** — Opening an admin link while signed out now shows
+the **sign-in form** — "Sign in to open /admin/orders?status=ready" — and
+takes you to that page once you are in, instead of the browser's reload/error
+screen. Works for any admin page, with its filters and sorting intact, and for
+"Continue with Google" too.
+
 **2026-09-25 (orders, items)** — On an order card, and in the Find pop-up,
 an item's picture and name **open that product in a new tab**. Nothing is lost
 from the order you were working on. An item whose product has since been

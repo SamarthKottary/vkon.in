@@ -5,11 +5,20 @@ import { useFormStatus } from "react-dom";
 import { AlertIcon, SpinnerIcon } from "@/components/icons/ui";
 import { loginAction, type ActionState } from "./actions";
 
-export function LoginForm({ googleEnabled }: { googleEnabled?: boolean }) {
+export function LoginForm({
+  googleEnabled,
+  next = "",
+}: {
+  googleEnabled?: boolean;
+  /** The admin page to open once signed in — already checked by `adminNext`
+   *  on the page, and checked again in the action. */
+  next?: string;
+}) {
   const [state, formAction] = useActionState<ActionState, FormData>(loginAction, {});
 
   return (
     <form action={formAction} className="space-y-4">
+      {next && <input type="hidden" name="next" value={next} />}
       <div>
         <label htmlFor="email" className="label-tech block text-muted">
           Email address
@@ -82,7 +91,7 @@ export function LoginForm({ googleEnabled }: { googleEnabled?: boolean }) {
           </div>
 
           <a
-            href={`/api/auth/google/start?next=/admin`}
+            href={`/api/auth/google/start?next=${encodeURIComponent(next || "/admin")}`}
             className="flex h-10 w-full items-center justify-center gap-3 border border-line-strong bg-surface text-[0.9375rem] font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">

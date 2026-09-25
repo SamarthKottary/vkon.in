@@ -1,14 +1,13 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ArrowLeftIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { ProductForm } from "../ProductForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewProductPage() {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPage();
 
   return (
     <Container size="default">

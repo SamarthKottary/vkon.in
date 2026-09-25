@@ -1,8 +1,7 @@
-import { redirect } from "next/navigation";
 import { listPageSeo } from "@/lib/db/pageSeo";
 import { Container } from "@/components/ui/Container";
 import { AccessDenied } from "@/components/admin/AccessDenied";
-import { getAdminSession } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { SeoForm } from "./SeoForm";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +11,7 @@ export const metadata = {
 };
 
 export default async function SeoPage() {
-  const admin = await getAdminSession();
-  if (!admin) redirect("/admin");
+  const admin = await requireAdminPage();
 
   // SEO is Super User only.
   if (admin.role !== "super") {

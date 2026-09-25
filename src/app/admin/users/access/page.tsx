@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdminPage } from "@/lib/auth";
 import { listAdminUsers } from "@/lib/db/adminUsers";
 import { AddAdminUserForm } from "@/components/admin/AddAdminUserForm";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -35,7 +34,7 @@ export default async function AdminAccessPage({
 }: {
   searchParams: Promise<Record<string, string>>;
 }) {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPage();
 
   // Support and Viewer roles see a denial panel instead of being redirected.
   if (admin.role === "support" || admin.role === "viewer") {

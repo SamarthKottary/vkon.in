@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { login, logout, requireAdmin, requireAdminRole } from "@/lib/auth";
+import { adminNext, login, logout, requireAdmin, requireAdminRole } from "@/lib/auth";
 import {
   createAdminUser,
   deleteAdminUser,
@@ -142,7 +142,10 @@ export async function loginAction(
     };
   }
 
-  redirect("/admin/products");
+  /* Back to the page that asked for a sign-in, when there was one (client,
+     2026-09-25). Re-checked here: the form field is as forgeable as the URL
+     it came from. */
+  redirect(adminNext(formData.get("next")?.toString()) || "/admin/products");
 }
 
 export async function logoutAction(): Promise<void> {
