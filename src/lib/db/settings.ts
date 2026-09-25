@@ -1,4 +1,5 @@
 import { isDatabaseConfigured, query } from "./client";
+import { DEFAULT_GST, type GstRates } from "@/lib/pricing";
 
 /**
  * Runtime switches, in `site_settings` (2026-09-21).
@@ -10,6 +11,8 @@ import { isDatabaseConfigured, query } from "./client";
 
 const SIGNIN_CODE = "signin_code";
 const INVOICE_GSTIN = "invoice_gstin";
+const GST_CGST = "gst_cgst";
+const GST_SGST = "gst_sgst";
 
 async function getSetting(key: string): Promise<string | null> {
   if (!isDatabaseConfigured()) return null;
@@ -85,4 +88,46 @@ export async function setInvoiceGstin(gstin: string): Promise<void> {
  */
 export function isGstin(value: string): boolean {
   return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(value.trim().toUpperCase());
+}
+
+/**
+ * The CGST and SGST percentages charged on every order (client, 2026-09-25).
+ *
+ * A rate is set by a government, so it belongs in a setting a super user can
+ * change rather than in a constant that needs a deploy. It applies to what is
+ * priced from now on — carts, checkout, new orders. **Orders already placed
+ * keep the amounts they were charged**, which are stored in paise on the row:
+ * re-taxing last month's sale would falsify a document the customer already
+ * has, and the invoice prints each order's own rate back from its own figures.
+ *
+ * Fails soft to 9 + 9, the rates the site has always charged.
+ */
+export async function getGstRates(): Promise<GstRates> {
+  try {
+    const [cgst, sgst] = await Promise.all([getSetting(GST_CGST), getSetting(GST_SGST)]);
+    return {
+      cgst: readRate(cgst, DEFAULT_GST.cgst),
+      sgst: readRate(sgst, DEFAULT_GST.sgst),
+    };
+  } catch (error) {
+    console.error("[db] GST rates unreadable, using the defaults:", error);
+    return DEFAULT_GST;
+  }
+}
+
+/** Called only from the super-user action on /admin/profile. */
+export async function setGstRates(rates: GstRates): Promise<void> {
+  await setSetting(GST_CGST, String(rates.cgst));
+  await setSetting(GST_SGST, String(rates.sgst));
+}
+
+/** 0 to 28 per cent, to two decimals — the range GST actually uses. */
+export function isGstRate(value: string): boolean {
+  const number = Number(value);
+  return /^\d{1,2}(\.\d{1,2})?$/.test(value.trim()) && number >= 0 && number <= 28;
+}
+
+function readRate(value: string | null, fallback: number): number {
+  if (value === null || !isGstRate(value)) return fallback;
+  return Number(value);
 }

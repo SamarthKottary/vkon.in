@@ -7,7 +7,9 @@ import { CloseIcon, TrashIcon } from "@/components/icons/ui";
 import { QuantityStepper } from "@/components/cart/QuantityStepper";
 import { useCartLines } from "@/components/cart/useCart";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
-import { closeCartDrawer, formatRupees, removeFromCart, subscribeCartDrawer } from "@/lib/cart";
+import { closeCartDrawer, removeFromCart, subscribeCartDrawer } from "@/lib/cart";
+import { useGst } from "@/components/pricing/GstProvider";
+import { formatPaise, sellingPricePaise, withGst } from "@/lib/pricing";
 import type { Product } from "@/lib/types";
 
 /**
@@ -45,24 +47,25 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
     };
   }, [open]);
 
+  const rates = useGst();
   const resolved = useMemo(() => {
     const bySlug = new Map(products.map((p) => [p.slug, p]));
     return (lines ?? [])
       .map((line) => {
         const product = bySlug.get(line.slug);
         if (!product) return null;
-        const price = product.price ?? 0;
-        const discount = product.discountPercent ?? 0;
-        const sellingPrice = discount > 0 ? Math.round((price * (100 - discount)) / 100) : price;
+        /* Tax-inclusive, as on the product pages (2026-09-25); the drawer
+           shows no breakdown, so what it adds up must be what is paid. */
+        const base = sellingPricePaise(product);
         return {
           line,
           product,
-          sellingPrice,
-          totalPrice: sellingPrice * line.qty,
+          sellingPrice: withGst(base, rates),
+          totalPrice: withGst(base * line.qty, rates),
         };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  }, [lines, products]);
+  }, [lines, products, rates]);
 
   const subtotal = useMemo(() => {
     return resolved.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -188,7 +191,7 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
                           size="compact"
                         />
                         <span className="text-sm font-semibold text-ink tabular-nums">
-                          {line.qty} × <span className="text-accent font-bold">{formatRupees(sellingPrice)}</span>
+                          {line.qty} × <span className="text-accent font-bold">{formatPaise(sellingPrice)}</span>
                         </span>
                       </div>
                     </div>
@@ -203,9 +206,9 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
         {resolved.length > 0 && (
           <div className="border-t border-line bg-surface-raised p-4 sm:p-6 space-y-4 shadow-lg">
             <div className="flex items-center justify-between text-base font-bold text-ink">
-              <span>Subtotal:</span>
+              <span>Subtotal (incl. GST):</span>
               <span className="text-xl font-bold text-accent tabular-nums">
-                {formatRupees(subtotal)}
+                {formatPaise(subtotal)}
               </span>
             </div>
 

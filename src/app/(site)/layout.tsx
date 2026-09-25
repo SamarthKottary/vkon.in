@@ -6,6 +6,8 @@ import { IntroSplash } from "@/components/layout/IntroSplash";
 import { MobileActionBar } from "@/components/layout/MobileActionBar";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { CartSync } from "@/components/cart/CartSync";
+import { GstProvider } from "@/components/pricing/GstProvider";
+import { getGstRates } from "@/lib/db/settings";
 import { JsonLd } from "@/components/ui/JsonLd";
 import { categories, categoriesInSector, sectors, categoryLabel, sectorLabel, sectorOf } from "@/content/taxonomy";
 import { protectionMeta } from "@/components/icons/protections";
@@ -39,9 +41,10 @@ export default async function SiteLayout({
      catalogue query on every page in the group. `getCurrentCustomer` fails
      soft — an unreachable database renders the header signed-out rather than
      500-ing the whole site — so `Promise.all` is safe here. */
-  const [products, customer] = await Promise.all([
+  const [products, customer, gstRates] = await Promise.all([
     listProducts(),
     getCurrentCustomer(),
+    getGstRates(),
   ]);
   /* One column per market, listing its categories with a product count each.
      The counts are computed here rather than in the menu so the client
@@ -116,7 +119,10 @@ export default async function SiteLayout({
   })();
 
   return (
-    <>
+    /* The tax rates reach every price on screen from here (2026-09-25): the
+       cards, the cart and the checkout summary are all client components and
+       cannot read a setting themselves. */
+    <GstProvider rates={gstRates}>
       <IntroSplash />
 
       <a
@@ -201,6 +207,6 @@ export default async function SiteLayout({
       <CartSync customerId={customer?.id ?? null} />
 
       <JsonLd data={organizationJsonLd()} />
-    </>
+    </GstProvider>
   );
 }

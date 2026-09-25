@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireAdminRole } from "@/lib/auth";
-import { isGstin, setInvoiceGstin } from "@/lib/db/settings";
+import { isGstin, isGstRate, setGstRates, setInvoiceGstin } from "@/lib/db/settings";
 import {
   getAdminPasswordHash,
   setAdminAvatar,
@@ -200,5 +200,47 @@ export async function saveInvoiceGstinAction(
     status: "ok",
     message: gstin ? "GST number saved." : "GST number cleared.",
     values: { gstin },
+  };
+}
+
+/**
+ * The CGST and SGST percentages charged from now on (client, 2026-09-25:
+ * "when we change here it changes for all customers orders as well").
+ *
+ * **Super user only**, and it moves money: every price on the site is shown
+ * with these on top, and every order priced after this is saved is charged
+ * them. Orders already placed keep the amounts they were charged — those are
+ * stored in paise on the row, and re-taxing a sale the customer already has an
+ * invoice for would falsify it.
+ */
+export async function saveGstRatesAction(
+  _prev: ProfileState,
+  formData: FormData,
+): Promise<ProfileState> {
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super"]);
+
+  const cgst = String(formData.get("cgst") ?? "").trim();
+  const sgst = String(formData.get("sgst") ?? "").trim();
+  const fieldErrors: Record<string, string> = {};
+  if (!isGstRate(cgst)) fieldErrors.cgst = "A percentage between 0 and 28, like 9 or 2.5.";
+  if (!isGstRate(sgst)) fieldErrors.sgst = "A percentage between 0 and 28, like 9 or 2.5.";
+  if (Object.keys(fieldErrors).length > 0) {
+    return { status: "error", fieldErrors, values: { cgst, sgst } };
+  }
+
+  try {
+    await setGstRates({ cgst: Number(cgst), sgst: Number(sgst) });
+  } catch (error) {
+    console.error("[admin] saving the GST rates failed:", error);
+    return { status: "error", message: "Could not save that. Try again.", values: { cgst, sgst } };
+  }
+
+  /* Every page that prices anything, which is most of them. */
+  revalidatePath("/", "layout");
+  return {
+    status: "ok",
+    message: `Now charging CGST ${cgst}% and SGST ${sgst}%.`,
+    values: { cgst, sgst },
   };
 }

@@ -430,6 +430,16 @@ Note also that a paid order arrives here already marked **Paid** and
 
 ## Change log
 
+**2026-09-25 (pricing)** — **Product prices are shown with GST included.**
+The figure on a card, a product page or a cart line is what the customer pays;
+the cart and checkout still break it down into Subtotal (excl. GST), CGST,
+SGST, delivery and total. The discount still comes off the M.R.P. first and
+the tax is charged on what is left. The **CGST and SGST percentages** are
+entered beside the GST number under **Tax and invoice details** on
+`/admin/profile` (super user only): changing them changes every price on the
+site and every order placed afterwards, while orders already placed keep what
+they were charged.
+
 **2026-09-25 (invoices)** — **Download invoice** on a customer's order page
 now produces a real PDF: Vkon Automation's letterhead (powered by G.N.
 Technologies), both addresses, the items, CGST and SGST as separate lines, and

@@ -266,6 +266,9 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `account/verify-code/CodeForm` | The sign-in code, with its own resend and cancel actions |
 | `account/OrderFooterActions` | Repeat order (adds this order's lines to the cart and opens the drawer); Download invoice links to the order's PDF |
 | `admin/InvoiceGstinForm` | The business's GST number on `/admin/profile`, super user only |
+| `admin/GstRatesForm` | The CGST and SGST percentages, super user only |
+| `pricing/GstProvider` | Carries the tax rates from the layout to every price on screen |
+| `product/ProductPrice` | The price block; reads the rates to show it tax-inclusive |
 | `cart/CartDrawer` | Slide-over state, Escape, body scroll lock |
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
 | `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection |
@@ -1650,6 +1653,40 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-25 (pricing) — Displayed prices include GST; the rates are a setting
+
+Client: "let the price which is displayed on the products be the price which
+includes sgst and cgst … when they go to cart and checkout, let them see the
+break down as is now", a field for the two percentages beside the GST number,
+and the order of operations spelled out — `price = mrp - discount, then + sgst
++ cgst`.
+
+- **Nothing about what is charged changed.** The taxable base is still the
+  M.R.P. less the discount, an order still stores that base plus two tax
+  amounts, and `totals()` is still the one function both sides call. What
+  changed is which of those numbers a shopper is shown.
+- **`displayPricePaise` / `listPricePaise` / `withGst`** (`lib/pricing.ts`)
+  are the inclusive figures; `ProductPrice` draws them, with "Inclusive of all
+  taxes" under the regular size, and the struck-through M.R.P. carries the tax
+  too or the percentage would stop being the difference between the two.
+- **The cart and checkout show inclusive lines and a breakdown**: "Subtotal
+  (excl. GST)", CGST, SGST, delivery, total — the same rows as before, adding
+  up to what the product page quoted. `CartList` had kept its own rupee
+  arithmetic with `0.09` written into it; it now goes through `totals()` in
+  paise like everything else.
+- **The rates are `site_settings`** (`getGstRates`/`setGstRates`), entered by a
+  super user on `/admin/profile`, validated 0–28 with two decimals. A rate is
+  set by a government, not by a deploy. **Orders already placed keep the
+  amounts they were charged**, and an invoice prints each order's own rate,
+  read back from its own figures.
+- **`GstProvider`** (new client context, mounted in the `(site)` layout) is how
+  the rates reach the cards, the cart and the checkout, which are all client
+  components. The default of 9 + 9 applies outside the provider; what is
+  *charged* never comes from it — every server pricing path reads
+  `getGstRates()` itself.
+- The structured data now quotes the inclusive price too, so the search result
+  and the page agree.
 
 ### 2026-09-25 (site) — "powered by G.N. Technologies" in the footer
 

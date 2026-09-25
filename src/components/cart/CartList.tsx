@@ -7,7 +7,9 @@ import { ArrowRightIcon, TrashIcon } from "@/components/icons/ui";
 import { QuantityStepper } from "@/components/cart/QuantityStepper";
 import { useCartLines } from "@/components/cart/useCart";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
-import { formatRupees, removeFromCart } from "@/lib/cart";
+import { removeFromCart } from "@/lib/cart";
+import { useGst } from "@/components/pricing/GstProvider";
+import { formatPaise, sellingPricePaise, totals, withGst } from "@/lib/pricing";
 import type { Product } from "@/lib/types";
 
 /**
@@ -18,6 +20,12 @@ import type { Product } from "@/lib/types";
 export function CartList({ products }: { products: Product[] }) {
   const lines = useCartLines();
 
+  /* Paise, and through `lib/pricing`, like every other total on the site
+     (2026-09-25): this used to keep its own rupee arithmetic with 9% written
+     into it, which is two implementations of one sum and a rate the admin
+     could no longer change. The prices shown are tax-inclusive, as they are on
+     the product pages; the summary takes them apart again. */
+  const rates = useGst();
   const resolved = useMemo(() => {
     const bySlug = new Map(products.map((p) => [p.slug, p]));
     return (lines ?? [])
@@ -25,28 +33,25 @@ export function CartList({ products }: { products: Product[] }) {
         const product = bySlug.get(line.slug);
         if (!product) return null;
 
-        const price = product.price ?? 0;
-        const discount = product.discountPercent ?? 0;
-        const sellingPrice = discount > 0 ? Math.round((price * (100 - discount)) / 100) : price;
-
+        const base = sellingPricePaise(product);
         return {
           line,
           product,
-          sellingPrice,
-          totalPrice: sellingPrice * line.qty,
+          /** The taxable base, which is what an order stores. */
+          lineBase: base * line.qty,
+          sellingPrice: withGst(base, rates),
+          totalPrice: withGst(base * line.qty, rates),
         };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  }, [lines, products]);
+  }, [lines, products, rates]);
 
-  // Tax and total calculations
-  const subtotal = useMemo(() => {
-    return resolved.reduce((sum, item) => sum + item.totalPrice, 0);
-  }, [resolved]);
-
-  const cgst = Math.round(subtotal * 0.09 * 100) / 100;
-  const sgst = Math.round(subtotal * 0.09 * 100) / 100;
-  const grandTotal = Math.round((subtotal + cgst + sgst) * 100) / 100;
+  const money = useMemo(
+    () => totals(resolved.map((item) => ({ lineTotal: item.lineBase })), 0, rates),
+    [resolved, rates],
+  );
+  const { subtotal, cgst, sgst } = money;
+  const grandTotal = money.total;
 
   // Pre-hydration check
   if (lines === null) return null;
@@ -135,7 +140,7 @@ export function CartList({ products }: { products: Product[] }) {
                       </p>
                     )}
                     <p className="mt-1 text-xs text-muted">
-                      Unit: <span className="font-semibold text-ink">{formatRupees(sellingPrice)}</span>
+                      Unit: <span className="font-semibold text-ink">{formatPaise(sellingPrice)}</span>
                     </p>
                   </div>
                 </div>
@@ -150,7 +155,7 @@ export function CartList({ products }: { products: Product[] }) {
                   <div className="text-right">
                     <span className="text-[11px] uppercase tracking-wider text-muted block">Subtotal</span>
                     <span className="text-base font-bold text-accent tabular-nums">
-                      {formatRupees(totalPrice)}
+                      {formatPaise(totalPrice)}
                     </span>
                   </div>
                 </div>
@@ -222,7 +227,7 @@ export function CartList({ products }: { products: Product[] }) {
 
                     {/* Price */}
                     <td className="px-4 py-5 text-right font-medium text-ink tabular-nums whitespace-nowrap">
-                      {formatRupees(sellingPrice)}
+                      {formatPaise(sellingPrice)}
                     </td>
 
                     {/* Quantity Stepper */}
@@ -239,7 +244,7 @@ export function CartList({ products }: { products: Product[] }) {
 
                     {/* Subtotal */}
                     <td className="px-6 py-5 text-right font-bold text-accent tabular-nums whitespace-nowrap">
-                      {formatRupees(totalPrice)}
+                      {formatPaise(totalPrice)}
                     </td>
 
                     {/* Delete Action */}
@@ -270,8 +275,8 @@ export function CartList({ products }: { products: Product[] }) {
 
         <div className="divide-y divide-line text-sm">
           <div className="flex items-center justify-between py-3.5">
-            <span className="font-semibold text-ink">Subtotal</span>
-            <span className="font-semibold text-ink tabular-nums">{formatRupees(subtotal)}</span>
+            <span className="font-semibold text-ink">Subtotal (excl. GST)</span>
+            <span className="font-semibold text-ink tabular-nums">{formatPaise(subtotal)}</span>
           </div>
 
           <div className="flex items-center justify-between py-3.5">
@@ -285,18 +290,18 @@ export function CartList({ products }: { products: Product[] }) {
           </div>
 
           <div className="flex items-center justify-between py-3.5">
-            <span className="text-muted">CGST 9%</span>
-            <span className="font-medium text-ink tabular-nums">{formatRupees(cgst)}</span>
+            <span className="text-muted">CGST {rates.cgst}%</span>
+            <span className="font-medium text-ink tabular-nums">{formatPaise(cgst)}</span>
           </div>
 
           <div className="flex items-center justify-between py-3.5">
-            <span className="text-muted">SGST 9%</span>
-            <span className="font-medium text-ink tabular-nums">{formatRupees(sgst)}</span>
+            <span className="text-muted">SGST {rates.sgst}%</span>
+            <span className="font-medium text-ink tabular-nums">{formatPaise(sgst)}</span>
           </div>
 
           <div className="flex items-center justify-between py-4 text-base font-bold">
             <span className="text-ink">Total</span>
-            <span className="text-xl font-bold text-accent tabular-nums">{formatRupees(grandTotal)}</span>
+            <span className="text-xl font-bold text-accent tabular-nums">{formatPaise(grandTotal)}</span>
           </div>
         </div>
 

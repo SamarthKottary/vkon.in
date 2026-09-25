@@ -1,3 +1,7 @@
+"use client";
+
+import { useGst } from "@/components/pricing/GstProvider";
+import { displayPricePaise, listPricePaise } from "@/lib/pricing";
 import type { Product } from "@/lib/types";
 
 /**
@@ -8,9 +12,21 @@ import type { Product } from "@/lib/types";
  *
  * **The selling price is derived, never stored.** `price` is the M.R.P. and
  * `discountPercent` the reduction; what the customer pays is computed here, so
- * the three numbers on screen cannot disagree with each other. Rounded to the
- * rupee — half the catalogue is priced in whole hundreds and a trailing `.53`
- * would read as a mistake.
+ * the three numbers on screen cannot disagree with each other.
+ *
+ * **Both figures include GST** (client, 2026-09-25: "let the price which is
+ * displayed on the products be the price which includes sgst and cgst"), in
+ * the order the client set out: M.R.P. less the discount, and tax on what is
+ * left. The M.R.P. beside it carries the same tax, or the percentage would no
+ * longer be the difference between the two. The rates come from
+ * `GstProvider`, so changing them in the admin changes every price on the
+ * site. The checkout takes the same money apart again into its base and the
+ * two tax lines — which is why the taxable base, not this, is what an order
+ * stores.
+ *
+ * Paise are shown only when there are any: tax on a whole-rupee price rarely
+ * lands on a round figure, and hiding the 32p here while the cart charges it
+ * would be the mismatch this component exists to prevent.
  *
  * Three states, and the empty one matters as much as the other two:
  *
@@ -40,13 +56,13 @@ export function ProductPrice({
   variant?: "stacked" | "inline-desktop";
   className?: string;
 }) {
+  const rates = useGst();
   const { price, discountPercent } = product;
   if (price == null) return null;
 
   const hasDiscount = discountPercent != null && discountPercent > 0;
-  const selling = hasDiscount
-    ? Math.round((price * (100 - discountPercent)) / 100)
-    : price;
+  const selling = rupees(displayPricePaise({ price, discountPercent } as Product, rates));
+  const list = rupees(listPricePaise({ price } as Product, rates));
 
   if (size === "regular") {
     return (
@@ -62,7 +78,7 @@ export function ProductPrice({
               ₹
             </span>
             <span className="sr-only">Rupees </span>
-            {selling.toLocaleString("en-IN")}
+            {selling}
           </span>
         </p>
 
@@ -72,10 +88,13 @@ export function ProductPrice({
             <span className="line-through">
               <span aria-hidden>₹</span>
               <span className="sr-only">Rupees </span>
-              {price.toLocaleString("en-IN")}
+              {list}
             </span>
           </p>
         )}
+        {/* Said once, where there is room for it: the figure above is what the
+            customer pays, and the checkout shows the tax inside it. */}
+        <p className="mt-0.5 text-xs text-muted">Inclusive of all taxes</p>
       </div>
     );
   }
@@ -96,7 +115,7 @@ export function ProductPrice({
                 ₹
               </span>
               <span className="sr-only">Rupees </span>
-              {selling.toLocaleString("en-IN")}
+              {selling}
             </span>
           </p>
 
@@ -106,7 +125,7 @@ export function ProductPrice({
               <span className="line-through">
                 <span aria-hidden>₹</span>
                 <span className="sr-only">Rupees </span>
-                {price.toLocaleString("en-IN")}
+                {list}
               </span>
             </p>
           )}
@@ -119,7 +138,7 @@ export function ProductPrice({
               ₹
             </span>
             <span className="sr-only">Rupees </span>
-            {selling.toLocaleString("en-IN")}
+            {selling}
           </span>
 
           {hasDiscount && (
@@ -129,7 +148,7 @@ export function ProductPrice({
                 <span className="line-through">
                   <span aria-hidden>₹</span>
                   <span className="sr-only">Rupees </span>
-                  {price.toLocaleString("en-IN")}
+                  {list}
                 </span>
               </span>
 
@@ -156,7 +175,7 @@ export function ProductPrice({
             ₹
           </span>
           <span className="sr-only">Rupees </span>
-          {selling.toLocaleString("en-IN")}
+          {selling}
         </span>
       </p>
 
@@ -166,10 +185,19 @@ export function ProductPrice({
           <span className="line-through">
             <span aria-hidden>₹</span>
             <span className="sr-only">Rupees </span>
-            {price.toLocaleString("en-IN")}
+            {list}
           </span>
         </p>
       )}
     </div>
   );
+}
+
+/** Paise as a rupee figure, with the paise only when there are any. */
+function rupees(paise: number): string {
+  const whole = paise % 100 === 0;
+  return (paise / 100).toLocaleString("en-IN", {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
 }

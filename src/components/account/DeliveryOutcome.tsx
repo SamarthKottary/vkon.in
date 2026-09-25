@@ -1,5 +1,6 @@
 "use client";
 
+import { useGst } from "@/components/pricing/GstProvider";
 import { useCallback, useRef, useState } from "react";
 import { AlertIcon } from "@/components/icons/ui";
 import { DeliveryPicker } from "@/components/checkout/DeliveryPicker";
@@ -104,6 +105,7 @@ export function DeliveryOutcome({
   onChoose: (courierId: number) => void;
   inForm?: boolean;
 }) {
+  const rates = useGst();
   if (pin === order.shipTo.postalCode) {
     const current = [order.service, order.courierName].filter(Boolean).join(" · ");
     return (
@@ -157,7 +159,7 @@ export function DeliveryOutcome({
 
   const chosen = answer.options.find((o) => o.courierId === chosenId) ?? null;
   const next = chosen
-    ? totals(order.lineTotals.map((lineTotal) => ({ lineTotal })), chosen.ratePaise)
+    ? totals(order.lineTotals.map((lineTotal) => ({ lineTotal })), chosen.ratePaise, rates)
     : null;
   return (
     <div className="space-y-3">

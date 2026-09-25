@@ -4,7 +4,9 @@ import { AdminProfileForm } from "@/components/admin/AdminProfileForm";
 import { AdminAvatarForm } from "@/components/admin/AdminAvatarForm";
 import { AdminPasswordCard } from "@/components/admin/AdminPasswordCard";
 import { InvoiceGstinForm } from "@/components/admin/InvoiceGstinForm";
-import { getInvoiceGstin } from "@/lib/db/settings";
+import { GstRatesForm } from "@/components/admin/GstRatesForm";
+import { getGstRates, getInvoiceGstin } from "@/lib/db/settings";
+import { DEFAULT_GST } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,10 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default async function AdminProfilePage() {
   const admin = await requireAdminPage();
-  const gstin = admin.role === "super" ? await getInvoiceGstin() : "";
+  const [gstin, rates] =
+    admin.role === "super"
+      ? await Promise.all([getInvoiceGstin(), getGstRates()])
+      : ["", DEFAULT_GST];
 
   return (
     <div className="space-y-10 p-6 sm:p-8 lg:p-10">
@@ -66,12 +71,15 @@ export default async function AdminProfilePage() {
           user's to set, and it sits in its own card (client, 2026-09-25). */}
       {admin.role === "super" && (
         <section className="border border-line bg-surface-raised p-6 shadow-card sm:p-8">
-          <h2 className="text-lg font-semibold text-ink">Invoice details</h2>
+          <h2 className="text-lg font-semibold text-ink">Tax and invoice details</h2>
           <p className="mt-1 text-sm text-muted">
-            Used on every invoice a customer downloads from their order history.
+            The GST number printed on invoices, and the rates charged across the site.
           </p>
           <div className="mt-6 max-w-md">
             <InvoiceGstinForm gstin={gstin} />
+          </div>
+          <div className="mt-8 max-w-md border-t border-line pt-6">
+            <GstRatesForm rates={rates} />
           </div>
         </section>
       )}

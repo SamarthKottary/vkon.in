@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { getGstRates } from "@/lib/db/settings";
 import { endAllSessions, getCurrentCustomer, requireCustomer, startSession } from "@/lib/account";
 import {
   createAddress,
@@ -730,7 +731,9 @@ export async function placeOrderAction(
       courierId,
       paymentMode === "cod"
     );
-    const money = totals(priced, delivery?.ratePaise ?? 0);
+    /* The rates the admin has set, read here rather than trusted from the
+       browser — the same reason the prices are (2026-09-25). */
+    const money = totals(priced, delivery?.ratePaise ?? 0, await getGstRates());
     const bySlug = catalogue;
 
     const order = await createOrder({
@@ -1101,7 +1104,7 @@ export async function changeOrderAddressAction(
           courierId: chosen.courierId,
           courierName: chosen.courierName,
           service: serviceName(index, quote.options.length),
-          money: paid ? null : pick(totals(order.items, chosen.ratePaise)),
+          money: paid ? null : pick(totals(order.items, chosen.ratePaise, await getGstRates())),
         };
       }
     }

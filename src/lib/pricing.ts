@@ -27,16 +27,48 @@ import type { Product } from "@/lib/types";
  * between.
  */
 
-/** GST, as the cart has always displayed it: 9% + 9% on an intra-state sale.
+/**
+ * GST, as percentages — 9 + 9 on an intra-state sale.
  *
- *  **This is correct only for a delivery inside the seller's own state.** An
- *  inter-state sale is a single 18% IGST line, not two 9% lines, and it is the
- *  buyer's delivery state that decides which. The site has shown CGST+SGST
- *  since the cart was built and that is left alone here rather than changed
- *  quietly — it is a decision for the business and its accountant, and it is
- *  recorded in ARCHITECTURE.md §11 as an open one. */
-export const CGST_RATE = 0.09;
-export const SGST_RATE = 0.09;
+ * **These are the fallback, not the source.** The live rates are entered by a
+ * super user on `/admin/profile` and live in `site_settings` (client,
+ * 2026-09-25: "a field to enter sgst and cgst percentage, when we change here
+ * it changes for all customers orders as well"), because a rate is set by a
+ * government and not by a deploy. `getGstRates()` reads them on the server and
+ * `GstProvider` carries them to the browser; everything here takes them as an
+ * argument and falls back to these when nobody passed any.
+ *
+ * **Both halves are correct only for a delivery inside the seller's own
+ * state.** An inter-state sale is a single IGST line, not two, and it is the
+ * buyer's delivery state that decides which — still the open decision recorded
+ * in ARCHITECTURE.md §11.
+ */
+export type GstRates = { cgst: number; sgst: number };
+
+export const DEFAULT_GST: GstRates = { cgst: 9, sgst: 9 };
+
+/** The two tax amounts on a base, in paise. Rounded once, per amount. */
+export function gstOn(base: number, rates: GstRates = DEFAULT_GST): { cgst: number; sgst: number } {
+  return {
+    cgst: Math.round((base * rates.cgst) / 100),
+    sgst: Math.round((base * rates.sgst) / 100),
+  };
+}
+
+/**
+ * A base price with the tax on it — **what the customer is shown** (client,
+ * 2026-09-25: "let the price which is displayed on the products be the price
+ * which includes sgst and cgst").
+ *
+ * The order of operations is the client's: `price = mrp - discount, then
+ * + cgst + sgst`. The discount is applied to the M.R.P. first — that is what
+ * `sellingPricePaise` returns — and the tax is charged on what is left, which
+ * is also what the law expects.
+ */
+export function withGst(base: number, rates: GstRates = DEFAULT_GST): number {
+  const { cgst, sgst } = gstOn(base, rates);
+  return base + cgst + sgst;
+}
 
 export type Money = {
   /** All paise. */
@@ -72,6 +104,23 @@ export function sellingPriceRupees(product: Product): number {
 
 export function sellingPricePaise(product: Product): number {
   return sellingPriceRupees(product) * 100;
+}
+
+/**
+ * What a product costs the customer, tax included — the figure on the cards,
+ * the product page, the quick view and the cart lines (client, 2026-09-25).
+ *
+ * The taxable base is still `sellingPricePaise`, and an order's subtotal is
+ * still the sum of those: this is the same money said the way a shopper reads
+ * it, not a second price. The checkout summary takes it apart again.
+ */
+export function displayPricePaise(product: Product, rates: GstRates = DEFAULT_GST): number {
+  return withGst(sellingPricePaise(product), rates);
+}
+
+/** The M.R.P. with tax on it, for the struck-through figure beside it. */
+export function listPricePaise(product: Product, rates: GstRates = DEFAULT_GST): number {
+  return withGst((product.price ?? 0) * 100, rates);
 }
 
 /**
@@ -116,10 +165,13 @@ export function priceLines(
  * price-change dialog's rows go through this same arithmetic rather than a
  * hand-written `subtotal + cgst + sgst + shipping` of their own.
  */
-export function totals(lines: Pick<PricedLine, "lineTotal">[], shipping = 0): Money {
+export function totals(
+  lines: Pick<PricedLine, "lineTotal">[],
+  shipping = 0,
+  rates: GstRates = DEFAULT_GST,
+): Money {
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
-  const cgst = Math.round(subtotal * CGST_RATE);
-  const sgst = Math.round(subtotal * SGST_RATE);
+  const { cgst, sgst } = gstOn(subtotal, rates);
   return { subtotal, cgst, sgst, shipping, total: subtotal + cgst + sgst + shipping };
 }
 

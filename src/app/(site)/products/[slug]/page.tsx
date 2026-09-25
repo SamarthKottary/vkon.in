@@ -1,3 +1,4 @@
+import { getGstRates } from "@/lib/db/settings";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
@@ -69,12 +70,14 @@ export default async function ProductPage({
 
   if (!product) notFound();
 
-  const [all, rating, reviews, customer] = await Promise.all([
+  const [all, rating, reviews, customer, gstRates] = await Promise.all([
     listProducts(),
     productRating(product.id),
     listApprovedReviews(product.id),
     /* Fails soft to null when nobody is signed in — see `getCurrentCustomer`. */
     getCurrentCustomer(),
+    /* The structured data has to quote the price the page shows, tax and all. */
+    getGstRates(),
   ]);
   /* Their own review, whatever the admin has decided about it, shown to them
      alone (client, 2026-09-22). The average stays the approved one, so the
@@ -276,7 +279,7 @@ export default async function ProductPage({
         body="Send the motor rating and your location and we will quote, along with the nearest dealer who stocks it."
       />
 
-      <JsonLd data={productJsonLd(product)} />
+      <JsonLd data={productJsonLd(product, gstRates)} />
       <JsonLd
         data={breadcrumbJsonLd([
           { name: "Home", path: "/" },

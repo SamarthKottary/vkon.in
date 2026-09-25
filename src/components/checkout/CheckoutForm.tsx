@@ -11,7 +11,8 @@ import { AddressDialog, AddressPicker } from "@/components/account/AddressPicker
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
 import { Button } from "@/components/ui/Button";
 import { useCartLines } from "@/components/cart/useCart";
-import { formatPaise, priceLines, totals } from "@/lib/pricing";
+import { formatPaise, priceLines, totals, withGst } from "@/lib/pricing";
+import { useGst } from "@/components/pricing/GstProvider";
 import {
   placeOrderAction,
   quoteDeliveryAction,
@@ -224,7 +225,10 @@ export function CheckoutForm({
 
   /* Declared after the quote because it depends on it: the delivery charge is
      part of the total the moment the courier gives one. */
-  const money = useMemo(() => totals(priced, shippingPaise), [priced, shippingPaise]);
+  /* The rates are the admin's, not a constant (2026-09-25) — the same ones
+     the server prices this order with when it is placed. */
+  const rates = useGst();
+  const money = useMemo(() => totals(priced, shippingPaise, rates), [priced, shippingPaise, rates]);
 
   /**
    * The sequence guard on top of the key.
@@ -565,15 +569,15 @@ export function CheckoutForm({
                     </p>
                     <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                       <p className="text-sm text-muted">
-                        {formatPaise(line.unitPrice)} × {line.qty}
+                        {formatPaise(withGst(line.unitPrice, rates))} × {line.qty}
                       </p>
                       <p className="font-bold tabular-nums text-ink sm:hidden">
-                        {formatPaise(line.lineTotal)}
+                        {formatPaise(withGst(line.lineTotal, rates))}
                       </p>
                     </div>
                   </div>
                   <p className="hidden shrink-0 font-bold tabular-nums text-ink sm:block">
-                    {formatPaise(line.lineTotal)}
+                    {formatPaise(withGst(line.lineTotal, rates))}
                   </p>
                 </li>
               );
@@ -646,12 +650,12 @@ export function CheckoutForm({
 
         <div className="divide-y divide-line text-sm">
           <Row
-            label={`Subtotal · ${totalQty} item${totalQty === 1 ? "" : "s"}`}
+            label={`Subtotal (excl. GST) · ${totalQty} item${totalQty === 1 ? "" : "s"}`}
             value={formatPaise(money.subtotal)}
             strong
           />
-          <Row label="CGST 9%" value={formatPaise(money.cgst)} />
-          <Row label="SGST 9%" value={formatPaise(money.sgst)} />
+          <Row label={`CGST ${rates.cgst}%`} value={formatPaise(money.cgst)} />
+          <Row label={`SGST ${rates.sgst}%`} value={formatPaise(money.sgst)} />
           {/* Three states, and each is honest about what is known. A real
               rate once the courier has given one; "Calculating…" while the
               request is out; and the phone-call wording when there is no

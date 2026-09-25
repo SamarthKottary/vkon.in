@@ -1,3 +1,4 @@
+import { getGstRates } from "@/lib/db/settings";
 import { listProducts } from "@/lib/db/products";
 import { serviceName, sameServiceIndex } from "@/lib/order-delivery";
 import { packParcel } from "@/lib/parcel";
@@ -81,7 +82,7 @@ export async function priceOrderNow(
     console.error("[reprice] delivery re-quote failed:", error);
   }
 
-  return { lines, money: totals(lines, shipping), shippingOptions, delivery };
+  return { lines, money: totals(lines, shipping, await getGstRates()), shippingOptions, delivery };
 }
 
 /**

@@ -1,5 +1,6 @@
 "use client";
 
+import { useGst } from "@/components/pricing/GstProvider";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { AlertIcon, ArrowRightIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
@@ -430,6 +431,7 @@ function PriceChangeDialog({
   onClose: () => void;
   onUpdate: (total: number, courierId: number | null) => void;
 }) {
+  const rates = useGst();
   const options = change.shippingOptions ?? [];
   const [selectedCourierId, setSelectedCourierId] = useState<number | null>(() => {
     if (options.length > 0) {
@@ -443,7 +445,11 @@ function PriceChangeDialog({
   const previous = change.previous;
   const selected = options.find((o) => o.courierId === selectedCourierId);
   const nextShipping = selected ? selected.ratePaise : (change.next?.shipping ?? 0);
-  const next = change.next ? (lines.length > 0 ? totals(lines, nextShipping) : change.next) : undefined;
+  const next = change.next
+    ? lines.length > 0
+      ? totals(lines, nextShipping, rates)
+      : change.next
+    : undefined;
   const newTotal = next ? next.total : change.newTotal;
 
   const rose = newTotal > change.previousTotal;

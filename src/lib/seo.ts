@@ -1,3 +1,4 @@
+import { DEFAULT_GST, displayPricePaise, type GstRates } from "@/lib/pricing";
 import type { Metadata } from "next";
 import { formattedAddress, site } from "@/content/site";
 import type { Product } from "./types";
@@ -113,7 +114,7 @@ export function organizationJsonLd() {
   };
 }
 
-export function productJsonLd(product: Product) {
+export function productJsonLd(product: Product, rates: GstRates = DEFAULT_GST) {
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -140,24 +141,19 @@ export function productJsonLd(product: Product) {
        and Search Console reports it as an error against the page rather than
        ignoring it, which is worse than having no offer at all.
 
-       The figure is the *selling* price, matching what the page shows: the
-       same derivation as `product/ProductPrice`, deliberately duplicated
-       rather than imported, because that module is a component and this one is
-       plain data with no React in it. If the rounding rule there changes, it
-       has to change here too — the two are checked against each other by the
-       structured-data test, which flags a price that disagrees with the visible
-       one. */
+       The figure is the *selling* price **with GST on it**, matching what the
+       page shows since 2026-09-25 — Google flags an offer price that
+       disagrees with the visible one, and a shopper comparing the search
+       result against the page would too. It comes from `lib/pricing`, the
+       same functions `product/ProductPrice` draws with; the rates are the
+       admin's, passed in by the page because this module is plain data with
+       no database access of its own. */
     ...(product.price != null
       ? {
           offers: {
             "@type": "Offer",
             priceCurrency: "INR",
-            price:
-              product.discountPercent != null && product.discountPercent > 0
-                ? Math.round(
-                    (product.price * (100 - product.discountPercent)) / 100,
-                  )
-                : product.price,
+            price: (displayPricePaise(product, rates) / 100).toFixed(2),
             url: `${site.url}/products/${product.slug}`,
             availability: "https://schema.org/InStock",
           },

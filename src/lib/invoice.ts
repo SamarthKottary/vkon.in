@@ -200,10 +200,13 @@ export async function renderInvoice(order: Order, details: InvoiceDetails): Prom
   /* ---- Totals, against the item count on the left ---- */
   const quantity = order.items.reduce((sum, item) => sum + item.qty, 0);
   const totalsX = LEFT + 300;
+  /* **Each order's own rates, read back from its own figures** — not today's
+     setting (2026-09-25, when the rates became changeable). An invoice
+     reprinted after a rate change has to say what was charged. */
   const totals: [string, string, boolean][] = [
     ["Subtotal (excl. GST)", rupees(order.subtotal), false],
-    ["CGST 9%", rupees(order.cgst), false],
-    ["SGST 9%", rupees(order.sgst), false],
+    [`CGST ${percent(order.cgst, order.subtotal)}`, rupees(order.cgst), false],
+    [`SGST ${percent(order.sgst, order.subtotal)}`, rupees(order.sgst), false],
     ["Delivery", order.shipping > 0 ? rupees(order.shipping) : "Not charged", false],
     ["Total", rupees(order.total), true],
   ];
@@ -311,6 +314,13 @@ function paymentStanding(order: Order): string {
       : `Payable on delivery: ${rupees(order.total)}`;
   }
   return order.paymentStatus === "paid" ? "Paid online" : `Payable: ${rupees(order.total)}`;
+}
+
+/** "9%" — a tax line's rate, worked back from the amount it came to. */
+function percent(tax: number, base: number): string {
+  if (base <= 0) return "";
+  const rate = (tax / base) * 100;
+  return `${Number(rate.toFixed(2))}%`;
 }
 
 /** A single-line cell that must not spill into the next one. */
