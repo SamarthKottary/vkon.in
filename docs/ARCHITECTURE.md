@@ -291,7 +291,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `admin/orders/SortSelect` | Newest/oldest-first `<select>`; navigates on change, GET form + `<noscript>` fallback |
 | `admin/orders/BookShipmentButton` | Book shipment, reading Initializing… then Processing… while Shiprocket answers |
 | `admin/orders/NotReadyButton` | Not ready on a booked order: confirms, then un-books it back to Confirmed |
-| `admin/orders/OrderFinder` | Scan and Find: the camera, a barcode reader (native or `lib/barcode.ts`), a photo or a typed number, and the order as a pop-up over an unmoved list |
+| `admin/orders/OrderFinder` | Scan and the search box: the camera, a barcode reader (native or `lib/barcode.ts`), a photo or a typed number — all of which filter the list to that order |
 | `admin/orders/RefundForm` | Confirms the refund amount before submitting; pending state while Razorpay answers |
 
 Everything else is a server component.
@@ -898,7 +898,6 @@ action) read an optional `view` field — the page's `q`/`page`/`status` — and
 redirect back to it through `backTo`. `returnView` rebuilds it key by key, so
 it can never become an open redirect or a forged outcome message.
 | `setOrderStatusAction` | `(formData) → void` — status re-validated against a fixed list, never trusted from the `<select>`; cannot set `payment_status` |
-| `findOrdersAction` | `(query: string) → {orders: FoundOrder[], error?: "access"}` — **the one admin action that returns data instead of redirecting**, for the Scan/Find dialog. Matches order number, AWB, email or phone (`findOrdersForLookup`), and returns only what that dialog draws, never the whole order |
 
 `ActionState = { error?, fieldErrors?: Record<string,string>, ok? }`, consumed by
 `useActionState` in the forms.
@@ -923,7 +922,7 @@ it can never become an open redirect or a forged outcome message.
 | `settings.ts` | `isSigninCodeOn`, `setSigninCodeOn` — the runtime switches |
 | `customers.ts` | `findCustomerByEmail/ById/ByGoogleSub`, `createCustomer`, `getPasswordHash`, `updateCustomerProfile`, `setCustomerPassword`, `markEmailVerified`, `linkGoogleAccount`, `createSession`, `customerForSession`, `deleteSession(sForCustomer)`, `sweepExpiredSessions`, `createToken`, `consumeToken`, `invalidateTokens` |
 | `addresses.ts` | `listAddresses`, `getAddress`, `createAddress`, `updateAddress`, `deleteAddress`, `setDefaultAddress` |
-| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByFilter`, `orderSummary`, `setOrderStatus`, `findOrdersForLookup`, `adminOrderSection`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
+| `orders.ts` | `createOrder`, `listOrdersForCustomer`, `getOrderForCustomer`, `listOrdersPage`, `countOrdersByFilter`, `orderSummary`, `setOrderStatus`, `attachPaymentOrder`, `markOrderPaid`, `markPaymentFailed`, `findOrderByPaymentOrderId` |
 
 **`customers.ts` is the exception to "reads fail soft."** Everywhere else an
 empty list beats a 500 for a visitor; during a sign-in it would mean a database
@@ -1655,6 +1654,26 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-25 (admin, orders) — Scan and the search filter the list again
+
+Client, after a day with the pop-up: "let the scan and search bar, filter and
+show the order, no need for a pop up." A card in the list carries the status
+control, Book shipment, Not ready and the refund button; a read-only summary
+on top of it could only ever be a step towards those.
+
+- **The search box is a plain GET form** again (`?q=`), and **Scan pushes what
+  it read into the same search** — so both end at the order's own card. A
+  scanned `-R2` retry suffix is stripped first: that is Shiprocket's reference
+  for the parcel, not ours.
+- **A search drops `?status=`.** An order looked up by number, AWB or phone is
+  wanted whatever section it is in, and "no orders match" while standing in
+  Ready to ship was the sharpest edge of the old behaviour. The chips narrow it
+  again afterwards.
+- **`ORDER_SEARCH_SQL` now matches `awb`**, so a number scanned off a label
+  finds its order at all.
+- Gone with the pop-up: `findOrdersAction`, `FoundOrder`, `findOrdersForLookup`
+  and `adminOrderSection`. The scanner dialog stays, since a camera needs one.
 
 ### 2026-09-25 (pricing) — The price block reads M.R.P. first
 

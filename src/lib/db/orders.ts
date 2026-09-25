@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { getPool, isDatabaseConfigured, query } from "./client";
 import { PER_PAGE, clampPage, containsPattern, phoneDigits } from "@/lib/admin-list";
 import { addressEditWindow } from "@/lib/order-delivery";
-import { CONFIRMED_ORDER_SQL, isConfirmedOrder } from "@/lib/order-payment";
+import { CONFIRMED_ORDER_SQL } from "@/lib/order-payment";
 import { mapShipmentStatus, mergeTrackingEvents } from "@/lib/tracking";
 import type {
   Order,
@@ -438,6 +438,9 @@ export type AdminOrderFilter = keyof typeof ADMIN_ORDER_FILTER_SQL;
  * and $3 (its phone digits, or "").
  */
 const ORDER_SEARCH_SQL = `($1 = '' OR order_number ILIKE $2
+  /* The AWB too (2026-09-25), so a number scanned off a parcel label finds
+     its order in the list — which is what the Scan button now searches for. */
+  OR awb ILIKE $2
   OR customer_id IN (
     SELECT id FROM customers
      WHERE email ILIKE $2
@@ -595,87 +598,6 @@ export async function getOrderForAdmin(orderId: string): Promise<Order | null> {
     console.error("[db] admin order fetch failed:", error);
     return null;
   }
-}
-
-/**
- * Orders matching something scanned off a label or typed into the admin's
- * search — an AWB, an order number, an email or a phone (client, 2026-09-24
- * for the Scan button, 2026-09-25 for the search box, which now opens the
- * same pop-up instead of moving the list).
- *
- * A barcode is normalised first: barcodes carry no case or spacing of their
- * own, and a **retry suffix** (`VK-0923-98FT-R2`, from `nextShipmentTry`) is
- * Shiprocket's reference for the parcel, not ours — the order behind it is
- * the same one.
- *
- * **Not limited to the orders the list shows.** `listOrdersPage` leaves out
- * an online order that was never paid; looking one up by its own number and
- * being told it does not exist would be a worse answer than showing it and
- * saying it is not in the list (see `adminOrderSection`).
- */
-export async function findOrdersForLookup(q: string, limit = 10): Promise<Order[]> {
-  const text = q.trim();
-  if (!text || text.length > 100) return [];
-  /* `VK-0923-98FT-R2` -> `VK-0923-98FT`; an AWB is digits and keeps its own. */
-  const code = text.toUpperCase().replace(/\s+/g, "").replace(/-R\d+$/, "");
-  try {
-    const rows = await query<OrderRow>(
-      `SELECT ${ORDER_SELECT} FROM orders
-        WHERE awb = $4 OR upper(order_number) = $4 OR ${ORDER_SEARCH_SQL}
-        ORDER BY created_at DESC
-        LIMIT $5`,
-      [...searchArgs(text), code, Math.min(limit, 25)],
-    );
-    if (rows.length === 0) return [];
-
-    const items = await query<ItemRow>(
-      `SELECT ${ITEM_SELECT} FROM order_items WHERE order_id = ANY($1::text[])`,
-      [rows.map((row) => row.id)],
-    );
-    return rows.map((row) =>
-      mapOrder(
-        row,
-        items.filter((item) => item.order_id === row.id).map(mapItem),
-      ),
-    );
-  } catch (error) {
-    console.error("[db] order lookup failed:", error);
-    return [];
-  }
-}
-
-/**
- * Which section of `/admin/orders` an order is in — the same eight the filter
- * chips offer, worked out in TypeScript so a pop-up can say where an order
- * lives without moving the list to it (client, 2026-09-25).
- *
- * **It must agree with `ADMIN_ORDER_FILTER_SQL` above**; the clauses there are
- * the authority, this is the same rules for one row in hand. The ninth answer
- * is the one the chips cannot show: an online order that was never paid is in
- * no section at all, because the list leaves it out.
- */
-export function adminOrderSection(order: Order): { key: string; label: string } {
-  if (!isConfirmedOrder(order)) return { key: "unlisted", label: "Not in the list — unpaid" };
-  if (order.status === "cancelled") {
-    const refundOwed =
-      order.paymentProvider === "razorpay" &&
-      Boolean(order.paymentId) &&
-      (order.paymentStatus === "paid" || order.paymentStatus === "refunded" || order.refundedAmount > 0) &&
-      (order.total - order.refundedAmount > 0 || order.refundPending);
-    return refundOwed
-      ? { key: "refund-cancelled", label: "Refund-cancelled" }
-      : { key: "cancelled", label: "Cancelled" };
-  }
-  if (order.status === "delivered") return { key: "delivered", label: "Delivered" };
-  if (order.status === "shipped") return { key: "shipped", label: "Shipped" };
-  if (order.status === "confirmed") {
-    return order.awb
-      ? { key: "ready", label: "Ready to ship" }
-      : { key: "confirmed", label: "Confirmed" };
-  }
-  return order.shipping <= 0
-    ? { key: "pending-unquoted", label: "Pending — not quoted" }
-    : { key: "pending", label: "Pending" };
 }
 
 /**

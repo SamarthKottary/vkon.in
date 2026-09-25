@@ -462,6 +462,12 @@ an item's picture and name **open that product in a new tab**. Nothing is lost
 from the order you were working on. An item whose product has since been
 deleted stays plain text.
 
+**2026-09-25 (orders, later)** — Scan and the search box **filter the list**
+to the order, rather than opening a pop-up over it: the card is where an order
+is worked on. A search also clears the section filter, so an order is found
+whatever section it is in, and the AWB is searchable now — scanning a parcel
+label lands on its card.
+
 **2026-09-25 (orders)** — **Looking an order up no longer moves the list.**
 Scan and the search box both open the order as a pop-up: which section holds
 it (Confirmed, Ready to ship, Delivered …), the items, the money, the delivery

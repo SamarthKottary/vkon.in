@@ -145,11 +145,11 @@ export default async function AdminOrdersPage({
           </p>
         </div>
 
-        {/* Scan and Find, which both open the order in a pop-up rather than
-            moving the list to it (client, 2026-09-24 and 2026-09-25). The
-            `?q=` filter still works from a link; `OrderFinder` offers the way
-            out of one. */}
-        <OrderFinder q={query.q} />
+        {/* Scan and the search box, which both filter the list to the order
+            (client, 2026-09-25 — the pop-up they opened for a day is gone).
+            A search drops the status filter so an order is found whatever
+            section it is in. */}
+        <OrderFinder q={query.q} sort={sort} />
       </div>
 
       {!isDatabaseConfigured() && (

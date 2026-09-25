@@ -1,34 +1,34 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { ScanIcon, SpinnerIcon } from "@/components/icons/ui";
-import { OrderAddress } from "@/components/account/OrderAddress";
 import { readBarcode } from "@/lib/barcode";
-import { formatPaise } from "@/lib/pricing";
-import { findOrdersAction, type FoundOrder } from "@/app/admin/actions";
+import { listHref } from "@/lib/admin-list";
 
 /**
- * **Find an order** on `/admin/orders`: the Scan button and the search box,
- * which both open the same pop-up over a list that does not move.
+ * **Find an order** on `/admin/orders`: the Scan button and the search box.
  *
- * **The list behind stays where it is** (client, 2026-09-25: "it should not
- * effect the background … It should just pop show the details"). Looking an
- * order up used to mean searching for it, which re-filtered the page and lost
- * whatever section was being worked through; now the answer arrives on top and
- * the chips, the page and the scroll position are exactly as they were. The
- * pop-up says which section the order is in instead of taking you there.
+ * **Both filter the list** (client, 2026-09-25, after a day with the other
+ * arrangement: "let the scan and search bar, filter and show the order, no
+ * need for a pop up"). Scanning a parcel label puts what it read into the
+ * search and the page comes back showing that order, with everything the card
+ * already offers — the status control, Book shipment, the refund button —
+ * instead of a read-only summary on top of it.
  *
- * **Scanning.** Both barcodes on a Shiprocket label work — the AWB and the
- * order number — and the reading is done by `BarcodeDetector` where it exists,
- * else by `lib/barcode.ts`, this repo's own Code 128 reader, because the
- * native one is missing on the devices this is used from. Three ways in, since
- * cameras disappoint: the live view, a photograph (on a phone that opens the
- * camera app, which focuses properly), and the number typed.
+ * **A search drops the status filter.** An order looked up by number, AWB or
+ * phone is wanted whatever section it is in, and "no orders match" while
+ * standing in Ready to ship was the old behaviour's sharpest edge. The chips
+ * are still there to narrow it again afterwards.
  *
- * The camera is opened only while the dialog is open and every track is
- * stopped when it closes; frames never leave the browser — only the decoded
- * string is sent, to `findOrdersAction`.
+ * **Reading the barcode: the browser's reader, or ours.** `BarcodeDetector`
+ * where it exists; `lib/barcode.ts` — this repo's own Code 128 reader —
+ * everywhere else, since the native one is missing on the devices this is used
+ * from. Three ways in, because cameras disappoint: the live view, a photograph
+ * (on a phone that opens the camera app, which focuses properly), and the
+ * number typed. The camera is opened only while the dialog is open and every
+ * track is stopped when it closes; frames never leave the browser.
  */
 
 /* The native API is not in `lib.dom` yet; this is the part of it used here. */
@@ -44,81 +44,47 @@ const SCAN_WIDTH = 1280;
 /** A photograph is worth more pixels: it is read once, not five times a second. */
 const PHOTO_WIDTH = 2000;
 
-type View =
-  | { kind: "closed" }
-  | { kind: "scan" }
-  | { kind: "looking"; query: string }
-  | { kind: "results"; query: string; orders: FoundOrder[]; scanning: boolean }
-  | { kind: "order"; order: FoundOrder; from: "scan" | "search" | "results" }
-  | { kind: "empty"; query: string; message: string; scanning: boolean };
+export function OrderFinder({ q, sort }: { q: string; sort: string }) {
+  const router = useRouter();
+  const [scanning, setScanning] = useState(false);
 
-export function OrderFinder({ q }: { q: string }) {
-  const [view, setView] = useState<View>({ kind: "closed" });
-  const [typed, setTyped] = useState("");
-  /* Held so "Back to results" can return to the list of matches rather than
-     making the operator search again. */
-  const [results, setResults] = useState<{ query: string; orders: FoundOrder[] } | null>(null);
-
-  async function find(query: string, from: "scan" | "search") {
-    setView({ kind: "looking", query });
-    setResults(null);
-    try {
-      const { orders, error } = await findOrdersAction(query);
-      if (error === "access") {
-        setView({ kind: "empty", query, message: "Your role cannot open orders.", scanning: false });
-      } else if (orders.length === 0) {
-        setView({
-          kind: "empty",
-          query,
-          message: `No order matches ${query}.`,
-          scanning: from === "scan",
-        });
-      } else if (orders.length === 1) {
-        setView({ kind: "order", order: orders[0], from });
-      } else {
-        setResults({ query, orders });
-        setView({ kind: "results", query, orders, scanning: from === "scan" });
-      }
-    } catch {
-      setView({
-        kind: "empty",
-        query,
-        message: "Could not reach the server. Try again.",
-        scanning: false,
-      });
-    }
-  }
+  /** What a scan or a typed code searches for. */
+  const search = (value: string) => {
+    /* `VK-0923-98FT-R2` is Shiprocket's reference for a retried booking; the
+       order is `VK-0923-98FT`, which is what the list holds. */
+    const code = value.trim().replace(/-R\d+$/i, "");
+    setScanning(false);
+    router.push(listHref("/admin/orders", { q: code, sort }));
+  };
 
   return (
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <button
         type="button"
-        onClick={() => setView({ kind: "scan" })}
+        onClick={() => setScanning(true)}
         className="inline-flex h-10 shrink-0 items-center gap-2 border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
       >
         <ScanIcon className="h-4 w-4" />
         Scan
       </button>
 
-      {/* A form, so Enter works and a password manager leaves it alone — but
-          it never navigates: the answer is a dialog, not a new page. */}
+      {/* A plain GET form, like the other admin lists: the view lives in the
+          URL, and it works before any JavaScript arrives. `status` is
+          deliberately not kept — see the note above. */}
       <form
+        action="/admin/orders"
         role="search"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const value = typed.trim();
-          if (value) void find(value, "search");
-        }}
         className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-none"
       >
+        {sort && <input type="hidden" name="sort" value={sort} />}
         <label htmlFor="find-order" className="sr-only">
-          Find an order by number, AWB, email or phone
+          Search orders by number, AWB, email or phone
         </label>
         <input
           id="find-order"
           type="search"
-          value={typed}
-          onChange={(event) => setTyped(event.target.value)}
+          name="q"
+          defaultValue={q}
           placeholder="Order number, AWB, email or phone"
           className="h-10 min-w-0 flex-1 border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink sm:w-72"
         />
@@ -126,82 +92,24 @@ export function OrderFinder({ q }: { q: string }) {
           type="submit"
           className="h-10 border border-line-strong px-4 text-sm font-medium text-ink hover:border-ink hover:bg-surface-subtle"
         >
-          Find
+          Search
         </button>
-        {/* Only when an old `?q=` link is what filtered the list — the box
-            itself no longer touches it. */}
         {q && (
-          <a href="/admin/orders" className="h-10 px-2 text-sm leading-10 text-accent hover:underline">
-            Clear filter
+          <a
+            href={listHref("/admin/orders", { sort })}
+            className="h-10 px-2 text-sm leading-10 text-accent hover:underline"
+          >
+            Clear
           </a>
         )}
       </form>
 
-      {view.kind !== "closed" && (
-        <FinderDialog
-          view={view}
-          onView={setView}
-          onFind={(value) => find(value, "scan")}
-          onBack={
-            results && results.orders.length > 1
-              ? () => setView({ kind: "results", ...results, scanning: false })
-              : undefined
-          }
-          onClose={() => setView({ kind: "closed" })}
-        />
+      {scanning && (
+        <Modal title="Scan a parcel label" onClose={() => setScanning(false)} size="lg">
+          <Scanner onCode={search} />
+        </Modal>
       )}
     </div>
-  );
-}
-
-function FinderDialog({
-  view,
-  onView,
-  onFind,
-  onBack,
-  onClose,
-}: {
-  view: View;
-  onView: (view: View) => void;
-  onFind: (value: string) => void;
-  /** Set when this search turned up several orders. */
-  onBack?: () => void;
-  onClose: () => void;
-}) {
-  const title =
-    view.kind === "order"
-      ? `Order ${view.order.orderNumber}`
-      : view.kind === "results"
-        ? "Which order?"
-        : "Find an order";
-
-  return (
-    <Modal title={title} onClose={onClose} size="lg">
-      {view.kind === "order" ? (
-        <OrderDetails
-          order={view.order}
-          onBack={onBack}
-          onScan={() => onView({ kind: "scan" })}
-          onClose={onClose}
-        />
-      ) : view.kind === "results" ? (
-        <ResultList
-          orders={view.orders}
-          query={view.query}
-          onPick={(order) => onView({ kind: "order", order, from: "results" })}
-        />
-      ) : view.kind === "looking" ? (
-        <p className="flex items-center gap-2 py-6 text-sm text-body">
-          <SpinnerIcon className="h-4 w-4" />
-          Looking up {view.query}…
-        </p>
-      ) : (
-        <Scanner
-          note={view.kind === "empty" ? view.message : null}
-          onCode={onFind}
-        />
-      )}
-    </Modal>
   );
 }
 
@@ -237,7 +145,7 @@ function makeReader(): (source: HTMLVideoElement | HTMLCanvasElement) => Promise
 type Phase = "starting" | "scanning" | "nocamera" | "denied" | "reading";
 
 /** The camera, a photograph, or the number typed. */
-function Scanner({ note, onCode }: { note: string | null; onCode: (value: string) => void }) {
+function Scanner({ onCode }: { onCode: (value: string) => void }) {
   const [phase, setPhase] = useState<Phase>("starting");
   const [problem, setProblem] = useState<string | null>(null);
   const [typed, setTyped] = useState("");
@@ -344,12 +252,6 @@ function Scanner({ note, onCode }: { note: string | null; onCode: (value: string
 
   return (
     <div className="space-y-4">
-      {note && (
-        <p role="status" className="border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-body">
-          {note}
-        </p>
-      )}
-
       {live ? (
         <div className="relative overflow-hidden border border-line bg-graphite-950">
           <video
@@ -383,7 +285,10 @@ function Scanner({ note, onCode }: { note: string | null; onCode: (value: string
       )}
 
       {problem && (
-        <p role="status" className="border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-body">
+        <p
+          role="status"
+          className="border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-body"
+        >
           {problem}
         </p>
       )}
@@ -427,187 +332,12 @@ function Scanner({ note, onCode }: { note: string | null; onCode: (value: string
         <button
           type="submit"
           disabled={!typed.trim()}
-          className="inline-flex h-10 items-center border border-accent bg-accent px-4 text-sm font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50"
+          className="inline-flex h-10 items-center gap-1.5 border border-accent bg-accent px-4 text-sm font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50"
         >
+          {phase === "reading" && <SpinnerIcon className="h-3.5 w-3.5" />}
           Find
         </button>
       </form>
     </div>
   );
-}
-
-/** Several matches — a phone number, an email — newest first. */
-function ResultList({
-  orders,
-  query,
-  onPick,
-}: {
-  orders: FoundOrder[];
-  query: string;
-  onPick: (order: FoundOrder) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-body">
-        {orders.length} orders match <span className="text-ink">{query}</span>.
-      </p>
-      <ul className="divide-y divide-line border border-line">
-        {orders.map((order) => (
-          <li key={order.id}>
-            <button
-              type="button"
-              onClick={() => onPick(order)}
-              className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 text-left transition-colors hover:bg-surface-subtle"
-            >
-              <span className="font-mono text-sm font-semibold text-ink">{order.orderNumber}</span>
-              <span className="label-tech text-muted">
-                {order.section} · {formatDate(order.createdAt)}
-              </span>
-              <span className="text-sm font-semibold text-accent">{formatPaise(order.total)}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** One order, read-only: what it is, where it is, and who it is going to. */
-function OrderDetails({
-  order,
-  onBack,
-  onScan,
-  onClose,
-}: {
-  order: FoundOrder;
-  onBack?: () => void;
-  onScan: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <span className="inline-flex items-center border border-accent px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
-          {order.section}
-        </span>
-        <p className="label-tech text-muted">
-          {order.paymentLabel} · ordered {formatDate(order.createdAt)}
-        </p>
-      </div>
-
-      <div>
-        <p className="label-tech text-muted">Items</p>
-        <ul className="mt-2 space-y-1.5 text-sm">
-          {order.items.map((item, index) => (
-            <li key={`${item.name}-${index}`} className="flex justify-between gap-4">
-              {/* The product in a new tab, as on the cards behind — this
-                  pop-up exists so the list is not disturbed, and a link that
-                  navigated would disturb it (client, 2026-09-25). */}
-              {item.productId && item.slug ? (
-                <a
-                  href={`/products/${item.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-ink hover:text-accent hover:underline"
-                >
-                  {item.name} <span className="text-muted">× {item.qty}</span>
-                </a>
-              ) : (
-                <span className="text-ink">
-                  {item.name} <span className="text-muted">× {item.qty}</span>
-                </span>
-              )}
-              <span className="tabular-nums text-body">{formatPaise(item.lineTotal)}</span>
-            </li>
-          ))}
-        </ul>
-        <dl className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
-          <Row label="Subtotal" value={formatPaise(order.subtotal)} />
-          <Row label="GST" value={formatPaise(order.tax)} />
-          <Row
-            label={order.deliveryService ? `Delivery · ${order.deliveryService}` : "Delivery"}
-            value={order.shipping > 0 ? formatPaise(order.shipping) : "Not quoted"}
-          />
-          <Row label="Total" value={formatPaise(order.total)} strong />
-        </dl>
-      </div>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <p className="label-tech text-muted">Deliver to</p>
-          <OrderAddress address={order.shipTo} />
-        </div>
-        <div>
-          <p className="label-tech text-muted">Bill to</p>
-          {order.sameAddress ? (
-            <p className="mt-3 text-sm text-body">Same as the delivery address.</p>
-          ) : (
-            <OrderAddress address={order.billTo} />
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-1 border-t border-line pt-4 text-sm">
-        {order.email && (
-          <p className="text-body">
-            Account <span className="text-ink">{order.email}</span>
-          </p>
-        )}
-        {order.awb ? (
-          <p className="text-body">
-            {order.courierName || "Courier"} ·{" "}
-            <span className="font-mono text-ink">{order.awb}</span>
-            {order.trackingStatus && <span className="text-muted"> · {order.trackingStatus}</span>}
-          </p>
-        ) : (
-          <p className="text-muted">No parcel booked yet.</p>
-        )}
-      </div>
-
-      {/* Nothing here navigates: the list behind is exactly as it was left. */}
-      <div className="flex flex-wrap items-center gap-2">
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex h-10 items-center border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
-          >
-            Back to results
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onScan}
-          className="inline-flex h-10 items-center gap-2 border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
-        >
-          <ScanIcon className="h-4 w-4" />
-          Scan another
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex h-10 items-center border border-accent bg-accent px-4 text-sm font-medium text-white transition-colors hover:bg-accent-strong"
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <dt className={strong ? "font-semibold text-ink" : "text-body"}>{label}</dt>
-      <dd className={`tabular-nums ${strong ? "font-semibold text-ink" : "text-body"}`}>{value}</dd>
-    </div>
-  );
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
