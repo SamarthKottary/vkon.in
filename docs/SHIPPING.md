@@ -406,10 +406,16 @@ Shiprocket label carries — the AWB and the order number are both printed as
 Code 128 — and shows that order in a dialog, with a link to its card in the
 list (client, 2026-09-24).
 
-No scanning library: the browser's own `BarcodeDetector` reads the frame, so
-the runtime dependencies stay at next/react/react-dom. It exists in Chrome on
-Android, which is what will be held over a parcel; where it does not (Firefox,
-desktop Linux) the dialog says so and takes the number typed or pasted, which
+**It works in every browser**, because the reading is done here: the native
+`BarcodeDetector` where it exists (hardware-accelerated), else `lib/barcode.ts`
+— a Code 128 reader in this repo, written rather than installed, since a
+scanning library is hundreds of kilobytes of WASM for one symbology and
+Shiprocket prints only Code 128. A decode is accepted only when the symbol's
+checksum agrees, so a misread is dropped rather than opening the wrong order.
+
+Three ways in, because cameras disappoint: the live view; **Use a photo**,
+which on a phone opens the camera app and so comes back focused, and is read
+at a higher resolution than the preview; and the number typed or pasted, which
 is also what to do with a scuffed label. `findOrderByCode` matches `awb` or
 `order_number` and strips a `-R2` retry suffix first (4.3d).
 

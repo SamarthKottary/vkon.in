@@ -433,8 +433,9 @@ Note also that a paid order arrives here already marked **Paid** and
 **2026-09-24 (orders, later)** — A **Scan** button left of the search on
 `/admin/orders`: point the camera at a parcel label and the order comes up in
 a pop-up, with a link to its card. Either barcode works — the AWB or the order
-number — and where the browser cannot read barcodes (Firefox, desktop Linux;
-Chrome on Android can) the same dialog takes the number typed or pasted. Also,
+number — on any browser and any camera, laptop included. If the light or the
+focus will not cooperate, **Use a photo** in the same dialog reads a
+photograph instead, and the number can always be typed. Also,
 the **booking and address-change cutoff moved from 12 pm to 11 am** the day
 after an order is confirmed.
 

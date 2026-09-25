@@ -210,6 +210,8 @@ src/
     tracking.ts  courier status words → order status, customer labels, dates;
                  no `node:` imports, so the order list (client) shares it
     razorpay.ts  order creation + the two signature verifiers; no SDK
+    barcode.ts   a Code 128 reader for the admin's Scan button; no library,
+                 no DOM types — takes pixels, returns the string
     pricing.ts   the ONE money calculation, shared by browser and server
     cart.ts      the basket, in localStorage
     rate-limit.ts in-memory fixed window; guards the public sign-up
@@ -280,7 +282,7 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `admin/orders/SortSelect` | Newest/oldest-first `<select>`; navigates on change, GET form + `<noscript>` fallback |
 | `admin/orders/BookShipmentButton` | Book shipment, reading Initializing… then Processing… while Shiprocket answers |
 | `admin/orders/NotReadyButton` | Not ready on a booked order: confirms, then un-books it back to Confirmed |
-| `admin/orders/ScanButton` | Scan: the camera, the browser's own `BarcodeDetector`, and the order it read |
+| `admin/orders/ScanButton` | Scan: the camera, a barcode reader (native or `lib/barcode.ts`), a photo, and the order it read |
 | `admin/orders/RefundForm` | Confirms the refund amount before submitting; pending state while Razorpay answers |
 
 Everything else is a server component.
@@ -1627,6 +1629,34 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-25 (admin) — Scan works on every browser: our own Code 128 reader
+
+Client, from both his devices: "This problem comes up make it work on all
+browser even my laptop camera as well." `BarcodeDetector` is not in Chrome on
+Linux, nor in the phone browser he uses — so what shipped the day before was
+a typed box with a camera the browser could not read.
+
+- **`lib/barcode.ts`** reads Code 128 from a frame: rows across the image,
+  bar/space run lengths, matched against the alphabet with ZXing's two
+  tolerances, and accepted only when the symbol's **own checksum** agrees — a
+  misread would open somebody else's order. ~250 lines, no DOM types, so it
+  takes `{data, width, height}` and can be tested without a browser.
+- **The decision not to add a dependency** (AGENTS.md asks for these to be
+  recorded): a scanning library is 100–500 KB of WASM for one symbology we
+  control both ends of — Shiprocket prints Code 128 for the AWB and for the
+  order number, and nothing else on the label needs reading. The native
+  `BarcodeDetector` is still preferred where it exists, since it is the
+  hardware-accelerated one.
+- **Three ways in** (`ScanButton`): the live camera; **Use a photo**, which on
+  a phone opens the camera app and hands back a properly focused frame, read
+  at up to 2000px against the preview's 1280; and the number typed.
+- Verified against the client's own label photograph: both barcodes, at five
+  scales, through blur, turned 180°, tilted, and with the edges cropped —
+  plus noise and a flat frame, which must decode to nothing. A 1280×720 frame
+  takes 0.4ms, so it runs on a 200ms timer with no worker. The camera path is
+  driven end to end in a browser with no `BarcodeDetector`, filming that label
+  through Chromium's fake capture device.
 
 ### 2026-09-24 (admin, orders) — Scan a parcel label; the cutoff moves to 11 am
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { ScanIcon, SpinnerIcon } from "@/components/icons/ui";
+import { readBarcode } from "@/lib/barcode";
 import { formatPaise } from "@/lib/pricing";
 import { lookupScannedOrderAction, type ScannedOrder } from "@/app/admin/actions";
 
@@ -15,27 +16,38 @@ import { lookupScannedOrderAction, type ScannedOrder } from "@/app/admin/actions
  * because `findOrderByCode` tries the scan against both columns, and strips
  * the `-R2` retry suffix their label may carry.
  *
- * **No scanning library.** The browser's own `BarcodeDetector` reads the
- * label, which keeps the runtime dependencies at next/react/react-dom (see
- * AGENTS.md). It is there in Chrome on Android — the phone that will actually
- * be held over a parcel — and missing in Firefox and on desktop Linux, so the
- * dialog falls back to typing or pasting the number, which is also what to do
- * when a label is scuffed. The lookup behind both is the same action.
+ * **Reading the barcode: the browser's reader, or ours.** `BarcodeDetector`
+ * is used where it exists, since it is the hardware-accelerated one — but it
+ * is missing on both devices this is used from, Chrome on a Linux laptop and
+ * the phone's browser, so the fallback is `lib/barcode.ts`, a Code 128 reader
+ * in this repo rather than a dependency (client, 2026-09-25: "make it work on
+ * all browser even my laptop camera as well"). A frame costs well under a
+ * millisecond, so it runs on a timer and needs no worker.
+ *
+ * **Three ways in, because cameras disappoint.** The live view; a photograph,
+ * which on a phone opens the camera app and so comes back focused and far
+ * sharper than any preview; and the number typed or pasted, which is also the
+ * answer for a scuffed label.
  *
  * The camera is opened only while the dialog is open and every track is
  * stopped when it closes; nothing is recorded, and frames never leave the
  * browser — only the decoded string is sent to the server.
  */
 
-/* The API is not in `lib.dom` yet; this is the part of it used here. */
+/* The native API is not in `lib.dom` yet; this is the part of it used here. */
 type DetectedBarcode = { rawValue?: string };
-type BarcodeDetectorLike = { detect(source: HTMLVideoElement): Promise<DetectedBarcode[]> };
+type BarcodeDetectorLike = { detect(source: CanvasImageSource): Promise<DetectedBarcode[]> };
 type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDetectorLike;
 
-/** Code 128 is what Shiprocket prints; the rest cost nothing to accept. */
+/** Code 128 is what Shiprocket prints; the rest cost the native reader little. */
 const FORMATS = ["code_128", "code_39", "codabar", "ean_13", "itf", "qr_code"];
 
-type Phase = "starting" | "scanning" | "unsupported" | "denied" | "looking" | "done";
+/** Frames are read at this width at most — enough detail, little work. */
+const SCAN_WIDTH = 1280;
+/** A photograph is worth more pixels: it is read once, not five times a second. */
+const PHOTO_WIDTH = 2000;
+
+type Phase = "starting" | "scanning" | "nocamera" | "denied" | "looking" | "done";
 
 export function ScanButton() {
   const [open, setOpen] = useState(false);
@@ -55,15 +67,46 @@ export function ScanButton() {
   );
 }
 
+/** Whatever can read a barcode here: the browser's reader, else ours. */
+function makeReader(): (source: HTMLVideoElement | HTMLCanvasElement) => Promise<string | null> {
+  const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
+  if (Detector) {
+    const detector = new Detector({ formats: FORMATS });
+    return async (source) => {
+      const codes = await detector.detect(source);
+      return codes.map((code) => code.rawValue?.trim()).find(Boolean) ?? null;
+    };
+  }
+
+  /* One canvas for every frame: allocating a 1280×720 one five times a second
+     is how a phone's tab gets killed. */
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  return async (source) => {
+    if (!context) return null;
+    const isVideo = source instanceof HTMLVideoElement;
+    const width = isVideo ? source.videoWidth : source.width;
+    const height = isVideo ? source.videoHeight : source.height;
+    if (!width || !height) return null;
+    const scale = Math.min(1, (isVideo ? SCAN_WIDTH : PHOTO_WIDTH) / width);
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
+    return readBarcode(context.getImageData(0, 0, canvas.width, canvas.height));
+  };
+}
+
 function ScanDialog({ onClose }: { onClose: () => void }) {
   const [phase, setPhase] = useState<Phase>("starting");
   /* Bumped by "Scan another", which restarts the camera effect. */
   const [attempt, setAttempt] = useState(0);
   const [code, setCode] = useState("");
   const [typed, setTyped] = useState("");
+  const [note, setNote] = useState<string | null>(null);
   const [found, setFound] = useState<ScannedOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const readerRef = useRef<ReturnType<typeof makeReader> | null>(null);
   /* Read inside the scan loop, which must not be torn down and rebuilt on
      every render just to see the newest one. */
   const lookupRef = useRef<(value: string) => void>(() => {});
@@ -72,6 +115,7 @@ function ScanDialog({ onClose }: { onClose: () => void }) {
     setCode(value);
     setPhase("looking");
     setError(null);
+    setNote(null);
     try {
       const result = await lookupScannedOrderAction(value);
       if (result.error === "access") {
@@ -93,9 +137,6 @@ function ScanDialog({ onClose }: { onClose: () => void }) {
   });
 
   useEffect(() => {
-    /* Nothing to run once something has been read: the camera is off and the
-       dialog is showing the answer. */
-    if (attempt < 0) return;
     let cancelled = false;
     let stream: MediaStream | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -107,17 +148,20 @@ function ScanDialog({ onClose }: { onClose: () => void }) {
     };
 
     (async () => {
-      const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor })
-        .BarcodeDetector;
-      if (!Detector || !navigator.mediaDevices?.getUserMedia) {
-        setPhase("unsupported");
+      readerRef.current ??= makeReader();
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setPhase("nocamera");
         return;
       }
       try {
-        /* The back camera on a phone; a laptop has only the one and ignores
-           this. */
+        /* The back camera on a phone; a laptop has one and ignores this. The
+           resolution is a wish — a bigger frame reads a smaller barcode. */
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
         });
       } catch {
         setPhase("denied");
@@ -133,12 +177,11 @@ function ScanDialog({ onClose }: { onClose: () => void }) {
       if (cancelled) return;
       setPhase("scanning");
 
-      const detector = new Detector({ formats: FORMATS });
+      const read = readerRef.current;
       const tick = async () => {
         if (cancelled) return;
         try {
-          const codes = await detector.detect(video);
-          const value = codes.map((c) => c.rawValue?.trim()).find(Boolean);
+          const value = await read(video);
           if (value) {
             stop();
             lookupRef.current(value);
@@ -147,7 +190,7 @@ function ScanDialog({ onClose }: { onClose: () => void }) {
         } catch {
           /* A frame that cannot be decoded is the normal case; keep looking. */
         }
-        timer = setTimeout(tick, 300);
+        timer = setTimeout(tick, 200);
       };
       void tick();
     })();
@@ -155,13 +198,44 @@ function ScanDialog({ onClose }: { onClose: () => void }) {
     return stop;
   }, [attempt]);
 
+  /** A photograph, read at its own resolution — sharper than any preview. */
+  async function readPhoto(file: File) {
+    setNote(null);
+    setPhase("looking");
+    const url = URL.createObjectURL(file);
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      canvas.getContext("2d")?.drawImage(image, 0, 0);
+      readerRef.current ??= makeReader();
+      const value = await readerRef.current(canvas);
+      if (value) {
+        void lookup(value);
+        return;
+      }
+      setNote("No barcode in that photo. Fill the frame with one barcode and try again.");
+    } catch {
+      setNote("That image could not be read.");
+    } finally {
+      URL.revokeObjectURL(url);
+      setPhase((current) => (current === "looking" ? "scanning" : current));
+    }
+  }
+
   const scanAgain = () => {
     setFound(null);
     setError(null);
+    setNote(null);
     setCode("");
     setPhase("starting");
     setAttempt((n) => n + 1);
   };
+
+  const live = phase === "starting" || phase === "scanning" || phase === "looking";
 
   return (
     <Modal title="Scan a parcel label" onClose={onClose} size="lg">
@@ -169,13 +243,7 @@ function ScanDialog({ onClose }: { onClose: () => void }) {
         <Result order={found} error={error} code={code} onAgain={scanAgain} onClose={onClose} />
       ) : (
         <div className="space-y-4">
-          {phase === "unsupported" || phase === "denied" ? (
-            <p className="border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-body">
-              {phase === "denied"
-                ? "The camera was not allowed. Turn it on for this site, or type the number below."
-                : "This browser cannot read barcodes. Chrome on Android can; otherwise type or paste the number below."}
-            </p>
-          ) : (
+          {live ? (
             <div className="relative overflow-hidden border border-line bg-graphite-950">
               <video
                 ref={videoRef}
@@ -193,16 +261,47 @@ function ScanDialog({ onClose }: { onClose: () => void }) {
                 className="absolute inset-x-0 bottom-0 bg-graphite-950/80 px-3 py-2 text-center text-xs font-medium text-white"
               >
                 {phase === "scanning"
-                  ? "Hold a barcode in the frame — AWB or order number."
+                  ? "Hold one barcode in the frame — AWB or order number."
                   : phase === "looking"
                     ? "Looking that up…"
                     : "Starting the camera…"}
               </p>
             </div>
+          ) : (
+            <p className="border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-body">
+              {phase === "denied"
+                ? "The camera was not allowed. Turn it on for this site, or use a photo or the number below."
+                : "No camera here. Use a photo of the label, or type the number below."}
+            </p>
           )}
 
-          {/* Always available: a scuffed label is quicker to read out than to
-              scan, and this is the whole control where the API is missing. */}
+          {note && (
+            <p
+              role="status"
+              className="border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-body"
+            >
+              {note}
+            </p>
+          )}
+
+          {/* On a phone this opens the camera app, which focuses properly —
+              the quickest fix when the live view will not settle. */}
+          <label className="inline-flex h-10 cursor-pointer items-center gap-2 border border-line-strong px-3 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle">
+            <ScanIcon className="h-4 w-4" />
+            Use a photo
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void readPhoto(file);
+              }}
+            />
+          </label>
+
           <form
             onSubmit={(event) => {
               event.preventDefault();
