@@ -1656,6 +1656,22 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-25 (pricing) — The price block reads M.R.P. first
+
+Client's sketch: `MRP 23,555 (-15%)` on the line above, struck through, then
+the figure with "incl. all taxes" — beside it where the card is wide (featured
+and horizontal), on its own third line where there is vertical room (the grid
+cards, the quick view, the product page).
+
+- **One implementation, four presentations.** `ProductPrice` had three copies
+  of its own markup, one per variant; it is now a type scale and two flags, so
+  a card, the quick view and the product page cannot drift apart again.
+- The percentage moved into the M.R.P. line as `(-25%)`, where it reads as the
+  difference between the two figures rather than a badge in front of the price.
+- **Bulk enquiries go to `b2b@vkon.in`** (`site.b2bEmail`), not the support
+  inbox: the answer is a quotation, and it keeps trade mail out of the support
+  queue.
+
 ### 2026-09-25 (product page) — Share, the SKU, the category, and bulk enquiries
 
 From the client's reference page, under the buy block: a **bulk enquiries**

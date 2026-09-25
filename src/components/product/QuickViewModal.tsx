@@ -178,10 +178,10 @@ export function QuickViewModal({
             <p className="mt-5 text-sm text-body">
               For bulk enquiries, e-mail us at{" "}
               <a
-                href={`mailto:${site.email}?subject=${encodeURIComponent(`Bulk enquiry - ${product.name}`)}`}
+                href={`mailto:${site.b2bEmail}?subject=${encodeURIComponent(`Bulk enquiry - ${product.name}`)}`}
                 className="font-medium text-accent hover:underline"
               >
-                {site.email}
+                {site.b2bEmail}
               </a>
             </p>
 

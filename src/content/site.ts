@@ -46,6 +46,12 @@ export const site = {
      to customers — they write to `email` above. */
   ordersEmail: "orders@vkon.in",
 
+  /* Quantity enquiries from a product page or the quick view (client,
+     2026-09-25, changed from `email` the same day). Separate because the
+     answer is a quotation rather than support: it is read by whoever prices
+     a job, and it keeps trade enquiries out of the support queue. */
+  b2bEmail: "b2b@vkon.in",
+
   /**
    * The business address (client, 2026-09-22 — it was the plus code
    * `VW8F+FVP, near Sahyadri College Mechanical and Civil Block` until then).

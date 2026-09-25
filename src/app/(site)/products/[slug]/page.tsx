@@ -225,10 +225,10 @@ export default async function ProductPage({
               <p className="mt-6 text-sm text-body">
                 For bulk enquiries, e-mail us at{" "}
                 <a
-                  href={`mailto:${site.email}?subject=${encodeURIComponent(`Bulk enquiry - ${product.name}`)}`}
+                  href={`mailto:${site.b2bEmail}?subject=${encodeURIComponent(`Bulk enquiry - ${product.name}`)}`}
                   className="font-medium text-accent hover:underline"
                 >
-                  {site.email}
+                  {site.b2bEmail}
                 </a>
               </p>
 
