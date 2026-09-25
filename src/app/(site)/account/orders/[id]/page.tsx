@@ -21,7 +21,7 @@ import { reviewsForOrder } from "@/lib/db/reviews";
 import { formatPaise } from "@/lib/pricing";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import { trackingUrl } from "@/lib/shiprocket";
-import { trackingLabel } from "@/lib/tracking";
+import { firstScanTime, trackingLabel } from "@/lib/tracking";
 import { isCod } from "@/lib/order-payment";
 import { addressEditWindow, formatCutoff } from "@/lib/order-delivery";
 import { site } from "@/content/site";
@@ -415,24 +415,24 @@ export default async function OrderPage({
                   {trackingLabel(order.trackingStatus) ??
                     (order.status === "delivered" ? "Delivered" : "Booked with the courier")}
                 </p>
-                {order.deliveredAt ? (
-                  <p className="mt-1 text-sm text-body">
-                    Delivered {formatDate(order.deliveredAt)}.
-                  </p>
-                ) : order.trackingEta ? (
-                  <p className="mt-1 text-sm text-body">
-                    Expected by {formatDay(order.trackingEta)}.
-                  </p>
-                ) : order.shippedAt ? (
-                  <p className="mt-1 text-sm text-body">
-                    Dispatched {formatDate(order.shippedAt)}.
-                  </p>
-                ) : null}
+                {/* The whole timeline in three short lines, not one: the
+                    estimate is what a customer looks for, and the two dates
+                    behind it are the courier's own scans rather than the
+                    moment this page was loaded (client, 2026-09-25). */}
+                <div className="mt-1 space-y-0.5 text-sm text-body">
+                  {order.deliveredAt ? (
+                    <p>Delivered {formatDate(order.deliveredAt)}.</p>
+                  ) : (
+                    order.trackingEta && <p>Expected by {formatDay(order.trackingEta)}.</p>
+                  )}
+                  {order.shippedAt && <p>Picked up {formatDate(order.shippedAt)}.</p>}
+                  {readyAt(order) && <p>Ready to ship {formatDate(readyAt(order) as string)}.</p>}
+                </div>
 
-                <p className="mt-3 text-sm text-body">
-                  {order.courierName || "Courier"} ·{" "}
-                  <span className="break-all font-mono">{order.awb}</span>
-                </p>
+                {/* Courier first, number under it: fifteen digits wrapped
+                    mid-number when they shared a line. */}
+                <p className="mt-3 text-sm text-body">{order.courierName || "Courier"}</p>
+                <p className="break-all font-mono text-sm text-body">{order.awb}</p>
                 {/* The scans behind the chevron beside the button (client,
                     2026-09-25): the line at the top of this panel is the
                     answer; the history is for when it is not enough. */}
@@ -602,6 +602,11 @@ function Line({
       </dd>
     </div>
   );
+}
+
+/** When a parcel became ready to ship: our booking, else its first scan. */
+function readyAt(order: Order): string | null {
+  return order.bookedAt ?? firstScanTime(order.trackingEvents);
 }
 
 function TrackingTimeline({ events }: { events: Order["trackingEvents"] }) {

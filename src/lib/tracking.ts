@@ -83,6 +83,49 @@ export function mapShipmentStatus(raw: string): Extract<OrderStatus, "shipped" |
 }
 
 /**
+ * When the courier actually took the parcel, and when it handed it over —
+ * read from the scans rather than from the moment we happened to ask (client,
+ * 2026-09-25: the times under an order "should show the same timings as
+ * shiprocket, not the time when we refreshed the page").
+ *
+ * The **earliest** scan that means the thing, because a parcel picked up on
+ * Thursday can still be scanned "IN TRANSIT" on Friday, and the pickup is the
+ * moment the order shipped. Null when no scan says it yet, which leaves the
+ * caller's own fallback in place.
+ */
+export function scanTime(
+  events: TrackingEvent[],
+  moment: "picked-up" | "delivered",
+): string | null {
+  const matches = events.filter((event) => {
+    if (!event.at) return false;
+    const text = words(`${event.status} ${event.activity}`);
+    if (moment === "delivered") return text.includes("delivered") && !text.includes("undelivered");
+    return (
+      text.includes("pickup done") ||
+      text.includes("picked up") ||
+      text.includes("shipped") ||
+      text.includes("dispatched")
+    );
+  });
+  if (matches.length === 0) return null;
+  return matches
+    .map((event) => event.at as string)
+    .reduce((earliest, at) => (Date.parse(at) < Date.parse(earliest) ? at : earliest));
+}
+
+/**
+ * The first thing the courier said about a parcel — when it was handed over to
+ * them, as far as their own scans go. Used for "ready to ship" on an order
+ * booked before `booked_at` existed.
+ */
+export function firstScanTime(events: TrackingEvent[]): string | null {
+  const times = events.map((event) => event.at).filter((at): at is string => Boolean(at));
+  if (times.length === 0) return null;
+  return times.reduce((earliest, at) => (Date.parse(at) < Date.parse(earliest) ? at : earliest));
+}
+
+/**
  * The courier's status in words a customer understands.
  *
  * Shiprocket's labels are written for sellers — "MANIFEST GENERATED", "PICKUP

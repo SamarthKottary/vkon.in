@@ -329,6 +329,8 @@ export type Order = {
   courierName: string | null;
   /** Shiprocket's id for the service the customer chose and paid for. */
   courierId: number | null;
+  /** When the parcel was booked with the courier — "Ready to ship" since. */
+  bookedAt: string | null;
   shippedAt: string | null;
   deliveredAt: string | null;
   cancelledAt: string | null;

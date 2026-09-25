@@ -85,7 +85,12 @@ export function ListPager({
       </p>
       <div className="flex items-center gap-2">
         {page > 1 ? (
-          <Link href={listHref(path, { ...keep, page: page - 1 })} className={live} rel="prev">
+          <Link
+            href={listHref(path, { ...keep, page: page - 1 })}
+            prefetch={false}
+            className={live}
+            rel="prev"
+          >
             Previous
           </Link>
         ) : (
@@ -94,7 +99,12 @@ export function ListPager({
           </span>
         )}
         {page < last ? (
-          <Link href={listHref(path, { ...keep, page: page + 1 })} className={live} rel="next">
+          <Link
+            href={listHref(path, { ...keep, page: page + 1 })}
+            prefetch={false}
+            className={live}
+            rel="next"
+          >
             Next
           </Link>
         ) : (

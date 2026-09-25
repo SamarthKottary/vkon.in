@@ -3,7 +3,7 @@ import { getPool, isDatabaseConfigured, query } from "./client";
 import { PER_PAGE, clampPage, containsPattern, phoneDigits } from "@/lib/admin-list";
 import { addressEditWindow } from "@/lib/order-delivery";
 import { CONFIRMED_ORDER_SQL } from "@/lib/order-payment";
-import { mapShipmentStatus, mergeTrackingEvents } from "@/lib/tracking";
+import { mapShipmentStatus, mergeTrackingEvents, scanTime } from "@/lib/tracking";
 import type {
   Order,
   OrderItem,
@@ -52,6 +52,7 @@ type OrderRow = {
   courier_id: number | null;
   shipment_attempts: number | null;
   shipment_error: string | null;
+  booked_at: Date | null;
   shipped_at: Date | null;
   delivered_at: Date | null;
   cancelled_at: Date | null;
@@ -85,7 +86,7 @@ const ORDER_SELECT = `id, order_number, customer_id, status, payment_status,
   payment_provider, payment_order_id, payment_id, paid_at,
   shipment_provider, shipment_order_id, shipment_id, awb, courier_name, courier_id,
   shipment_attempts, shipment_error,
-  shipped_at, delivered_at, cancelled_at, refunded_amount, refunded_at, refunds, repriced_at,
+  booked_at, shipped_at, delivered_at, cancelled_at, refunded_amount, refunded_at, refunds, repriced_at,
   delivery_service, address_changed_at,
   tracking_status, tracking_updated_at, tracking_eta::text AS tracking_eta, tracking_events,
   created_at`;
@@ -141,6 +142,7 @@ function mapOrder(row: OrderRow, items: OrderItem[]): Order {
     shipmentAttempts: Number(row.shipment_attempts ?? 0),
     shipmentError: row.shipment_error ?? null,
     courierId: row.courier_id === null ? null : Number(row.courier_id),
+    bookedAt: row.booked_at ? row.booked_at.toISOString() : null,
     shippedAt: row.shipped_at ? row.shipped_at.toISOString() : null,
     deliveredAt: row.delivered_at ? row.delivered_at.toISOString() : null,
     cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
@@ -624,6 +626,9 @@ export async function setOrderShipment(
     `UPDATE orders
         SET shipment_provider = $2, shipment_order_id = $3, shipment_id = $4,
             awb = $5, courier_name = $6,
+            /* When it became Ready to ship, for the card to say so
+               (2026-09-25). COALESCE so a re-booking keeps the first. */
+            booked_at = COALESCE(booked_at, now()),
             shipment_attempts = 0, shipment_error = NULL, updated_at = now()
       WHERE id = $1`,
     [
@@ -698,7 +703,7 @@ export async function clearOrderShipment(orderId: string): Promise<void> {
   await query(
     `UPDATE orders
         SET shipment_provider = NULL, shipment_order_id = NULL, shipment_id = NULL,
-            awb = NULL, courier_name = NULL, shipped_at = NULL,
+            awb = NULL, courier_name = NULL, shipped_at = NULL, booked_at = NULL,
             tracking_status = NULL, tracking_status_at = NULL, tracking_updated_at = NULL,
             tracking_eta = NULL, tracking_events = '[]'::jsonb,
             shipment_attempts = 0, shipment_error = NULL, updated_at = now()
@@ -830,11 +835,17 @@ export async function applyTrackingUpdate(input: {
               tracking_eta = COALESCE($6::date, tracking_eta),
               tracking_events = $7::jsonb,
               tracking_updated_at = now(),
+              /* **The courier's own times, not ours** (client, 2026-09-25).
+                 The scan comes first in each COALESCE, so an order stamped
+                 with the moment somebody pressed Refresh tracking corrects
+                 itself the next time the scans are read. */
               shipped_at = CASE
-                WHEN $2::text IN ('shipped', 'delivered') THEN COALESCE(shipped_at, now())
+                WHEN $2::text IN ('shipped', 'delivered')
+                  THEN COALESCE($8::timestamptz, shipped_at, now())
                 ELSE shipped_at END,
               delivered_at = CASE
-                WHEN $2::text = 'delivered' THEN COALESCE(delivered_at, now())
+                WHEN $2::text = 'delivered'
+                  THEN COALESCE($9::timestamptz, delivered_at, now())
                 ELSE delivered_at END,
               updated_at = now()
         WHERE id = $1`,
@@ -846,6 +857,8 @@ export async function applyTrackingUpdate(input: {
         trackingAt,
         input.eta,
         JSON.stringify(events),
+        scanTime(events, "picked-up"),
+        scanTime(events, "delivered"),
       ],
     );
 

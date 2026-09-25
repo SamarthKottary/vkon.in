@@ -807,3 +807,12 @@ UPDATE orders
  WHERE shipment_tries = 0
    AND (shipment_id IS NOT NULL OR awb IS NOT NULL
         OR shipment_error IS NOT NULL OR shipment_attempts > 0);
+
+-- Added 2026-09-25: when a parcel was booked with the courier.
+--
+-- The moment an order becomes "Ready to ship". `shipped_at` is when the
+-- courier collected it, and the two are days apart on a slow pickup; the admin
+-- card and the customer's order both say which is which. Written by
+-- `setOrderShipment`, cleared by `clearOrderShipment` (Not ready), so it
+-- follows the parcel rather than the row.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS booked_at TIMESTAMPTZ;

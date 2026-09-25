@@ -32,8 +32,8 @@ export function TrackingHistory({
   const [open, setOpen] = useState(false);
 
   return (
-    <>
-      <div className="mt-3 flex items-center justify-between gap-3">
+    <div className="relative mt-3">
+      <div className="flex items-center justify-between gap-3">
         <a
           href={href}
           target="_blank"
@@ -62,7 +62,16 @@ export function TrackingHistory({
         )}
       </div>
 
-      {open && count > 0 && <div className="mt-4 border-t border-line pt-4">{children}</div>}
-    </>
+      {/* **Over the panel below, not above it** (client, 2026-09-25): the
+          scans used to push the address card down the page, so opening them
+          moved everything somebody had just been reading. `relative` on the
+          wrapper, `absolute` here, and the panel's own padding is matched so
+          the list lines up with the button above it. */}
+      {open && count > 0 && (
+        <div className="absolute inset-x-0 top-full z-20 mt-2 max-h-80 overflow-y-auto border border-accent bg-accent-soft p-4 shadow-card">
+          {children}
+        </div>
+      )}
+    </div>
   );
 }

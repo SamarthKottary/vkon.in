@@ -1656,6 +1656,34 @@ probe `/api/health`.
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
 
+### 2026-09-25 (orders) — The courier's times, not ours
+
+Client: the times under an order "should show the same timings as shiprocket,
+not the time when we refreshed the page" — Shipped should be the **Pickup
+Done** scan.
+
+- **`shipped_at` and `delivered_at` come from the scans** (`scanTime` in
+  `lib/tracking.ts`, the earliest scan that means the thing). They are first in
+  each `COALESCE` inside `applyTrackingUpdate`, so an order stamped with the
+  moment somebody pressed Refresh tracking **corrects itself** the next time
+  the scans are read. A manual status change in the admin still stamps `now()`,
+  because there is no scan behind it.
+- **`orders.booked_at`** (new column) is when the parcel was booked — the
+  moment it became **Ready to ship**. The admin card shows "Ready to ship: …"
+  for an order in that section, and the customer's panel says the same;
+  parcels booked before the column existed fall back to their first scan
+  (`firstScanTime`).
+- The customer's panel now stacks the three dates (expected / picked up /
+  ready to ship) instead of showing whichever one came first in a chain, and
+  **the AWB sits on its own line** under the courier's name on both sides — a
+  fifteen-digit number wrapped mid-number when they shared one.
+- **The scans overlay the page** rather than pushing it: opening them moved the
+  address card down, i.e. moved what somebody had just been reading.
+- **The section chips and the pager do not prefetch**, so moving between
+  sections fetches the list as it is now rather than as it was when the link
+  was prefetched (client: "when i move sections … should refresh the orders").
+- **Needs the migration** — one `ALTER TABLE orders` at the end of schema.sql.
+
 ### 2026-09-25 (account) — A quieter order history, and the invoice waits
 
 - **The status column is the badge alone.** "Picked up by the courier" under

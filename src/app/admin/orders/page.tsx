@@ -23,7 +23,7 @@ import { site } from "@/content/site";
 import { formatPaise } from "@/lib/pricing";
 import type { Order, OrderItem } from "@/lib/types";
 import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
-import { trackingLabel } from "@/lib/tracking";
+import { firstScanTime, trackingLabel } from "@/lib/tracking";
 import { bookShipmentAction, checkRefundsAction, refreshTrackingAction } from "@/app/admin/actions";
 import { OrderStatusSelect } from "./OrderStatusSelect";
 import { SortSelect } from "./SortSelect";
@@ -408,6 +408,11 @@ function onlySection(counts: OrderFilterCounts): AdminOrderFilter | "" {
   return SECTIONS.find((section) => counts[section] === counts.all) ?? "";
 }
 
+/** When a parcel became Ready to ship: our booking, else its first scan. */
+function readyAt(order: Order): string | null {
+  return order.bookedAt ?? firstScanTime(order.trackingEvents);
+}
+
 const FILTER_LABELS: Record<AdminOrderFilter, string> = {
   pending: "Pending",
   "pending-unquoted": "Pending-not quoted",
@@ -464,6 +469,10 @@ function OrderFilters({
             <Link
               key={option.label}
               href={listHref("/admin/orders", { q, status: option.value, sort })}
+              /* No prefetch (client, 2026-09-25: moving between sections
+                 "should refresh the orders"): a chip prefetched before an
+                 order was moved would show the list as it was then. */
+              prefetch={false}
               aria-current={current ? "page" : undefined}
               className={`inline-flex h-9 items-center gap-2 border px-3 text-sm font-medium transition-colors ${
                 current
@@ -550,8 +559,16 @@ function OrderCard({
               <Badge tone="warn">Refunded {formatPaise(order.refundedAmount)}</Badge>
             ) : null}
           </div>
+          {/* Each moment from its own source (client, 2026-09-25): booked is
+              ours, shipped and delivered are the courier's scans, so nothing
+              here is the time somebody pressed Refresh tracking. `bookedAt`
+              is null on parcels booked before it existed, and the first scan
+              stands in. */}
           <div className="label-tech mt-1.5 text-muted space-y-0.5">
             <p>Ordered: {formatDate(order.createdAt)}</p>
+            {order.status === "confirmed" && order.awb && readyAt(order) && (
+              <p>Ready to ship: {formatDate(readyAt(order) as string)}</p>
+            )}
             {order.status === "shipped" && order.shippedAt && (
               <p>Shipped: {formatDate(order.shippedAt)}</p>
             )}
@@ -875,10 +892,10 @@ function ShipmentBlock({
 
       {order.awb ? (
         <div className="mt-2.5 space-y-1.5 text-sm">
-          <p className="text-ink">
-            {order.courierName || "Courier"} ·{" "}
-            <span className="font-mono">{order.awb}</span>
-          </p>
+          {/* The number on its own line (client, 2026-09-25): a fifteen-digit
+              AWB wrapped mid-number when it followed the courier's name. */}
+          <p className="text-ink">{order.courierName || "Courier"}</p>
+          <p className="break-all font-mono text-ink">{order.awb}</p>
 
           {/* The courier's status in the words the customer sees, with
               Shiprocket's own beneath it — the one to quote when talking
