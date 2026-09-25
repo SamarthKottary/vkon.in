@@ -17,9 +17,10 @@ import type { Product } from "@/lib/types";
  * about what a price looks like.
  *
  * **Two shapes, by how much room there is.** On the wide cards — featured and
- * horizontal — "incl. all taxes" sits beside the figure, two lines in total.
- * Everywhere with vertical room — the grid cards, the quick view and the
- * product page — it takes its own third line.
+ * horizontal — "incl. all taxes" sits beside the figure, two lines in total;
+ * with no discount there is no M.R.P. line, so it drops under the figure and
+ * the block is still two lines. Everywhere with vertical room — the grid
+ * cards, the quick view and the product page — it takes its own third line.
  *
  * **The selling price is derived, never stored.** `price` is the M.R.P. and
  * `discountPercent` the reduction; what the customer pays is computed here, so
@@ -80,9 +81,12 @@ export function ProductPrice({
   const hasDiscount = discountPercent != null && discountPercent > 0;
   const selling = rupees(displayPricePaise({ price, discountPercent } as Product, rates));
   const list = rupees(listPricePaise({ price } as Product, rates));
-  /* The wide cards put the note beside the figure; everything else gives it a
-     line of its own. */
-  const beside = variant === "inline-desktop";
+  /* The wide cards put the note beside the figure — but only where there is
+     an M.R.P. line above it (client, 2026-09-25). Without a discount the block
+     is one line, and hanging the note off the end of it leaves the card's
+     price row looking like a sentence; under the figure it reads as the note
+     it is, and the block is still two lines either way. */
+  const beside = variant === "inline-desktop" && hasDiscount;
 
   return (
     <div className={`min-w-0 ${className}`}>

@@ -1748,6 +1748,12 @@ cards, the quick view, the product page).
 - **One implementation, four presentations.** `ProductPrice` had three copies
   of its own markup, one per variant; it is now a type scale and two flags, so
   a card, the quick view and the product page cannot drift apart again.
+- **Beside the figure only where there is an M.R.P. line above it** (client,
+  same day: "if the price field in only one line, no discount just price and
+  incl all taxes — then the incl all taxes should move below the price"). An
+  undiscounted wide card has no first line, so the note hung off the end of the
+  figure and read as part of it; under the figure it reads as the note it is.
+  The block is two lines either way, so the cards' footers still line up.
 - The percentage moved into the M.R.P. line as `(-25%)`, where it reads as the
   difference between the two figures rather than a badge in front of the price.
 - **Bulk enquiries go to `b2b@vkon.in`** (`site.b2bEmail`), not the support
