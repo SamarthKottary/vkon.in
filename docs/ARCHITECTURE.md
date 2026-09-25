@@ -854,7 +854,9 @@ server. A password is never among the echoed values.
 ### Customer actions — `app/(site)/account/private-actions.ts`
 
 **Every export calls `await requireCustomer()` as its first statement**, and
-uses the id it returns — never one from the form. §9.
+uses the id it returns — never one from the form. §9. The three **cart**
+actions are the documented exception: they read `getCurrentCustomer()` and
+answer a signed-out caller rather than throwing — see §9.
 
 | Action | Signature |
 |---|---|
@@ -1088,6 +1090,20 @@ indistinguishable from a real sign-in to a confused human.)*
 used** — never an id from the form. Same reasoning as `requireAdmin()` above:
 the page guard protects a render, not a POST. `requireSignIn()` in
 `lib/account.ts` is the page-level convenience and is *not* the boundary.
+
+**The exception, and why it is one: `syncCartAction`,
+`saveAccountCartAction` and `getAccountCartAction` fail soft** (2026-09-25).
+They are the only actions here that nobody presses — `CartSync` fires them
+from a timer whenever the basket changes — so a tab that was signed in when it
+loaded and whose session has since ended (signed out elsewhere, expired,
+account blocked) posted one with a cookie the server no longer knew, and
+`requireCustomer()` turned that into a 500 and `⨯ Error: Not signed in.` in
+the log for something the visitor never did. They now check
+`getCurrentCustomer()` and return the lines unchanged, `{status:
+"signed-out"}`, or `[]`; `CartSync` stops syncing on that answer and leaves
+both baskets — the local one and the saved one — exactly as they are. Nothing
+is exposed by the soft answer: it reads and writes *nothing* without a
+customer. Every action a person presses still throws.
 
 **`app/(site)/account/layout.tsx` must not draw chrome and must not guard.**
 Four of the routes under it — `login`, `forgot`, `reset`, `verify` — are
@@ -1629,6 +1645,37 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-25 (cart) — "Not signed in." in the log for something nobody did
+
+Client's server log: two `⨯ Error: Not signed in.` with digests, on a site that
+rendered fine. Reproduced: a tab signed in when it loaded, whose session then
+ends elsewhere, fires `saveAccountCartAction` on the next basket change and
+gets a 500 from `requireCustomer()`.
+
+- **The three cart actions now fail soft** (`syncCartAction`,
+  `saveAccountCartAction`, `getAccountCartAction`) — §9 has the reasoning and
+  the boundary: they are the only actions nobody presses, and they read and
+  write nothing without a customer.
+- **`CartSync` stops on `status: "signed-out"`** rather than retrying every
+  time the basket is touched, and leaves the local basket alone — the next
+  render is what decides whether this visitor is signed in.
+
+### 2026-09-25 (admin, orders) — An ordered item opens its product
+
+Client: "In order page of admin when click on products/items it should open a
+new tab and show the product."
+
+- The picture and the name of each item on an order card link to
+  `/products/<slug>` with `target="_blank"` and `rel="noopener noreferrer"`
+  (`ItemLink` in `admin/orders/page.tsx`); the Find/Scan pop-up links its
+  items the same way. A new tab, because an order card is a working surface —
+  a half-booked shipment, a half-typed refund — and looking a product up must
+  not cost it.
+- **Only while there is a product to open**: `order_items.product_id` is left
+  as `''` when a product is deleted (the line that says it was sold survives,
+  by design — see schema.sql), and an item like that stays plain text rather
+  than becoming a link to a 404.
 
 ### 2026-09-25 (admin, orders) — Finding an order no longer moves the list
 

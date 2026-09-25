@@ -22,7 +22,7 @@ import { ListPager } from "@/components/admin/ListControls";
 import { listHref, listSearch, readListQuery } from "@/lib/admin-list";
 import { site } from "@/content/site";
 import { formatPaise } from "@/lib/pricing";
-import type { Order } from "@/lib/types";
+import type { Order, OrderItem } from "@/lib/types";
 import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
 import { trackingLabel } from "@/lib/tracking";
 import { bookShipmentAction, checkRefundsAction, refreshTrackingAction } from "@/app/admin/actions";
@@ -561,26 +561,38 @@ function OrderCard({
           <ul className="mt-3 space-y-3">
             {order.items.map((item) => (
               <li key={item.id} className="flex items-center gap-3">
-                <div className="relative h-12 w-12 shrink-0 overflow-hidden border border-line bg-surface-subtle">
-                  {item.imageUrl ? (
-                    <Image
-                      src={item.imageUrl}
-                      alt=""
-                      fill
-                      sizes="3rem"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <span className="absolute inset-0 flex items-center justify-center text-muted">
-                      <PanelPlaceholder className="h-5 w-5" />
-                    </span>
-                  )}
-                </div>
+                {/* The picture and the name open the product in a new tab
+                    (client, 2026-09-25) — checking what was actually bought
+                    should not cost the operator this page. An item whose
+                    product has since been deleted keeps its slug and would
+                    land on a 404, so it is linked only while `productId` is
+                    still set. */}
+                <ItemLink item={item}>
+                  <span className="relative block h-12 w-12 shrink-0 overflow-hidden border border-line bg-surface-subtle">
+                    {item.imageUrl ? (
+                      <Image
+                        src={item.imageUrl}
+                        alt=""
+                        fill
+                        sizes="3rem"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-muted">
+                        <PanelPlaceholder className="h-5 w-5" />
+                      </span>
+                    )}
+                  </span>
+                </ItemLink>
                 <div className="min-w-0 flex-1">
                   {/* The snapshot from the order, not a live product lookup —
                       a product renamed since must not change what this says
                       was bought. See the note in schema.sql. */}
-                  <p className="truncate text-sm font-medium text-ink">{item.name}</p>
+                  <ItemLink item={item} className="block">
+                    <span className="block truncate text-sm font-medium text-ink group-hover:text-accent group-hover:underline">
+                      {item.name}
+                    </span>
+                  </ItemLink>
                   <p className="text-xs text-muted">
                     {formatPaise(item.unitPrice)} × {item.qty}
                   </p>
@@ -701,6 +713,42 @@ function OrderCard({
         </div>
       </div>
     </article>
+  );
+}
+
+/**
+ * One ordered item, linked to its product page in a new tab (client,
+ * 2026-09-25: "when click on products/items it should open a new tab and show
+ * the product").
+ *
+ * **A new tab, not this one**: an order card is a working surface — a shipment
+ * half-booked, a refund half-typed — and losing it to look up a product would
+ * be the fifth click of a wasted minute. `rel="noopener noreferrer"` because
+ * `target="_blank"` hands the new page a handle on this one otherwise.
+ *
+ * Nothing to link to when the product has been deleted (`productId` empty on
+ * the snapshot): the item still says what was bought, as a plain line.
+ */
+function ItemLink({
+  item,
+  className = "",
+  children,
+}: {
+  item: OrderItem;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  if (!item.productId || !item.slug) return <>{children}</>;
+  return (
+    <Link
+      href={`/products/${item.slug}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`Open ${item.name} in a new tab`}
+      className={`group ${className}`}
+    >
+      {children}
+    </Link>
   );
 }
 

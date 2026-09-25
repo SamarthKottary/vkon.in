@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { endAllSessions, requireCustomer, startSession } from "@/lib/account";
+import { endAllSessions, getCurrentCustomer, requireCustomer, startSession } from "@/lib/account";
 import {
   createAddress,
   deleteAddress,
@@ -860,22 +860,47 @@ function parseLines(raw: string): { slug: string; qty: number }[] {
 }
 
 /**
+ * **The three cart actions answer a signed-out caller instead of throwing**,
+ * which is the exception to the `requireCustomer()` rule above (2026-09-25).
+ *
+ * They are the only actions here nobody presses: `CartSync` fires them from a
+ * timer whenever the basket changes. A tab that was signed in when it loaded
+ * and whose session has since ended — signed out on another device, expired,
+ * the account blocked — then posts one with a cookie the server no longer
+ * knows, and `requireCustomer()` turned that into a 500 and an
+ * `⨯ Error: Not signed in.` in the server log for something the visitor never
+ * did (client, 2026-09-25, from his own log).
+ *
+ * Failing soft costs nothing: the basket lives in `localStorage` and is still
+ * there, the saved copy is for the *next* sign-in, and `status: "signed-out"`
+ * tells the client to stop trying until the page next renders. The actions
+ * that a person actually presses — addresses, profile, orders — still throw,
+ * because a signed-out caller there is a bug or an attack.
+ */
+
+/**
  * Synchronises unauthenticated guest cart lines into the authenticated customer's cart:
  * - Reads existing DB cart for the session customer
  * - Merges guest lines
  * - Writes merged cart to Postgres
  * - Returns merged lines so client can update its local store
+ *
+ * Signed out: the lines come back as they went in, merged with nothing.
  */
 export async function syncCartAction(guestLines: CartLine[]): Promise<CartLine[]> {
-  const customer = await requireCustomer();
+  const customer = await getCurrentCustomer();
+  if (!customer) return guestLines;
   return mergeCustomerCart(customer.id, guestLines);
 }
 
 /**
  * Saves authenticated customer's cart directly to Postgres.
  */
-export async function saveAccountCartAction(lines: CartLine[]): Promise<{ status: "ok" }> {
-  const customer = await requireCustomer();
+export async function saveAccountCartAction(
+  lines: CartLine[],
+): Promise<{ status: "ok" | "signed-out" }> {
+  const customer = await getCurrentCustomer();
+  if (!customer) return { status: "signed-out" };
   await saveCustomerCart(customer.id, lines);
   return { status: "ok" };
 }
@@ -884,7 +909,8 @@ export async function saveAccountCartAction(lines: CartLine[]): Promise<{ status
  * Loads the authenticated customer's cart from Postgres.
  */
 export async function getAccountCartAction(): Promise<CartLine[]> {
-  const customer = await requireCustomer();
+  const customer = await getCurrentCustomer();
+  if (!customer) return [];
   return getCustomerCart(customer.id);
 }
 

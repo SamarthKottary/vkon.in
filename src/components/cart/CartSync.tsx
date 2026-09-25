@@ -93,7 +93,14 @@ export function CartSync({ customerId }: CartSyncProps) {
       saveTimeoutRef.current = setTimeout(async () => {
         try {
           const lines = readCart();
-          await saveAccountCartAction(lines);
+          const result = await saveAccountCartAction(lines);
+          // The session ended somewhere else while this tab stayed open.
+          // Stop claiming to be signed in; the next render decides the rest,
+          // and the basket in localStorage is left exactly as it is.
+          if (result.status === "signed-out") {
+            setClientAuthStatus(false);
+            unsubscribe();
+          }
         } catch (err) {
           console.error("[CartSync] Failed to persist cart to DB:", err);
         }

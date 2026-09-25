@@ -976,7 +976,9 @@ export type FoundOrder = {
   tax: number;
   shipping: number;
   total: number;
-  items: { name: string; qty: number; lineTotal: number }[];
+  /** `slug` and `productId` only so the dialog can link to the product; an
+   *  item whose product was deleted carries neither. */
+  items: { name: string; qty: number; lineTotal: number; slug: string; productId: string }[];
   shipTo: ShipTo;
   billTo: ShipTo;
   sameAddress: boolean;
@@ -1027,6 +1029,8 @@ export async function findOrdersAction(
         name: item.name,
         qty: item.qty,
         lineTotal: item.lineTotal,
+        slug: item.slug,
+        productId: item.productId,
       })),
       shipTo: order.shipTo,
       billTo: order.billTo,

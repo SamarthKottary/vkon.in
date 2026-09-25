@@ -430,6 +430,11 @@ Note also that a paid order arrives here already marked **Paid** and
 
 ## Change log
 
+**2026-09-25 (orders, items)** — On an order card, and in the Find pop-up,
+an item's picture and name **open that product in a new tab**. Nothing is lost
+from the order you were working on. An item whose product has since been
+deleted stays plain text.
+
 **2026-09-25 (orders)** — **Looking an order up no longer moves the list.**
 Scan and the search box both open the order as a pop-up: which section holds
 it (Confirmed, Ready to ship, Delivered …), the items, the money, the delivery

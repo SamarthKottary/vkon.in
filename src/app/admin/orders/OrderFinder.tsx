@@ -500,9 +500,23 @@ function OrderDetails({
         <ul className="mt-2 space-y-1.5 text-sm">
           {order.items.map((item, index) => (
             <li key={`${item.name}-${index}`} className="flex justify-between gap-4">
-              <span className="text-ink">
-                {item.name} <span className="text-muted">× {item.qty}</span>
-              </span>
+              {/* The product in a new tab, as on the cards behind — this
+                  pop-up exists so the list is not disturbed, and a link that
+                  navigated would disturb it (client, 2026-09-25). */}
+              {item.productId && item.slug ? (
+                <a
+                  href={`/products/${item.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-ink hover:text-accent hover:underline"
+                >
+                  {item.name} <span className="text-muted">× {item.qty}</span>
+                </a>
+              ) : (
+                <span className="text-ink">
+                  {item.name} <span className="text-muted">× {item.qty}</span>
+                </span>
+              )}
               <span className="tabular-nums text-body">{formatPaise(item.lineTotal)}</span>
             </li>
           ))}
