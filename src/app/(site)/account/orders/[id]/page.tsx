@@ -1,9 +1,9 @@
+import { TrackingHistory } from "@/components/account/TrackingHistory";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertIcon, CheckIcon } from "@/components/icons/ui";
 import { OrderFooterActions } from "@/components/account/OrderFooterActions";
-import { isConfirmedOrder } from "@/lib/order-payment";
 import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
 import { ClearCartOnPlaced } from "@/components/cart/ClearCartOnPlaced";
 import { PayNowButton } from "@/components/checkout/PayNowButton";
@@ -365,8 +365,11 @@ export default async function OrderPage({
                 a whole (client, 2026-09-17). */}
             <OrderFooterActions
               items={order.items.map((item) => ({ slug: item.slug, qty: item.qty }))}
+              /* Only once it has arrived (client, 2026-09-25): an invoice for
+                 a parcel still in transit is a document somebody files before
+                 they know what turned up. */
               invoiceHref={
-                isConfirmedOrder(order) ? `/account/orders/${order.id}/invoice` : null
+                order.status === "delivered" ? `/account/orders/${order.id}/invoice` : null
               }
             />
           </div>
@@ -430,36 +433,15 @@ export default async function OrderPage({
                   {order.courierName || "Courier"} ·{" "}
                   <span className="break-all font-mono">{order.awb}</span>
                 </p>
-                <a
+                {/* The scans behind the chevron beside the button (client,
+                    2026-09-25): the line at the top of this panel is the
+                    answer; the history is for when it is not enough. */}
+                <TrackingHistory
                   href={trackingUrl(order.awb)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-flex h-10 items-center gap-2 border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:border-ink"
+                  count={order.trackingEvents.length}
                 >
-                  Track this parcel
-                </a>
-
-                {order.trackingEvents.length > 0 && (
-                  <div className="mt-5 border-t border-line pt-4">
-                    <TrackingTimeline events={order.trackingEvents.slice(0, 4)} />
-                    {/* The rest folded away: on a phone, a dozen scans would
-                        push the address and the total off the screen. */}
-                    {order.trackingEvents.length > 4 && (
-                      <details className="group mt-3">
-                        <summary className="cursor-pointer text-sm text-accent hover:underline">
-                          <span className="group-open:hidden">
-                            Show {order.trackingEvents.length - 4} earlier update
-                            {order.trackingEvents.length - 4 === 1 ? "" : "s"}
-                          </span>
-                          <span className="hidden group-open:inline">Hide earlier updates</span>
-                        </summary>
-                        <div className="mt-3">
-                          <TrackingTimeline events={order.trackingEvents.slice(4)} />
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                )}
+                  <TrackingTimeline events={order.trackingEvents} />
+                </TrackingHistory>
               </section>
             )}
 

@@ -265,7 +265,8 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `account/ProfileForm` · `AddressForm` | `useActionState`, per-field errors |
 | `account/PasswordCard` | Sets a first password or changes one; collapsed until asked for |
 | `account/verify-code/CodeForm` | The sign-in code, with its own resend and cancel actions |
-| `account/OrderFooterActions` | Repeat order (adds this order's lines to the cart and opens the drawer); Download invoice links to the order's PDF |
+| `account/OrderFooterActions` | Repeat order (adds this order's lines to the cart and opens the drawer); Download invoice links to the order's PDF once it is delivered |
+| `account/TrackingHistory` | Track this parcel, with the courier's scans behind a chevron beside it |
 | `admin/InvoiceGstinForm` | The business's GST number on `/admin/profile`, super user only |
 | `admin/GstRatesForm` | The CGST and SGST percentages, super user only |
 | `pricing/GstProvider` | Carries the tax rates from the layout to every price on screen |
@@ -795,7 +796,7 @@ from the client.
 
 | Method | Path | Response |
 |---|---|---|
-| `GET` | `/account/orders/[id]/invoice` | The customer's own tax invoice as `application/pdf`, `Content-Disposition: attachment`. 401 signed out, 404 for an order that is not theirs (`getOrderForCustomer` puts the customer id in the WHERE clause), 409 for one that was never paid for. |
+| `GET` | `/account/orders/[id]/invoice` | The customer's own tax invoice as `application/pdf`, `Content-Disposition: attachment`. 401 signed out, 404 for an order that is not theirs (`getOrderForCustomer` puts the customer id in the WHERE clause), 409 until it has been delivered. |
 | `GET` | `/api/health` | `200 {status:"ok", database:"ok", products:number, latencyMs:number}` · `503 {status:"error", database:"unconfigured"}`. `force-dynamic`, `Cache-Control: no-store`. |
 | `GET` | `/media/[...path]` | Streams one uploaded file from `UPLOAD_DIR` with a mapped content type (jpeg/png/webp/avif). |
 | `GET` | `/api/auth/google/start` | 302 to accounts.google.com; sets the short-lived `vkon_oauth` cookie (state + PKCE verifier + return path). |
@@ -1654,6 +1655,25 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-25 (account) — A quieter order history, and the invoice waits
+
+- **The status column is the badge alone.** "Picked up by the courier" under
+  "Shipped" said the same thing twice in a column one badge wide; the courier's
+  own words are still on the order, with the rest of the scans.
+- **Download invoice appears only once the order is delivered** (client,
+  2026-09-25) — the page hides it and the route answers 409. Until delivery
+  what was delivered is not settled: a line can be cancelled, an address
+  changed, a COD parcel refused at the door, and an invoice issued before that
+  is a document to correct rather than to file.
+- **The courier's scans fold behind a chevron** on the same row as *Track this
+  parcel*, at the panel's right edge (`account/TrackingHistory`). They were
+  open by default — a dozen lines of "Data Received / Out For Pickup" above the
+  address and the total — and the line at the top of the panel is the answer
+  anyway. A client component rather than `<details>`, because the summary would
+  have had to hold the tracking link and clicking it would have toggled the
+  panel as a side effect; the timeline is still rendered on the server and
+  passed in as children.
 
 ### 2026-09-25 (admin, orders) — Scan and the search filter the list again
 

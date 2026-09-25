@@ -2,7 +2,6 @@ import { getCurrentCustomer } from "@/lib/account";
 import { getOrderForCustomer } from "@/lib/db/orders";
 import { getInvoiceGstin } from "@/lib/db/settings";
 import { invoiceFilename, renderInvoice } from "@/lib/invoice";
-import { isConfirmedOrder } from "@/lib/order-payment";
 
 /**
  * The customer's own invoice, as a PDF (client, 2026-09-25).
@@ -14,7 +13,11 @@ import { isConfirmedOrder } from "@/lib/order-payment";
  * **The order is fetched by id *and* customer id** — `getOrderForCustomer`
  * puts both in the WHERE clause — so an order id guessed or copied from
  * somebody else returns 404, not a stranger's address and telephone number.
- * An order that was never paid for has nothing to invoice, and says so.
+ *
+ * **Only a delivered order has one** (client, 2026-09-25). Until then what was
+ * actually delivered is not settled — a line can still be cancelled, an
+ * address changed, a COD order refused at the door — and an invoice issued
+ * before that is a document to correct rather than to file.
  */
 export const dynamic = "force-dynamic";
 
@@ -28,8 +31,10 @@ export async function GET(
   const { id } = await params;
   const order = await getOrderForCustomer(customer.id, id);
   if (!order) return new Response("No such order.", { status: 404 });
-  if (!isConfirmedOrder(order)) {
-    return new Response("This order has not been paid for yet.", { status: 409 });
+  if (order.status !== "delivered") {
+    return new Response("The invoice is ready once this order has been delivered.", {
+      status: 409,
+    });
   }
 
   try {

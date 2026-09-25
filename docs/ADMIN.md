@@ -441,7 +441,7 @@ site and every order placed afterwards, while orders already placed keep what
 they were charged.
 
 **2026-09-25 (invoices)** — **Download invoice** on a customer's order page
-now produces a real PDF: Vkon Automation's letterhead (powered by G.N.
+now produces a real PDF (from 2026-09-25, only once the order is delivered): Vkon Automation's letterhead (powered by G.N.
 Technologies), both addresses, the items, CGST and SGST as separate lines, and
 the declaration — laid out after the reference invoice supplied by the client.
 The **GST number** it prints is entered under **Invoice details** on

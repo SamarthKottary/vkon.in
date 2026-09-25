@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ReviewFlowProvider, StartReviewsButton } from "@/components/account/ReviewFlow";
 import { ArrowRightIcon } from "@/components/icons/ui";
 import { formatPaise } from "@/lib/pricing";
-import { trackingLabel, trackingUrl } from "@/lib/tracking";
+import { trackingUrl } from "@/lib/tracking";
 import { PayNowButton } from "@/components/checkout/PayNowButton";
 import { CancelOrderButton } from "@/components/account/CancelOrderButton";
 import {
@@ -515,15 +515,12 @@ export function OrderHistoryTable({
                         {order.items.length}
                       </td>
                       <td className="px-4 py-4">
+                        {/* The badge alone (client, 2026-09-25): the courier's
+                            own words — "Picked up by the courier" under
+                            "Shipped" — said the same thing twice in a column
+                            one badge wide. They are still on the order itself,
+                            with the rest of the scans. */}
                         <span className={`${TABLE_BADGE} ${s.className}`}>{s.label}</span>
-                        {/* Where a shipped parcel actually is, from the courier —
-                            "Out for delivery" is the one worth seeing without
-                            opening the order. */}
-                        {order.status === "shipped" && trackingLabel(order.trackingStatus) && (
-                          <span className="mt-1 block text-xs text-muted">
-                            {trackingLabel(order.trackingStatus)}
-                          </span>
-                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm">
                         <span className="font-medium text-ink">{pay.method}</span>
@@ -573,12 +570,6 @@ export function OrderHistoryTable({
                     <span>{order.items.length} {order.items.length === 1 ? "item" : "items"}</span>
                     <span aria-hidden>·</span>
                     <span>{pay.state ? `${pay.method} · ${pay.state}` : pay.method}</span>
-                    {order.status === "shipped" && trackingLabel(order.trackingStatus) && (
-                      <>
-                        <span aria-hidden>·</span>
-                        <span>{trackingLabel(order.trackingStatus)}</span>
-                      </>
-                    )}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
                     <span className="text-base font-bold tabular-nums text-accent">

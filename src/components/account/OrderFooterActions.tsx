@@ -20,8 +20,8 @@ import { addToCart, openCartDrawer, subscribeCartDrawerClose } from "@/lib/cart"
  *
  * **Download invoice** is a link to `/account/orders/[id]/invoice`, which
  * draws the PDF on the server (`lib/invoice.ts`). It is absent — and the
- * button says why — for an online order that has not been paid for, which has
- * nothing to invoice.
+ * button says why — until the order has been delivered, because until then
+ * what was delivered is not settled.
  */
 export function OrderFooterActions({
   items,
@@ -74,14 +74,14 @@ export function OrderFooterActions({
           <button
             type="button"
             disabled
-            title="The invoice is ready once the order is paid for"
+            title="The invoice is ready once the order has been delivered"
             className="inline-flex h-11 cursor-not-allowed items-center gap-2 border border-line px-4 text-sm font-semibold text-muted"
           >
             <DownloadIcon className="h-4 w-4" />
             Download invoice
           </button>
           <span className="text-xs text-muted">
-            The invoice is ready once this order is paid for.
+            The invoice is ready once this order has been delivered.
           </span>
         </>
       )}
