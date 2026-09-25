@@ -1738,6 +1738,25 @@ on top of it could only ever be a step towards those.
 - Gone with the pop-up: `findOrdersAction`, `FoundOrder`, `findOrdersForLookup`
   and `adminOrderSection`. The scanner dialog stays, since a camera needs one.
 
+### 2026-09-25 (order page) — The actions lead the page, the bill closes it
+
+Client's sketch: **Repeat order** and **Download invoice** above the item list,
+with "The invoice is ready once this order has been delivered" beside the
+invoice button on a desktop and under both buttons on a phone.
+
+- **`OrderFooterActions` is one wrapping flex row**, and the note's `w-full
+  sm:w-auto` is what splits it: a full-width child in a wrapping row cannot
+  share a line, so a phone gets it under the buttons at their left edge.
+- **`sm:basis-48` keeps it on the row on a laptop.** A wrapping row places each
+  child at its unshrunk width, and the sentence is 20rem wide — so it jumped to
+  a line of its own on every window under ~1440px until it asked for 12rem and
+  took what was left instead. Measured: beside the button at 1366 and 1280, one
+  line from 1366 up, two below that, under the buttons below `sm`.
+- **The bill keeps the sidebar's 19rem width, against the items' right edge**
+  (`lg:ml-auto lg:w-[19rem]`) now that it no longer shares a grid row with the
+  buttons. It still follows the items down the page as an order grows, which is
+  what moving it out of the address column was for.
+
 ### 2026-09-25 (pricing) — The price block reads M.R.P. first
 
 Client's sketch: `MRP 23,555 (-15%)` on the line above, struck through, then

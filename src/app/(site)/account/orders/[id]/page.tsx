@@ -271,6 +271,21 @@ export default async function OrderPage({
 
         <div className="mt-6 grid gap-6 sm:mt-8 lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-8">
           <div>
+            {/* **Above the items** (client, 2026-09-25): what you can do with
+                the order is the reason most people open it a second time, and
+                at the foot of a long list it was below the fold. */}
+            <div className="mb-4">
+              <OrderFooterActions
+                items={order.items.map((item) => ({ slug: item.slug, qty: item.qty }))}
+                /* Only once it has arrived (client, 2026-09-25): an invoice for
+                   a parcel still in transit is a document somebody files before
+                   they know what turned up. */
+                invoiceHref={
+                  order.status === "delivered" ? `/account/orders/${order.id}/invoice` : null
+                }
+              />
+            </div>
+
             <div className="border border-line bg-surface-raised shadow-card">
             <ReviewFlowProvider orderId={order.id} items={flowItems}>
           <ul className="divide-y divide-line">
@@ -361,23 +376,12 @@ export default async function OrderPage({
             )}
             </div>
 
-            {/* Under the items, not inside their card: they act on the order
-                as a whole (client, 2026-09-17). **The bill sits beside them**
-                (client, 2026-09-25) rather than under the addresses, so it
-                follows the items down the page as an order grows instead of
-                sitting in a column of its own. */}
-            <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_19rem] lg:items-start">
-              <OrderFooterActions
-                items={order.items.map((item) => ({ slug: item.slug, qty: item.qty }))}
-                /* Only once it has arrived (client, 2026-09-25): an invoice for
-                   a parcel still in transit is a document somebody files before
-                   they know what turned up. */
-                invoiceHref={
-                  order.status === "delivered" ? `/account/orders/${order.id}/invoice` : null
-                }
-              />
-
-            <section className="border border-line bg-surface-raised p-5 shadow-card">
+            {/* The bill follows the items down the page as an order grows
+                (client, 2026-09-25) rather than sitting in the column of
+                panels beside them. It keeps the width it was drawn for — the
+                sidebar's — against the right edge, where the figure it ends on
+                lines up with the line totals above it. */}
+            <section className="mt-6 border border-line bg-surface-raised p-5 shadow-card lg:ml-auto lg:w-[19rem]">
               <h3 className="label-tech text-muted">Total</h3>
               <dl className="mt-3 divide-y divide-line text-sm">
                 <Line label="Subtotal" value={formatPaise(order.subtotal)} />
@@ -473,7 +477,6 @@ export default async function OrderPage({
                 </div>
               )}
             </section>
-            </div>
           </div>
 
           <div className="space-y-6">
