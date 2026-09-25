@@ -23,7 +23,7 @@ import { site } from "@/content/site";
 import { formatPaise } from "@/lib/pricing";
 import type { Order, OrderItem } from "@/lib/types";
 import { isShiprocketConfigured, trackingUrl } from "@/lib/shiprocket";
-import { firstScanTime, trackingLabel } from "@/lib/tracking";
+import { firstScanTime, scanTime, trackingLabel } from "@/lib/tracking";
 import { bookShipmentAction, checkRefundsAction, refreshTrackingAction } from "@/app/admin/actions";
 import { OrderStatusSelect } from "./OrderStatusSelect";
 import { SortSelect } from "./SortSelect";
@@ -408,6 +408,20 @@ function onlySection(counts: OrderFilterCounts): AdminOrderFilter | "" {
   return SECTIONS.find((section) => counts[section] === counts.all) ?? "";
 }
 
+/**
+ * The courier's own moments, preferred over the row's (client, 2026-09-25:
+ * "The shipped time should be same as pickup done time"). `applyTrackingUpdate`
+ * writes the same figures; reading the scan here as well means an order
+ * stamped before that change reads right without waiting for a refresh.
+ */
+function pickedUpAt(order: Order): string | null {
+  return scanTime(order.trackingEvents, "picked-up") ?? order.shippedAt;
+}
+
+function deliveredAt(order: Order): string | null {
+  return scanTime(order.trackingEvents, "delivered") ?? order.deliveredAt;
+}
+
 /** When a parcel became Ready to ship: our booking, else its first scan. */
 function readyAt(order: Order): string | null {
   return order.bookedAt ?? firstScanTime(order.trackingEvents);
@@ -569,13 +583,17 @@ function OrderCard({
             {order.status === "confirmed" && order.awb && readyAt(order) && (
               <p>Ready to ship: {formatDate(readyAt(order) as string)}</p>
             )}
-            {order.status === "shipped" && order.shippedAt && (
-              <p>Shipped: {formatDate(order.shippedAt)}</p>
+            {order.status === "shipped" && pickedUpAt(order) && (
+              <p>Shipped: {formatDate(pickedUpAt(order) as string)}</p>
             )}
             {order.status === "delivered" && (
               <>
-                {order.shippedAt && <p>Shipped: {formatDate(order.shippedAt)}</p>}
-                {order.deliveredAt && <p>Delivered: {formatDate(order.deliveredAt)}</p>}
+                {pickedUpAt(order) && (
+                  <p>Shipped: {formatDate(pickedUpAt(order) as string)}</p>
+                )}
+                {deliveredAt(order) && (
+                  <p>Delivered: {formatDate(deliveredAt(order) as string)}</p>
+                )}
               </>
             )}
             {order.status === "cancelled" && order.cancelledAt && (

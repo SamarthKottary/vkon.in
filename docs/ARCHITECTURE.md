@@ -1663,10 +1663,12 @@ not the time when we refreshed the page" — Shipped should be the **Pickup
 Done** scan.
 
 - **`shipped_at` and `delivered_at` come from the scans** (`scanTime` in
-  `lib/tracking.ts`, the earliest scan that means the thing). They are first in
-  each `COALESCE` inside `applyTrackingUpdate`, so an order stamped with the
-  moment somebody pressed Refresh tracking **corrects itself** the next time
-  the scans are read. A manual status change in the admin still stamps `now()`,
+  `lib/tracking.ts`, the earliest scan that means the thing — Pickup Done for
+  shipped). They are first in each `COALESCE` inside `applyTrackingUpdate`, so
+  an order stamped with the moment somebody pressed Refresh tracking **corrects
+  itself** the next time the scans are read; and **both pages read the scan
+  first too**, so an order stamped the old way is right on screen without
+  waiting for that. A manual status change in the admin still stamps `now()`,
   because there is no scan behind it.
 - **`orders.booked_at`** (new column) is when the parcel was booked — the
   moment it became **Ready to ship**. The admin card shows "Ready to ship: …"
@@ -1683,6 +1685,14 @@ Done** scan.
   sections fetches the list as it is now rather than as it was when the link
   was prefetched (client: "when i move sections … should refresh the orders").
 - **Needs the migration** — one `ALTER TABLE orders` at the end of schema.sql.
+
+### 2026-09-25 (account) — The bill moved beside the buttons
+
+Client's sketch: the totals card out of the sidebar and into the content
+column, level with Repeat order and Download invoice, under the items — so it
+travels down the page as an order grows instead of sitting in a column of its
+own beside the addresses. The invoice note moved under the buttons rather than
+beside them, where half-wrapped it read as a label for the button next to it.
 
 ### 2026-09-25 (account) — A quieter order history, and the invoice waits
 

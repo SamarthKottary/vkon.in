@@ -21,7 +21,7 @@ import { reviewsForOrder } from "@/lib/db/reviews";
 import { formatPaise } from "@/lib/pricing";
 import { isRazorpayConfigured } from "@/lib/razorpay";
 import { trackingUrl } from "@/lib/shiprocket";
-import { firstScanTime, trackingLabel } from "@/lib/tracking";
+import { firstScanTime, scanTime, trackingLabel } from "@/lib/tracking";
 import { isCod } from "@/lib/order-payment";
 import { addressEditWindow, formatCutoff } from "@/lib/order-delivery";
 import { site } from "@/content/site";
@@ -361,126 +361,21 @@ export default async function OrderPage({
             )}
             </div>
 
-            {/* Under the items, not inside their card: they act on the order as
-                a whole (client, 2026-09-17). */}
-            <OrderFooterActions
-              items={order.items.map((item) => ({ slug: item.slug, qty: item.qty }))}
-              /* Only once it has arrived (client, 2026-09-25): an invoice for
-                 a parcel still in transit is a document somebody files before
-                 they know what turned up. */
-              invoiceHref={
-                order.status === "delivered" ? `/account/orders/${order.id}/invoice` : null
-              }
-            />
-          </div>
-
-          <div className="space-y-6">
-            {/* One panel when the two are the same place, which is the common
-                case and how orders placed before checkout asked separately are
-                stored — see the `bill_to` fallback in `lib/db/orders.ts`. Two
-                identical panels stacked on top of each other would read as a
-                mistake. */}
-            {/* Tracking, once the parcel is with a courier. Above the address
-                because once something is moving, "where is it" is the question
-                the customer opened this page to answer. */}
-            {order.status === "cancelled" && (
-              <section className="border border-line bg-surface-raised p-5 shadow-card">
-                <h3 className="label-tech text-muted">Cancelled</h3>
-                <p className="mt-3 text-sm leading-relaxed text-body">
-                  This order was cancelled
-                  {order.cancelledAt ? ` on ${formatDate(order.cancelledAt)}` : ""} and
-                  will not be delivered.
-                  {order.paymentStatus === "paid" &&
-                    " You paid online, so the full amount will be refunded to the payment method you used — it takes 5–7 days to reach your account."}{" "}
-                  Questions? Call{" "}
-                  <a href={`tel:${site.phone.href}`} className="text-accent hover:underline">
-                    {site.phone.display}
-                  </a>
-                  .
-                </p>
-              </section>
-            )}
-
-            {/* Tracking, once the parcel is with a courier. Above the address
-                because once something is moving, "where is it" is the question
-                the customer opened this page to answer. The status and scans
-                are the courier's, kept current by Shiprocket's webhook
-                (2026-09-17) — this page no longer only links out to them. */}
-            {order.awb && order.status !== "cancelled" && (
-              <section className="border border-accent bg-accent-soft p-5 shadow-card">
-                <h3 className="label-tech text-muted">
-                  {order.status === "delivered" ? "Delivered" : "On its way"}
-                </h3>
-                <p className="mt-3 text-lg font-semibold leading-snug text-ink">
-                  {trackingLabel(order.trackingStatus) ??
-                    (order.status === "delivered" ? "Delivered" : "Booked with the courier")}
-                </p>
-                {/* The whole timeline in three short lines, not one: the
-                    estimate is what a customer looks for, and the two dates
-                    behind it are the courier's own scans rather than the
-                    moment this page was loaded (client, 2026-09-25). */}
-                <div className="mt-1 space-y-0.5 text-sm text-body">
-                  {order.deliveredAt ? (
-                    <p>Delivered {formatDate(order.deliveredAt)}.</p>
-                  ) : (
-                    order.trackingEta && <p>Expected by {formatDay(order.trackingEta)}.</p>
-                  )}
-                  {order.shippedAt && <p>Picked up {formatDate(order.shippedAt)}.</p>}
-                  {readyAt(order) && <p>Ready to ship {formatDate(readyAt(order) as string)}.</p>}
-                </div>
-
-                {/* Courier first, number under it: fifteen digits wrapped
-                    mid-number when they shared a line. */}
-                <p className="mt-3 text-sm text-body">{order.courierName || "Courier"}</p>
-                <p className="break-all font-mono text-sm text-body">{order.awb}</p>
-                {/* The scans behind the chevron beside the button (client,
-                    2026-09-25): the line at the top of this panel is the
-                    answer; the history is for when it is not enough. */}
-                <TrackingHistory
-                  href={trackingUrl(order.awb)}
-                  count={order.trackingEvents.length}
-                >
-                  <TrackingTimeline events={order.trackingEvents} />
-                </TrackingHistory>
-              </section>
-            )}
-
-            {/* The addresses as cards with an Edit button (client,
-                2026-09-18), which opens a pop-up listing the address book —
-                choose one, edit one, or add one, as at checkout. Billing is
-                always editable (the invoice uses the current details);
-                delivery only while `addressEditWindow` says so. One card when
-                the two are the same place, with a button for each. */}
-            {sameAddress ? (
-              <section className="border border-line bg-surface-raised p-5 shadow-card">
-                <h3 className="label-tech text-muted">Billing &amp; delivery address</h3>
-                <OrderAddress address={order.shipTo} />
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-                  {editBilling("Edit billing")}
-                  {editDelivery("Edit delivery")}
-                </div>
-                {addressNote}
-              </section>
-            ) : (
-              <>
-                <section className="border border-line bg-surface-raised p-5 shadow-card">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="label-tech text-muted">Billed to</h3>
-                    {editBilling()}
-                  </div>
-                  <OrderAddress address={order.billTo} />
-                </section>
-
-                <section className="border border-line bg-surface-raised p-5 shadow-card">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="label-tech text-muted">Delivering to</h3>
-                    {editDelivery()}
-                  </div>
-                  <OrderAddress address={order.shipTo} />
-                  {addressNote}
-                </section>
-              </>
-            )}
+            {/* Under the items, not inside their card: they act on the order
+                as a whole (client, 2026-09-17). **The bill sits beside them**
+                (client, 2026-09-25) rather than under the addresses, so it
+                follows the items down the page as an order grows instead of
+                sitting in a column of its own. */}
+            <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_19rem] lg:items-start">
+              <OrderFooterActions
+                items={order.items.map((item) => ({ slug: item.slug, qty: item.qty }))}
+                /* Only once it has arrived (client, 2026-09-25): an invoice for
+                   a parcel still in transit is a document somebody files before
+                   they know what turned up. */
+                invoiceHref={
+                  order.status === "delivered" ? `/account/orders/${order.id}/invoice` : null
+                }
+              />
 
             <section className="border border-line bg-surface-raised p-5 shadow-card">
               <h3 className="label-tech text-muted">Total</h3>
@@ -578,6 +473,119 @@ export default async function OrderPage({
                 </div>
               )}
             </section>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* One panel when the two are the same place, which is the common
+                case and how orders placed before checkout asked separately are
+                stored — see the `bill_to` fallback in `lib/db/orders.ts`. Two
+                identical panels stacked on top of each other would read as a
+                mistake. */}
+            {/* Tracking, once the parcel is with a courier. Above the address
+                because once something is moving, "where is it" is the question
+                the customer opened this page to answer. */}
+            {order.status === "cancelled" && (
+              <section className="border border-line bg-surface-raised p-5 shadow-card">
+                <h3 className="label-tech text-muted">Cancelled</h3>
+                <p className="mt-3 text-sm leading-relaxed text-body">
+                  This order was cancelled
+                  {order.cancelledAt ? ` on ${formatDate(order.cancelledAt)}` : ""} and
+                  will not be delivered.
+                  {order.paymentStatus === "paid" &&
+                    " You paid online, so the full amount will be refunded to the payment method you used — it takes 5–7 days to reach your account."}{" "}
+                  Questions? Call{" "}
+                  <a href={`tel:${site.phone.href}`} className="text-accent hover:underline">
+                    {site.phone.display}
+                  </a>
+                  .
+                </p>
+              </section>
+            )}
+
+            {/* Tracking, once the parcel is with a courier. Above the address
+                because once something is moving, "where is it" is the question
+                the customer opened this page to answer. The status and scans
+                are the courier's, kept current by Shiprocket's webhook
+                (2026-09-17) — this page no longer only links out to them. */}
+            {order.awb && order.status !== "cancelled" && (
+              <section className="border border-accent bg-accent-soft p-5 shadow-card">
+                <h3 className="label-tech text-muted">
+                  {order.status === "delivered" ? "Delivered" : "On its way"}
+                </h3>
+                <p className="mt-3 text-lg font-semibold leading-snug text-ink">
+                  {trackingLabel(order.trackingStatus) ??
+                    (order.status === "delivered" ? "Delivered" : "Booked with the courier")}
+                </p>
+                {/* The whole timeline in three short lines, not one: the
+                    estimate is what a customer looks for, and the two dates
+                    behind it are the courier's own scans rather than the
+                    moment this page was loaded (client, 2026-09-25). */}
+                <div className="mt-1 space-y-0.5 text-sm text-body">
+                  {order.deliveredAt ? (
+                    <p>Delivered {formatDate(order.deliveredAt)}.</p>
+                  ) : (
+                    order.trackingEta && <p>Expected by {formatDay(order.trackingEta)}.</p>
+                  )}
+                  {pickedUpAt(order) && (
+                    <p>Picked up {formatDate(pickedUpAt(order) as string)}.</p>
+                  )}
+                  {readyAt(order) && <p>Ready to ship {formatDate(readyAt(order) as string)}.</p>}
+                </div>
+
+                {/* Courier first, number under it: fifteen digits wrapped
+                    mid-number when they shared a line. */}
+                <p className="mt-3 text-sm text-body">{order.courierName || "Courier"}</p>
+                <p className="break-all font-mono text-sm text-body">{order.awb}</p>
+                {/* The scans behind the chevron beside the button (client,
+                    2026-09-25): the line at the top of this panel is the
+                    answer; the history is for when it is not enough. */}
+                <TrackingHistory
+                  href={trackingUrl(order.awb)}
+                  count={order.trackingEvents.length}
+                >
+                  <TrackingTimeline events={order.trackingEvents} />
+                </TrackingHistory>
+              </section>
+            )}
+
+            {/* The addresses as cards with an Edit button (client,
+                2026-09-18), which opens a pop-up listing the address book —
+                choose one, edit one, or add one, as at checkout. Billing is
+                always editable (the invoice uses the current details);
+                delivery only while `addressEditWindow` says so. One card when
+                the two are the same place, with a button for each. */}
+            {sameAddress ? (
+              <section className="border border-line bg-surface-raised p-5 shadow-card">
+                <h3 className="label-tech text-muted">Billing &amp; delivery address</h3>
+                <OrderAddress address={order.shipTo} />
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+                  {editBilling("Edit billing")}
+                  {editDelivery("Edit delivery")}
+                </div>
+                {addressNote}
+              </section>
+            ) : (
+              <>
+                <section className="border border-line bg-surface-raised p-5 shadow-card">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="label-tech text-muted">Billed to</h3>
+                    {editBilling()}
+                  </div>
+                  <OrderAddress address={order.billTo} />
+                </section>
+
+                <section className="border border-line bg-surface-raised p-5 shadow-card">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="label-tech text-muted">Delivering to</h3>
+                    {editDelivery()}
+                  </div>
+                  <OrderAddress address={order.shipTo} />
+                  {addressNote}
+                </section>
+              </>
+            )}
+
           </div>
         </div>
       </div>
@@ -602,6 +610,18 @@ function Line({
       </dd>
     </div>
   );
+}
+
+/**
+ * When the courier took it: the **Pickup Done** scan, else what the row says.
+ *
+ * The scan first (client, 2026-09-25: "The shipped time should be same as
+ * pickup done time") — `applyTrackingUpdate` writes the same figure, but an
+ * order stamped before that read correctly here straight away rather than
+ * after somebody presses Refresh tracking.
+ */
+function pickedUpAt(order: Order): string | null {
+  return scanTime(order.trackingEvents, "picked-up") ?? order.shippedAt;
 }
 
 /** When a parcel became ready to ship: our booking, else its first scan. */

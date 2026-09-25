@@ -48,29 +48,29 @@ export function OrderFooterActions({
   };
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3">
-      <button
-        type="button"
-        onClick={repeat}
-        className="inline-flex h-11 items-center gap-2 border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
-      >
-        {added ? <CheckIcon className="h-4 w-4 text-accent" /> : <CartIcon className="h-4 w-4" />}
-        {added ? "Added to your cart" : "Repeat order"}
-      </button>
-
-      {/* A plain link, not a fetch: the browser saves the file itself, and
-          the page the customer is reading stays where it is. */}
-      {invoiceHref ? (
-        <a
-          href={invoiceHref}
-          download
+    <div className="mt-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={repeat}
           className="inline-flex h-11 items-center gap-2 border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
         >
-          <DownloadIcon className="h-4 w-4" />
-          Download invoice
-        </a>
-      ) : (
-        <>
+          {added ? <CheckIcon className="h-4 w-4 text-accent" /> : <CartIcon className="h-4 w-4" />}
+          {added ? "Added to your cart" : "Repeat order"}
+        </button>
+
+        {/* A plain link, not a fetch: the browser saves the file itself, and
+            the page the customer is reading stays where it is. */}
+        {invoiceHref ? (
+          <a
+            href={invoiceHref}
+            download
+            className="inline-flex h-11 items-center gap-2 border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+          >
+            <DownloadIcon className="h-4 w-4" />
+            Download invoice
+          </a>
+        ) : (
           <button
             type="button"
             disabled
@@ -80,10 +80,16 @@ export function OrderFooterActions({
             <DownloadIcon className="h-4 w-4" />
             Download invoice
           </button>
-          <span className="text-xs text-muted">
-            The invoice is ready once this order has been delivered.
-          </span>
-        </>
+        )}
+      </div>
+
+      {/* Under the buttons rather than beside them (client, 2026-09-25): on a
+          narrow column it wrapped anyway, and half-wrapped it read as a label
+          for the button next to it. */}
+      {!invoiceHref && (
+        <p className="mt-2 text-xs text-muted">
+          The invoice is ready once this order has been delivered.
+        </p>
       )}
     </div>
   );
