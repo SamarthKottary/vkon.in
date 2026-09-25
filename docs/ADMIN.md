@@ -465,8 +465,9 @@ deleted stays plain text.
 **2026-09-25 (orders, later)** — Scan and the search box **filter the list**
 to the order, rather than opening a pop-up over it: the card is where an order
 is worked on. A search also clears the section filter, so an order is found
-whatever section it is in, and the AWB is searchable now — scanning a parcel
-label lands on its card.
+whatever section it is in, and then selects the section the matches are in —
+All only when they are spread across several. The AWB is searchable now, so
+scanning a parcel label lands on its card.
 
 **2026-09-25 (orders)** — **Looking an order up no longer moves the list.**
 Scan and the search box both open the order as a pop-up: which section holds

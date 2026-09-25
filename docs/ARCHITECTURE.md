@@ -1666,10 +1666,15 @@ on top of it could only ever be a step towards those.
   it read into the same search** — so both end at the order's own card. A
   scanned `-R2` retry suffix is stripped first: that is Shiprocket's reference
   for the parcel, not ours.
-- **A search drops `?status=`.** An order looked up by number, AWB or phone is
+- **A search drops `?status=`** — an order looked up by number, AWB or phone is
   wanted whatever section it is in, and "no orders match" while standing in
-  Ready to ship was the sharpest edge of the old behaviour. The chips narrow it
-  again afterwards.
+  Ready to ship was the sharpest edge of the old behaviour — **and then lands
+  on the section its matches are in** (client, same day), falling back to All
+  only when they are spread across several. That is read off the counts, which
+  are already per filter and for this same search, so no second query and no
+  change to the rows: a section holding every match holds exactly what is on
+  screen. Most specific wins, since one unquoted pending order counts in both
+  Pending and Pending-not quoted.
 - **`ORDER_SEARCH_SQL` now matches `awb`**, so a number scanned off a label
   finds its order at all.
 - Gone with the pop-up: `findOrdersAction`, `FoundOrder`, `findOrdersForLookup`

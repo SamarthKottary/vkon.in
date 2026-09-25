@@ -125,9 +125,18 @@ export default async function AdminOrdersPage({
     orderSummary(),
   ]);
   const emails = await listCustomerEmails([...new Set(orders.map((o) => o.customerId))]);
+
+  /* **A search shows the section its matches are in** (client, 2026-09-25),
+     falling back to All when they are spread across several. Worked out from
+     the counts rather than by asking again: they are per filter and for this
+     same search, so a section holding every match holds exactly the orders on
+     screen — the list does not change, only which chip reads as current and
+     what the cards' forms carry back. */
+  const shown = filter || onlySection(counts);
+
   /* Posted with every form on a card, so each action comes back here — the
      same search, filter and page — rather than to page 1. */
-  const view = listSearch({ q: query.q, status: filter, sort, page });
+  const view = listSearch({ q: query.q, status: shown, sort, page });
 
   /* "Needs action" is pending-or-confirmed, i.e. not yet out of the door and
      not cancelled — across every order, not just this page. */
@@ -318,7 +327,7 @@ export default async function AdminOrdersPage({
         </p>
       </InfoNote>
 
-      <OrderFilters q={query.q} filter={filter} counts={counts} sort={sort} />
+      <OrderFilters q={query.q} filter={shown} counts={counts} sort={sort} />
 
       <div className="mt-4 space-y-4">
         {orders.length === 0 ? (
@@ -366,13 +375,37 @@ export default async function AdminOrdersPage({
               path="/admin/orders"
               page={page}
               total={total}
-              keep={{ q: query.q, status: filter, sort }}
+              keep={{ q: query.q, status: shown, sort }}
             />
           </div>
         )}
       </div>
     </Container>
   );
+}
+
+/**
+ * The one section every match of a search is in, or "" for none.
+ *
+ * Checked most specific first: a single unquoted pending order counts in both
+ * **Pending** and **Pending-not quoted**, and the narrower of the two is the
+ * more useful answer. Nothing is implied when the search matched nothing, or
+ * when the matches are spread across sections — that is what All is for.
+ */
+const SECTIONS: AdminOrderFilter[] = [
+  "pending-unquoted",
+  "refund-cancelled",
+  "ready",
+  "pending",
+  "confirmed",
+  "shipped",
+  "delivered",
+  "cancelled",
+];
+
+function onlySection(counts: OrderFilterCounts): AdminOrderFilter | "" {
+  if (counts.all === 0) return "";
+  return SECTIONS.find((section) => counts[section] === counts.all) ?? "";
 }
 
 const FILTER_LABELS: Record<AdminOrderFilter, string> = {
