@@ -123,6 +123,12 @@ export function Footer() {
             <p>
               © {new Date().getFullYear()} {site.legalName}
             </p>
+            {/* The line from the banner at the office door (client,
+                2026-09-25), and the same one printed on every invoice. */}
+            <span aria-hidden className="text-band-muted">
+              ·
+            </span>
+            <p className="text-band-muted">powered by G.N. Technologies</p>
             {/* `band-muted`, not `band-line`. The line token is for 1px rules
                 and sits at 1.5:1 — as a glyph it is invisible, which makes it a
                 separator that separates nothing. */}

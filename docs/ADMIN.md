@@ -430,6 +430,17 @@ Note also that a paid order arrives here already marked **Paid** and
 
 ## Change log
 
+**2026-09-25 (invoices)** — **Download invoice** on a customer's order page
+now produces a real PDF: Vkon Automation's letterhead (powered by G.N.
+Technologies), both addresses, the items, CGST and SGST as separate lines, and
+the declaration — laid out after the reference invoice supplied by the client.
+The **GST number** it prints is entered under **Invoice details** on
+`/admin/profile`, which only a super user sees; leave it empty and the invoice
+simply carries no GSTIN line. A business customer who entered their own GSTIN
+at checkout sees it on the billing address, and the foot carries the signature
+block ("Authorised Signatory"). Amounts read "Rs." rather than the rupee sign,
+which the PDF's standard fonts cannot draw.
+
 **2026-09-25 (sign-in)** — Opening an admin link while signed out now shows
 the **sign-in form** — "Sign in to open /admin/orders?status=ready" — and
 takes you to that page once you are in, instead of the browser's reload/error

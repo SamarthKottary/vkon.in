@@ -212,6 +212,9 @@ src/
     razorpay.ts  order creation + the two signature verifiers; no SDK
     barcode.ts   a Code 128 reader for the admin's Scan button; no library,
                  no DOM types — takes pixels, returns the string
+    pdf.ts       a small PDF writer (text, rules, boxes, images); no library
+    png.ts       just enough PNG to hand `pdf.ts` raw pixels, on node:zlib
+    invoice.ts   the customer's tax invoice, drawn with the two above
     pricing.ts   the ONE money calculation, shared by browser and server
     cart.ts      the basket, in localStorage
     rate-limit.ts in-memory fixed window; guards the public sign-up
@@ -261,7 +264,8 @@ public/segments/  one photograph per sector, used by the hero AND the cards
 | `account/ProfileForm` · `AddressForm` | `useActionState`, per-field errors |
 | `account/PasswordCard` | Sets a first password or changes one; collapsed until asked for |
 | `account/verify-code/CodeForm` | The sign-in code, with its own resend and cancel actions |
-| `account/OrderFooterActions` | Repeat order (adds this order's lines to the cart and opens the drawer); Download invoice is a disabled placeholder |
+| `account/OrderFooterActions` | Repeat order (adds this order's lines to the cart and opens the drawer); Download invoice links to the order's PDF |
+| `admin/InvoiceGstinForm` | The business's GST number on `/admin/profile`, super user only |
 | `cart/CartDrawer` | Slide-over state, Escape, body scroll lock |
 | `cart/ClearCartOnPlaced` | Empties the basket on the order confirmation page |
 | `checkout/CheckoutForm` | Reads the localStorage cart, prices it; billing and shipping address selection |
@@ -786,6 +790,7 @@ from the client.
 
 | Method | Path | Response |
 |---|---|---|
+| `GET` | `/account/orders/[id]/invoice` | The customer's own tax invoice as `application/pdf`, `Content-Disposition: attachment`. 401 signed out, 404 for an order that is not theirs (`getOrderForCustomer` puts the customer id in the WHERE clause), 409 for one that was never paid for. |
 | `GET` | `/api/health` | `200 {status:"ok", database:"ok", products:number, latencyMs:number}` · `503 {status:"error", database:"unconfigured"}`. `force-dynamic`, `Cache-Control: no-store`. |
 | `GET` | `/media/[...path]` | Streams one uploaded file from `UPLOAD_DIR` with a mapped content type (jpeg/png/webp/avif). |
 | `GET` | `/api/auth/google/start` | 302 to accounts.google.com; sets the short-lived `vkon_oauth` cookie (state + PKCE verifier + return path). |
@@ -1645,6 +1650,53 @@ probe `/api/health`.
 
 Newest first. Add an entry for anything that changes structure, a dependency, or
 a §9 constraint.
+
+### 2026-09-25 (site) — "powered by G.N. Technologies" in the footer
+
+The line from the banner at the office door now sits in the bottom bar of
+every page, between the copyright and the tagline, in the same muted type as
+its neighbours — and it is what the invoice prints in its own foot.
+
+### 2026-09-25 (invoices) — Download invoice, and the GST number behind it
+
+Client: make the order page's disabled "Download invoice" real, put the GST
+number somewhere a super user can enter it, and follow the invoice he supplied
+as the reference (`ST190826125297.pdf`) while carrying his own branding —
+Vkon Automation, *powered by G.N. Technologies*, from the banner at the
+office door.
+
+- **`lib/pdf.ts`** — a PDF writer: the 1.4 file structure, the two standard
+  Helvetica faces (so nothing is embedded), rules, boxes, Flate-compressed
+  images, top-left coordinates and the AFM width tables for right alignment.
+  **`lib/png.ts`** decodes the logo to raw pixels on `node:zlib`, because a PDF
+  image is samples, not a file format.
+- **The decision not to add a dependency** (AGENTS.md asks for these to be
+  recorded): a PDF library is megabytes of font machinery for one A4 page of
+  text, rules and a wordmark, on a site whose runtime dependencies are next,
+  react and react-dom. The cost is that **there is no `₹`** — the standard
+  fonts are WinAnsi and the rupee sign is not in that set, so amounts read
+  "Rs. 1,639.00", as a rupee invoice did before the sign existed.
+- **`lib/invoice.ts`** lays out the reference's shape — logo and "Tax Invoice
+  (Original for Recipient)", seller against invoice details, Bill to beside
+  Ship to, the items table, totals stacked on the right, declaration at the
+  foot — with CGST and SGST as separate lines, since both parties are in
+  Karnataka. A long order carries overleaf with the header repeated.
+- **`GET /account/orders/[id]/invoice`** returns it as a download; the button
+  is a plain `<a download>`, and an order that was never paid for has none,
+  with the reason in its place.
+- **The signature block** at the foot, as on the reference (client, later the
+  same day): "(Computer generated invoice - signature not required.)" and a
+  rule for an **Authorised Signatory** on a printed copy. No wordmark down
+  there — it is already at the top and in the foot line, and a third reads as
+  a watermark.
+  It is anchored low but never over a long declaration. A **business buyer's
+  own GSTIN** prints under Bill to whenever checkout captured one on the
+  billing address.
+- **The GSTIN lives in `site_settings`**, entered by a super user in a new
+  **Invoice details** card on `/admin/profile` (`saveInvoiceGstinAction`,
+  role-checked in the action as well as the page, shape-checked by `isGstin`).
+  It is a registration, not content: an invoice carrying a stale or borrowed
+  number is a tax document that is wrong, so it is not a constant in the repo.
 
 ### 2026-09-25 (admin) — A bookmarked admin page asks for a sign-in, then opens
 
@@ -2786,7 +2838,7 @@ Client, on the order history and one order's page.
   because a `tr` in a collapsed table cannot carry one. Cards use a border.
 - **`OrderFooterActions` under the items on an order's page:** *Repeat order*
   adds that order's lines to the cart — adding to what is there, never
-  replacing it — and opens the cart drawer; *Download invoice* is a disabled
+  replacing it — and opens the cart drawer; *Download invoice* was a disabled
   placeholder while invoices wait on numbering and the GST decision
   (EMAILS.md §3, E).
 - Status badges are `whitespace-nowrap`; the table still fits at 1280 and 1440.

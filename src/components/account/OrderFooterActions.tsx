@@ -18,13 +18,18 @@ import { addToCart, openCartDrawer, subscribeCartDrawerClose } from "@/lib/cart"
  * withdrawn from the catalogue since simply does not price at checkout, which
  * is the same thing that happens to a stale cart.
  *
- * **Download invoice is a placeholder**, disabled and saying so: invoices need
- * numbering and a GST decision first (docs/EMAILS.md §3, E).
+ * **Download invoice** is a link to `/account/orders/[id]/invoice`, which
+ * draws the PDF on the server (`lib/invoice.ts`). It is absent — and the
+ * button says why — for an online order that has not been paid for, which has
+ * nothing to invoice.
  */
 export function OrderFooterActions({
   items,
+  invoiceHref,
 }: {
   items: { slug: string; qty: number }[];
+  /** The order's invoice, or null when there is nothing to invoice yet. */
+  invoiceHref?: string | null;
 }) {
   const [added, setAdded] = useState(false);
 
@@ -53,17 +58,33 @@ export function OrderFooterActions({
         {added ? "Added to your cart" : "Repeat order"}
       </button>
 
-      <button
-        type="button"
-        disabled
-        title="Invoices are coming soon"
-        className="inline-flex h-11 cursor-not-allowed items-center gap-2 border border-line px-4 text-sm font-semibold text-muted"
-      >
-        <DownloadIcon className="h-4 w-4" />
-        Download invoice
-      </button>
-
-      <span className="text-xs text-muted">Invoices are coming soon.</span>
+      {/* A plain link, not a fetch: the browser saves the file itself, and
+          the page the customer is reading stays where it is. */}
+      {invoiceHref ? (
+        <a
+          href={invoiceHref}
+          download
+          className="inline-flex h-11 items-center gap-2 border border-line-strong px-4 text-sm font-semibold text-ink transition-colors hover:border-ink hover:bg-surface-subtle"
+        >
+          <DownloadIcon className="h-4 w-4" />
+          Download invoice
+        </a>
+      ) : (
+        <>
+          <button
+            type="button"
+            disabled
+            title="The invoice is ready once the order is paid for"
+            className="inline-flex h-11 cursor-not-allowed items-center gap-2 border border-line px-4 text-sm font-semibold text-muted"
+          >
+            <DownloadIcon className="h-4 w-4" />
+            Download invoice
+          </button>
+          <span className="text-xs text-muted">
+            The invoice is ready once this order is paid for.
+          </span>
+        </>
+      )}
     </div>
   );
 }

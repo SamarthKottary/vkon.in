@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireAdminRole } from "@/lib/auth";
+import { isGstin, setInvoiceGstin } from "@/lib/db/settings";
 import {
   getAdminPasswordHash,
   setAdminAvatar,
@@ -161,3 +162,43 @@ export async function removeAdminAvatarAction(): Promise<
   return { status: "ok" };
 }
 
+
+/**
+ * The GST number printed on customer invoices (client, 2026-09-25).
+ *
+ * **Super user only**, checked here rather than only in the page: this is one
+ * number for the whole business, on a document the customer keeps, and a
+ * server action is a POST anybody signed in could otherwise make. Saved
+ * upper-cased and shape-checked (`isGstin`); clearing the field is allowed and
+ * simply takes the line off the invoice.
+ */
+export async function saveInvoiceGstinAction(
+  _prev: ProfileState,
+  formData: FormData,
+): Promise<ProfileState> {
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super"]);
+
+  const gstin = String(formData.get("gstin") ?? "").trim().toUpperCase();
+  if (gstin && !isGstin(gstin)) {
+    return {
+      status: "error",
+      fieldErrors: { gstin: "That is not a GST number — 15 characters, like 29ABCDE1234F1Z5." },
+      values: { gstin },
+    };
+  }
+
+  try {
+    await setInvoiceGstin(gstin);
+  } catch (error) {
+    console.error("[admin] saving the invoice GSTIN failed:", error);
+    return { status: "error", message: "Could not save that. Try again.", values: { gstin } };
+  }
+
+  revalidatePath("/admin/profile");
+  return {
+    status: "ok",
+    message: gstin ? "GST number saved." : "GST number cleared.",
+    values: { gstin },
+  };
+}

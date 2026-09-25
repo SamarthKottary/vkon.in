@@ -9,6 +9,7 @@ import { isDatabaseConfigured, query } from "./client";
  */
 
 const SIGNIN_CODE = "signin_code";
+const INVOICE_GSTIN = "invoice_gstin";
 
 async function getSetting(key: string): Promise<string | null> {
   if (!isDatabaseConfigured()) return null;
@@ -51,4 +52,37 @@ export async function isSigninCodeOn(): Promise<boolean> {
 /** Called only from an authenticated admin action. */
 export async function setSigninCodeOn(on: boolean): Promise<void> {
   await setSetting(SIGNIN_CODE, on ? "on" : "off");
+}
+
+/**
+ * The business's GST registration number, as printed on customer invoices
+ * (client, 2026-09-25: a place for it in the super admin).
+ *
+ * In `site_settings` rather than `content/site.ts` because it is not content:
+ * it is a registration that is applied for, changes, and can lapse — and an
+ * invoice carrying a stale or borrowed GSTIN is a tax document that is wrong.
+ * Empty means "not entered", and the invoice then simply has no GSTIN line
+ * rather than a placeholder.
+ */
+export async function getInvoiceGstin(): Promise<string> {
+  try {
+    return (await getSetting(INVOICE_GSTIN)) ?? "";
+  } catch (error) {
+    console.error("[db] invoice GSTIN unreadable:", error);
+    return "";
+  }
+}
+
+/** Called only from the super-user action on /admin/profile. */
+export async function setInvoiceGstin(gstin: string): Promise<void> {
+  await setSetting(INVOICE_GSTIN, gstin.trim().toUpperCase());
+}
+
+/**
+ * Whether a string is a GSTIN: two state digits, a ten-character PAN, an
+ * entity digit, a `Z`, and a check character. Checked here so one rule serves
+ * the form and anything else that ever writes it.
+ */
+export function isGstin(value: string): boolean {
+  return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(value.trim().toUpperCase());
 }

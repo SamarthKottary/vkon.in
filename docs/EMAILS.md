@@ -115,7 +115,7 @@ Shiprocket's updates for those go to us.
 
 | # | Email | To | Status | Why it matters | What building it involves | Size |
 |---|---|---|---|---|---|---|
-| E | **GST tax invoice** | Customer | Not started | Business buyers who enter a GSTIN expect a tax invoice; many customers expect one anyway. | Invoice numbering (sequential, per financial year), a printable invoice page or PDF, and a link or attachment on email 5. Settle the GST treatment first: `lib/pricing.ts` always charges CGST + SGST, and its own note records that an inter-state sale should be a single IGST line. | Large |
+| E | **GST tax invoice** | Customer | **Done 2026-09-25** — downloadable from the order page (`lib/invoice.ts`); the GSTIN is a super-user setting. Still to do if wanted: sequential invoice numbers per financial year, and attaching the PDF to email 5. | Business buyers who enter a GSTIN expect a tax invoice; many customers expect one anyway. | Invoice numbering (sequential, per financial year), a printable invoice page or PDF, and a link or attachment on email 5. Settle the GST treatment first: `lib/pricing.ts` always charges CGST + SGST, and its own note records that an inter-state sale should be a single IGST line. | Large |
 
 ---
 

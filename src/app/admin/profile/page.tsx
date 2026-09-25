@@ -3,6 +3,8 @@ import { Avatar } from "@/components/account/Avatar";
 import { AdminProfileForm } from "@/components/admin/AdminProfileForm";
 import { AdminAvatarForm } from "@/components/admin/AdminAvatarForm";
 import { AdminPasswordCard } from "@/components/admin/AdminPasswordCard";
+import { InvoiceGstinForm } from "@/components/admin/InvoiceGstinForm";
+import { getInvoiceGstin } from "@/lib/db/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default async function AdminProfilePage() {
   const admin = await requireAdminPage();
+  const gstin = admin.role === "super" ? await getInvoiceGstin() : "";
 
   return (
     <div className="space-y-10 p-6 sm:p-8 lg:p-10">
@@ -58,6 +61,20 @@ export default async function AdminProfilePage() {
           <AdminPasswordCard hasPassword={admin.hasPassword} role={admin.role} />
         </div>
       </section>
+
+      {/* The business's own details, not this operator's — so it is a super
+          user's to set, and it sits in its own card (client, 2026-09-25). */}
+      {admin.role === "super" && (
+        <section className="border border-line bg-surface-raised p-6 shadow-card sm:p-8">
+          <h2 className="text-lg font-semibold text-ink">Invoice details</h2>
+          <p className="mt-1 text-sm text-muted">
+            Used on every invoice a customer downloads from their order history.
+          </p>
+          <div className="mt-6 max-w-md">
+            <InvoiceGstinForm gstin={gstin} />
+          </div>
+        </section>
+      )}
     </div>
   );
 }

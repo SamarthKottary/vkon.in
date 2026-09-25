@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertIcon, CheckIcon } from "@/components/icons/ui";
 import { OrderFooterActions } from "@/components/account/OrderFooterActions";
+import { isConfirmedOrder } from "@/lib/order-payment";
 import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
 import { ClearCartOnPlaced } from "@/components/cart/ClearCartOnPlaced";
 import { PayNowButton } from "@/components/checkout/PayNowButton";
@@ -364,6 +365,9 @@ export default async function OrderPage({
                 a whole (client, 2026-09-17). */}
             <OrderFooterActions
               items={order.items.map((item) => ({ slug: item.slug, qty: item.qty }))}
+              invoiceHref={
+                isConfirmedOrder(order) ? `/account/orders/${order.id}/invoice` : null
+              }
             />
           </div>
 
