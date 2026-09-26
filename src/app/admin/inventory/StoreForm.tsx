@@ -319,7 +319,9 @@ export function StoreForm({
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="truncate font-medium text-ink">
-                              {p.name}
+                              <a href={`/admin/products/${p.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-accent hover:underline">
+                                {p.name}
+                              </a>
                             </span>
                             {!p.published && <Badge tone="warn">Draft</Badge>}
                           </div>

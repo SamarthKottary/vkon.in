@@ -202,7 +202,11 @@ export function StoreStockList({
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold leading-snug text-ink">{row.product.name}</p>
+                <p className="text-sm font-semibold leading-snug text-ink">
+                  <a href={`/admin/products/${row.product.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-accent hover:underline">
+                    {row.product.name}
+                  </a>
+                </p>
                 {!row.product.published && <Badge>Unpublished</Badge>}
                 {row.product.outOfStock && <Badge tone="warn">Out of stock on site</Badge>}
               </div>
