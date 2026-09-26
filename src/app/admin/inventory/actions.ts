@@ -21,6 +21,7 @@ import {
   type StoreInput,
 } from "@/lib/db/stores";
 import { findPickupAddress, isShiprocketConfigured, type PickupAddress } from "@/lib/shiprocket";
+import { issueStoreSession } from "@/lib/store-auth";
 
 /**
  * The store pages' server actions (client, 2026-09-26).
@@ -324,4 +325,20 @@ export async function reorderStoreProductsAction(storeId: string, ids: string[])
   const held = new Set((await listStoreProducts(store.id)).map((row) => row.id));
   await reorderStoreProducts(store.id, ids.filter((id) => held.has(id)));
   revalidateStore(store.slug);
+}
+
+export async function impersonateStoreAction(formData: FormData): Promise<void> {
+  await requireInventory();
+  
+  const id = String(formData.get("id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  
+  const store = await getStoreById(id);
+  if (!store || store.blockedAt) {
+    redirect("/admin/inventory");
+  }
+
+  const { issueStoreSession } = await import("@/lib/store-auth");
+  await issueStoreSession(id);
+  redirect(`/${slug}`);
 }

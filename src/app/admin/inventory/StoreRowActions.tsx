@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { BanIcon, EyeIcon, PencilIcon, SpinnerIcon, TrashIcon } from "@/components/icons/ui";
+import { ArrowRightIcon, BanIcon, EyeIcon, PencilIcon, SpinnerIcon, TrashIcon } from "@/components/icons/ui";
 import type { Store } from "@/lib/types";
-import { blockStoreAction, deleteStoreAction } from "./actions";
+import { blockStoreAction, deleteStoreAction, impersonateStoreAction } from "./actions";
 
 /**
  * **View · Edit · Block · Delete**, at the right of a store's row (client,
@@ -53,6 +53,18 @@ export function StoreRowActions({
 
   return (
     <div className="flex flex-wrap items-center gap-1">
+      <form action={impersonateStoreAction}>
+        <input type="hidden" name="id" value={store.id} />
+        <input type="hidden" name="slug" value={store.slug} />
+        <button
+          type="submit"
+          className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap px-2 text-sm font-medium text-ink transition-colors hover:text-accent"
+        >
+          <ArrowRightIcon className="h-[1.1rem] w-[1.1rem]" />
+          Login
+          <span className="sr-only"> as {store.nickname}</span>
+        </button>
+      </form>
       {showView && (
         <Link
           href={`/admin/inventory/${store.slug}`}
