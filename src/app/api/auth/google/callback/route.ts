@@ -166,6 +166,11 @@ export async function GET(request: NextRequest) {
 
     customerId = customer.id;
 
+    /* A blocked account is refused here the same as on the password form.
+       The customer already proved control of the Google address, so naming
+       the reason is appropriate — this is not an enumeration risk. */
+    if (customer.blockedAt) return fail(request, "blocked");
+
     /* Their Google photo as the profile picture, unless they chose their own
        or removed it (2026-09-19). Fetched only when Google's has changed;
        never throws, never waits more than a few seconds. */

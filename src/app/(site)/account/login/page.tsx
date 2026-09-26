@@ -25,6 +25,8 @@ const NOTICES: Record<string, string> = {
   state: "That sign-in could not be verified. Please start again.",
   unverified:
     "Google has not confirmed that email address, so we cannot use it to sign in. Please register with a password instead.",
+  blocked:
+    "Your account has been blocked. Please contact us if you think this is a mistake.",
   checkout: "Please sign in or register to finish your order.",
 };
 

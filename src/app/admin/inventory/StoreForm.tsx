@@ -1,9 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
-import type { GstRates } from "@/lib/pricing";
+import { AlertIcon, CheckIcon, SearchIcon, SpinnerIcon } from "@/components/icons/ui";
+import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
+import { categoryLabel } from "@/content/taxonomy";
+import { displayPricePaise, formatPaise, type GstRates } from "@/lib/pricing";
 import type { Store, StorePickup } from "@/lib/types";
 import {
   createStoreAction,
@@ -12,7 +15,7 @@ import {
   type PickupState,
   type StoreFormState,
 } from "./actions";
-import { StoreProductPicker, type PickerProduct } from "./StoreProductPicker";
+import type { PickerProduct } from "./StoreProductPicker";
 
 /**
  * A store's address, in the shape Shiprocket holds it (client, 2026-09-26:
@@ -29,10 +32,15 @@ import { StoreProductPicker, type PickerProduct } from "./StoreProductPicker";
  * all: a store may exist before anybody registers it with the courier, and the
  * form must not be a dead end when Shiprocket is down.
  *
- * On a new store the picker's **Save products** submits the whole form, so the
- * address and the first products are written together and the browser arrives
- * at the store's own page (client: "after saving he will be directed to
+ * **On a new store** the product catalogue is shown inline below the address
+ * so the operator can tick what the store holds before saving. Email, Phone
+ * and Contact name are required. At least one product must be selected.
+ * Saving writes both the store and its products together, then opens the
+ * store's own page (client: "after saving he will be directed to
  * vkon.in/admin/inventory/storename").
+ *
+ * **On an existing store** (edit mode) the product section is not shown here —
+ * products are managed directly from the store's own page.
  */
 export function StoreForm({
   store,
@@ -53,7 +61,11 @@ export function StoreForm({
   });
 
   const form = useRef<HTMLFormElement | null>(null);
+
+  /* Products ticked inline on a new store. */
   const [picked, setPicked] = useState<string[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+
   /* What the fields hold. Controlled, because Fetch writes into them: an
      uncontrolled form would need the DOM poked at, and the values have to
      survive a failed save anyway. */
@@ -121,6 +133,26 @@ export function StoreForm({
     `mt-2 w-full border bg-surface px-3 py-2.5 text-sm text-ink focus:outline-none focus:ring-1 ${
       field(name) ? "border-signal-500 focus:border-signal-500 focus:ring-signal-500" : "border-line-strong focus:border-ink focus:ring-ink"
     }`;
+
+  /* ── Inline product checklist (new store only) ─────────────────────── */
+  const isNew = !store;
+  const term = productSearch.trim().toLowerCase();
+  const shownProducts = term
+    ? products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(term) ||
+          categoryLabel(p.category).toLowerCase().includes(term),
+      )
+    : products;
+
+  const toggleProduct = (id: string) => {
+    setPicked((current) =>
+      current.includes(id) ? current.filter((one) => one !== id) : [...current, id],
+    );
+  };
+
+  /* Save is blocked until at least one product is ticked (new store only). */
+  const noProductsError = isNew && picked.length === 0;
 
   return (
     <div className="space-y-6">
@@ -193,14 +225,14 @@ export function StoreForm({
         <input type="hidden" name="pickupId" value={pickupId} />
         <input type="hidden" name="fetched" value={fetched ? "1" : "0"} />
         <input type="hidden" name="pickup" value={JSON.stringify(details)} />
-        <input type="hidden" name="productIds" value={picked.join(",")} />
+        {isNew && <input type="hidden" name="productIds" value={picked.join(",")} />}
 
         <div className="p-5">
           <h2 className="text-base font-semibold text-ink">Address</h2>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Field label="Contact name" name="contactName" error={field("contactName")}>
-              <input name="contactName" value={values.contactName} onChange={set("contactName")} className={input("contactName")} />
+            <Field label="Contact name" name="contactName" error={field("contactName")} required>
+              <input name="contactName" value={values.contactName} onChange={set("contactName")} className={input("contactName")} required />
             </Field>
             <Field label="Role" name="contactRole" error={field("contactRole")}>
               <input
@@ -211,11 +243,11 @@ export function StoreForm({
                 className={input("contactRole")}
               />
             </Field>
-            <Field label="Phone" name="phone" error={field("phone")}>
-              <input name="phone" value={values.phone} onChange={set("phone")} inputMode="tel" className={input("phone")} />
+            <Field label="Phone" name="phone" error={field("phone")} required>
+              <input name="phone" value={values.phone} onChange={set("phone")} inputMode="tel" className={input("phone")} required />
             </Field>
-            <Field label="Email" name="email" error={field("email")}>
-              <input name="email" value={values.email} onChange={set("email")} type="email" className={input("email")} />
+            <Field label="Email" name="email" error={field("email")} required>
+              <input name="email" value={values.email} onChange={set("email")} type="email" className={input("email")} required />
             </Field>
             <Field label="Address" name="line1" error={field("line1")} required className="sm:col-span-2">
               <input name="line1" value={values.line1} onChange={set("line1")} className={input("line1")} />
@@ -241,31 +273,129 @@ export function StoreForm({
           </div>
         </div>
 
+        {/* ── Inline product checklist — new store only ─────────────────────
+            Products appear directly on the page so the operator can tick what
+            the store holds before saving, without needing a popup dialog
+            (client: "product check list product card where product use to add
+            … after product added then only i can able to save all at one"). */}
+        {isNew && (
+          <div className="border-t border-line">
+            <div className="p-5">
+              <h2 className="text-base font-semibold text-ink">
+                Products<span className="text-signal-500"> *</span>
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Tick every product this store will hold. At least one is required.
+              </p>
+
+              <div className="relative mt-4 max-w-sm">
+                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                <input
+                  type="text"
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  placeholder="Search the catalogue"
+                  aria-label="Search products"
+                  className="h-10 w-full border border-line-strong bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                />
+              </div>
+
+              {state.fieldErrors?.products && (
+                <p className="mt-3 text-sm text-signal-700">{state.fieldErrors.products}</p>
+              )}
+
+              {products.length === 0 ? (
+                <p className="mt-6 text-sm text-muted">
+                  No products in the catalogue yet. Add some from{" "}
+                  <a href="/admin/products/new" className="text-accent hover:underline">
+                    Products &rarr; New
+                  </a>{" "}
+                  before creating a store.
+                </p>
+              ) : shownProducts.length === 0 ? (
+                <p className="mt-6 text-sm text-muted">
+                  Nothing matches &ldquo;{productSearch}&rdquo;.
+                </p>
+              ) : (
+                <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {shownProducts.map((product) => {
+                    const isPicked = picked.includes(product.id);
+                    return (
+                      <li key={product.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggleProduct(product.id)}
+                          aria-pressed={isPicked}
+                          className={`relative flex h-full w-full flex-col border p-3 text-left transition-colors ${
+                            isPicked
+                              ? "border-accent bg-accent-soft"
+                              : "border-line bg-surface hover:border-ink"
+                          }`}
+                        >
+                          <span className="relative mb-2 block aspect-square w-full overflow-hidden border border-line bg-surface-subtle">
+                            {product.image ? (
+                              <Image
+                                src={product.image}
+                                alt=""
+                                fill
+                                sizes="(min-width: 1024px) 12rem, 40vw"
+                                className="object-cover"
+                              />
+                            ) : (
+                              <span className="absolute inset-0 flex items-center justify-center text-muted">
+                                <PanelPlaceholder className="h-7 w-7" />
+                              </span>
+                            )}
+                            {isPicked && (
+                              <span className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center bg-accent text-surface">
+                                <CheckIcon className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                          </span>
+                          <span className="label-tech text-muted">
+                            {categoryLabel(product.category)}
+                          </span>
+                          <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-ink">
+                            {product.name}
+                          </span>
+                          <span className="mt-1 text-sm tabular-nums text-body">
+                            {product.price == null
+                              ? "No price"
+                              : formatPaise(
+                                  displayPricePaise(
+                                    { price: product.price, discountPercent: product.discountPercent } as never,
+                                    rates,
+                                  ),
+                                )}
+                          </span>
+                          {!product.published && (
+                            <span className="mt-1 text-xs text-muted">Not published</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {picked.length > 0 && (
+                <p className="mt-4 text-sm font-medium text-accent">
+                  {picked.length} product{picked.length === 1 ? "" : "s"} selected
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* The buttons sit inside the panel, on its own footer rule, so the
             form has an end rather than trailing off into the page. */}
         <div className="flex flex-wrap items-center gap-3 border-t border-line p-5">
-          {!store && (
-            <>
-              <StoreProductPicker
-                products={products}
-                rates={rates}
-                saveLabel="Save products"
-                onSave={(ids) => {
-                  setPicked(ids);
-                  /* Saving the products is saving the store: the picker is the
-                     last step of making one, so its button finishes the job
-                     and the page that opens is the store's own. */
-                  requestAnimationFrame(() => form.current?.requestSubmit());
-                }}
-              />
-              {picked.length > 0 && (
-                <p className="text-sm text-muted">
-                  {picked.length} product{picked.length === 1 ? "" : "s"} to add
-                </p>
-              )}
-            </>
+          {isNew && noProductsError && (
+            <p className="w-full text-sm text-signal-700">
+              Select at least one product before saving.
+            </p>
           )}
-          <SaveButton label={store ? "Save changes" : "Save store"} />
+          <SaveButton label={store ? "Save changes" : "Save store"} disabled={isNew && noProductsError} />
         </div>
       </form>
       </div>
@@ -361,16 +491,17 @@ function FetchButton() {
   );
 }
 
-function SaveButton({ label }: { label: string }) {
+function SaveButton({ label, disabled }: { label: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
-      disabled={pending}
-      className="inline-flex h-10 items-center gap-2 border border-accent bg-accent px-4 text-sm font-semibold text-surface transition-colors hover:bg-accent-strong disabled:opacity-60"
+      disabled={pending || disabled}
+      className="inline-flex h-10 items-center gap-2 border border-accent bg-accent px-4 text-sm font-semibold text-surface transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-40"
     >
       {pending && <SpinnerIcon className="h-4 w-4" />}
       {pending ? "Saving…" : label}
     </button>
   );
 }
+

@@ -399,6 +399,19 @@ export async function loginAction(
       return { status: "error", form: "login", message: SIGN_IN_FAILED, values: typed };
     }
 
+    if (customer.blockedAt) {
+      /* The account exists and the password is right, but the admin has
+         blocked it. We return a distinct message here so the user understands
+         why they cannot sign in — the account-enumeration concern does not
+         apply because the person already proved they know the password. */
+      return {
+        status: "error",
+        form: "login",
+        message: "Your account has been blocked. Please contact us if you think this is a mistake.",
+        values: typed,
+      };
+    }
+
     customerId = customer.id;
 
     /* The password was right. Whether that is enough depends on the browser:

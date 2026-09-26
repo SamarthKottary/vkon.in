@@ -121,6 +121,9 @@ function readPickup(raw: string): StorePickup {
 function validate(input: StoreInput): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!input.nickname) errors.nickname = "Give this store a name.";
+  if (!input.contactName) errors.contactName = "Contact name is required.";
+  if (!input.phone) errors.phone = "Phone is required.";
+  if (!input.email) errors.email = "Email is required.";
   if (!input.line1) errors.line1 = "The street address is needed.";
   if (!input.city) errors.city = "Which town or city?";
   if (!input.state) errors.state = "Which state?";
@@ -148,6 +151,17 @@ export async function createStoreAction(
   const fieldErrors = validate(input);
   if (Object.keys(fieldErrors).length) return { fieldErrors, values };
 
+  const picked = String(formData.get("productIds") ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (!picked.length) {
+    return {
+      fieldErrors: { products: "Select at least one product before saving." },
+      values,
+    };
+  }
+
   const result = await createStore(input);
   if (!result.ok) {
     return {
@@ -159,10 +173,6 @@ export async function createStoreAction(
     };
   }
 
-  const picked = String(formData.get("productIds") ?? "")
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
   if (picked.length) await addStoreProducts(result.store.id, picked);
 
   revalidatePath("/admin/inventory");
