@@ -17,6 +17,7 @@ import {
   type ReviewStatus,
 } from "@/lib/db/reviews";
 import { setReviewStatusAction } from "@/app/admin/actions";
+import { productHref } from "@/lib/product-url";
 
 export const dynamic = "force-dynamic";
 
@@ -225,7 +226,7 @@ function ReviewCard({
             <StatusBadge status={review.status} />
           </div>
           <p className="mt-2 font-medium text-ink">
-            <Link href={`/products/${review.productSlug}`} className="hover:text-accent">
+            <Link href={productHref({ slug: review.productSlug })} className="hover:text-accent">
               {review.productName}
             </Link>
           </p>

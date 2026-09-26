@@ -2,7 +2,7 @@ import { ShareProduct } from "@/components/product/ShareProduct";
 import { productSku } from "@/lib/sku";
 import { getGstRates } from "@/lib/db/settings";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { ContactStrip } from "@/components/home/ContactStrip";
 import { CheckIcon } from "@/components/icons/ui";
@@ -27,6 +27,7 @@ import { JsonLd } from "@/components/ui/JsonLd";
 import { categoryLabel } from "@/content/taxonomy";
 import { site } from "@/content/site";
 import { getProductBySlug, listProducts } from "@/lib/db/products";
+import { productHref } from "@/lib/product-url";
 import { breadcrumbJsonLd, pageMetadata, productJsonLd } from "@/lib/seo";
 
 /**
@@ -39,16 +40,16 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ category: string; slug: string }>;
 }) {
-  const { slug } = await params;
+  const { category, slug } = await params;
   const product = await getProductBySlug(slug);
 
   if (!product) {
     return pageMetadata({
       title: "Product not found",
       description: "This product is no longer listed.",
-      path: `/products/${slug}`,
+      path: `/products/${category}/${slug}`,
     });
   }
 
@@ -58,7 +59,10 @@ export async function generateMetadata({
     title: product.seoTitle || `${product.name}${hp}`,
     description:
       product.seoDescription || product.tagline || product.description.slice(0, 160),
-    path: `/products/${product.slug}`,
+    /* Always the product's own category, whatever the address asked for:
+       the page below redirects the other spellings here, and the canonical
+       link has to name the one that answers. */
+    path: productHref(product),
     images: product.images.map((image) => image.url),
   });
 }
@@ -66,12 +70,18 @@ export async function generateMetadata({
 export default async function ProductPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ category: string; slug: string }>;
 }) {
-  const { slug } = await params;
+  const { category, slug } = await params;
   const product = await getProductBySlug(slug);
 
   if (!product) notFound();
+  /* One address per product (client, 2026-09-26). A product moved to another
+     category keeps working under the old one for exactly as long as it takes
+     to answer with a 308 to where it lives now — which is also what the
+     one-segment `/products/<slug>` does, so there is a single canonical URL
+     for search engines and for anything already printed or shared. */
+  if (category !== product.category) permanentRedirect(productHref(product));
 
   const [all, rating, reviews, customer, gstRates] = await Promise.all([
     listProducts(),
@@ -233,7 +243,7 @@ export default async function ProductPage({
               </p>
 
               <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-4">
-                <ShareProduct name={product.name} path={`/products/${product.slug}`} />
+                <ShareProduct name={product.name} path={productHref(product)} />
                 {/* No category here: it is already the label above the
                     product's name, and twice on one screen reads as a
                     mistake. */}
@@ -323,7 +333,7 @@ export default async function ProductPage({
           { name: "Home", path: "/" },
           { name: "Products", path: "/products" },
           { name: categoryLabel(product.category), path: `/products?category=${product.category}` },
-          { name: product.name, path: `/products/${product.slug}` },
+          { name: product.name, path: productHref(product) },
         ])}
       />
     </>

@@ -1393,7 +1393,7 @@ export async function saveReviewAction(
   }
 
   revalidatePath("/account/orders/[id]", "page");
-  if (slug) revalidatePath(`/products/${slug}`);
+  if (slug) revalidatePath("/products/[category]/[slug]", "page");
   /* No message about checking or approval (client, 2026-09-22). The pop-up
      closes on a save and the review is there underneath it; what the admin
      does with it afterwards is not the customer's to worry about. */

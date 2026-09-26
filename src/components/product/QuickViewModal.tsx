@@ -15,6 +15,7 @@ import { ProductPrice } from "@/components/product/ProductPrice";
 import { CloseIcon } from "@/components/icons/ui";
 import { categoryLabel } from "@/content/taxonomy";
 import type { Product } from "@/lib/types";
+import { productHref } from "@/lib/product-url";
 
 export function QuickViewModal({
   product,
@@ -148,7 +149,7 @@ export function QuickViewModal({
                 its own gallery furniture in the corners. */}
             <ProductTags product={product} inline className="mb-2.5" />
             <h2 className="text-2xl leading-snug sm:text-3xl text-ink">
-              <Link href={`/products/${product.slug}`} className="hover:text-accent transition-colors" onClick={onClose}>
+              <Link href={productHref(product)} className="hover:text-accent transition-colors" onClick={onClose}>
                 {product.name}
               </Link>
             </h2>
@@ -186,7 +187,7 @@ export function QuickViewModal({
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
-              <ShareProduct name={product.name} path={`/products/${product.slug}`} />
+              <ShareProduct name={product.name} path={productHref(product)} />
               <p className="text-sm text-muted">
                 SKU: <span className="font-mono text-ink">{productSku(product)}</span>
               </p>
@@ -225,7 +226,7 @@ export function QuickViewModal({
                 footer now carries only the Add to cart control. */}
             <div className="mt-6 flex justify-end">
               <Link
-                href={`/products/${product.slug}`}
+                href={productHref(product)}
                 onClick={onClose}
                 className="text-sm font-medium text-accent underline underline-offset-4"
               >

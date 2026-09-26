@@ -12,6 +12,7 @@ import { closeCartDrawer, removeFromCart, subscribeCartDrawer } from "@/lib/cart
 import { useGst } from "@/components/pricing/GstProvider";
 import { formatPaise, sellingPricePaise, withGst } from "@/lib/pricing";
 import type { Product } from "@/lib/types";
+import { productHref } from "@/lib/product-url";
 
 /**
  * Slide-over Mini Cart Drawer that slides smoothly and slowly from the right edge.
@@ -138,7 +139,7 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
                 return (
                   <li key={product.slug} className="flex gap-4 py-4 first:pt-0 last:pb-0">
                     <Link
-                      href={`/products/${product.slug}`}
+                      href={productHref(product)}
                       onClick={() => setOpen(false)}
                       className="relative h-20 w-20 shrink-0 overflow-hidden border border-line bg-surface-subtle"
                     >
@@ -162,7 +163,7 @@ export function CartDrawer({ products = [] }: { products?: Product[] }) {
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="text-sm font-semibold text-ink leading-snug line-clamp-2">
                             <Link
-                              href={`/products/${product.slug}`}
+                              href={productHref(product)}
                               onClick={() => setOpen(false)}
                               className="hover:text-accent transition-colors"
                             >

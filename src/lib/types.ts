@@ -63,7 +63,7 @@ export type SpecRow = {
 
 export type Product = {
   id: string;
-  /** URL segment — `"ec-dol"` renders at `/products/ec-dol`. */
+  /** URL segment — `"ec-dol"` renders at `/products/starter/ec-dol`. */
   slug: string;
   name: string;
   category: ProductCategory;

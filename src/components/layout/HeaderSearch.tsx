@@ -9,6 +9,7 @@ import { Container } from "@/components/ui/Container";
 import { categoryLabel, sectors, sectorOf } from "@/content/taxonomy";
 import { fuzzySearchAction } from "@/app/(site)/search-action";
 import { fuzzyMatchScore } from "@/lib/fuzzy";
+import { productHref } from "@/lib/product-url";
 
 export type SearchEntry = {
   slug: string;
@@ -326,7 +327,7 @@ export function HeaderSearch({
                         {shown.map((p) => (
                           <li key={p.slug}>
                             <Link
-                              href={`/products/${p.slug}`}
+                              href={productHref(p)}
                               onClick={close}
                               className="flex items-center gap-3 border border-transparent p-3 transition-colors hover:border-accent hover:bg-surface-subtle"
                             >

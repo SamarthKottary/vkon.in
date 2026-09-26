@@ -5,6 +5,7 @@ import { Container } from "@/components/ui/Container";
 import { requireAdminPage } from "@/lib/auth";
 import { getProductById } from "@/lib/db/products";
 import { ProductForm } from "../ProductForm";
+import { productHref } from "@/lib/product-url";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export default async function EditProductPage({
         <h1 className="text-2xl">{product.name}</h1>
         {product.published && (
           <Link
-            href={`/products/${product.slug}`}
+            href={productHref(product)}
             target="_blank"
             className="text-sm text-muted hover:text-ink"
           >

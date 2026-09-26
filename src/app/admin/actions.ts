@@ -1450,7 +1450,9 @@ export async function setReviewStatusAction(formData: FormData): Promise<void> {
   if (!changed) redirect(failed);
 
   revalidatePath("/admin/reviews");
-  revalidatePath(`/products/${changed.slug}`);
+  /* By route, not by path: a product page is `/products/[category]/[slug]`
+     since 2026-09-26 and this end of it knows the slug only. */
+  revalidatePath("/products/[category]/[slug]", "page");
   /* The customer's order page says whether their review was published. */
   revalidatePath("/account/orders/[id]", "page");
   redirect(backTo("/admin/reviews", formData, "", `review-${id}`));

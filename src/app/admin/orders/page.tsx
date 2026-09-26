@@ -36,6 +36,7 @@ import { isRazorpayConfigured } from "@/lib/razorpay";
 import { refundBlock, refundBlockMessage } from "@/lib/refunds";
 import { isCod } from "@/lib/order-payment";
 import { formatCutoff, shipmentBookable } from "@/lib/order-delivery";
+import { productHref } from "@/lib/product-url";
 
 export const dynamic = "force-dynamic";
 
@@ -842,7 +843,7 @@ function ItemLink({
   if (!item.productId || !item.slug) return <>{children}</>;
   return (
     <Link
-      href={`/products/${item.slug}`}
+      href={productHref({ slug: item.slug })}
       target="_blank"
       rel="noopener noreferrer"
       title={`Open ${item.name} in a new tab`}

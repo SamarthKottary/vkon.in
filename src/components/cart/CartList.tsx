@@ -12,6 +12,7 @@ import { removeFromCart } from "@/lib/cart";
 import { useGst } from "@/components/pricing/GstProvider";
 import { formatPaise, sellingPricePaise, totals, withGst } from "@/lib/pricing";
 import type { Product } from "@/lib/types";
+import { productHref } from "@/lib/product-url";
 
 /**
  * Full Cart Page component:
@@ -95,7 +96,7 @@ export function CartList({ products }: { products: Product[] }) {
               >
                 <div className="flex gap-3.5">
                   <Link
-                    href={`/products/${product.slug}`}
+                    href={productHref(product)}
                     className="relative h-20 w-20 shrink-0 overflow-hidden border border-line bg-surface-subtle"
                   >
                     {image ? (
@@ -115,7 +116,7 @@ export function CartList({ products }: { products: Product[] }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <Link
-                        href={`/products/${product.slug}`}
+                        href={productHref(product)}
                         className="font-semibold text-ink hover:text-accent transition-colors leading-snug line-clamp-2 text-sm"
                       >
                         {product.name}
@@ -190,7 +191,7 @@ export function CartList({ products }: { products: Product[] }) {
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
                         <Link
-                          href={`/products/${product.slug}`}
+                          href={productHref(product)}
                           className="relative h-16 w-16 shrink-0 overflow-hidden border border-line bg-surface-subtle"
                         >
                           {image ? (
@@ -209,7 +210,7 @@ export function CartList({ products }: { products: Product[] }) {
                         </Link>
                         <div>
                           <Link
-                            href={`/products/${product.slug}`}
+                            href={productHref(product)}
                             className="font-semibold text-ink hover:text-accent transition-colors leading-snug line-clamp-2"
                           >
                             {product.name}

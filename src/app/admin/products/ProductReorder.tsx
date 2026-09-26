@@ -14,6 +14,7 @@ import { categoryLabel } from "@/content/taxonomy";
 import type { Product } from "@/lib/types";
 import { reorderProductsAction } from "../actions";
 import { DeleteProductButton } from "./DeleteProductButton";
+import { productHref } from "@/lib/product-url";
 
 /**
  * The product list, reorderable by dragging a row (or, for anyone without a
@@ -179,7 +180,7 @@ export function ProductReorder({
           <div className="flex w-full shrink-0 items-center justify-end gap-1 sm:w-auto">
             {product.published && (
               <Link
-                href={`/products/${product.slug}`}
+                href={productHref(product)}
                 target="_blank"
                 className="px-3 py-2 text-sm text-muted hover:text-ink"
               >

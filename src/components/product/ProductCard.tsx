@@ -13,6 +13,7 @@ import { ProductPrice } from "@/components/product/ProductPrice";
 import { ProductTags } from "@/components/product/ProductTags";
 import { CardRating } from "@/components/product/ProductReviews";
 import type { Product } from "@/lib/types";
+import { productHref } from "@/lib/product-url";
 
 /**
  * Cross-instance registry backing the vertical card's scroll-triggered
@@ -363,7 +364,7 @@ export function ProductCard({
           fire at release. */}
       <div
         className="relative z-20 aspect-square overflow-hidden border-b border-line bg-surface-subtle"
-        onClick={() => router.push(`/products/${product.slug}`)}
+        onClick={() => router.push(productHref(product))}
       >
         {image ? (
           product.images.length > 1 ? (
@@ -564,7 +565,7 @@ export function ProductCard({
 
         <Heading className="mt-2.5 min-h-[3.25rem] text-lg leading-snug line-clamp-2">
           {/* Stretched link — whole card is the target, one tab stop. */}
-          <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
+          <Link href={productHref(product)} className="after:absolute after:inset-0">
             {product.name}
           </Link>
         </Heading>
@@ -989,7 +990,7 @@ function HorizontalCard({
           floated image instead of continuing beside it, so it and the
           description get the card's full width however long they run. */}
       <Heading className="clear-left pt-3 text-[0.9375rem] leading-snug">
-        <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
+        <Link href={productHref(product)} className="after:absolute after:inset-0">
           {product.name}
         </Link>
       </Heading>
@@ -1229,7 +1230,7 @@ function FeaturedCard({
             <div>
               <p className="label-tech text-muted">{categoryLabel(product.category)}</p>
               <Heading className="mt-1 text-base leading-snug">
-                <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
+                <Link href={productHref(product)} className="after:absolute after:inset-0">
                   {product.name}
                 </Link>
               </Heading>
@@ -1278,7 +1279,7 @@ function FeaturedCard({
             </div>
           ) : (
             <Link
-              href={`/products/${product.slug}`}
+              href={productHref(product)}
               className="group/details relative flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-ink transition-colors hover:text-accent"
             >
               <span className="relative">
@@ -1515,7 +1516,7 @@ function FeaturedCard({
               {/* Stretched link — the image is the target, one tab stop.
                   Scoped to the image sub-box now, not the whole card; see
                   the component note. */}
-              <Link href={`/products/${product.slug}`} className="after:absolute after:inset-0">
+              <Link href={productHref(product)} className="after:absolute after:inset-0">
                 {product.name}
               </Link>
             </Heading>
@@ -1652,7 +1653,7 @@ function FeaturedCard({
           </div>
         ) : (
           <Link
-            href={`/products/${product.slug}`}
+            href={productHref(product)}
             /* `shrink-0 whitespace-nowrap` (client, 2026-08-27: "the view
                details button is in 2 lines... I want it to be in one line" —
                happening "sometimes", not always, is the tell). This row's

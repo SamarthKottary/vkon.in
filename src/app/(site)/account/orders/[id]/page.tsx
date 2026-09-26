@@ -27,6 +27,7 @@ import { addressEditWindow, formatCutoff } from "@/lib/order-delivery";
 import { site } from "@/content/site";
 import type { Order } from "@/lib/types";
 import { pageMetadata } from "@/lib/seo";
+import { productHref } from "@/lib/product-url";
 
 export const metadata = pageMetadata({
   title: "Order",
@@ -322,7 +323,7 @@ export default async function OrderPage({
                         link to a 404. */}
                     {item.slug ? (
                       <Link
-                        href={`/products/${item.slug}`}
+                        href={productHref({ slug: item.slug })}
                         className="text-sm font-semibold leading-snug text-ink transition-colors hover:text-accent sm:text-base"
                       >
                         {item.name}

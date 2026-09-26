@@ -1738,6 +1738,37 @@ on top of it could only ever be a step towards those.
 - Gone with the pop-up: `findOrdersAction`, `FoundOrder`, `findOrdersForLookup`
   and `adminOrderSection`. The scanner dialog stays, since a camera needs one.
 
+### 2026-09-26 (routing, seo) — A product's address carries its category
+
+Client, looking at the breadcrumb: "in url it shows
+https://vkon.in/products/demo-industrial-dol — also include category". A
+product now lives at `/products/<category>/<slug>`, which is the breadcrumb
+written out.
+
+- **`lib/product-url.ts` is the only place a product URL is spelled.**
+  `productHref({slug, category?})` — with a category the canonical two-segment
+  path, without one the old single-segment path, which redirects. Every link on
+  the site goes through it, so there is no second spelling to drift.
+- **The category key is already the segment** (`industrial-panel`), so nothing
+  new is stored and a product moved between categories moves with it.
+- **`products/[slug]` became `products/[category]/[slug]`**, and a sibling
+  `products/[category]/page.tsx` answers the one-segment address: a product
+  slug there is a permanent redirect to its canonical URL, a category key is a
+  temporary one to `/products?category=…`, anything else is a 404. Next cannot
+  hold two different dynamic names at one level, which is why the legacy route
+  *is* `[category]` rather than a second `[slug]`.
+- **Old addresses were the whole risk.** Every product link ever indexed,
+  shared on WhatsApp, or mailed in an order was `/products/<slug>`; all of them
+  308 to the new address, and so does a product asked for under the wrong
+  category, so there is exactly one canonical URL per product.
+- Canonical link, `og:url`, Product and Offer JSON-LD and the sitemap all read
+  `productUrl()`, so they cannot name an address that redirects.
+- **Order items and admin review rows keep the one-segment link on purpose**:
+  they store a slug and no category, and a 308 costs less than a join on every
+  order page.
+- `revalidatePath` for a product is now by route (`"/products/[category]/[slug]",
+  "page"`), since the two callers know the slug only.
+
 ### 2026-09-26 (admin orders) — A retried booking's own reference finds its order
 
 Shiprocket knows a retried booking as `VK-0925-CTH9-R3`, which is what their

@@ -2,6 +2,7 @@ import { DEFAULT_GST, displayPricePaise, type GstRates } from "@/lib/pricing";
 import type { Metadata } from "next";
 import { formattedAddress, site } from "@/content/site";
 import type { Product } from "./types";
+import { productUrl } from "@/lib/product-url";
 
 /**
  * The static routes whose SEO is editable at /admin/seo. Product pages manage
@@ -121,7 +122,7 @@ export function productJsonLd(product: Product, rates: GstRates = DEFAULT_GST) {
     name: product.name,
     description: product.tagline || product.description.slice(0, 300),
     category: product.category,
-    url: `${site.url}/products/${product.slug}`,
+    url: productUrl(site.url, product),
     // Image URLs are absolute already (Vercel Blob), so they are used as-is.
     ...(product.images.length
       ? { image: product.images.map((i) => i.url) }
@@ -154,7 +155,7 @@ export function productJsonLd(product: Product, rates: GstRates = DEFAULT_GST) {
             "@type": "Offer",
             priceCurrency: "INR",
             price: (displayPricePaise(product, rates) / 100).toFixed(2),
-            url: `${site.url}/products/${product.slug}`,
+            url: productUrl(site.url, product),
             availability: "https://schema.org/InStock",
           },
         }

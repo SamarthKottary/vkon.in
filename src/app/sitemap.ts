@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { site } from "@/content/site";
 import { listProducts } from "@/lib/db/products";
+import { productUrl } from "@/lib/product-url";
 
 /** Built from the live catalogue on each request. */
 export const dynamic = "force-dynamic";
@@ -28,7 +29,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: route.priority,
     })),
     ...products.map((product) => ({
-      url: `${site.url}/products/${product.slug}`,
+      /* The canonical address, category and all (2026-09-26). */
+      url: productUrl(site.url, product),
       lastModified: new Date(product.updatedAt),
       changeFrequency: "monthly" as const,
       priority: 0.8,
