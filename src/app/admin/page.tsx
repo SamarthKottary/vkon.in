@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{ error?: string; next?: string; reset?: string }>;
 }) {
   const params = await searchParams;
   /* Where they were going before they were asked to sign in (client,
@@ -36,6 +36,17 @@ export default async function AdminLoginPage({
         <p className="mt-2 text-sm text-muted">
           Product management for vkon.in
         </p>
+
+        {params.reset === "1" && (
+          <div
+            role="status"
+            className="mt-6 border-l-2 border-accent bg-surface px-4 py-3 text-sm text-body"
+          >
+            <p className="leading-relaxed">
+              Your password has been changed. Sign in with the new one.
+            </p>
+          </div>
+        )}
 
         {params.error && NOTICES[params.error] && (
           <div className="mt-6 border-l-2 border-signal-500 bg-surface px-4 py-3 text-sm text-body">

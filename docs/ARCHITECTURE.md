@@ -1798,6 +1798,26 @@ travels back through a hidden form field. It is shown read-only, on the form
 and on the store, because those are settings on their screen and a box here
 that looked editable would promise something this form cannot do.
 
+**Forgotten password is every operator's** (client, 2026-09-26: an inventory
+user pressed it and was told "Reset superuser password — only super users can
+reset their password here"). `forgotAdminPasswordAction` dropped its
+`role === "super"` filter: the same signed, single-use, one-hour token, sent to
+the address already on the account, so it grants nobody access they could not
+get by asking a super user to set one — and a link that cannot work for the
+person reading it is worse than no link. The answer is still the same sentence
+whether or not the address has an account, so the form cannot be used to find
+out who has one. A reset sends an inventory user back to `/admin/inventory`
+rather than the shop's sign-in, and both sign-ins now say the password changed.
+
+**A super user sets other operators' passwords** (`setAdminUserPasswordAction`,
+client: "do we need to set password in superadmin itself or how does this
+work"). Until now a new account had no password and its first sign-in was the
+shared `ADMIN_PASSWORD` from the environment, which then became theirs — right
+for the first administrator, wrong for a shop-floor account, since that one
+password opens every passwordless account on the site. The emailed reset is
+super-only and stays that way, so this is the only way in for the other roles.
+Super-only, never on yourself, `passwordProblem()` for strength, scrypt hash.
+
 **The point of contact's role is ours, not theirs** (client: "can we not show
 point of contacts role like warehouse manager etc which we have selected in
 shiprocket"). Their pickup record has no such field — checked against the live

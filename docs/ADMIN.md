@@ -467,6 +467,22 @@ A store also records **the point of contact's role** — "Warehouse manager" —
 which is typed here: Shiprocket's pickup API returns a name, a phone and an
 email, and no role at all. Fetch never overwrites it.
 
+**How they get a password** (2026-09-26): a super user sets it, or they reset
+it themselves. A new account has none, so **Set password** on the account's row
+in `/admin/users/access` is how the first one is given. **Forgotten password?**
+on the sign-in form now works for every role — it used to answer "only super
+users can reset their password here", which is a dead end for the person
+reading it — and an inventory user's link lands them back on
+`/admin/inventory`. It is super-only, refuses a short or common password,
+stores a scrypt hash like any other, and cannot be used on your own account
+(that is `/admin/profile`, which asks for the current one first). Whoever it is
+set for can change it under Profile afterwards.
+
+> The older path — a passwordless account signing in with the server's shared
+> `ADMIN_PASSWORD`, which then becomes theirs — still exists for the first
+> administrator. Do not use it for staff: it is one password for every
+> passwordless account on the site.
+
 **Where an inventory user signs in: `vkon.in/admin/inventory`.** The same
 credentials as any other operator, and the same cookie; that page carries its
 own form so it can be given out on its own, and it is where they land after

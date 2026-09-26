@@ -22,11 +22,16 @@ export default function AdminForgotPage() {
       </div>
       <div className="w-full max-w-md">
         <div className="text-center">
+          {/* Not "superuser" (client, 2026-09-26: an inventory user pressed
+              Forgotten password and was told this page was for somebody else).
+              It is every operator's now — admin, support, viewer, inventory —
+              and the wording says what it does rather than who it is for. */}
           <h1 className="text-[2rem] leading-tight sm:text-[2.5rem] font-semibold tracking-tight text-ink">
-            Reset superuser password
+            Reset your password
           </h1>
           <p className="mt-3 leading-relaxed text-body">
-            Give us your email address and we will send you a link. Only super users can reset their password here.
+            Give us the email address on your account and we will send you a
+            link to choose a new password.
           </p>
         </div>
 

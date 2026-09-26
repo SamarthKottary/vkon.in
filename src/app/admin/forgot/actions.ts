@@ -25,7 +25,7 @@ const FORGOT_LIMIT = { limit: 4, windowMs: 30 * 60 * 1000 };
 const RESET_LIMIT = { limit: 10, windowMs: 30 * 60 * 1000 };
 const RESET_TTL_MS = 60 * 60 * 1000;
 
-const DONE = "If that email address belongs to a super user, we've sent instructions to reset the password.";
+const DONE = "If that email address belongs to an account here, we've sent a link for setting a new password.";
 
 function absoluteUrl(path: string): string {
   return `${site.url.replace(/\/$/, "")}${path}`;
@@ -63,8 +63,15 @@ export async function forgotAdminPasswordAction(
 
   try {
     const admin = await findAdminByEmail(email);
-    // Only super users are allowed to reset passwords this way.
-    if (admin && admin.role === "super") {
+    /* **Every operator, not only super users** (client, 2026-09-26). The link
+       on the sign-in form is the same one for everybody, and one that cannot
+       work for the person reading it is worse than no link: an inventory user
+       pressed it and was told the page was for somebody else.
+
+       The token is the same signed, single-use, one-hour token either way, and
+       it goes to the address already on the account — so this gives nobody
+       access they could not already get by asking a super user to set one. */
+    if (admin) {
       await invalidateAdminTokens(admin.id, "reset");
       const rawToken = await createAdminToken({
         adminId: admin.id,
@@ -121,6 +128,10 @@ export async function resetAdminPasswordAction(
     };
   }
 
+  /* Which sign-in to send them back to: an inventory user's is its own page
+     (client, 2026-09-26), and landing them on the shop's would be the same
+     wrong turn the "superuser" wording was. */
+  let home = "/admin";
   try {
     const admin = await consumeAdminToken(token, "reset");
 
@@ -131,11 +142,12 @@ export async function resetAdminPasswordAction(
     }
 
     await setAdminPassword(admin.id, await hashPassword(password));
+    if (admin.role === "inventory") home = "/admin/inventory";
   } catch (error) {
     console.error("[admin-auth] password reset failed:", error);
     return { error: "An error occurred." };
   }
 
   revalidatePath("/admin", "layout");
-  redirect("/admin?reset=1");
+  redirect(`${home}?reset=1`);
 }

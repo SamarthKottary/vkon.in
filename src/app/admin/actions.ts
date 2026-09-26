@@ -9,8 +9,10 @@ import {
   listAdminUsers,
   updateAdminRole,
   clearAdminPassword,
+  setAdminPassword,
   ADMIN_ROLES,
 } from "@/lib/db/adminUsers";
+import { passwordProblem } from "@/lib/password";
 import { shipmentBookable } from "@/lib/order-delivery";
 import { returnView } from "@/lib/admin-list";
 import {
@@ -149,6 +151,47 @@ export async function loginAction(
 export async function logoutAction(): Promise<void> {
   await logout();
   redirect("/admin");
+}
+
+/**
+ * A super user sets another operator's password (client, 2026-09-26: "do we
+ * need to set password in superadmin itself or how does this work").
+ *
+ * Until now a new account had no password and its first sign-in was the shared
+ * `ADMIN_PASSWORD` from the server's environment, which then became theirs.
+ * That is fine for the first administrator and wrong for a shop-floor account:
+ * handing a warehouse the master password gives it every passwordless account
+ * on the site. This sets one password for one person, which is what a super
+ * user actually wants to do when they add an inventory user.
+ *
+ * Super only, and never on yourself — your own is under /admin/profile, which
+ * asks for the current one first. Whoever it is set for can change it there
+ * afterwards.
+ */
+export async function setAdminUserPasswordAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  requireAdminRole(admin, ["super"]);
+
+  const id = String(formData.get("id") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  if (!id) redirect("/admin/users/access");
+  if (id === admin.id) redirect("/admin/users/access?error=self");
+
+  const problem = passwordProblem(password);
+  if (problem) {
+    redirect(`/admin/users/access?error=weak&user=${encodeURIComponent(id)}`);
+  }
+
+  try {
+    const { hashPassword } = await import("@/lib/password");
+    await setAdminPassword(id, await hashPassword(password));
+    console.info(`[admin] ${admin.email} set the password for admin ${id}`);
+  } catch (error) {
+    console.error("[admin] password set failed:", error);
+    redirect("/admin/users/access?error=1");
+  }
+
+  redirect(`/admin/users/access?pwset=1&user=${encodeURIComponent(id)}`);
 }
 
 export async function clearAdminPasswordAction(formData: FormData): Promise<void> {

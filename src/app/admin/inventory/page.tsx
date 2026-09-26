@@ -30,9 +30,9 @@ export const dynamic = "force-dynamic";
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; error?: string; store?: string }>;
+  searchParams: Promise<{ q?: string; error?: string; store?: string; reset?: string }>;
 }) {
-  const { q = "", error, store: flagged = "" } = await searchParams;
+  const { q = "", error, store: flagged = "", reset } = await searchParams;
   const admin = await getAdminSession();
 
   if (!admin) {
@@ -44,6 +44,16 @@ export default async function InventoryPage({
             Stock and store locations for vkon.in. Your account has to be given
             inventory access by a super user.
           </p>
+          {reset === "1" && (
+            <div
+              role="status"
+              className="mt-6 border-l-2 border-accent bg-surface px-4 py-3 text-sm text-body"
+            >
+              <p className="leading-relaxed">
+                Your password has been changed. Sign in with the new one.
+              </p>
+            </div>
+          )}
           <div className="mt-6">
             <LoginForm next="/admin/inventory" />
           </div>

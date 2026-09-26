@@ -93,8 +93,10 @@ export function AddAdminUserForm({ currentRole }: { currentRole: string }) {
       </Field>
 
       <p className="text-xs leading-relaxed text-muted">
-        No password is set initially. The user will be asked to create one the
-        first time they sign in at /admin.
+        No password is set initially. A super user gives them one with{" "}
+        <span className="font-medium text-ink">Set password</span> on their row
+        above, and they can change it afterwards under Profile. The emailed
+        &ldquo;forgotten password&rdquo; link is for super users only.
       </p>
 
       <AddButton />

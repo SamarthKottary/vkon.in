@@ -10,6 +10,7 @@ import {
 } from "@/app/admin/actions";
 import { InfoIcon } from "@/components/icons/ui";
 import { DeleteUserButton } from "./DeleteUserButton";
+import { SetPasswordForm } from "./SetPasswordForm";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid: "That request was invalid.",
   privilege: "Only a Super User can set the Super User, Admin or Inventory roles.",
   "last-super": "The last Super User account cannot be deleted.",
+  weak: "That password is too short or too easy to guess. Use at least 8 characters.",
   access: "You don't have permission to do that. Your role does not allow this action.",
 };
 
@@ -158,6 +160,8 @@ export default async function AdminAccessPage({
                 user={u}
                 currentAdminId={admin.id}
                 currentAdminRole={admin.role}
+                weakFor={params.error === "weak" ? params.user ?? "" : ""}
+                justSet={params.pwset === "1" && params.user === u.id}
               />
             ))
           )}
@@ -167,6 +171,13 @@ export default async function AdminAccessPage({
       {/* Add user */}
       <section className="border border-line bg-surface-raised p-6 shadow-card">
         <h2 className="mb-4 text-base font-semibold text-ink">Add a user</h2>
+        <p className="mb-4 max-w-prose text-sm leading-relaxed text-muted">
+          A new account has no password until a super user sets one on its row
+          above — including an <span className="font-medium text-ink">Inventory</span>{" "}
+          user, who signs in at{" "}
+          <span className="font-mono text-ink">/admin/inventory</span> with the
+          same email and password as anyone else.
+        </p>
         <AddAdminUserForm currentRole={admin.role} />
       </section>
     </div>
@@ -177,10 +188,15 @@ function UserRow({
   user,
   currentAdminId,
   currentAdminRole,
+  weakFor,
+  justSet,
 }: {
   user: AdminUser;
   currentAdminId: string;
   currentAdminRole: string;
+  /** The account whose password was refused, so its box stays open. */
+  weakFor: string;
+  justSet: boolean;
 }) {
   const isSelf = user.id === currentAdminId;
   const canManage = !isSelf && (currentAdminRole === "super" || user.role !== "super");
@@ -201,6 +217,11 @@ function UserRow({
           {!user.hasPassword && (
             <span className="rounded-full bg-signal-100 px-2 py-0.5 text-xs text-signal-700">
               No password set
+            </span>
+          )}
+          {justSet && (
+            <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent">
+              Password set — tell them, and they can change it under Profile
             </span>
           )}
         </div>
@@ -232,6 +253,13 @@ function UserRow({
               Save role
             </button>
           </form>
+
+          {/* Set a password for somebody else (client, 2026-09-26). A super
+              user's job: an inventory user has no other way to be given one,
+              since the emailed reset is for super accounts only. */}
+          {currentAdminRole === "super" && !isSelf && (
+            <SetPasswordForm id={user.id} name={user.name || user.email} weak={weakFor === user.id} />
+          )}
 
           {/* Clear Password form */}
           {user.hasPassword && (
