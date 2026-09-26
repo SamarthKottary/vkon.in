@@ -816,3 +816,106 @@ UPDATE orders
 -- `setOrderShipment`, cleared by `clearOrderShipment` (Not ready), so it
 -- follows the parcel rather than the row.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS booked_at TIMESTAMPTZ;
+
+-- ---------------------------------------------------------------------------
+-- Stores and their stock (client, 2026-09-26)
+--
+-- "Track the store/inventory details of my different store locations." A store
+-- is one physical place: the shop, a warehouse, a dealer's counter. Its address
+-- is the one already registered with Shiprocket as a pickup address, fetched by
+-- its nickname rather than retyped, so a parcel booked from a store leaves from
+-- the address the courier already holds.
+--
+-- `slug` is the address of its page, `/admin/inventory/<slug>`, derived from the
+-- nickname once and then stable: renaming a store must not break a link or a
+-- bookmark somebody in the shop has.
+--
+-- `blocked_at` freezes a store without losing what it held. A store that closes
+-- for the season is blocked; a store deleted is one that never existed.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS stores (
+  id            TEXT PRIMARY KEY,
+  slug          TEXT NOT NULL UNIQUE,
+
+  -- The nickname, and Shiprocket's key: their pickup addresses are matched by
+  -- this string and nothing else. Unique, because two stores answering to
+  -- "Warehouse" would fetch the same address and book the same parcels.
+  nickname      TEXT NOT NULL UNIQUE,
+
+  -- The address, as Shiprocket holds it. A snapshot, not a reference: their
+  -- record can change under us, and what this page shows must be what was
+  -- fetched -- the same reasoning `orders.ship_to` records for its own copy.
+  contact_name  TEXT NOT NULL DEFAULT '',
+  phone         TEXT NOT NULL DEFAULT '',
+  email         TEXT NOT NULL DEFAULT '',
+  line1         TEXT NOT NULL DEFAULT '',
+  line2         TEXT NOT NULL DEFAULT '',
+  city          TEXT NOT NULL DEFAULT '',
+  state         TEXT NOT NULL DEFAULT '',
+  postal_code   TEXT NOT NULL DEFAULT '',
+  country       TEXT NOT NULL DEFAULT 'India',
+
+  -- Shiprocket's own id for the pickup address, when it came from there. NULL
+  -- for an address typed in by hand, which is allowed: a store may exist here
+  -- before anybody registers it with the courier.
+  pickup_id     TEXT,
+  fetched_at    TIMESTAMPTZ,
+
+  notes         TEXT NOT NULL DEFAULT '',
+  blocked_at    TIMESTAMPTZ,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS stores_order_idx ON stores (sort_order, created_at);
+
+-- What a store holds.
+--
+-- `ON DELETE CASCADE` both ways: a deleted store's stock rows are meaningless,
+-- and a product withdrawn from the catalogue is not held anywhere either. The
+-- product itself is never copied here -- unlike `order_items`, which snapshots
+-- because it records a sale. This records what is on a shelf right now, so it
+-- must follow the catalogue rather than remember an older version of it.
+CREATE TABLE IF NOT EXISTS store_products (
+  id          TEXT PRIMARY KEY,
+  store_id    TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  product_id  TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  qty         INTEGER NOT NULL DEFAULT 0,
+  note        TEXT NOT NULL DEFAULT '',
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One row per product per store: adding a product already held edits it.
+CREATE UNIQUE INDEX IF NOT EXISTS store_products_one_per_store
+  ON store_products (store_id, product_id);
+CREATE INDEX IF NOT EXISTS store_products_order_idx
+  ON store_products (store_id, sort_order, created_at);
+
+-- Added 2026-09-26: the rest of what Shiprocket holds about a pickup address.
+--
+-- Client: "fetch store rto role not just his name and phone number." Their
+-- record carries more than the postal address -- where a returned parcel goes
+-- (the RTO address), the hours the courier may collect, an alternate number, a
+-- GSTIN, the warehouse code -- and those are the things somebody standing in
+-- the store actually needs.
+--
+-- JSONB rather than seven columns: it is a snapshot of somebody else's record,
+-- read whole and rewritten whole on the next Fetch, and the shape is theirs to
+-- change. `lib/db/stores.ts` whitelists the keys it stores, so a field they add
+-- tomorrow does not silently become part of this table.
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS pickup JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Added 2026-09-26: what the point of contact is, not just who.
+--
+-- Client: "can we not show point of contacts role like warehouse manager etc
+-- which we have selected in shiprocket when we fetch." Their pickup API does
+-- not return one -- the record carries a name, a phone and an email, and the
+-- label fields beside them (`address_type`, `tag`, `tag_value`, `vendor_name`)
+-- come back empty -- so the role is kept here and typed here. A Fetch fills it
+-- only when it is empty and their record happens to carry a tag, and never
+-- overwrites what somebody typed: this column is ours, not a copy of theirs.
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS contact_role TEXT NOT NULL DEFAULT '';

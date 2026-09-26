@@ -24,7 +24,7 @@ type AdminUserRow = {
 
 const SELECT = `id, email, name, role, password_hash, avatar, avatar_source, created_at`;
 
-export const ADMIN_ROLES: AdminRole[] = ["super", "admin", "support", "viewer"];
+export const ADMIN_ROLES: AdminRole[] = ["super", "admin", "support", "viewer", "inventory"];
 
 function mapRow(row: AdminUserRow): AdminUser {
   return {

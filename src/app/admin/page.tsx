@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
-import { adminNext, isAuthenticated } from "@/lib/auth";
+import { adminNext, getAdminSession } from "@/lib/auth";
 import { isGoogleConfigured } from "@/lib/google";
 import { LoginForm } from "./LoginForm";
 
@@ -18,7 +18,10 @@ export default async function AdminLoginPage({
      again here because it arrives in a URL anyone can type. */
   const next = adminNext(params.next);
 
-  if (await isAuthenticated()) redirect(next || "/admin/products");
+  const signedIn = await getAdminSession();
+  if (signedIn) {
+    redirect(next || (signedIn.role === "inventory" ? "/admin/inventory" : "/admin/products"));
+  }
 
   const insecureOrigin = await isInsecureOrigin();
 

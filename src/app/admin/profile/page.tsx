@@ -1,4 +1,4 @@
-import { requireAdminPage } from "@/lib/auth";
+import { requireOperatorPage } from "@/lib/auth";
 import { Avatar } from "@/components/account/Avatar";
 import { AdminProfileForm } from "@/components/admin/AdminProfileForm";
 import { AdminAvatarForm } from "@/components/admin/AdminAvatarForm";
@@ -18,7 +18,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default async function AdminProfilePage() {
-  const admin = await requireAdminPage();
+  const admin = await requireOperatorPage();
   const [gstin, rates] =
     admin.role === "super"
       ? await Promise.all([getInvoiceGstin(), getGstRates()])

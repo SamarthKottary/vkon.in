@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { CheckIcon, SpinnerIcon, TrashIcon } from "@/components/icons/ui";
 import { deleteEnquiryAction, setEnquiryHandledAction } from "../actions";
+import type { AdminRole } from "@/lib/types";
 
 /**
  * Mark handled / reopen, and delete.
@@ -24,7 +25,7 @@ export function EnquiryActions({
   handled: boolean;
   /** The search and page this card is on, to come back to — see `returnView`. */
   view: string;
-  role: "super" | "admin" | "support" | "viewer";
+  role: AdminRole;
 }) {
   const canMark = role !== "viewer";
   const canDelete = role === "super" || role === "admin";

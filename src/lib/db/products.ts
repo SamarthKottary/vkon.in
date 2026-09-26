@@ -153,6 +153,25 @@ export async function listProducts({
   return rows.map(mapProductRow);
 }
 
+/**
+ * Several products by id, in the order the ids were given.
+ *
+ * For the store pages (2026-09-26), which read their stock rows first and
+ * then the catalogue rows behind them — one query for the lot rather than one
+ * per row, and no join, so `mapProductRow` stays the only place a product row
+ * is read. Unpublished products are included: a store can hold something that
+ * is not on sale today.
+ */
+export async function listProductsByIds(ids: string[]): Promise<Map<string, Product>> {
+  const wanted = [...new Set(ids.filter(Boolean))];
+  if (wanted.length === 0) return new Map();
+  const rows = await safeQuery(
+    `SELECT ${SELECT_COLUMNS} FROM products WHERE id = ANY($1::text[])`,
+    [wanted],
+  );
+  return new Map(rows.map((row) => [row.id, mapProductRow(row)]));
+}
+
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const rows = await safeQuery(
     `SELECT ${SELECT_COLUMNS} FROM products WHERE slug = $1 AND published = TRUE LIMIT 1`,

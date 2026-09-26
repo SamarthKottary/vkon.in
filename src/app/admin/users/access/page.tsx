@@ -18,13 +18,14 @@ const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   support: "Support",
   viewer: "Viewer",
+  inventory: "Inventory",
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
   "1": "Something went wrong. Please try again.",
   self: "You cannot modify your own account here.",
   invalid: "That request was invalid.",
-  privilege: "Only a Super User can set the Super User role.",
+  privilege: "Only a Super User can set the Super User, Admin or Inventory roles.",
   "last-super": "The last Super User account cannot be deleted.",
   access: "You don't have permission to do that. Your role does not allow this action.",
 };
@@ -220,6 +221,9 @@ function UserRow({
               {(currentAdminRole === "super" || user.role === "admin") && <option value="admin">Admin</option>}
               <option value="support">Support</option>
               <option value="viewer">Viewer</option>
+              {/* The stores, and nothing else — super users assign it
+                  (client, 2026-09-26). */}
+              {currentAdminRole === "super" && <option value="inventory">Inventory</option>}
             </select>
             <button
               type="submit"

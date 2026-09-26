@@ -4,7 +4,7 @@ import { LogoutIcon } from "@/components/icons/ui";
 import { Container } from "@/components/ui/Container";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Logo } from "@/components/icons/Logo";
-import { getAdminSession } from "@/lib/auth";
+import { canSeeInventory, getAdminSession } from "@/lib/auth";
 import { Avatar } from "@/components/account/Avatar";
 import { logoutAction } from "./actions";
 import { AdminSidebar } from "./AdminSidebar";
@@ -31,6 +31,11 @@ export default async function AdminLayout({
   const showReviews = admin?.role === "super" || admin?.role === "admin";
   // User Access Levels: only super and admin.
   const showAccess = admin?.role === "super" || admin?.role === "admin";
+  /* Inventory: the two admin levels, and the inventory role — which sees this
+     link and nothing else, because the stores are its whole admin (client,
+     2026-09-26). */
+  const showInventory = admin ? canSeeInventory(admin) : false;
+  const inventoryOnly = admin?.role === "inventory";
 
   if (!authed) {
     return (
@@ -53,7 +58,10 @@ export default async function AdminLayout({
     <div className="flex min-h-screen flex-col sm:flex-row bg-surface-subtle">
       <AdminSidebar
         logo={
-          <Link href="/admin/products" className="flex items-baseline gap-2.5">
+          <Link
+            href={inventoryOnly ? "/admin/inventory" : "/admin/products"}
+            className="flex items-baseline gap-2.5"
+          >
             <Logo className="h-6 w-auto" />
             <span className="label-tech text-muted">ADMIN</span>
           </Link>
@@ -64,6 +72,8 @@ export default async function AdminLayout({
             aria-label="Admin"
             className="flex flex-col gap-1 p-4"
           >
+              {!inventoryOnly && (
+              <>
               <Link
                 href="/admin/products"
                 className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
@@ -116,6 +126,19 @@ export default async function AdminLayout({
                   className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
                 >
                   Access
+                </Link>
+              )}
+              </>
+              )}
+              {/* Last in the list (client, 2026-09-26): it is a section of its
+                  own rather than another part of the shop, and for an
+                  inventory user it is the only row there is. */}
+              {showInventory && (
+                <Link
+                  href="/admin/inventory"
+                  className="px-3 py-2 text-sm text-muted hover:text-ink hover:bg-surface-subtle rounded-md"
+                >
+                  Inventory
                 </Link>
               )}
             </nav>

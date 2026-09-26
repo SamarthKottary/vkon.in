@@ -391,7 +391,12 @@ export type TrackingEvent = {
  *    order status but cannot initiate refunds; SEO hidden entirely.
  *  - viewer: Read-only access everywhere. No changes.
  */
-export type AdminRole = "super" | "admin" | "support" | "viewer";
+/**
+ * `inventory` (client, 2026-09-26) is the one role that is not a *level*: it
+ * has no view of the shop at all, only the store pages under
+ * `/admin/inventory`. See `canSeeInventory` / `inventoryOnly` in `lib/auth.ts`.
+ */
+export type AdminRole = "super" | "admin" | "support" | "viewer" | "inventory";
 
 export type AdminUser = {
   id: string;
@@ -405,4 +410,67 @@ export type AdminUser = {
   /** "upload" | "removed" | null */
   avatarSource: string | null;
   createdAt: string;
+};
+
+/** What Shiprocket holds about a pickup address beyond the address itself. */
+export type StorePickup = {
+  rto?: string;
+  alternatePhone?: string;
+  gstin?: string;
+  openTime?: string;
+  closeTime?: string;
+  warehouseCode?: string;
+  addressType?: string;
+  tag?: string;
+  instruction?: string;
+  primary?: boolean;
+  verified?: boolean;
+};
+
+/**
+ * One store location, and what it holds (client, 2026-09-26).
+ *
+ * The address is a snapshot of a Shiprocket pickup address, fetched by
+ * `nickname` — see the table's own note in `schema.sql`.
+ */
+export type Store = {
+  id: string;
+  /** `/admin/inventory/<slug>` — stable across a rename. */
+  slug: string;
+  /** The name it was given: Work, Home, Warehouse, or anything else. */
+  nickname: string;
+  contactName: string;
+  /** What that person is — "Warehouse manager". Ours: see `schema.sql`. */
+  contactRole: string;
+  phone: string;
+  email: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  /** Shiprocket's id for the pickup address, when it came from there. */
+  pickupId: string | null;
+  fetchedAt: string | null;
+  /** The rest of their record — returns, hours, GSTIN — as last fetched. */
+  pickup: StorePickup;
+  notes: string;
+  /** Frozen: listed, readable, but nothing can be changed in it. */
+  blockedAt: string | null;
+  sortOrder: number;
+  createdAt: string;
+  /** How many products it holds — filled in by the list query. */
+  productCount?: number;
+};
+
+/** A product a store holds, with the catalogue row it points at. */
+export type StoreProduct = {
+  id: string;
+  storeId: string;
+  productId: string;
+  qty: number;
+  note: string;
+  sortOrder: number;
+  product: Product;
 };

@@ -861,3 +861,169 @@ export async function cancelShipment(shipmentOrderId: string): Promise<boolean> 
   }
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// Pickup addresses (client, 2026-09-26)
+// ---------------------------------------------------------------------------
+
+/** One registered pickup address, as the store form fills itself in from. */
+export type PickupAddress = {
+  /** Shiprocket's own id for the address. */
+  id: string;
+  /** The nickname on their "Pickup Addresses" screen — the key everything
+   *  else matches on, including `pickup_location` when an order is booked. */
+  nickname: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  /** The rest of their record (client, 2026-09-26: "fetch store rto role not
+   *  just his name and phone number") — the things a store needs and nobody
+   *  should retype. `rto` is where a returned parcel is sent back to. */
+  details: PickupDetails;
+};
+
+/** What else Shiprocket holds about a pickup address. All optional: their
+ *  record leaves most of it blank until somebody fills it in. */
+export type PickupDetails = {
+  /** The nickname of the address returns go back to, "This address" when it is
+   *  its own RTO, or "" when they do not say. */
+  rto?: string;
+  alternatePhone?: string;
+  gstin?: string;
+  /** "12:00 PM" – "6:00 PM", as they store it. */
+  openTime?: string;
+  closeTime?: string;
+  warehouseCode?: string;
+  /** Their own label for the place: warehouse, shop, and so on. */
+  addressType?: string;
+  /** The tag on their record, which is the nearest thing their pickup API has
+   *  to a point-of-contact role. Empty on every address we have seen. */
+  tag?: string;
+  instruction?: string;
+  /** The account's default pickup point. */
+  primary?: boolean;
+  /** 2 is verified on their side; anything else is not yet in service. */
+  verified?: boolean;
+};
+
+function asPickup(row: Record<string, unknown>): PickupAddress | null {
+  const nickname = String(row.pickup_location ?? "").trim();
+  if (!nickname) return null;
+  const text = (value: unknown) => (value == null ? "" : String(value).trim());
+  /* Only the keys with something in them: a list of empty labels is worse
+     than a shorter list. */
+  const details: PickupDetails = {};
+  const put = (key: keyof PickupDetails, value: string) => {
+    if (value) Object.assign(details, { [key]: value });
+  };
+  put("alternatePhone", text(row.alternate_phone));
+  put("gstin", text(row.gstin));
+  put("openTime", text(row.open_time));
+  put("closeTime", text(row.close_time));
+  put("warehouseCode", text(row.warehouse_code));
+  put("addressType", text(row.address_type));
+  put("tag", text(row.tag_value) || text(row.tag) || text(row.vendor_name));
+  put("instruction", text(row.instruction));
+  if (row.is_primary_location) details.primary = true;
+  if (Number(row.status) === 2) details.verified = true;
+
+  return {
+    id: text(row.id),
+    nickname,
+    contactName: text(row.name),
+    phone: text(row.phone),
+    email: text(row.email),
+    line1: text(row.address),
+    line2: text(row.address_2),
+    city: text(row.city),
+    state: text(row.state),
+    postalCode: text(row.pin_code),
+    country: text(row.country) || "India",
+    details,
+  };
+}
+
+/**
+ * Where a returned parcel goes, said in the name of an address rather than an id.
+ *
+ * `rto_address_id` equal to the address's own id means returns come back to
+ * the same place, which is the common setting and reads better spelled out
+ * than as a number. A different id is looked up in the same list, so the store
+ * says "returns to Warehouse" rather than "returns to 110171884".
+ */
+function rtoLabel(row: Record<string, unknown>, all: Record<string, unknown>[]): string {
+  const own = String(row.id ?? "");
+  const target = String(row.rto_address_id ?? "");
+  if (!target) return "";
+  if (target === own) return "This address";
+  const other = all.find((one) => String(one.id ?? "") === target);
+  return other ? String(other.pickup_location ?? "").trim() || "Another address" : "Another address";
+}
+
+/**
+ * Every pickup address on the account.
+ *
+ * A read, nothing else: this endpoint is the same list the dashboard shows,
+ * and the store form uses it so an address is fetched rather than retyped
+ * (client, 2026-09-26: "next to it there will be a fetch button which will
+ * automatically fill in the details below by fetching from shiprocket").
+ *
+ * Returns `null` when Shiprocket could not be reached or is not configured,
+ * which the caller says out loud — an empty list would read as "you have no
+ * addresses", which is a different and wrong answer.
+ */
+export async function listPickupAddresses(): Promise<PickupAddress[] | null> {
+  if (!isShiprocketConfigured()) return null;
+
+  const response = await api("/settings/company/pickup");
+  if (!response) return null;
+  if (!response.ok) {
+    console.error("[shiprocket] pickup list failed:", response.status, await safeText(response));
+    return null;
+  }
+
+  try {
+    /* Their shape is `{ data: { shipping_address: [...] } }`, and has been
+       `{ data: [...] }` in older accounts — both are read rather than picking
+       one and breaking on the other. */
+    const body = (await response.json()) as { data?: unknown };
+    const data = body.data as { shipping_address?: unknown } | unknown[] | undefined;
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray((data as { shipping_address?: unknown })?.shipping_address)
+        ? ((data as { shipping_address: unknown[] }).shipping_address)
+        : [];
+    const rows = list.filter(
+      (row): row is Record<string, unknown> => Boolean(row) && typeof row === "object",
+    );
+    return rows.flatMap((row) => {
+      const address = asPickup(row);
+      if (!address) return [];
+      const rto = rtoLabel(row, rows);
+      if (rto) address.details.rto = rto;
+      return [address];
+    });
+  } catch (error) {
+    console.error("[shiprocket] pickup list unreadable:", error);
+    return null;
+  }
+}
+
+/**
+ * One pickup address by its nickname, matched the way Shiprocket matches it —
+ * exactly, but without caring about case or the spaces around it, because
+ * somebody typing "warehouse" means the one called "Warehouse".
+ */
+export async function findPickupAddress(nickname: string): Promise<PickupAddress | null> {
+  const wanted = nickname.trim().toLowerCase();
+  if (!wanted) return null;
+  const all = await listPickupAddresses();
+  if (!all) return null;
+  return all.find((one) => one.nickname.toLowerCase() === wanted) ?? null;
+}

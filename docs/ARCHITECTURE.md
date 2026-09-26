@@ -1738,6 +1738,75 @@ on top of it could only ever be a step towards those.
 - Gone with the pop-up: `findOrdersAction`, `FoundOrder`, `findOrdersForLookup`
   and `adminOrderSection`. The scanner dialog stays, since a camera needs one.
 
+### 2026-09-26 (admin, inventory) — Stores, their stock, and a role that is not a level
+
+Client: "lets create another section in admin called inventory, where we track
+the store/inventory details of my different store locations" — with its own
+sign-in, an address fetched from Shiprocket, a product picker, and a page per
+store.
+
+- **Two tables.** `stores` snapshots a Shiprocket pickup address (their record
+  can change under us, the same reasoning `orders.ship_to` records) and
+  `store_products` joins a store to catalogue rows with a quantity, a note and
+  an order. Both cascade from their parents; `store_products` does *not*
+  snapshot the product, because it records what is on a shelf now rather than
+  what was once sold.
+- **`inventory` is a role that is not a level.** Support and viewer see less of
+  the same admin; an inventory user sees a different one. `requireAdmin()`
+  refuses the role, `requireInventory()` guards the store actions, and
+  `requireOperator()` covers the few things anybody does to their own account.
+  `requireAdminPage()` redirects the role to `/admin/inventory`, and the
+  sidebar renders that link alone. Only a super user can assign it.
+- **`/admin/inventory` is public in `proxy.ts`** — the one page under `/admin`
+  besides the sign-in itself. It is the address the shop floor is given, and it
+  carries its own sign-in form, so bouncing it to the shop's login would lose
+  the page somebody was told to open. Everything under it still redirects.
+- **Fetch is Shiprocket's own pickup list, read-only.** `listPickupAddresses()`
+  reads `/settings/company/pickup` and `findPickupAddress()` matches the
+  nickname case-insensitively — their API matches a pickup address by that
+  string and nothing else, so the name that identifies the store here is the
+  name a parcel is booked against. Verified against the live account: "Work"
+  filled contact, street, city, state and PIN.
+- **A blocked store refuses writes in the actions**, not by hiding buttons.
+- **`storeSlug()` reserves `new`, `edit` and `add`**: a static segment beats
+  `[store]` in Next's router, so a store called "New" would be unreachable.
+- Three new client components (picker, form, stock list) and no new dependency:
+  the picker is a plain dialog and the reorder is the same native drag-and-drop
+  `ProductReorder` uses.
+
+Same day, after the client saw it: **Inventory is the last row of the sidebar**,
+the store form is one panel instead of two stacked cards, the top left reads as
+a path (`INVENTORY / WORK`) rather than a back arrow, and the stores drop the
+"Address from" and "Page" stats — the Shiprocket badge already says the first
+and the address bar the second. The store page gained **a search over what it
+holds**, which locks the drag order while it filters, for the reason
+`ProductReorder` records. **And the prices were wrong**: `products.price` is
+whole rupees, and both new lists passed it to `formatPaise`, so a ₹1,326.32
+product read ₹14.99. They now use `displayPricePaise` with the shop's GST
+rates, which is the figure the site itself shows.
+
+Then: **the store form is one grid**, the name box exactly a column wide so it
+lines up with Contact name and Fetch with Phone, and the counts are
+right-aligned pairs. **Fetch now takes the whole record** (client: "fetch store
+rto role not just his name and phone number") — where returns go (`rto_address_id`
+resolved to *that* address's nickname, or "This address" when it is its own),
+pickup hours, alternate phone, GSTIN, warehouse code, and whether Shiprocket
+calls it primary and verified. It lands in `stores.pickup`, one JSONB snapshot
+rather than seven columns, because it is a copy of somebody else's record read
+and rewritten whole; `asStorePickup()` whitelists the keys, since the snapshot
+travels back through a hidden form field. It is shown read-only, on the form
+and on the store, because those are settings on their screen and a box here
+that looked editable would promise something this form cannot do.
+
+**The point of contact's role is ours, not theirs** (client: "can we not show
+point of contacts role like warehouse manager etc which we have selected in
+shiprocket"). Their pickup record has no such field — checked against the live
+account: a name, a phone, an email, and `address_type`, `tag`, `tag_value` and
+`vendor_name` all blank — so `stores.contact_role` is typed here and shown
+beside the name ("Darshan Prakash, Warehouse manager"). A Fetch offers their
+`tag` when there is one and the field is still empty, and never overwrites what
+somebody typed.
+
 ### 2026-09-26 (routing, seo) — A product's address carries its category
 
 Client, looking at the breadcrumb: "in url it shows

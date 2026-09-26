@@ -23,6 +23,10 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Search by email, ten a page. Read, export (always the whole list), remove. |
 | `/admin/seo` | Static page SEO overrides. |
+| `/admin/inventory` | **Stores and what they hold** (2026-09-26). Its own sign-in page, because it is the address the shop floor is given. Lists every store with its address and product count; **View · Edit · Block · Delete** on each row. Inventory users, admins and super users. |
+| `/admin/inventory/new` | Add a store: the address name, **Fetch** to fill the rest from Shiprocket's pickup addresses — including where returns go, the pickup hours, the alternate phone and the GSTIN — then **Add products** and **Save products**, which writes the store and opens it. |
+| `/admin/inventory/[store]` | One store — name, address and counts at the top, then what it holds: drag or step rows into order, **Edit** the quantity and a note, **View** the product on the site, **Delete** it from this store. |
+| `/admin/inventory/[store]/edit` | The store's own details again, including a fresh **Fetch**. The page address never changes. |
 
 One operator, one password, five things to manage: **products**, **orders**
 placed at checkout, the **mailing list** those products get announced to,
@@ -79,6 +83,20 @@ clearing your own cookie is not privileged.
 
 > If you add an action that writes anything, `await requireAdmin()` goes on the
 > first line. Not after parsing, not after a guard clause. First.
+
+**`inventory` is a role that is not a level** (2026-09-26). Support and viewer
+see less of the same admin; an inventory user sees a different one — the stores,
+and nothing else. So `requireAdmin()` *refuses* that role outright, and the
+store actions call `requireInventory()` instead; `requireOperator()` exists for
+the handful of things anybody does to their own account (name, password,
+picture), because an inventory user has to be able to set a password on first
+sign-in like everyone else. `requireAdminPage()` sends them to
+`/admin/inventory` rather than showing a denial panel for a shop they will
+never have. Only a super user can hand the role out.
+
+> A store page's actions start with `await requireInventory()`, and a write to
+> a **blocked** store is refused there too. Blocking is not a label on a card:
+> hiding the buttons only stops the people who use the buttons.
 
 ---
 
@@ -429,6 +447,30 @@ Note also that a paid order arrives here already marked **Paid** and
 ---
 
 ## Change log
+
+**2026-09-26 (inventory)** — **A new section: stores and their stock.**
+`/admin/inventory` has its own sign-in page and its own role. A store is one
+place that holds stock; its address is fetched from Shiprocket by the same
+nickname their pickup address has, so what a courier collects from and what is
+written here cannot drift apart by a typo. A store holds products from the
+catalogue, each with a quantity and a note, in an order you can drag. **Block**
+freezes a store and the server refuses every write to it; **Delete** takes the
+store and its stock list, never the products. None of it is visible to
+customers — this is the shop's own record, not a stock level on the site.
+
+Roles: a **super user** assigns *Inventory* on `/admin/users/access`. An
+inventory user's whole admin is `/admin/inventory`; admins and super users see
+it alongside everything else — the last row of the sidebar. New tables,
+`stores` and `store_products`, both applied from `src/lib/db/schema.sql`.
+
+A store also records **the point of contact's role** — "Warehouse manager" —
+which is typed here: Shiprocket's pickup API returns a name, a phone and an
+email, and no role at all. Fetch never overwrites it.
+
+**Where an inventory user signs in: `vkon.in/admin/inventory`.** The same
+credentials as any other operator, and the same cookie; that page carries its
+own form so it can be given out on its own, and it is where they land after
+signing in from anywhere else.
 
 **2026-09-25 (pricing)** — **Product prices are shown with GST included.**
 The figure on a card, a product page or a cart line is what the customer pays;

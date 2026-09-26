@@ -38,8 +38,14 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const COOKIE = "vkon_admin";
 
-/** The admin pages that exist precisely for somebody who is not signed in. */
-const PUBLIC = ["/admin", "/admin/forgot", "/admin/reset"];
+/** The admin pages that exist precisely for somebody who is not signed in.
+ *
+ *  `/admin/inventory` is one of them (client, 2026-09-26): it is the address
+ *  the shop floor is given, and it carries its own sign-in form, so bouncing
+ *  it to the shop's login would hand somebody the wrong page and lose the one
+ *  they were told to open. The page renders the form itself when there is no
+ *  session; everything under it still redirects. */
+const PUBLIC = ["/admin", "/admin/forgot", "/admin/reset", "/admin/inventory"];
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

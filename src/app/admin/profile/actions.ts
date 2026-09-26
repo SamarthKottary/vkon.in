@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin, requireAdminRole } from "@/lib/auth";
+import { requireAdmin, requireAdminRole, requireOperator } from "@/lib/auth";
 import { isGstin, isGstRate, setGstRates, setInvoiceGstin } from "@/lib/db/settings";
 import {
   getAdminPasswordHash,
@@ -36,7 +36,7 @@ export async function updateAdminProfileAction(
   _prev: ProfileState,
   formData: FormData,
 ): Promise<ProfileState> {
-  const admin = await requireAdmin();
+  const admin = await requireOperator();
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name || name.length > 120) {
@@ -66,7 +66,7 @@ export async function setAdminPasswordAction(
   _prev: ProfileState,
   formData: FormData,
 ): Promise<ProfileState> {
-  const admin = await requireAdmin();
+  const admin = await requireOperator();
 
   const currentPassword = String(formData.get("currentPassword") ?? "");
   const password = String(formData.get("password") ?? "");
@@ -112,7 +112,7 @@ export async function setAdminPasswordAction(
 export async function uploadAdminAvatarAction(
   formData: FormData,
 ): Promise<{ status: "ok" } | { status: "error"; message: string }> {
-  const admin = await requireAdmin();
+  const admin = await requireOperator();
 
   const blob = formData.get("avatar");
   if (!(blob instanceof File) || blob.size === 0) {
@@ -145,7 +145,7 @@ export async function uploadAdminAvatarAction(
 export async function removeAdminAvatarAction(): Promise<
   { status: "ok" } | { status: "error"; message: string }
 > {
-  const admin = await requireAdmin();
+  const admin = await requireOperator();
 
   let previous: string | null = null;
   try {

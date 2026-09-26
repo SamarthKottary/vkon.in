@@ -13,6 +13,9 @@ const ROLE_OPTIONS: { value: AdminRole; label: string; desc: string }[] = [
   { value: "admin", label: "Admin", desc: "Full access except SEO" },
   { value: "support", label: "Support", desc: "Advance orders, view everything" },
   { value: "viewer", label: "Viewer", desc: "Read-only" },
+  /* Not a level but a side door (client, 2026-09-26): the stores and nothing
+     else. Super users only — the filter below leaves it out for admins. */
+  { value: "inventory", label: "Inventory", desc: "Stores and stock only" },
 ];
 
 export function AddAdminUserForm({ currentRole }: { currentRole: string }) {
