@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -56,7 +56,7 @@ export function StoreProductPicker({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [picked, setPicked] = useState<string[]>(initialPicked);
+  const [picked, setPicked] = useState<string[]>(initialPicked ?? []);
   const [q, setQ] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
   const dialog = useRef<HTMLDivElement | null>(null);
@@ -79,6 +79,12 @@ export function StoreProductPicker({
       document.body.style.overflow = previous;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setPicked(initialPicked ?? []);
+    }
+  }, [open, initialPicked]);
 
   /* Which category keys actually appear in the catalogue being shown. */
   const presentCats = Array.from(new Set(products.map((p) => p.category)));
