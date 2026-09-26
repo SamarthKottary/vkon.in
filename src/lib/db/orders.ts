@@ -443,14 +443,21 @@ const ORDER_SEARCH_SQL = `($1 = '' OR order_number ILIKE $2
   /* The AWB too (2026-09-25), so a number scanned off a parcel label finds
      its order in the list — which is what the Scan button now searches for. */
   OR awb ILIKE $2
-  /* And the reference Shiprocket currently knows the order by (client,
-     2026-09-26). A retried booking is sent as VK-0925-CTH9-R3, and that is
-     what their dashboard and the label print, so it has to find the order the
-     bare number finds. Built from shipment_tries, which is the attempt the
-     order is on, so -R2 on an order now at -R3 matches nothing: an earlier
-     attempt was cancelled, and a label from it is not this parcel.
+  /* And the reference on the parcel that is actually booked (client,
+     2026-09-26). A retried booking is sent to Shiprocket as VK-0925-CTH9-R3,
+     which is what their dashboard and the printed label carry, so it has to
+     find the order the bare number finds.
+
+     Two conditions, and both matter. shipment_tries is the attempt the order
+     is on, so an earlier -R2 matches nothing. awb IS NOT NULL is what makes it
+     a booking rather than a try: an attempt that failed is cancelled at
+     Shiprocket and never gets an AWB, so its id refers to nothing, and the
+     order is found by its own number alone -- which is the number to search
+     when there is no parcel. A parcel undone by Not ready clears the AWB and
+     goes the same way.
      (No backticks in here: this is inside a template literal.) */
-  OR (shipment_tries > 1 AND order_number || '-R' || shipment_tries::text ILIKE $2)
+  OR (awb IS NOT NULL AND shipment_tries > 1
+      AND order_number || '-R' || shipment_tries::text ILIKE $2)
   OR customer_id IN (
     SELECT id FROM customers
      WHERE email ILIKE $2

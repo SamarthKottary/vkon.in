@@ -1744,12 +1744,16 @@ Shiprocket knows a retried booking as `VK-0925-CTH9-R3`, which is what their
 dashboard and the printed label carry, and typing that into the orders search
 found nothing — the list only ever matched `order_number`.
 
-- **`ORDER_SEARCH_SQL` matches `order_number || '-R' || shipment_tries`**, so
-  the reference Shiprocket holds *now* finds the order, and an older one does
-  not. `shipment_tries` is the attempt the order is on: `-R2` on an order at
-  `-R3` belongs to a booking that was cancelled, and a label printed from it is
-  not this parcel — answering it with the live order is the one answer a
-  packing table must not give.
+- **`ORDER_SEARCH_SQL` matches `order_number || '-R' || shipment_tries`, and
+  only while `awb IS NOT NULL`.** Two conditions, both load-bearing.
+  `shipment_tries` is the attempt the order is on, so an earlier `-R2` matches
+  nothing; the AWB is what makes an attempt a *booking*, because an attempt
+  that failed is cancelled at Shiprocket and never gets one. Client, testing
+  three failed bookings: "only when successful book shipment VK-0925-CTH9-R3
+  this should show, or else the user should search using VK-0925-CTH9 only."
+  An id that refers to nothing must not answer with a live order — that is the
+  one answer a packing table cannot use. `Not ready` clears the AWB, so a
+  parcel undone goes the same way.
 - **The scanner no longer strips the suffix.** It stripped `-R\d+$` before
   searching, which is exactly the behaviour the rule above replaces; the code
   is now searched as it reads.

@@ -290,9 +290,10 @@ export default async function AdminOrdersPage({
           booking that had to be retried is known to Shiprocket as the order
           number with <span className="font-mono text-ink">-R2</span>,{" "}
           <span className="font-mono text-ink">-R3</span> after it, and that
-          works here too — but only the attempt the order is on now. An older
-          one finds nothing on purpose: it belongs to a booking that was
-          cancelled, so a label printed from it is not this parcel.
+          works here too — but only while that attempt is the parcel actually
+          booked. An attempt that failed, or one undone by Not ready, refers to
+          nothing at Shiprocket, so it finds nothing here either: search the
+          order number itself.
         </p>
         <p>
           <span className="font-medium text-ink">Only paid orders are listed:</span>{" "}
@@ -352,14 +353,14 @@ export default async function AdminOrdersPage({
                       : `No ${filter ? `${FILTER_LABELS[filter].toLowerCase()} ` : ""}orders`}
                   {query.q ? ` match “${query.q}”` : ""}.
                 </p>
-                {/* A `-R2` that matched nothing is an earlier booking
-                    attempt, not a broken scanner (client, 2026-09-26). Say so,
-                    and offer the order number under it — the list will not,
-                    because that attempt is not the one this order is on. */}
+                {/* A `-R2` that matched nothing is a booking attempt that
+                    came to nothing, not a broken scanner (client,
+                    2026-09-26). Say so, and offer the order number under
+                    it. */}
                 {retryReference(query.q) && (
                   <p className="mt-2 text-sm text-muted">
-                    That is how Shiprocket refers to one booking attempt. If the
-                    attempt was cancelled, the order is under{" "}
+                    That is how Shiprocket refers to one booking attempt. Unless
+                    it is the parcel currently booked, the order is under{" "}
                     <Link
                       href={listHref("/admin/orders", { q: retryReference(query.q), sort })}
                       className="font-mono text-accent hover:underline"
