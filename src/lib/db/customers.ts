@@ -634,3 +634,45 @@ export async function setCustomerBlocked(
   return true;
 }
 
+
+export type DeleteCustomerResult =
+  | { ok: true; email: string; avatar: string | null }
+  | { ok: false; reason: "missing" }
+  /** The account has orders, which are the shop's records as much as theirs. */
+  | { ok: false; reason: "orders"; orders: number };
+
+/**
+ * Deletes an account and everything hanging off it (client, 2026-09-26).
+ *
+ * **One `DELETE`, and the schema does the rest.** Sessions, tokens, trusted
+ * devices, the saved cart, saved addresses and reviews are all `ON DELETE
+ * CASCADE` from `customers` — see the foreign-key table in ARCHITECTURE §4 —
+ * so listing them here would only be a second place to forget one.
+ *
+ * **Orders are `ON DELETE RESTRICT`, and that stays.** They carry what was
+ * bought, what was charged and the GST on it; an account that has any is
+ * refused here with the count, and the admin is told to block it instead. The
+ * count and the delete are two statements, so an order placed between them
+ * raises the foreign key instead — the caller catches it. The guard is for the
+ * message, the constraint is the guarantee.
+ *
+ * The avatar filename comes back so the caller can remove the file too; the
+ * row that pointed at it is gone either way.
+ */
+export async function deleteCustomerAccount(customerId: string): Promise<DeleteCustomerResult> {
+  const rows = await query<{ email: string; avatar: string | null; orders: string }>(
+    `SELECT c.email, c.avatar,
+            (SELECT count(*) FROM orders o WHERE o.customer_id = c.id) AS orders
+       FROM customers c
+      WHERE c.id = $1`,
+    [customerId],
+  );
+  const row = rows[0];
+  if (!row) return { ok: false, reason: "missing" };
+
+  const orders = Number(row.orders);
+  if (orders > 0) return { ok: false, reason: "orders", orders };
+
+  await query(`DELETE FROM customers WHERE id = $1`, [customerId]);
+  return { ok: true, email: row.email, avatar: row.avatar };
+}

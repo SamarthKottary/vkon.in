@@ -23,7 +23,7 @@ import {
   updateProduct,
 } from "@/lib/db/products";
 import { deleteEnquiry, setEnquiryHandled } from "@/lib/db/enquiries";
-import { findCustomerById, setCustomerBlocked } from "@/lib/db/customers";
+import { deleteCustomerAccount, findCustomerById, setCustomerBlocked } from "@/lib/db/customers";
 import { setSigninCodeOn } from "@/lib/db/settings";
 import { REVIEW_STATUSES, setReviewStatus, type ReviewStatus } from "@/lib/db/reviews";
 import {
@@ -56,7 +56,7 @@ import {
 import { packParcel } from "@/lib/parcel";
 import { deleteSubscriber } from "@/lib/db/subscribers";
 import { upsertPageSeo } from "@/lib/db/pageSeo";
-import { deleteProductImages, uploadProductImage } from "@/lib/storage";
+import { deleteAvatar, deleteProductImages, uploadProductImage } from "@/lib/storage";
 import { CATEGORY_KEYS, PROTECTION_KEYS } from "@/content/taxonomy";
 import { SEO_PAGES } from "@/lib/seo";
 import { site } from "@/content/site";
@@ -1225,6 +1225,62 @@ export async function blockCustomerAction(formData: FormData): Promise<void> {
   redirect(`/admin/users${qs ? `?${qs}` : ""}`);
 }
 
+
+/**
+ * Deletes a customer account and everything it owns (client, 2026-09-26: a
+ * delete button beside Login and Block).
+ *
+ * **Super users only** — one click past the confirmation and an account, its
+ * addresses, its saved cart and its sign-in history are gone, with nothing to
+ * undo it with. Blocking is the reversible half of this pair and stays open to
+ * admins.
+ *
+ * **An account with orders is refused**, with the count, on the card the admin
+ * pressed rather than in a banner at the top of the page: the answer belongs
+ * where the question was asked.
+ */
+export async function deleteCustomerAction(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+
+  const back = String(formData.get("q") ?? "").trim();
+  const filter = String(formData.get("filter") ?? "").trim();
+  const id = String(formData.get("id") ?? "").trim();
+  const to = (params: Record<string, string>) => {
+    const qs = new URLSearchParams();
+    if (back) qs.set("q", back);
+    if (filter) qs.set("filter", filter);
+    for (const [key, value] of Object.entries(params)) qs.set(key, value);
+    const query = qs.toString();
+    /* Back to the card it was pressed on, so a refusal is read in place. */
+    return `/admin/users${query ? `?${query}` : ""}${params.user ? `#user-${params.user}` : ""}`;
+  };
+
+  if (admin.role !== "super") redirect(to(id ? { error: "delete-access", user: id } : {}));
+  if (!id) redirect(to({}));
+
+  let result;
+  try {
+    result = await deleteCustomerAccount(id);
+  } catch (error) {
+    /* Includes the foreign key itself: an order placed between the count and
+       the delete lands here rather than taking the record with it. */
+    console.error("[admin] delete customer failed:", error);
+    redirect(to({ error: "delete", user: id }));
+  }
+
+  if (!result.ok) {
+    if (result.reason === "orders") {
+      redirect(to({ error: "delete-orders", orders: String(result.orders), user: id }));
+    }
+    redirect(to({ error: "delete", user: id }));
+  }
+
+  await deleteAvatar(result.avatar);
+  console.info(`[admin] ${admin.email} deleted customer ${id} (${result.email})`);
+
+  revalidatePath("/admin/users");
+  redirect(to({ deleted: "1" }));
+}
 
 // ---------------------------------------------------------------------------
 // Admin User Access Levels

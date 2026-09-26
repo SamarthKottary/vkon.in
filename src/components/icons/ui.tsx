@@ -495,6 +495,25 @@ export function LockIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function EyeIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M2.5 12S6 5.75 12 5.75 21.5 12 21.5 12 18 18.25 12 18.25 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="2.75" />
+    </svg>
+  );
+}
+
+/** A circle with a bar through it — blocked, not deleted. */
+export function BanIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="8.25" />
+      <path d="M6.15 6.15 17.85 17.85" />
+    </svg>
+  );
+}
+
 export function GoogleIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>

@@ -50,11 +50,13 @@ export function OrderFinder({ q, sort }: { q: string; sort: string }) {
 
   /** What a scan or a typed code searches for. */
   const search = (value: string) => {
-    /* `VK-0923-98FT-R2` is Shiprocket's reference for a retried booking; the
-       order is `VK-0923-98FT`, which is what the list holds. */
-    const code = value.trim().replace(/-R\d+$/i, "");
+    /* Scanned exactly as it reads, `-R3` and all (client, 2026-09-26). The
+       list matches that suffix itself now, and only on the attempt the order
+       is actually on — stripping it here would make a label from a cancelled
+       attempt open the live parcel's order, which is the one answer a packing
+       table must not give. */
     setScanning(false);
-    router.push(listHref("/admin/orders", { q: code, sort }));
+    router.push(listHref("/admin/orders", { q: value.trim(), sort }));
   };
 
   return (

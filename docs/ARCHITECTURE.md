@@ -1738,6 +1738,53 @@ on top of it could only ever be a step towards those.
 - Gone with the pop-up: `findOrdersAction`, `FoundOrder`, `findOrdersForLookup`
   and `adminOrderSection`. The scanner dialog stays, since a camera needs one.
 
+### 2026-09-26 (admin orders) — A retried booking's own reference finds its order
+
+Shiprocket knows a retried booking as `VK-0925-CTH9-R3`, which is what their
+dashboard and the printed label carry, and typing that into the orders search
+found nothing — the list only ever matched `order_number`.
+
+- **`ORDER_SEARCH_SQL` matches `order_number || '-R' || shipment_tries`**, so
+  the reference Shiprocket holds *now* finds the order, and an older one does
+  not. `shipment_tries` is the attempt the order is on: `-R2` on an order at
+  `-R3` belongs to a booking that was cancelled, and a label printed from it is
+  not this parcel — answering it with the live order is the one answer a
+  packing table must not give.
+- **The scanner no longer strips the suffix.** It stripped `-R\d+$` before
+  searching, which is exactly the behaviour the rule above replaces; the code
+  is now searched as it reads.
+- **An unmatched `-Rn` explains itself** in the empty state and links to the
+  order number under it, so a dead label reads as a dead label rather than as a
+  broken scanner.
+- Both counts and list share the SQL, so the section chips agree with it.
+
+### 2026-09-26 (admin users) — Login, Block, and a delete that stops at orders
+
+Client's sketch for each user card: an eye and **Login**, a circle-slash and
+**Block**, and a red bin — three marks rather than three bordered buttons, with
+colour spent only on the destructive one.
+
+- **`deleteCustomerAction` is super-only**, where block stays open to admins.
+  Blocking is the reversible half of the pair; this one has nothing behind it.
+- **It is one `DELETE FROM customers`.** Sessions, tokens, trusted devices, the
+  saved cart, addresses and reviews are all CASCADE from `customers` (§4's
+  foreign-key table), so naming them here would only be a second place to
+  forget one. `deleteAvatar` removes the uploaded file the row pointed at.
+- **Orders still say no, and that is the point.** `orders.customer_id` is
+  `ON DELETE RESTRICT` because an order is the shop's record of what was sold
+  and what tax was charged. `deleteCustomerAccount` counts orders first so the
+  admin gets a sentence instead of a constraint violation, and the delete is
+  wrapped in a `try` for the race between the two statements — the guard is for
+  the message, the constraint is the guarantee. **This reverses the page's
+  earlier "no delete at all" note, not the constraint under it.**
+- **A refusal is printed on the card the bin was pressed on** (`?error=…&user=<id>`
+  plus a `#user-<id>` anchor), not in a banner at the top — the same rule the
+  orders page follows for booking failures.
+- `DeleteUserButton` is the third client component on this page's route and
+  copies `DeleteProductButton`'s arm-then-confirm, including the five-second
+  disarm, so an armed bin left in an open tab cannot be finished off later.
+- New icons: `EyeIcon`, `BanIcon`.
+
 ### 2026-09-25 (order page) — The actions lead the page, the bill closes it
 
 Client's sketch: **Repeat order** and **Download invoice** above the item list,

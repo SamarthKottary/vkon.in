@@ -285,6 +285,16 @@ export default async function AdminOrdersPage({
           its failed booking attempts, so the whole thing can be started again.
         </p>
         <p>
+          <span className="font-medium text-ink">Search or scan finds an order</span>{" "}
+          by its number, the AWB, or the customer&rsquo;s email or phone. A
+          booking that had to be retried is known to Shiprocket as the order
+          number with <span className="font-mono text-ink">-R2</span>,{" "}
+          <span className="font-mono text-ink">-R3</span> after it, and that
+          works here too — but only the attempt the order is on now. An older
+          one finds nothing on purpose: it belongs to a booking that was
+          cancelled, so a label printed from it is not this parcel.
+        </p>
+        <p>
           <span className="font-medium text-ink">Only paid orders are listed:</span>{" "}
           cash on delivery (<span className="font-medium text-ink">COD</span>) and
           orders paid online (<span className="font-medium text-ink">Paid online</span>).
@@ -342,6 +352,23 @@ export default async function AdminOrdersPage({
                       : `No ${filter ? `${FILTER_LABELS[filter].toLowerCase()} ` : ""}orders`}
                   {query.q ? ` match “${query.q}”` : ""}.
                 </p>
+                {/* A `-R2` that matched nothing is an earlier booking
+                    attempt, not a broken scanner (client, 2026-09-26). Say so,
+                    and offer the order number under it — the list will not,
+                    because that attempt is not the one this order is on. */}
+                {retryReference(query.q) && (
+                  <p className="mt-2 text-sm text-muted">
+                    That is how Shiprocket refers to one booking attempt. If the
+                    attempt was cancelled, the order is under{" "}
+                    <Link
+                      href={listHref("/admin/orders", { q: retryReference(query.q), sort })}
+                      className="font-mono text-accent hover:underline"
+                    >
+                      {retryReference(query.q)}
+                    </Link>
+                    .
+                  </p>
+                )}
                 <Link href="/admin/orders" className="mt-2 inline-block text-sm text-accent hover:underline">
                   Show all orders
                 </Link>
@@ -382,6 +409,12 @@ export default async function AdminOrdersPage({
       </div>
     </Container>
   );
+}
+
+/** `VK-0925-CTH9-R2` → `VK-0925-CTH9`; anything else → "". */
+function retryReference(q: string): string {
+  const match = q.trim().match(/^(.+?)-R\d+$/i);
+  return match ? match[1] : "";
 }
 
 /**
