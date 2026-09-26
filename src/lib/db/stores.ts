@@ -401,3 +401,122 @@ export async function reorderStoreProducts(storeId: string, ids: string[]): Prom
     console.error("[db] store product reorder failed:", error);
   }
 }
+
+// ---------------------------------------------------------------------------
+// A store as an account (client, 2026-09-26)
+// ---------------------------------------------------------------------------
+
+/**
+ * The store behind a sign-in: matched on its own page's slug and the email
+ * Shiprocket gave as the pickup in-charge.
+ *
+ * Scoped to one store rather than looked up by email alone, because two
+ * locations may share a manager and the address bar already says which one is
+ * being signed in to.
+ */
+export async function findStoreForSignIn(
+  slug: string,
+  email: string,
+): Promise<{ id: string; blocked: boolean; hash: string | null } | null> {
+  const rows = await query<{ id: string; blocked_at: Date | null; password_hash: string | null }>(
+    `SELECT id, blocked_at, password_hash FROM stores
+      WHERE slug = $1 AND lower(email) = lower($2) AND email <> ''`,
+    [slug, email],
+  );
+  const row = rows[0];
+  return row
+    ? { id: row.id, blocked: Boolean(row.blocked_at), hash: row.password_hash }
+    : null;
+}
+
+/** For the emailed link: the store at this page with an address to send to. */
+export async function findStoreBySlugWithEmail(
+  slug: string,
+): Promise<{ id: string; email: string; contactName: string; nickname: string } | null> {
+  const rows = await query<{ id: string; email: string; contact_name: string; nickname: string }>(
+    `SELECT id, email, contact_name, nickname FROM stores WHERE slug = $1 AND email <> ''`,
+    [slug],
+  );
+  const row = rows[0];
+  return row
+    ? { id: row.id, email: row.email, contactName: row.contact_name ?? "", nickname: row.nickname }
+    : null;
+}
+
+/** Sets the password and ends every session: a reset signs the others out. */
+export async function setStorePassword(storeId: string, hash: string): Promise<void> {
+  await query(`UPDATE stores SET password_hash = $2, updated_at = now() WHERE id = $1`, [storeId, hash]);
+  await query(`DELETE FROM store_sessions WHERE store_id = $1`, [storeId]);
+}
+
+export async function createStoreSession(input: {
+  id: string;
+  storeId: string;
+  userAgent: string;
+  expiresAt: Date;
+}): Promise<void> {
+  await query(
+    `INSERT INTO store_sessions (id, store_id, user_agent, expires_at) VALUES ($1,$2,$3,$4)`,
+    [input.id, input.storeId, input.userAgent.slice(0, 200), input.expiresAt],
+  );
+}
+
+/** The store a session belongs to, or null when it has expired or gone. */
+export async function storeForSession(sessionId: string): Promise<Store | null> {
+  try {
+    const rows = await query<StoreRow>(
+      `SELECT ${STORE_SELECT} FROM stores
+        WHERE id = (SELECT store_id FROM store_sessions
+                     WHERE id = $1 AND expires_at > now())`,
+      [sessionId],
+    );
+    return rows[0] ? mapStore(rows[0]) : null;
+  } catch (error) {
+    console.error("[db] store session read failed:", error);
+    return null;
+  }
+}
+
+export async function deleteStoreSession(sessionId: string): Promise<void> {
+  await query(`DELETE FROM store_sessions WHERE id = $1`, [sessionId]);
+}
+
+export async function createStoreToken(input: {
+  hashedId: string;
+  storeId: string;
+  expiresAt: Date;
+}): Promise<void> {
+  await query(`DELETE FROM store_tokens WHERE store_id = $1 AND kind = 'reset'`, [input.storeId]);
+  await query(
+    `INSERT INTO store_tokens (id, store_id, kind, expires_at) VALUES ($1,$2,'reset',$3)`,
+    [input.hashedId, input.storeId, input.expiresAt],
+  );
+}
+
+/** Single use: the row is deleted as it is read. */
+export async function consumeStoreToken(hashedId: string): Promise<string | null> {
+  const rows = await query<{ store_id: string }>(
+    `DELETE FROM store_tokens
+      WHERE id = $1 AND kind = 'reset' AND expires_at > now()
+      RETURNING store_id`,
+    [hashedId],
+  );
+  return rows[0]?.store_id ?? null;
+}
+
+/** One product's count, by the store itself: set it, or step it. */
+export async function adjustStoreProductStock(
+  storeId: string,
+  rowId: string,
+  change: { to?: number; by?: number },
+): Promise<number | null> {
+  const rows = await query<{ qty: number }>(
+    `UPDATE store_products
+        SET qty = GREATEST(0, CASE WHEN $3::int IS NOT NULL THEN $3::int ELSE qty + $4::int END),
+            updated_at = now()
+      WHERE id = $1 AND store_id = $2
+      RETURNING qty`,
+    [rowId, storeId, change.to ?? null, change.by ?? 0],
+  );
+  return rows[0] ? Number(rows[0].qty) : null;
+}

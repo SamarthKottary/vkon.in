@@ -40,6 +40,7 @@ import {
   trustThisDevice,
 } from "@/lib/signin-challenge";
 import { site } from "@/content/site";
+import { emailLink } from "@/lib/links";
 
 /**
  * Public account actions — register, sign in, sign out, forgotten password.
@@ -146,9 +147,8 @@ async function limited(
 
 /** Absolute URL for a link in an email. Built from `SITE_URL`, never from the
  *  request's Host header — see the same reasoning in `lib/google.ts`. */
-function absoluteUrl(path: string): string {
-  return `${site.url.replace(/\/$/, "")}${path}`;
-}
+/** See `lib/links.ts`: the live site's address, or this one in development. */
+const absoluteUrl = emailLink;
 
 // ---------------------------------------------------------------------------
 // Register
@@ -238,7 +238,7 @@ export async function registerAction(
         await sendPasswordResetMail({
           to: existing.email,
           name: existing.name,
-          resetUrl: absoluteUrl(`/account/reset?token=${token}`),
+          resetUrl: await absoluteUrl(`/account/reset?token=${token}`),
         });
       }
       return {
@@ -264,7 +264,7 @@ export async function registerAction(
     await sendWelcomeMail({
       to: email as string,
       name,
-      verifyUrl: absoluteUrl(`/account/verify?token=${token}`),
+      verifyUrl: await absoluteUrl(`/account/verify?token=${token}`),
     });
 
     await startSession(customerId);
@@ -598,7 +598,7 @@ export async function forgotPasswordAction(
       await sendPasswordResetMail({
         to: customer.email,
         name: customer.name,
-        resetUrl: absoluteUrl(`/account/reset?token=${rawToken}`),
+        resetUrl: await absoluteUrl(`/account/reset?token=${rawToken}`),
       });
     }
   } catch (error) {

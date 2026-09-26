@@ -1,9 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 
-export function AdminSidebar({
+/**
+ * The left column both consoles stand in: the admin's, and a store's at
+ * `vkon.in/<slug>` (client, 2026-09-26: "move the stock and profile button and
+ * others on top to the left side like admin panel").
+ *
+ * A layout primitive with nothing of either console in it — the caller passes
+ * its own logo and its own links. It was `app/admin/AdminSidebar.tsx` until the
+ * stores needed the same thing; two copies of a collapsible sidebar is how they
+ * drift apart.
+ *
+ * Below `sm` it is a top bar with a toggle and the panel slides over the page;
+ * from `sm` up it is a fixed column.
+ */
+export function ConsoleSidebar({
   logo,
   children,
 }: {
@@ -13,9 +26,14 @@ export function AdminSidebar({
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
-  useEffect(() => {
+  /* Opening a link closes the panel. Compared during render rather than in an
+     effect (§9): an effect renders the new page with the menu still over it
+     and closes it a frame later, which reads as a flash. */
+  const [lastPath, setLastPath] = useState(pathname);
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
     setIsOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <header className="sm:w-60 sm:shrink-0 sticky top-0 sm:h-screen border-b sm:border-b-0 sm:border-r border-line bg-surface flex flex-col z-30">

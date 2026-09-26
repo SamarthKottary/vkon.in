@@ -91,6 +91,36 @@ export default async function StorePage({
           </dl>
         </div>
 
+        {/* Who signs in to this store, and where (client, 2026-09-26). The
+            account is the pickup in-charge's email, so a store with no email on
+            its address cannot be signed into at all — which is worth saying
+            here rather than leaving somebody to discover it at the shelf. */}
+        <div className="mt-4 border-t border-line pt-4 text-sm">
+          <p className="label-tech text-muted">Store sign-in</p>
+          {store.email ? (
+            <p className="mt-1 leading-relaxed text-body">
+              <a
+                href={`/${store.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-accent hover:underline"
+              >
+                vkon.in/{store.slug}
+              </a>{" "}
+              — signs in as{" "}
+              <span className="font-medium text-ink">{store.email}</span>, the pickup
+              in-charge on this address. The first time, they press{" "}
+              <span className="font-medium text-ink">Set or reset password</span> and
+              follow the emailed link.
+            </p>
+          ) : (
+            <p className="mt-1 leading-relaxed text-signal-700">
+              This store has no email address, so nobody can sign in to it. Fetch
+              it from Shiprocket, or add one under Edit.
+            </p>
+          )}
+        </div>
+
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           {frozen ? (
             <p className="text-sm text-muted">

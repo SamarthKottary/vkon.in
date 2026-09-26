@@ -23,7 +23,7 @@ opinion — decisions not yet made, with a recommendation for each.
 | `/admin/enquiries` | Contact-form inbox. Search by name, email or phone, ten a page. Read, mark handled, remove. |
 | `/admin/subscribers` | The mailing list. Search by email, ten a page. Read, export (always the whole list), remove. |
 | `/admin/seo` | Static page SEO overrides. |
-| `/admin/inventory` | **Stores and what they hold** (2026-09-26). Its own sign-in page, because it is the address the shop floor is given. Lists every store with its address and product count; **View · Edit · Block · Delete** on each row. Inventory users, admins and super users. |
+| `/admin/inventory` | **Stores and what they hold** (2026-09-26). Lists every store with its address and product count; **View · Edit · Block · Delete** on each row. Super users and admins — a store's own people never come here. |
 | `/admin/inventory/new` | Add a store: the address name, **Fetch** to fill the rest from Shiprocket's pickup addresses — including where returns go, the pickup hours, the alternate phone and the GSTIN — then **Add products** and **Save products**, which writes the store and opens it. |
 | `/admin/inventory/[store]` | One store — name, address and counts at the top, then what it holds: drag or step rows into order, **Edit** the quantity and a note, **View** the product on the site, **Delete** it from this store. |
 | `/admin/inventory/[store]/edit` | The store's own details again, including a fresh **Fetch**. The page address never changes. |
@@ -84,19 +84,19 @@ clearing your own cookie is not privileged.
 > If you add an action that writes anything, `await requireAdmin()` goes on the
 > first line. Not after parsing, not after a guard clause. First.
 
-**`inventory` is a role that is not a level** (2026-09-26). Support and viewer
-see less of the same admin; an inventory user sees a different one — the stores,
-and nothing else. So `requireAdmin()` *refuses* that role outright, and the
-store actions call `requireInventory()` instead; `requireOperator()` exists for
-the handful of things anybody does to their own account (name, password,
-picture), because an inventory user has to be able to set a password on first
-sign-in like everyone else. `requireAdminPage()` sends them to
-`/admin/inventory` rather than showing a denial panel for a shop they will
-never have. Only a super user can hand the role out.
+**A store is a third kind of session** (2026-09-26). `lib/auth.ts` is the
+admin's, `lib/account.ts` the customer's, `lib/store-auth.ts` a store's — three
+cookies, three tables, no module reading another's. A store session grants
+nothing under `/admin` and an admin session grants nothing at `vkon.in/<slug>`;
+a session for one store is not one for another, so two locations on one machine
+cannot see each other's shelves.
 
-> A store page's actions start with `await requireInventory()`, and a write to
-> a **blocked** store is refused there too. Blocking is not a label on a card:
-> hiding the buttons only stops the people who use the buttons.
+> A store page's actions start with `await requireStoreAction()`, which returns
+> *the* store — every write takes its id from the session, never the form, so a
+> row id from one shelf cannot be used to change another's. The admin's own
+> store actions start with `requireInventory()`, and a write to a **blocked**
+> store is refused there too: hiding the buttons only stops the people who use
+> the buttons.
 
 ---
 
@@ -448,8 +448,28 @@ Note also that a paid order arrives here already marked **Paid** and
 
 ## Change log
 
+**2026-09-26 (stores sign in as themselves)** — **There is no inventory admin
+role.** A store *is* the account: `vkon.in/<slug>` is its own console, signed
+in with the email Shiprocket gives as that pickup address's in-charge. There is
+no password to hand out — the first sign-in is **Set or reset password**, which
+mails a one-hour link to that address. Sessions live in `store_sessions`, so a
+reset signs every browser out. Setting stores up stays in `/admin/inventory`,
+for super users and admins: "the setting up like add store will be done by
+super user only. Not given in inventory."
+
+Its controls are down the left, in the same `ConsoleSidebar` the admin uses.
+A count is one number wherever it is shown: every write to it refreshes the
+store's Stocks and Profile, the admin's store page and the store list, so the
+office and the shelf cannot disagree.
+
+What a store can do: **Stocks** (the page it opens on) — its products in the
+order they are walked past, a count per row with `+`, `−` and a box to type
+into; and **the profile icon** — its address, its pickup in-charge, what
+Shiprocket holds, the list of what it stocks and **Add products**. No editing
+the store, no blocking, no deleting; those are the office's.
+
 **2026-09-26 (inventory)** — **A new section: stores and their stock.**
-`/admin/inventory` has its own sign-in page and its own role. A store is one
+`/admin/inventory` lists them. A store is one
 place that holds stock; its address is fetched from Shiprocket by the same
 nickname their pickup address has, so what a courier collects from and what is
 written here cannot drift apart by a typo. A store holds products from the

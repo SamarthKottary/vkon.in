@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireInventory } from "@/lib/auth";
+import { revalidateStore } from "@/lib/store-paths";
 import type { StorePickup } from "@/lib/types";
 import {
   addStoreProducts,
@@ -197,8 +198,7 @@ export async function updateStoreAction(
     };
   }
 
-  revalidatePath("/admin/inventory");
-  revalidatePath(`/admin/inventory/${result.store.slug}`);
+  revalidateStore(result.store.slug);
   redirect(`/admin/inventory/${result.store.slug}`);
 }
 
@@ -208,8 +208,12 @@ export async function blockStoreAction(formData: FormData): Promise<void> {
 
   const id = String(formData.get("id") ?? "").trim();
   const block = formData.get("block") === "1";
-  if (id) await setStoreBlocked(id, block);
+  const store = id ? await getStoreById(id) : null;
+  if (store) await setStoreBlocked(store.id, block);
 
+  /* The store's own pages too: blocking is what shuts its people out, and a
+     cached copy of yesterday's page is not the answer they should get. */
+  if (store) revalidateStore(store.slug);
   revalidatePath("/admin/inventory");
   redirect(`/admin/inventory${formData.get("from") === "store" && !block ? `/${formData.get("slug")}` : ""}`);
 }
@@ -224,6 +228,7 @@ export async function deleteStoreAction(formData: FormData): Promise<void> {
     if (store) {
       await deleteStore(id);
       console.info(`[inventory] ${admin.email} deleted store ${store.nickname}`);
+      revalidateStore(store.slug);
     }
   }
 
@@ -250,7 +255,7 @@ export async function addStoreProductsAction(formData: FormData): Promise<void> 
     .filter(Boolean);
   if (ids.length) await addStoreProducts(store.id, ids);
 
-  revalidatePath(`/admin/inventory/${store.slug}`);
+  revalidateStore(store.slug);
   redirect(`/admin/inventory/${store.slug}`);
 }
 
@@ -266,7 +271,7 @@ export async function setStoreStockAction(formData: FormData): Promise<void> {
   const note = String(formData.get("note") ?? "").trim();
   if (id) await setStoreProductStock(id, qty, note);
 
-  revalidatePath(`/admin/inventory/${store.slug}`);
+  revalidateStore(store.slug);
   redirect(`/admin/inventory/${store.slug}#row-${id}`);
 }
 
@@ -280,7 +285,7 @@ export async function removeStoreProductAction(formData: FormData): Promise<void
   const id = String(formData.get("id") ?? "").trim();
   if (id) await removeStoreProduct(id);
 
-  revalidatePath(`/admin/inventory/${store.slug}`);
+  revalidateStore(store.slug);
   redirect(`/admin/inventory/${store.slug}`);
 }
 
@@ -294,5 +299,5 @@ export async function reorderStoreProductsAction(storeId: string, ids: string[])
   /* Only rows this store actually holds, whatever the browser sent. */
   const held = new Set((await listStoreProducts(store.id)).map((row) => row.id));
   await reorderStoreProducts(store.id, ids.filter((id) => held.has(id)));
-  revalidatePath(`/admin/inventory/${store.slug}`);
+  revalidateStore(store.slug);
 }

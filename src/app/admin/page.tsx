@@ -18,10 +18,7 @@ export default async function AdminLoginPage({
      again here because it arrives in a URL anyone can type. */
   const next = adminNext(params.next);
 
-  const signedIn = await getAdminSession();
-  if (signedIn) {
-    redirect(next || (signedIn.role === "inventory" ? "/admin/inventory" : "/admin/products"));
-  }
+  if (await getAdminSession()) redirect(next || "/admin/products");
 
   const insecureOrigin = await isInsecureOrigin();
 

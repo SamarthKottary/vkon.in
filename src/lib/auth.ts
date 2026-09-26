@@ -216,12 +216,6 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function requireAdmin(): Promise<AdminUser> {
   const user = await getAdminSession();
   if (!user) throw new Error("Not authorised.");
-  /* An inventory user is not an operator of the shop (client, 2026-09-26).
-     They hold a session like anyone else, and a server action is an
-     addressable POST, so the role is refused here rather than only in the
-     pages — otherwise the whole admin is one `fetch` away. The things
-     everybody does to their own account go through `requireOperator`. */
-  if (user.role === "inventory") throw new Error("Not authorised.");
   return user;
 }
 
@@ -238,14 +232,16 @@ export async function requireOperator(): Promise<AdminUser> {
   return user;
 }
 
-/** Who may see the store pages: the two admin levels, and inventory itself. */
+/**
+ * Who may see the store pages: the two admin levels.
+ *
+ * A store's own people do not come through here at all — they sign in at
+ * `vkon.in/<slug>` against the store itself (client, 2026-09-26: "lets not
+ * have a separate admin user category in admin for inventory"). See
+ * `lib/store-auth.ts`.
+ */
 export function canSeeInventory(user: AdminUser): boolean {
-  return user.role === "super" || user.role === "admin" || user.role === "inventory";
-}
-
-/** Whether this operator sees the stores and nothing else. */
-export function isInventoryOnly(user: AdminUser): boolean {
-  return user.role === "inventory";
+  return user.role === "super" || user.role === "admin";
 }
 
 /**
@@ -282,12 +278,7 @@ export function adminNext(next: string | undefined | null): string {
  * independently addressable POST, and being redirected is not being stopped.
  */
 export async function requireAdminPage(): Promise<AdminUser> {
-  const user = await requireOperatorPage();
-  /* The store pages are the whole of an inventory user's admin, so every
-     other page sends them back to it rather than showing a denial panel for
-     a section they will never have. */
-  if (user.role === "inventory") redirect("/admin/inventory");
-  return user;
+  return requireOperatorPage();
 }
 
 /**
@@ -309,7 +300,7 @@ export async function requireOperatorPage(): Promise<AdminUser> {
  * Signed out goes to the sign-in form with `?next=`, as everywhere else. A
  * signed-in operator whose role has no business here — support, viewer — is
  * sent to the admin they do have, rather than being shown a store they cannot
- * open.
+ * open. Setting stores up is the office's job, not a store's.
  */
 export async function requireInventoryPage(): Promise<AdminUser> {
   const user = await requireOperatorPage();

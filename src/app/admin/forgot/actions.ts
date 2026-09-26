@@ -17,8 +17,8 @@ import {
 } from "@/lib/mail";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
 import { confirmationProblem } from "@/lib/password-policy";
+import { emailLink } from "@/lib/links";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
-import { site } from "@/content/site";
 import type { ActionState } from "../actions";
 
 const FORGOT_LIMIT = { limit: 4, windowMs: 30 * 60 * 1000 };
@@ -27,9 +27,8 @@ const RESET_TTL_MS = 60 * 60 * 1000;
 
 const DONE = "If that email address belongs to an account here, we've sent a link for setting a new password.";
 
-function absoluteUrl(path: string): string {
-  return `${site.url.replace(/\/$/, "")}${path}`;
-}
+/** See `lib/links.ts`: the live site's address, or this one in development. */
+const absoluteUrl = emailLink;
 
 async function limited(
   bucket: string,
@@ -81,7 +80,7 @@ export async function forgotAdminPasswordAction(
       await sendPasswordResetMail({
         to: admin.email,
         name: admin.name || "Admin",
-        resetUrl: absoluteUrl(`/admin/reset?token=${rawToken}`),
+        resetUrl: await absoluteUrl(`/admin/reset?token=${rawToken}`),
       });
     }
   } catch (error) {
@@ -128,10 +127,7 @@ export async function resetAdminPasswordAction(
     };
   }
 
-  /* Which sign-in to send them back to: an inventory user's is its own page
-     (client, 2026-09-26), and landing them on the shop's would be the same
-     wrong turn the "superuser" wording was. */
-  let home = "/admin";
+  const home = "/admin";
   try {
     const admin = await consumeAdminToken(token, "reset");
 
@@ -142,7 +138,6 @@ export async function resetAdminPasswordAction(
     }
 
     await setAdminPassword(admin.id, await hashPassword(password));
-    if (admin.role === "inventory") home = "/admin/inventory";
   } catch (error) {
     console.error("[admin-auth] password reset failed:", error);
     return { error: "An error occurred." };

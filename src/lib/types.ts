@@ -391,12 +391,7 @@ export type TrackingEvent = {
  *    order status but cannot initiate refunds; SEO hidden entirely.
  *  - viewer: Read-only access everywhere. No changes.
  */
-/**
- * `inventory` (client, 2026-09-26) is the one role that is not a *level*: it
- * has no view of the shop at all, only the store pages under
- * `/admin/inventory`. See `canSeeInventory` / `inventoryOnly` in `lib/auth.ts`.
- */
-export type AdminRole = "super" | "admin" | "support" | "viewer" | "inventory";
+export type AdminRole = "super" | "admin" | "support" | "viewer";
 
 export type AdminUser = {
   id: string;

@@ -1738,7 +1738,80 @@ on top of it could only ever be a step towards those.
 - Gone with the pop-up: `findOrdersAction`, `FoundOrder`, `findOrdersForLookup`
   and `adminOrderSection`. The scanner dialog stays, since a camera needs one.
 
-### 2026-09-26 (admin, inventory) — Stores, their stock, and a role that is not a level
+### 2026-09-26 (stores) — One sidebar, and one number
+
+Two from the client on seeing the store console: put its controls "on the left
+side like admin panel", and make a count changed in the admin show in the store
+and the other way about.
+
+- **`components/layout/ConsoleSidebar`** is the admin's old `AdminSidebar`,
+  moved: a layout primitive with nothing of either console in it, now standing
+  under both. Two copies of a collapsible sidebar is how they drift apart. Its
+  close-on-navigate moved from an effect to a render-time comparison, which
+  also clears a standing §9 lint error.
+- **`lib/store-paths.ts`'s `revalidateStore(slug)`** is called by every write
+  to `store_products.qty`, from either side. There was only ever one number —
+  the admin's Edit and the store's `+`/`−` write the same column — but each
+  side only invalidated its own page, so the router could hand back a cached
+  copy of the other. Now a write refreshes all four places it is read: the
+  store's Stocks and Profile, the admin's store page and the store list.
+  Blocking and deleting a store refresh its own pages too.
+
+### 2026-09-26 (email links) — A mailed link points at the site that sent it
+
+Client: pressing "Set or reset password" on a laptop and opening the mail gave
+a 404. The link was built from `site.url` — `SITE_URL`, or `https://vkon.in`
+when that is unset — so a link mailed from a development machine pointed at the
+live site, where the page being tested does not exist.
+
+`lib/links.ts`'s `emailLink()` now builds it from **the request's own origin,
+but only when that origin is local or on a private network**, and from
+`site.url` otherwise. The second half is the point: `Host` is the client's
+header to set, and trusting it on a public hostname is how a password link gets
+mailed to a real address pointing at an attacker's domain, valid token and all.
+A private address cannot be reached from outside, so trusting it costs nothing.
+
+All three password mails go through it — a store's, an admin's and a
+customer's — since all three had the same behaviour.
+
+### 2026-09-26 (stores) — A store is an account, at `vkon.in/<store>`
+
+Client, after seeing the first cut: "lets not have a separate admin user
+category in admin for inventory. When we fetch details from shiprocket we get
+pickup incharge details like name, number email right — use that email as
+inventory user for that location", with the store's own pages at
+`vkon.in/storename`, opening on a **Stocks** tab.
+
+- **The `inventory` admin role is gone.** `AdminRole` is back to its four
+  levels; `canSeeInventory` is super and admin. Nobody's admin account is a
+  store's account any more.
+- **`lib/store-auth.ts` is the site's third session.** Cookie `vkon_store`,
+  rows in `store_sessions`, and the login is `stores.email` — the pickup
+  in-charge Shiprocket names on that address. `password_hash` is NULL until
+  somebody follows the emailed link, so **there is no password to hand out**
+  and the first sign-in is always "Set or reset password". A reset deletes
+  every session for that store.
+- **A session is for one store.** `requireStore(slug)` compares the session's
+  slug with the page's, so a browser signed in to one location cannot open
+  another's shelves by typing its name.
+- **`app/[store]` is a root-level dynamic segment**, which is the price of the
+  address the client asked for: static routes still win, so `/products` and
+  `/cart` are untouched, and any other name asks the database for a store and
+  renders the site's 404 when there is none.
+- **Stocks is optimistic.** `+` and `−` update the row and save behind it —
+  somebody counting a shelf presses a dozen times, and a number that lags
+  behind gets pressed twice. The box commits on blur or Enter, not per
+  keystroke, and the server clamps at zero. Both bits of derived state adjust
+  **during render**, not in an effect, per §9.
+- **The profile tab has no Edit, Block or Delete**, only the details, the list
+  and **Add products**: what a store stocks is its own to say, what the store
+  *is* comes from Shiprocket and the office.
+
+### 2026-09-26 (admin, inventory) — Stores, their stock, and the first cut of the role
+
+> Superseded the same day by the entry above: the `inventory` role described
+> here was replaced by a store signing in as itself. The tables, the Shiprocket
+> fetch and the admin pages are as described.
 
 Client: "lets create another section in admin called inventory, where we track
 the store/inventory details of my different store locations" — with its own

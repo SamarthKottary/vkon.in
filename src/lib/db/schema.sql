@@ -919,3 +919,46 @@ ALTER TABLE stores ADD COLUMN IF NOT EXISTS pickup JSONB NOT NULL DEFAULT '{}'::
 -- only when it is empty and their record happens to carry a tag, and never
 -- overwrites what somebody typed: this column is ours, not a copy of theirs.
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS contact_role TEXT NOT NULL DEFAULT '';
+
+-- ---------------------------------------------------------------------------
+-- A store signs in as itself (client, 2026-09-26)
+--
+-- "When we fetch details from shiprocket we get pickup incharge details like
+-- name, number email right use that email as inventry user for that location."
+--
+-- So a store is an account, not a person with an admin role: the address it was
+-- fetched from names the person in charge of it, and that email is the login
+-- for `vkon.in/<slug>`. One fewer thing to keep in step -- when the pickup
+-- in-charge changes at Shiprocket, the next Fetch changes who can sign in.
+--
+-- `password_hash` is NULL until they set one, and the only way to set the first
+-- is the emailed link (there is no shared password to hand out, deliberately).
+-- Same scrypt hashing as `admin_users` and `customers`.
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+-- One row per signed-in browser. Deleted on sign-out, on a password change and
+-- when the store is deleted -- the same shape as `customer_sessions`.
+CREATE TABLE IF NOT EXISTS store_sessions (
+  id          TEXT PRIMARY KEY,
+  store_id    TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  user_agent  TEXT NOT NULL DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS store_sessions_store_idx ON store_sessions (store_id);
+
+-- Single-use links for setting a password. `id` is the SHA-256 of the token in
+-- the email, never the token itself -- the same scheme `admin_tokens` uses, so
+-- a copy of this table is not a set of working links.
+CREATE TABLE IF NOT EXISTS store_tokens (
+  id          TEXT PRIMARY KEY,
+  store_id    TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  kind        TEXT NOT NULL DEFAULT 'reset',
+  expires_at  TIMESTAMPTZ NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS store_tokens_store_idx ON store_tokens (store_id, kind);

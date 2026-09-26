@@ -141,11 +141,7 @@ export async function loginAction(
   /* Back to the page that asked for a sign-in, when there was one (client,
      2026-09-25). Re-checked here: the form field is as forgeable as the URL
      it came from. */
-  /* An inventory user's admin is the stores, so that is their landing page
-     (client, 2026-09-26) — the shop's own home page would only bounce them. */
-  const session = await getAdminSession();
-  const home = session?.role === "inventory" ? "/admin/inventory" : "/admin/products";
-  redirect(adminNext(formData.get("next")?.toString()) || home);
+  redirect(adminNext(formData.get("next")?.toString()) || "/admin/products");
 }
 
 export async function logoutAction(): Promise<void> {
@@ -1408,9 +1404,7 @@ export async function updateAdminRoleAction(formData: FormData): Promise<void> {
   if (id === admin.id) redirect("/admin/users/access?error=self");
 
   // Admin cannot promote to Super or Admin.
-  /* Inventory is a super user's to give, like the two admin levels: it is
-     access to the stores from a sign-in page of its own (client, 2026-09-26). */
-  if (admin.role !== "super" && ["super", "admin", "inventory"].includes(roleRaw)) {
+  if (admin.role !== "super" && (roleRaw === "super" || roleRaw === "admin")) {
     redirect("/admin/users/access?error=privilege");
   }
 

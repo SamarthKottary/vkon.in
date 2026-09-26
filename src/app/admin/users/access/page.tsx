@@ -19,7 +19,6 @@ const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
   support: "Support",
   viewer: "Viewer",
-  inventory: "Inventory",
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -173,10 +172,9 @@ export default async function AdminAccessPage({
         <h2 className="mb-4 text-base font-semibold text-ink">Add a user</h2>
         <p className="mb-4 max-w-prose text-sm leading-relaxed text-muted">
           A new account has no password until a super user sets one on its row
-          above — including an <span className="font-medium text-ink">Inventory</span>{" "}
-          user, who signs in at{" "}
-          <span className="font-mono text-ink">/admin/inventory</span> with the
-          same email and password as anyone else.
+          above, or the person sets their own from{" "}
+          <span className="font-medium text-ink">Forgotten password?</span> on
+          the sign-in page.
         </p>
         <AddAdminUserForm currentRole={admin.role} />
       </section>
@@ -242,9 +240,6 @@ function UserRow({
               {(currentAdminRole === "super" || user.role === "admin") && <option value="admin">Admin</option>}
               <option value="support">Support</option>
               <option value="viewer">Viewer</option>
-              {/* The stores, and nothing else — super users assign it
-                  (client, 2026-09-26). */}
-              {currentAdminRole === "super" && <option value="inventory">Inventory</option>}
             </select>
             <button
               type="submit"

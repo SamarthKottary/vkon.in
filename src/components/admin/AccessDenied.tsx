@@ -6,7 +6,6 @@ const ROLE_LABELS: Record<AdminRole, string> = {
   admin: "Admin",
   support: "Support",
   viewer: "Viewer",
-  inventory: "Inventory",
 };
 
 /**

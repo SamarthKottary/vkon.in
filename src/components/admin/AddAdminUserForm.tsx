@@ -13,9 +13,6 @@ const ROLE_OPTIONS: { value: AdminRole; label: string; desc: string }[] = [
   { value: "admin", label: "Admin", desc: "Full access except SEO" },
   { value: "support", label: "Support", desc: "Advance orders, view everything" },
   { value: "viewer", label: "Viewer", desc: "Read-only" },
-  /* Not a level but a side door (client, 2026-09-26): the stores and nothing
-     else. Super users only — the filter below leaves it out for admins. */
-  { value: "inventory", label: "Inventory", desc: "Stores and stock only" },
 ];
 
 export function AddAdminUserForm({ currentRole }: { currentRole: string }) {
@@ -95,8 +92,9 @@ export function AddAdminUserForm({ currentRole }: { currentRole: string }) {
       <p className="text-xs leading-relaxed text-muted">
         No password is set initially. A super user gives them one with{" "}
         <span className="font-medium text-ink">Set password</span> on their row
-        above, and they can change it afterwards under Profile. The emailed
-        &ldquo;forgotten password&rdquo; link is for super users only.
+        above, or they can set their own from{" "}
+        <span className="font-medium text-ink">Forgotten password?</span> on the
+        sign-in page.
       </p>
 
       <AddButton />

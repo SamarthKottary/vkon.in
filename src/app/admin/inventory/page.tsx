@@ -2,8 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Container } from "@/components/ui/Container";
 import { InfoNote } from "@/components/admin/InfoNote";
-import { LoginForm } from "@/app/admin/LoginForm";
-import { canSeeInventory, getAdminSession } from "@/lib/auth";
+import { requireInventoryPage } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db/client";
 import { listStores } from "@/lib/db/stores";
 import { isShiprocketConfigured } from "@/lib/shiprocket";
@@ -12,75 +11,20 @@ import { StoreRowActions } from "./StoreRowActions";
 export const dynamic = "force-dynamic";
 
 /**
- * The stores, and the sign-in in front of them (client, 2026-09-26: "lets
- * create another section in admin called inventory... there should be a login
- * page, where only users assigned as inventory users by super admin can
- * login").
+ * The stores, for the office (client, 2026-09-26).
  *
- * **This page is its own sign-in** rather than a redirect to `/admin`, because
- * it is the address the shop floor is given: someone opening it on a phone in
- * the warehouse should see a form, not the shop's admin asking who they are.
- * The credentials and the session are the ordinary admin ones — there is one
- * account table and one cookie — and the role decides what opens afterwards.
- *
- * A signed-in operator whose role has no stores is told so, in place, rather
- * than being bounced: knowing you are signed in as the wrong person is the
- * useful half of the answer.
+ * **Setting a store up happens here and nowhere else** — "the setting up like
+ * add store will be done by super user only, not given in inventory". A store's
+ * own people sign in at `vkon.in/<slug>` against the store itself and never see
+ * this page; what they can do there is count stock and say what they stock.
  */
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; error?: string; store?: string; reset?: string }>;
+  searchParams: Promise<{ q?: string; error?: string; store?: string }>;
 }) {
-  const { q = "", error, store: flagged = "", reset } = await searchParams;
-  const admin = await getAdminSession();
-
-  if (!admin) {
-    return (
-      <Container size="narrow">
-        <div className="mx-auto max-w-sm border border-line bg-surface-raised p-8">
-          <h1 className="text-2xl">Inventory sign-in</h1>
-          <p className="mt-2 text-sm text-muted">
-            Stock and store locations for vkon.in. Your account has to be given
-            inventory access by a super user.
-          </p>
-          {reset === "1" && (
-            <div
-              role="status"
-              className="mt-6 border-l-2 border-accent bg-surface px-4 py-3 text-sm text-body"
-            >
-              <p className="leading-relaxed">
-                Your password has been changed. Sign in with the new one.
-              </p>
-            </div>
-          )}
-          <div className="mt-6">
-            <LoginForm next="/admin/inventory" />
-          </div>
-        </div>
-      </Container>
-    );
-  }
-
-  if (!canSeeInventory(admin)) {
-    return (
-      <Container size="wide">
-        <div className="border border-line bg-surface p-8">
-          <h1 className="text-2xl">Inventory</h1>
-          <p className="mt-3 max-w-prose text-sm leading-relaxed text-body">
-            You are signed in as <span className="font-medium text-ink">{admin.email}</span>,
-            whose role is <span className="font-medium text-ink">{admin.role}</span>. The stores
-            are for inventory users, admins and super users. Ask a super user to
-            give this account inventory access, or{" "}
-            <Link href="/admin/products" className="text-accent hover:underline">
-              go back to the admin
-            </Link>
-            .
-          </p>
-        </div>
-      </Container>
-    );
-  }
+  await requireInventoryPage();
+  const { q = "", error, store: flagged = "" } = await searchParams;
 
   const stores = await listStores(q);
   const blocked = stores.filter((one) => one.blockedAt).length;
