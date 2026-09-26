@@ -53,7 +53,7 @@ export function StoreRowActions({
 
   return (
     <div className="flex flex-wrap items-center gap-1">
-      <form action={impersonateStoreAction}>
+      <form action={impersonateStoreAction} target="_blank">
         <input type="hidden" name="id" value={store.id} />
         <input type="hidden" name="slug" value={store.slug} />
         <button
