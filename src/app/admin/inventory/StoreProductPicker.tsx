@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { CheckIcon, CloseIcon, SearchIcon } from "@/components/icons/ui";
+import { CheckIcon, CloseIcon, PlusIcon, SearchIcon } from "@/components/icons/ui";
 import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
-import { categoryLabel } from "@/content/taxonomy";
+import { categories, categoryLabel } from "@/content/taxonomy";
 import { displayPricePaise, formatPaise, type GstRates } from "@/lib/pricing";
 
 export type PickerProduct = {
@@ -39,6 +39,7 @@ export function StoreProductPicker({
   products,
   held = [],
   rates,
+  initialPicked = [],
   saveLabel = "Save products",
   onSave,
   disabled,
@@ -48,13 +49,16 @@ export function StoreProductPicker({
   held?: string[];
   /** The shop's CGST/SGST, so a card here says what a card on the site says. */
   rates: GstRates;
+  /** Ids already picked — restores state when the dialog re-opens. */
+  initialPicked?: string[];
   saveLabel?: string;
   onSave: (ids: string[]) => void;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [picked, setPicked] = useState<string[]>([]);
+  const [picked, setPicked] = useState<string[]>(initialPicked);
   const [q, setQ] = useState("");
+  const [catFilter, setCatFilter] = useState<string>("all");
   const dialog = useRef<HTMLDivElement | null>(null);
   const alreadyHeld = new Set(held);
 
@@ -76,14 +80,19 @@ export function StoreProductPicker({
     };
   }, [open]);
 
+  /* Which category keys actually appear in the catalogue being shown. */
+  const presentCats = Array.from(new Set(products.map((p) => p.category)));
+  const catChips = categories.filter((c) => presentCats.includes(c.key));
+
   const term = q.trim().toLowerCase();
-  const shown = term
-    ? products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(term) ||
-          categoryLabel(p.category).toLowerCase().includes(term),
-      )
-    : products;
+  const shown = products.filter((p) => {
+    const matchCat = catFilter === "all" || p.category === catFilter;
+    const matchQ =
+      !term ||
+      p.name.toLowerCase().includes(term) ||
+      categoryLabel(p.category).toLowerCase().includes(term);
+    return matchCat && matchQ;
+  });
 
   const toggle = (id: string) => {
     if (alreadyHeld.has(id)) return;
@@ -95,59 +104,109 @@ export function StoreProductPicker({
   const save = () => {
     setOpen(false);
     onSave(picked);
-    setPicked([]);
   };
+
+  const close = () => setOpen(false);
+
+  /* Newly-chosen products (not already held). */
+  const newCount = picked.filter((id) => !alreadyHeld.has(id)).length;
 
   return (
     <>
+      {/* Trigger button — accent-filled and shows count when something is picked */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         disabled={disabled}
-        className="inline-flex h-10 items-center gap-2 border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:border-ink hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
+        className={`inline-flex h-10 items-center gap-2 border px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+          newCount > 0
+            ? "border-accent bg-accent text-surface hover:bg-accent-strong"
+            : "border-line-strong bg-surface text-ink hover:border-ink hover:bg-surface-subtle"
+        }`}
       >
-        Add products
+        <PlusIcon className="h-4 w-4" />
+        {newCount > 0 ? `${newCount} product${newCount === 1 ? "" : "s"} selected` : "Add products"}
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-6"
+          onClick={(e) => { if (e.target === e.currentTarget) close(); }}
+        >
           <div
             ref={dialog}
             role="dialog"
             aria-modal="true"
             aria-label="Add products to this store"
             tabIndex={-1}
-            className="flex max-h-[92vh] w-full max-w-4xl flex-col border border-line bg-surface shadow-card outline-none"
+            className="flex max-h-[96vh] w-full max-w-5xl flex-col border border-line bg-surface shadow-card outline-none sm:max-h-[88vh]"
           >
-            <div className="flex items-center gap-3 border-b border-line p-4">
-              <div className="relative min-w-0 flex-1">
-                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            {/* Header: title + search + close */}
+            <div className="flex shrink-0 items-center gap-3 border-b border-line p-4">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base font-semibold text-ink">Add products</h2>
+                <p className="mt-0.5 text-xs text-muted">
+                  {products.length} product{products.length === 1 ? "" : "s"} in catalogue
+                </p>
+              </div>
+              <div className="relative w-52 shrink-0">
+                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
                 <input
                   value={q}
                   onChange={(event) => setQ(event.target.value)}
-                  placeholder="Search the catalogue"
+                  placeholder="Search…"
                   aria-label="Search the catalogue"
                   autoFocus
-                  className="h-10 w-full border border-line-strong bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                  className="h-9 w-full border border-line-strong bg-surface pl-8 pr-3 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
                 />
               </div>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={close}
                 aria-label="Close"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center border border-line-strong text-ink transition-colors hover:border-ink"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-line-strong text-ink transition-colors hover:border-ink"
               >
                 <CloseIcon className="h-4 w-4" />
               </button>
             </div>
+            {/* Category filter chips */}
+            {catChips.length > 1 && (
+              <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-line px-4 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => setCatFilter("all")}
+                  className={`inline-flex h-7 shrink-0 items-center rounded-full px-3 text-xs font-medium transition-colors ${
+                    catFilter === "all"
+                      ? "bg-ink text-surface"
+                      : "bg-surface-subtle text-body hover:bg-surface-raised hover:text-ink"
+                  }`}
+                >
+                  All
+                </button>
+                {catChips.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setCatFilter(catFilter === c.key ? "all" : c.key)}
+                    className={`inline-flex h-7 shrink-0 items-center rounded-full px-3 text-xs font-medium transition-colors ${
+                      catFilter === c.key
+                        ? "bg-ink text-surface"
+                        : "bg-surface-subtle text-body hover:bg-surface-raised hover:text-ink"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {shown.length === 0 ? (
                 <p className="py-16 text-center text-sm text-muted">
-                  Nothing in the catalogue matches “{q}”.
+                  {q || catFilter !== 'all' ? 'Nothing matches your filter.' : 'No products in the catalogue.'}
                 </p>
               ) : (
-                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {shown.map((product) => {
                     const isHeld = alreadyHeld.has(product.id);
                     const isPicked = picked.includes(product.id);
@@ -172,31 +231,31 @@ export function StoreProductPicker({
                                 src={product.image}
                                 alt=""
                                 fill
-                                sizes="(min-width: 1024px) 12rem, 40vw"
+                                sizes="(min-width: 1280px) 10rem, (min-width: 1024px) 12rem, 40vw"
                                 className="object-cover"
                               />
                             ) : (
                               <span className="absolute inset-0 flex items-center justify-center text-muted">
-                                <PanelPlaceholder className="h-7 w-7" />
+                                <PanelPlaceholder className="h-6 w-6" />
                               </span>
                             )}
                             {(isPicked || isHeld) && (
-                              <span className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center bg-accent text-surface">
-                                <CheckIcon className="h-3.5 w-3.5" />
+                              <span className={`absolute right-1.5 top-1.5 inline-flex h-5 w-5 items-center justify-center ${isHeld ? "bg-muted" : "bg-accent"} text-surface`}>
+                                <CheckIcon className="h-3 w-3" />
                               </span>
                             )}
                           </span>
-                          <span className="label-tech text-muted">
+                          <span className="label-tech text-[10px] text-muted">
                             {categoryLabel(product.category)}
                           </span>
-                          <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-ink">
+                          <span className="mt-0.5 line-clamp-2 text-xs font-semibold leading-snug text-ink">
                             {product.name}
                           </span>
                           {/* The price the site shows: the discount taken off
                               the M.R.P. and tax added, not the raw column
                               (client, 2026-09-26: "why are the product prices
                               different"). `products.price` is whole rupees. */}
-                          <span className="mt-1 text-sm tabular-nums text-body">
+                          <span className="mt-1 text-xs tabular-nums text-body">
                             {product.price == null
                               ? "No price"
                               : formatPaise(
@@ -207,10 +266,10 @@ export function StoreProductPicker({
                                 )}
                           </span>
                           {isHeld && (
-                            <span className="mt-1 text-xs text-muted">Already in this store</span>
+                            <span className="mt-1 text-[10px] text-muted">In store</span>
                           )}
-                          {!product.published && (
-                            <span className="mt-1 text-xs text-muted">Not published</span>
+                          {!product.published && !isHeld && (
+                            <span className="mt-1 text-[10px] text-muted">Unpublished</span>
                           )}
                         </button>
                       </li>
@@ -220,20 +279,33 @@ export function StoreProductPicker({
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-line p-4">
+            {/* Footer */}
+            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-4 py-3">
               <p className="text-sm text-muted">
-                {picked.length === 0
-                  ? "Nothing chosen yet"
-                  : `${picked.length} product${picked.length === 1 ? "" : "s"} chosen`}
+                {newCount === 0
+                  ? held.length > 0
+                    ? `${held.length} already in store`
+                    : "Nothing chosen yet"
+                  : `${newCount} product${newCount === 1 ? "" : "s"} to add`}
               </p>
-              <button
-                type="button"
-                onClick={save}
-                disabled={picked.length === 0}
-                className="inline-flex h-10 items-center gap-2 border border-accent bg-accent px-4 text-sm font-semibold text-surface transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {saveLabel}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={close}
+                  className="inline-flex h-9 items-center px-4 text-sm text-muted hover:text-ink"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={newCount === 0}
+                  className="inline-flex h-9 items-center gap-2 border border-accent bg-accent px-4 text-sm font-semibold text-surface transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <CheckIcon className="h-3.5 w-3.5" />
+                  {saveLabel}
+                </button>
+              </div>
             </div>
           </div>
         </div>

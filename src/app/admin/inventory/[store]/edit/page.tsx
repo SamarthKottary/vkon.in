@@ -3,7 +3,8 @@ import { Container } from "@/components/ui/Container";
 import { Crumbs } from "../../Crumbs";
 import { requireInventoryPage } from "@/lib/auth";
 import { getGstRates } from "@/lib/db/settings";
-import { getStoreBySlug } from "@/lib/db/stores";
+import { getStoreBySlug, listStoreProducts } from "@/lib/db/stores";
+import { listProducts } from "@/lib/db/products";
 import { StoreForm } from "../../StoreForm";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,22 @@ export default async function EditStorePage({
   const { store: slug } = await params;
   const store = await getStoreBySlug(slug);
   if (!store) notFound();
-  const rates = await getGstRates();
+  const [rates, allProducts, heldIds] = await Promise.all([
+    getGstRates(),
+    listProducts({ includeUnpublished: true }),
+    listStoreProducts(store.id).then((rows) => rows.map((r) => r.productId)),
+  ]);
+  const held = allProducts.filter((p) => heldIds.includes(p.id));
+
+  const pickerHeld = held.map((product) => ({
+    id: product.id,
+    name: product.name,
+    category: product.category,
+    image: product.images[0]?.url ?? null,
+    price: product.price,
+    discountPercent: product.discountPercent,
+    published: product.published,
+  }));
 
   return (
     <Container size="wide">
@@ -43,7 +59,7 @@ export default async function EditStorePage({
       )}
 
       <div className="mt-6 max-w-4xl">
-        <StoreForm store={store} products={[]} rates={rates} />
+        <StoreForm store={store} products={[]} held={pickerHeld} rates={rates} />
       </div>
     </Container>
   );

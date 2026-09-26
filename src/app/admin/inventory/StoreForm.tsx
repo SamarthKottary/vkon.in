@@ -1,12 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertIcon, CheckIcon, SearchIcon, SpinnerIcon } from "@/components/icons/ui";
-import { PanelPlaceholder } from "@/components/product/PanelPlaceholder";
-import { categoryLabel } from "@/content/taxonomy";
-import { displayPricePaise, formatPaise, type GstRates } from "@/lib/pricing";
+import { AlertIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
+import type { GstRates } from "@/lib/pricing";
 import type { Store, StorePickup } from "@/lib/types";
 import {
   createStoreAction,
@@ -15,7 +12,7 @@ import {
   type PickupState,
   type StoreFormState,
 } from "./actions";
-import type { PickerProduct } from "./StoreProductPicker";
+import { StoreProductPicker, type PickerProduct } from "./StoreProductPicker";
 
 /**
  * A store's address, in the shape Shiprocket holds it (client, 2026-09-26:
@@ -45,11 +42,15 @@ import type { PickerProduct } from "./StoreProductPicker";
 export function StoreForm({
   store,
   products,
+  held = [],
   rates,
 }: {
   /** The store being edited, or undefined when creating one. */
   store?: Store;
+  /** Full catalogue (new store only). */
   products: PickerProduct[];
+  /** Products the store already holds (edit mode: shown read-only). */
+  held?: PickerProduct[];
   rates: GstRates;
 }) {
   const [state, formAction] = useActionState<StoreFormState, FormData>(
@@ -62,9 +63,8 @@ export function StoreForm({
 
   const form = useRef<HTMLFormElement | null>(null);
 
-  /* Products ticked inline on a new store. */
+  /* Products chosen in the picker dialog (new store only). */
   const [picked, setPicked] = useState<string[]>([]);
-  const [productSearch, setProductSearch] = useState("");
 
   /* What the fields hold. Controlled, because Fetch writes into them: an
      uncontrolled form would need the DOM poked at, and the values have to
@@ -134,24 +134,8 @@ export function StoreForm({
       field(name) ? "border-signal-500 focus:border-signal-500 focus:ring-signal-500" : "border-line-strong focus:border-ink focus:ring-ink"
     }`;
 
-  /* ── Inline product checklist (new store only) ─────────────────────── */
   const isNew = !store;
-  const term = productSearch.trim().toLowerCase();
-  const shownProducts = term
-    ? products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(term) ||
-          categoryLabel(p.category).toLowerCase().includes(term),
-      )
-    : products;
-
-  const toggleProduct = (id: string) => {
-    setPicked((current) =>
-      current.includes(id) ? current.filter((one) => one !== id) : [...current, id],
-    );
-  };
-
-  /* Save is blocked until at least one product is ticked (new store only). */
+  /* Save is blocked until at least one product is chosen (new store only). */
   const noProductsError = isNew && picked.length === 0;
 
   return (
@@ -273,122 +257,86 @@ export function StoreForm({
           </div>
         </div>
 
-        {/* ── Inline product checklist — new store only ─────────────────────
-            Products appear directly on the page so the operator can tick what
-            the store holds before saving, without needing a popup dialog
-            (client: "product check list product card where product use to add
-            … after product added then only i can able to save all at one"). */}
-        {isNew && (
-          <div className="border-t border-line">
-            <div className="p-5">
-              <h2 className="text-base font-semibold text-ink">
-                Products<span className="text-signal-500"> *</span>
-              </h2>
-              <p className="mt-1 text-sm text-muted">
-                Tick every product this store will hold. At least one is required.
-              </p>
+        {/* ── Products section ──────────────────────────────────────────────
+            New store: picker dialog button + chips of what was chosen.
+            Edit store: compact read-only list of the products already held
+            (client: "in edit page only show selected product"). */}
+        <div className="border-t border-line">
+          <div className="p-5">
+            <h2 className="text-base font-semibold text-ink">
+              Products{isNew && <span className="text-signal-500"> *</span>}
+            </h2>
 
-              <div className="relative mt-4 max-w-sm">
-                <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                <input
-                  type="text"
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  placeholder="Search the catalogue"
-                  aria-label="Search products"
-                  className="h-10 w-full border border-line-strong bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-muted focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
-                />
-              </div>
-
-              {state.fieldErrors?.products && (
-                <p className="mt-3 text-sm text-signal-700">{state.fieldErrors.products}</p>
-              )}
-
-              {products.length === 0 ? (
-                <p className="mt-6 text-sm text-muted">
-                  No products in the catalogue yet. Add some from{" "}
-                  <a href="/admin/products/new" className="text-accent hover:underline">
-                    Products &rarr; New
-                  </a>{" "}
-                  before creating a store.
+            {isNew ? (
+              <>
+                <p className="mt-1 text-sm text-muted">
+                  Open the catalogue, filter by category, and tick what this store holds.
+                  At least one product is required before you can save.
                 </p>
-              ) : shownProducts.length === 0 ? (
-                <p className="mt-6 text-sm text-muted">
-                  Nothing matches &ldquo;{productSearch}&rdquo;.
+
+                {state.fieldErrors?.products && (
+                  <p className="mt-2 text-sm text-signal-700">{state.fieldErrors.products}</p>
+                )}
+
+                <div className="mt-4">
+                  <StoreProductPicker
+                    products={products}
+                    rates={rates}
+                    initialPicked={picked}
+                    saveLabel="Confirm selection"
+                    onSave={(ids) => setPicked(ids)}
+                  />
+                </div>
+
+                {/* Compact chips showing what was picked */}
+                {picked.length > 0 && (
+                  <ul className="mt-4 flex flex-wrap gap-2">
+                    {picked.map((id) => {
+                      const p = products.find((x) => x.id === id);
+                      if (!p) return null;
+                      return (
+                        <li
+                          key={id}
+                          className="inline-flex items-center gap-1.5 border border-accent bg-accent-soft px-2.5 py-1 text-xs font-medium text-ink"
+                        >
+                          {p.name}
+                          <button
+                            type="button"
+                            onClick={() => setPicked((c) => c.filter((x) => x !== id))}
+                            aria-label={`Remove ${p.name}`}
+                            className="ml-0.5 text-muted hover:text-signal-700"
+                          >
+                            &times;
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </>
+            ) : (
+              /* Edit mode: only the already-held products */
+              held.length === 0 ? (
+                <p className="mt-2 text-sm text-muted">
+                  No products in this store yet. Add them from the store page.
                 </p>
               ) : (
-                <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {shownProducts.map((product) => {
-                    const isPicked = picked.includes(product.id);
-                    return (
-                      <li key={product.id}>
-                        <button
-                          type="button"
-                          onClick={() => toggleProduct(product.id)}
-                          aria-pressed={isPicked}
-                          className={`relative flex h-full w-full flex-col border p-3 text-left transition-colors ${
-                            isPicked
-                              ? "border-accent bg-accent-soft"
-                              : "border-line bg-surface hover:border-ink"
-                          }`}
-                        >
-                          <span className="relative mb-2 block aspect-square w-full overflow-hidden border border-line bg-surface-subtle">
-                            {product.image ? (
-                              <Image
-                                src={product.image}
-                                alt=""
-                                fill
-                                sizes="(min-width: 1024px) 12rem, 40vw"
-                                className="object-cover"
-                              />
-                            ) : (
-                              <span className="absolute inset-0 flex items-center justify-center text-muted">
-                                <PanelPlaceholder className="h-7 w-7" />
-                              </span>
-                            )}
-                            {isPicked && (
-                              <span className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center bg-accent text-surface">
-                                <CheckIcon className="h-3.5 w-3.5" />
-                              </span>
-                            )}
-                          </span>
-                          <span className="label-tech text-muted">
-                            {categoryLabel(product.category)}
-                          </span>
-                          <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-ink">
-                            {product.name}
-                          </span>
-                          <span className="mt-1 text-sm tabular-nums text-body">
-                            {product.price == null
-                              ? "No price"
-                              : formatPaise(
-                                  displayPricePaise(
-                                    { price: product.price, discountPercent: product.discountPercent } as never,
-                                    rates,
-                                  ),
-                                )}
-                          </span>
-                          {!product.published && (
-                            <span className="mt-1 text-xs text-muted">Not published</span>
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
+                <ul className="mt-3 flex flex-wrap gap-2">
+                  {held.map((p) => (
+                    <li
+                      key={p.id}
+                      className="inline-flex items-center border border-line bg-surface-subtle px-2.5 py-1 text-xs text-body"
+                    >
+                      {p.name}
+                    </li>
+                  ))}
                 </ul>
-              )}
-
-              {picked.length > 0 && (
-                <p className="mt-4 text-sm font-medium text-accent">
-                  {picked.length} product{picked.length === 1 ? "" : "s"} selected
-                </p>
-              )}
-            </div>
+              )
+            )}
           </div>
-        )}
+        </div>
 
-        {/* The buttons sit inside the panel, on its own footer rule, so the
-            form has an end rather than trailing off into the page. */}
+        {/* Footer */}
         <div className="flex flex-wrap items-center gap-3 border-t border-line p-5">
           {isNew && noProductsError && (
             <p className="w-full text-sm text-signal-700">
