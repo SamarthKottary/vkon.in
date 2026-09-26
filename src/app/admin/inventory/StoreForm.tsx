@@ -1,8 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { AlertIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
+import { Badge } from "@/components/ui/Badge";
+import { categoryLabel } from "@/content/taxonomy";
 import type { GstRates } from "@/lib/pricing";
 import type { Store, StorePickup } from "@/lib/types";
 import {
@@ -288,25 +291,51 @@ export function StoreForm({
                   />
                 </div>
 
-                {/* Compact chips showing what was picked */}
+                {/* Product List showing what was picked */}
                 {picked.length > 0 && (
-                  <ul className="mt-4 flex flex-wrap gap-2">
+                  <ul className="mt-4 border-t border-l border-r border-line">
                     {picked.map((id) => {
                       const p = products.find((x) => x.id === id);
                       if (!p) return null;
                       return (
                         <li
                           key={id}
-                          className="inline-flex items-center gap-1.5 border border-accent bg-accent-soft px-2.5 py-1 text-xs font-medium text-ink"
+                          className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface p-4 sm:flex-nowrap sm:gap-4"
                         >
-                          {p.name}
+                          <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+                            <div className="relative h-14 w-14 shrink-0 border border-line bg-surface-subtle">
+                              {p.image ? (
+                                <Image
+                                  src={p.image}
+                                  alt=""
+                                  fill
+                                  sizes="3.5rem"
+                                  className="object-contain p-1"
+                                />
+                              ) : (
+                                <span className="label-tech flex h-full w-full items-center justify-center text-muted">
+                                  —
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="truncate font-medium text-ink">
+                                  {p.name}
+                                </span>
+                                {!p.published && <Badge tone="warn">Draft</Badge>}
+                              </div>
+                              <p className="label-tech mt-1.5 truncate text-muted">
+                                {categoryLabel(p.category)}
+                              </p>
+                            </div>
+                          </div>
                           <button
                             type="button"
                             onClick={() => setPicked((c) => c.filter((x) => x !== id))}
-                            aria-label={`Remove ${p.name}`}
-                            className="ml-0.5 text-muted hover:text-signal-700"
+                            className="inline-flex shrink-0 items-center border border-line-strong px-3 py-2 text-sm text-signal-700 hover:border-signal-700 hover:bg-signal-50"
                           >
-                            &times;
+                            Remove
                           </button>
                         </li>
                       );
@@ -321,13 +350,40 @@ export function StoreForm({
                   No products in this store yet. Add them from the store page.
                 </p>
               ) : (
-                <ul className="mt-3 flex flex-wrap gap-2">
+                <ul className="mt-4 border-t border-l border-r border-line">
                   {held.map((p) => (
                     <li
                       key={p.id}
-                      className="inline-flex items-center border border-line bg-surface-subtle px-2.5 py-1 text-xs text-body"
+                      className="flex flex-wrap items-center gap-3 border-b border-line bg-surface p-4 sm:flex-nowrap sm:gap-4"
                     >
-                      {p.name}
+                      <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+                        <div className="relative h-14 w-14 shrink-0 border border-line bg-surface-subtle">
+                          {p.image ? (
+                            <Image
+                              src={p.image}
+                              alt=""
+                              fill
+                              sizes="3.5rem"
+                              className="object-contain p-1"
+                            />
+                          ) : (
+                            <span className="label-tech flex h-full w-full items-center justify-center text-muted">
+                              —
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate font-medium text-ink">
+                              {p.name}
+                            </span>
+                            {!p.published && <Badge tone="warn">Draft</Badge>}
+                          </div>
+                          <p className="label-tech mt-1.5 truncate text-muted">
+                            {categoryLabel(p.category)}
+                          </p>
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>
