@@ -354,6 +354,16 @@ export async function addStoreProducts(storeId: string, productIds: string[]): P
   }
 }
 
+export async function syncStoreProducts(storeId: string, productIds: string[]): Promise<void> {
+  const ids = [...new Set(productIds.filter(Boolean))];
+  if (ids.length === 0) {
+    await query(`DELETE FROM store_products WHERE store_id = $1`, [storeId]);
+    return;
+  }
+  await query(`DELETE FROM store_products WHERE store_id = $1 AND product_id != ALL($2::text[])`, [storeId, ids]);
+  await addStoreProducts(storeId, ids);
+}
+
 export async function setStoreProductStock(
   id: string,
   qty: number,

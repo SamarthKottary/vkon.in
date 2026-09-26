@@ -16,6 +16,7 @@ import {
   reorderStoreProducts,
   setStoreBlocked,
   setStoreProductStock,
+  syncStoreProducts,
   updateStore,
   type StoreInput,
 } from "@/lib/db/stores";
@@ -197,6 +198,17 @@ export async function updateStoreAction(
   const fieldErrors = validate(input);
   if (Object.keys(fieldErrors).length) return { fieldErrors, values };
 
+  const picked = String(formData.get("productIds") ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (!picked.length) {
+    return {
+      fieldErrors: { products: "Select at least one product before saving." },
+      values,
+    };
+  }
+
   const result = await updateStore(id, input);
   if (!result.ok) {
     return {
@@ -207,6 +219,8 @@ export async function updateStoreAction(
       values,
     };
   }
+
+  await syncStoreProducts(result.store.id, picked);
 
   revalidateStore(result.store.slug);
   redirect(`/admin/inventory/${result.store.slug}`);

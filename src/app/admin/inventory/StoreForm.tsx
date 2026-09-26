@@ -66,8 +66,8 @@ export function StoreForm({
 
   const form = useRef<HTMLFormElement | null>(null);
 
-  /* Products chosen in the picker dialog (new store only). */
-  const [picked, setPicked] = useState<string[]>([]);
+  /* Products chosen in the picker dialog. */
+  const [picked, setPicked] = useState<string[]>(() => held?.map((p) => p.id) ?? []);
 
   /* What the fields hold. Controlled, because Fetch writes into them: an
      uncontrolled form would need the DOM poked at, and the values have to
@@ -138,8 +138,8 @@ export function StoreForm({
     }`;
 
   const isNew = !store;
-  /* Save is blocked until at least one product is chosen (new store only). */
-  const noProductsError = isNew && picked.length === 0;
+  /* Save is blocked until at least one product is chosen. */
+  const noProductsError = picked.length === 0;
 
   return (
     <div className="space-y-6">
@@ -261,100 +261,44 @@ export function StoreForm({
         </div>
 
         {/* ── Products section ──────────────────────────────────────────────
-            New store: picker dialog button + chips of what was chosen.
-            Edit store: compact read-only list of the products already held
-            (client: "in edit page only show selected product"). */}
+            Picker dialog button + detailed list of chosen products. */}
         <div className="border-t border-line">
           <div className="p-5">
             <h2 className="text-base font-semibold text-ink">
-              Products{isNew && <span className="text-signal-500"> *</span>}
+              Products<span className="text-signal-500"> *</span>
             </h2>
 
-            {isNew ? (
-              <>
-                <p className="mt-1 text-sm text-muted">
-                  Open the catalogue, filter by category, and tick what this store holds.
-                  At least one product is required before you can save.
-                </p>
+            <p className="mt-1 text-sm text-muted">
+              Open the catalogue, filter by category, and tick what this store holds.
+              At least one product is required before you can save.
+            </p>
 
-                {state.fieldErrors?.products && (
-                  <p className="mt-2 text-sm text-signal-700">{state.fieldErrors.products}</p>
-                )}
+            {state.fieldErrors?.products && (
+              <p className="mt-2 text-sm text-signal-700">{state.fieldErrors.products}</p>
+            )}
 
-                <div className="mt-4">
-                  <StoreProductPicker
-                    products={products}
-                    rates={rates}
-                    initialPicked={picked}
-                    saveLabel="Confirm selection"
-                    onSave={(ids) => setPicked(ids)}
-                  />
-                </div>
+            <div className="mt-4">
+              <StoreProductPicker
+                products={products}
+                rates={rates}
+                initialPicked={picked}
+                saveLabel="Confirm selection"
+                onSave={(ids) => setPicked(ids)}
+              />
+            </div>
 
-                {/* Product List showing what was picked */}
-                {picked.length > 0 && (
-                  <ul className="mt-4 border-t border-l border-r border-line">
-                    {picked.map((id) => {
-                      const p = products.find((x) => x.id === id);
-                      if (!p) return null;
-                      return (
-                        <li
-                          key={id}
-                          className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface p-4 sm:flex-nowrap sm:gap-4"
-                        >
-                          <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
-                            <div className="relative h-14 w-14 shrink-0 border border-line bg-surface-subtle">
-                              {p.image ? (
-                                <Image
-                                  src={p.image}
-                                  alt=""
-                                  fill
-                                  sizes="3.5rem"
-                                  className="object-contain p-1"
-                                />
-                              ) : (
-                                <span className="label-tech flex h-full w-full items-center justify-center text-muted">
-                                  —
-                                </span>
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="truncate font-medium text-ink">
-                                  {p.name}
-                                </span>
-                                {!p.published && <Badge tone="warn">Draft</Badge>}
-                              </div>
-                              <p className="label-tech mt-1.5 truncate text-muted">
-                                {categoryLabel(p.category)}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setPicked((c) => c.filter((x) => x !== id))}
-                            className="inline-flex shrink-0 items-center border border-line-strong px-3 py-2 text-sm text-signal-700 hover:border-signal-700 hover:bg-signal-50"
-                          >
-                            Remove
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </>
-            ) : (
-              /* Edit mode: only the already-held products */
-              held.length === 0 ? (
-                <p className="mt-2 text-sm text-muted">
-                  No products in this store yet. Add them from the store page.
-                </p>
-              ) : (
-                <ul className="mt-4 border-t border-l border-r border-line">
-                  {held.map((p) => (
+            <input type="hidden" name="productIds" value={picked.join(",")} />
+
+            {/* Product List showing what was picked */}
+            {picked.length > 0 && (
+              <ul className="mt-4 border-t border-l border-r border-line">
+                {picked.map((id) => {
+                  const p = products.find((x) => x.id === id);
+                  if (!p) return null;
+                  return (
                     <li
-                      key={p.id}
-                      className="flex flex-wrap items-center gap-3 border-b border-line bg-surface p-4 sm:flex-nowrap sm:gap-4"
+                      key={id}
+                      className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface p-4 sm:flex-nowrap sm:gap-4"
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
                         <div className="relative h-14 w-14 shrink-0 border border-line bg-surface-subtle">
@@ -384,22 +328,29 @@ export function StoreForm({
                           </p>
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setPicked((c) => c.filter((x) => x !== id))}
+                        className="inline-flex shrink-0 items-center border border-line-strong px-3 py-2 text-sm text-signal-700 hover:border-signal-700 hover:bg-signal-50"
+                      >
+                        Remove
+                      </button>
                     </li>
-                  ))}
-                </ul>
-              )
+                  );
+                })}
+              </ul>
             )}
           </div>
         </div>
 
         {/* Footer */}
         <div className="flex flex-wrap items-center gap-3 border-t border-line p-5">
-          {isNew && noProductsError && (
+          {noProductsError && (
             <p className="w-full text-sm text-signal-700">
               Select at least one product before saving.
             </p>
           )}
-          <SaveButton label={store ? "Save changes" : "Save store"} disabled={isNew && noProductsError} />
+          <SaveButton label={store ? "Save changes" : "Save store"} disabled={noProductsError} />
         </div>
       </form>
       </div>

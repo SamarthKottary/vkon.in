@@ -25,7 +25,7 @@ export default async function EditStorePage({
   ]);
   const held = allProducts.filter((p) => heldIds.includes(p.id));
 
-  const pickerHeld = held.map((product) => ({
+  const pickerProducts = allProducts.map((product) => ({
     id: product.id,
     name: product.name,
     category: product.category,
@@ -34,6 +34,7 @@ export default async function EditStorePage({
     discountPercent: product.discountPercent,
     published: product.published,
   }));
+  const pickerHeld = pickerProducts.filter((p) => heldIds.includes(p.id));
 
   return (
     <Container size="wide">
@@ -59,7 +60,7 @@ export default async function EditStorePage({
       )}
 
       <div className="mt-6 max-w-4xl">
-        <StoreForm store={store} products={[]} held={pickerHeld} rates={rates} />
+        <StoreForm store={store} products={pickerProducts} held={pickerHeld} rates={rates} />
       </div>
     </Container>
   );
