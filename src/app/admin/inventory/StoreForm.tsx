@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import { AlertIcon, CheckIcon, SpinnerIcon } from "@/components/icons/ui";
 import { Badge } from "@/components/ui/Badge";
 import { categoryLabel } from "@/content/taxonomy";
-import type { GstRates } from "@/lib/pricing";
+import { displayPricePaise, formatPaise, type GstRates } from "@/lib/pricing";
 import type { Store, StorePickup } from "@/lib/types";
 import {
   createStoreAction,
@@ -327,6 +327,8 @@ export function StoreForm({
                           </div>
                           <p className="label-tech mt-1.5 truncate text-muted">
                             {categoryLabel(p.category)}
+                            {p.price != null &&
+                              ` · ${formatPaise(displayPricePaise(p as any, rates))}`}
                           </p>
                         </div>
                       </div>
