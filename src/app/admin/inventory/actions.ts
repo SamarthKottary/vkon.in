@@ -326,19 +326,3 @@ export async function reorderStoreProductsAction(storeId: string, ids: string[])
   await reorderStoreProducts(store.id, ids.filter((id) => held.has(id)));
   revalidateStore(store.slug);
 }
-
-export async function impersonateStoreAction(formData: FormData): Promise<void> {
-  await requireInventory();
-  
-  const id = String(formData.get("id") ?? "");
-  const slug = String(formData.get("slug") ?? "");
-  
-  const store = await getStoreById(id);
-  if (!store || store.blockedAt) {
-    redirect("/admin/inventory");
-  }
-
-  const { issueStoreSession } = await import("@/lib/store-auth");
-  await issueStoreSession(id);
-  redirect(`/${slug}`);
-}
