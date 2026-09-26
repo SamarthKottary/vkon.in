@@ -80,11 +80,7 @@ export function StoreProductPicker({
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) {
-      setPicked(initialPicked ?? []);
-    }
-  }, [open, initialPicked]);
+
 
   /* Which category keys actually appear in the catalogue being shown. */
   const presentCats = Array.from(new Set(products.map((p) => p.category)));
@@ -114,15 +110,20 @@ export function StoreProductPicker({
 
   const close = () => setOpen(false);
 
-  /* Newly-chosen products (not already held). */
-  const newCount = picked.filter((id) => !alreadyHeld.has(id)).length;
+  /* When closed, use the parent's source of truth so the button count is always correct.
+     When open, use our internal state so the user can freely tick/untick before saving. */
+  const activePicked = open ? picked : (initialPicked ?? []);
+  const newCount = activePicked.filter((id) => !alreadyHeld.has(id)).length;
 
   return (
     <>
       {/* Trigger button — accent-filled and shows count when something is picked */}
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setPicked(initialPicked ?? []);
+          setOpen(true);
+        }}
         disabled={disabled}
         className={`inline-flex h-10 items-center gap-2 border px-4 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
           newCount > 0
